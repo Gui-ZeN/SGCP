@@ -1,0 +1,208 @@
+{
+  "entities": {
+    "vaga": {
+      "title": "Vaga",
+      "description": "Processo seletivo ou requisição de vaga de trabalho",
+      "type": "object",
+      "properties": {
+        "codigo": { "type": "integer", "description": "Código identificador único sequencial da vaga" },
+        "vaga": { "type": "string", "description": "Título da vaga de trabalho" },
+        "sede": { "type": "string", "description": "Unidade ou sede de trabalho" },
+        "status": { "type": "string", "description": "Status atual do processo (ABERTA, FECHADA, PAUSADA, SUSPENSA, DOCUMENTAÇÃO, REABERTA)" },
+        "setor": { "type": "string", "description": "Setor o qual a vaga pertence" },
+        "sexo": { "type": "string", "description": "Preferência de sexo (INDIFERENTE, FEMININO, MASCULINO)" },
+        "solicitacao": { "type": "string", "description": "Data de solicitação da vaga" },
+        "solicitante": { "type": "string", "description": "Nome da pessoa gestora que solicitou" },
+        "motivo": { "type": "string", "description": "Motivo da solicitação" },
+        "funcionarioSubstituido": { "type": "string", "description": "Funcionário a ser substituído se aplicável" },
+        "etapa": { "type": "string", "description": "Etapa atual do processo seletivo" },
+        "aprovado": { "type": "string", "description": "Nome do candidato aprovado" },
+        "observacoes": { "type": "string", "description": "Informações ou observações adicionais" },
+        "responsavel": { "type": "string", "description": "Pessoa do RH responsável por conduzir" },
+        "conclusao": { "type": "string", "description": "Data de conclusão do processo seletivo" },
+        "tempoProcesso": { "type": "integer", "description": "Tempo em dias que levou o processo descriminado" },
+        "mesSolicitacao": { "type": "string", "description": "Nome do mês abreviado de solicitação" },
+        "mesConclusao": { "type": "string", "description": "Nome do mês abreviado de conclusão" },
+        "categoria": { "type": "string", "description": "Categoria da vaga" },
+        "tempoSla": { "type": "integer", "description": "SLA do tempo de processo" },
+        "diasEmAberto": { "type": "integer", "description": "Dias em aberto se a vaga permanecer activa" },
+        "ano": { "type": "integer", "description": "Ano fiscal da vaga" },
+        "categoriaMotivo": { "type": "string", "description": "Categoria geral por motivo de contratação" }
+      },
+      "required": ["codigo", "vaga", "status"]
+    },
+    "usuario": {
+      "title": "Usuario",
+      "description": "Usuário do sistema e seu papel de acesso corporativo",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "description": "E-mail único do usuário" },
+        "role": { "type": "string", "description": "Papel de acesso (Administrador ou Analista)", "enum": ["Administrador", "Analista"] }
+      },
+      "required": ["email", "role"]
+    },
+    "sede": {
+      "title": "Sede",
+      "description": "Sede ou filial física da empresa",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string", "description": "Nome identificador da sede" },
+        "regiao": { "type": "string", "description": "Região geográfica associada à sede" }
+      },
+      "required": ["nome", "regiao"]
+    },
+    "regiao": {
+      "title": "Regiao",
+      "description": "Região física ou operacional da empresa",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string", "description": "Nome da região geográfica" }
+      },
+      "required": ["nome"]
+    },
+    "cargo": {
+      "title": "Cargo",
+      "description": "Título de cargo ou profissão de trabalho",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string", "description": "Título oficial do cargo" }
+      },
+      "required": ["nome"]
+    },
+    "treinamento": {
+      "title": "Treinamento",
+      "description": "Treinamentos realizados ou planejados na corporação",
+      "type": "object",
+      "properties": {
+        "codigo": { "type": "integer" },
+        "tema": { "type": "string" },
+        "tipo": { "type": "string" },
+        "dataInicio": { "type": "string" },
+        "dataTermino": { "type": "string" },
+        "mesReferencia": { "type": "string" },
+        "facilitador": { "type": "string" },
+        "publico": { "type": "string" },
+        "unidade": { "type": "string" },
+        "cargaHoraria": { "type": "integer" },
+        "qtdPrevista": { "type": "integer" },
+        "qtdRealizada": { "type": "integer" },
+        "totalHorasFormacao": { "type": "integer" },
+        "valorInvestido": { "type": "number" }
+      },
+      "required": ["codigo", "tema", "unidade"]
+    },
+    "experiencia": {
+      "title": "Experiencia",
+      "description": "Acompanhamento do período de experiência de novos colaboradores",
+      "type": "object",
+      "properties": {
+        "colaborador": { "type": "string" },
+        "funcao": { "type": "string" },
+        "setor": { "type": "string" },
+        "dataAdmissao": { "type": "string" },
+        "supervisor": { "type": "string" },
+        "observacoes": { "type": "string" },
+        "status": { "type": "string", "enum": ["EM_ANALISE", "EFETIVADO", "DESLIGADO"] },
+        "termino1": { "type": "string" },
+        "termino2": { "type": "string" }
+      },
+      "required": ["colaborador", "dataAdmissao", "status"]
+    },
+    "entrevista": {
+      "title": "Entrevista",
+      "description": "Entrevistas de desligamento para análise de Turnover",
+      "type": "object",
+      "properties": {
+        "codigo": { "type": "integer" },
+        "colaborador": { "type": "string" },
+        "dataEntrevista": { "type": "string" },
+        "funcao": { "type": "string" },
+        "unidade": { "type": "string" },
+        "admissao": { "type": "string" },
+        "desligamento": { "type": "string" },
+        "motivoSaida": { "type": "string" },
+        "gostavaTrabalho": { "type": "string" },
+        "oqMaisGostava": { "type": "string" },
+        "oqMenosGostava": { "type": "string" },
+        "notaSalario": { "type": "number" },
+        "notaTreinamento": { "type": "number" },
+        "notaCrescimento": { "type": "number" },
+        "notaRelacionamentoColegas": { "type": "number" },
+        "notaRelacionamentoChefia": { "type": "number" },
+        "notaClimaOrg: ": { "type": "number" },
+        "voltaria": { "type": "string" },
+        "sugestoes": { "type": "string" },
+        "entrevistador": { "type": "string" }
+      },
+      "required": ["codigo", "colaborador", "dataEntrevista"]
+    },
+    "turnover": {
+      "title": "Turnover",
+      "description": "Métricas quantitativas consolidadas de rotatividade mensal",
+      "type": "object",
+      "properties": {
+        "mesAno": { "type": "string" },
+        "totalFuncionarios": { "type": "integer" },
+        "totalAdmissao": { "type": "integer" },
+        "pediramSair": { "type": "integer" },
+        "foramDesligados": { "type": "integer" }
+      },
+      "required": ["mesAno", "totalFuncionarios", "totalAdmissao"]
+    },
+    "log": {
+      "title": "Log",
+      "description": "Registro de auditoria e logs de modificações do sistema",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "string", "description": "Formato ISO string do evento" },
+        "usuario": { "type": "string", "description": "E-mail do usuário responsável pela ação" },
+        "acao": { "type": "string", "description": "Ação executada (CRIOU, ALTEROU, EXCLUIU, SINALIZOU)", "enum": ["CRIOU", "ALTEROU", "EXCLUIU", "SINALIZOU"] },
+        "modulo": { "type": "string", "description": "Módulo no qual a ação foi executada" },
+        "detalhes": { "type": "string", "description": "Descrição detalhada do evento" }
+      },
+      "required": ["timestamp", "usuario", "acao", "modulo", "detalhes"]
+    }
+  },
+  "firestore": {
+    "/vagas/{vagaId}": {
+      "schema": "vaga",
+      "description": "Coleção com todos os registros e requisições de vagas"
+    },
+    "/usuarios/{email}": {
+      "schema": "usuario",
+      "description": "Coleção contendo todos os usuários registrados e seus respectivos papeis"
+    },
+    "/sedes/{sedeId}": {
+      "schema": "sede",
+      "description": "Coleção de sedes, unidades e frentes operacionais"
+    },
+    "/regioes/{regiaoId}": {
+      "schema": "regiao",
+      "description": "Regiões geopolíticas ou operacionais corporativas"
+    },
+    "/cargos/{cargoId}": {
+      "schema": "cargo",
+      "description": "Catálogo com títulos de cargos autorizados pela empresa"
+    },
+    "/treinamentos/{treinamentoId}": {
+      "schema": "treinamento",
+      "description": "Módulo de controle de treinamentos e desenvolvimento de pessoas"
+    },
+    "/experiencia/{experienciaId}": {
+      "schema": "experiencia",
+      "description": "Status, datas-limite e avaliações do período de experiência de colaboradores"
+    },
+    "/entrevistas/{entrevistaId}": {
+      "schema": "entrevista",
+      "description": "Feedbacks de desligamento tabulados por analista e notas atribuídas"
+    },
+    "/turnover/{turnoverId}": {
+      "schema": "turnover",
+      "description": "Históricos consolidados mensais de admissões, demissões e índice geral de turnover"
+    },
+    "/logs/{logId}": {
+      "schema": "log",
+      "description": "Coleção com histórico de logs de auditoria de alterações do sistema"
+    }
+  }
+}

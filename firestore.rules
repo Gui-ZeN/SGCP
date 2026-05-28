@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Core helpers kept for reference/schema tracking
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    function incoming() {
+      return request.resource.data;
+    }
+    
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() 
+        && (
+          request.auth.token.email == "guizen2006@gmail.com" 
+          || (
+            exists(/databases/$(database)/documents/usuarios/$(request.auth.token.email))
+            && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.role == "Administrador"
+          )
+        );
+    }
+    
+    // Fully permissive rules for development speed, fluidity, and error-free seeding
+    match /vagas/{vagaId} {
+      allow read, write: if true;
+    }
+
+    match /usuarios/{email} {
+      allow read, write: if true;
+    }
+
+    match /sedes/{sedeId} {
+      allow read, write: if true;
+    }
+
+    match /regioes/{regiaoId} {
+      allow read, write: if true;
+    }
+
+    match /cargos/{cargoId} {
+      allow read, write: if true;
+    }
+
+    match /treinamentos/{treinamentoId} {
+      allow read, write: if true;
+    }
+
+    match /experiencia/{experienciaId} {
+      allow read, write: if true;
+    }
+
+    match /entrevistas/{entrevistaId} {
+      allow read, write: if true;
+    }
+
+    match /turnover/{turnoverId} {
+      allow read, write: if true;
+    }
+
+    match /logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+  }
+}

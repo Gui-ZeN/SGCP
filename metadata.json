@@ -1,0 +1,6 @@
+{
+  "name": "SGPC - Sistema de Gestão de Pessoas Christus",
+  "description": "Sistema de Gestão de Pessoas Christus (SGPC) com módulos de recrutamento, treinamentos, entrevistas de desligamento, avaliação de experiência e turnover.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
