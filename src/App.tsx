@@ -33,7 +33,8 @@ import {
   ShieldCheck,
   HeartCrack,
   Percent,
-  User
+  User,
+  Users
 } from 'lucide-react';
 import { auth, googleProvider, isFirebaseEnabled } from './lib/firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
@@ -434,11 +435,14 @@ export default function App() {
         {/* Logo and Dynamic Screen Name */}
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-orange-500 rounded-xl flex items-center justify-center shadow-md shadow-orange-500/10 shrink-0">
-            <Briefcase className="w-5 h-5 text-white" />
+            <Users className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-sm font-extrabold text-slate-800 tracking-tight leading-none">
-              SGPC <span className="text-[9px] font-bold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-md border border-orange-200 ml-1">v1.2.0</span>
+            <h1 className="text-sm font-extrabold text-slate-800 tracking-tight leading-none flex items-center gap-1">
+              <span>SGPC</span>
+              <span className="hidden sm:inline text-xs font-semibold text-slate-400 mx-0.5">|</span>
+              <span className="hidden sm:inline text-xs font-medium text-slate-500">Sistema Integrado de Gestão de Talentos</span>
+              <span className="text-[9px] font-bold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-md border border-orange-200 ml-1 shrink-0">v1.2.0</span>
             </h1>
             <p className="text-[11px] text-slate-500 font-bold mt-1 leading-none uppercase tracking-wider">
               {activeTab === 'dashboard' && 'Painel de Indicadores'}

@@ -128,14 +128,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         {/* Upper Brand Badge */}
         <div className="flex items-center gap-3.5 z-10 shrink-0">
           <div className="w-11 h-11 bg-orange-500 bg-gradient-to-tr from-orange-600 to-orange-450 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20">
-            <Briefcase className="w-6 h-6 text-white" />
+            <Users className="w-6 h-6 text-white" />
           </div>
           <div>
             <h2 className="text-sm font-black text-slate-800 tracking-tight leading-none uppercase">
               SGPC <span className="text-[9px] bg-orange-500/10 text-orange-600 px-1.5 py-0.5 rounded-md border border-orange-500/20 ml-1 font-extrabold uppercase">ATS</span>
             </h2>
             <p className="text-[10px] text-slate-450 font-bold tracking-wider uppercase mt-1">
-              Plataforma de Desenvolvimento e Atração
+              Sistema Integrado de Gestão de Talentos
             </p>
           </div>
         </div>
@@ -250,7 +250,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           {/* Logo only on mobile */}
           <div className="flex lg:hidden items-center gap-3 mb-8 justify-center">
             <div className="w-10 h-10 bg-orange-600 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20">
-              <Briefcase className="w-5.5 h-5.5 text-white" />
+              <Users className="w-5.5 h-5.5 text-white" />
             </div>
             <div>
               <h2 className="text-sm font-black text-slate-800 tracking-tight leading-none uppercase">
