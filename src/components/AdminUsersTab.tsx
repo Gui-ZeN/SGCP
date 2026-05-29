@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, HelpCircle } from 'lucide-react';
+import { Plus, Trash2, HelpCircle, Edit, X } from 'lucide-react';
 import { Usuario, Sede } from '../hooks/useMetadata';
 
 interface AdminUsersTabProps {
@@ -7,6 +7,7 @@ interface AdminUsersTabProps {
   sedes: Sede[];
   currentUserEmail: string;
   addUsuario: (email: string, role: 'Administrador' | 'Analista', sede?: string) => Promise<void>;
+  updateUsuario: (id: string, email: string, role: 'Administrador' | 'Analista', sede?: string) => Promise<void>;
   deleteUsuario: (id: string) => Promise<void>;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
 }
@@ -16,6 +17,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   sedes,
   currentUserEmail,
   addUsuario,
+  updateUsuario,
   deleteUsuario,
   confirmAction
 }) => {
@@ -23,23 +25,34 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   const [userRole, setUserRole] = useState<'Administrador' | 'Analista'>('Analista');
   const [userSede, setUserSede] = useState<string>('DT');
   const [busy, setBusy] = useState(false);
+  const [editingUser, setEditingUser] = useState<Usuario | null>(null);
 
   // Set first available sede as default
   React.useEffect(() => {
-    if (sedes && sedes.length > 0) {
+    if (!editingUser && sedes && sedes.length > 0) {
       // Find if DT is available, otherwise pick the first
       const hasDT = sedes.some(s => s.nome === 'DT');
       setUserSede(hasDT ? 'DT' : sedes[0].nome);
     }
-  }, [sedes]);
+  }, [sedes, editingUser]);
 
-  const handleAddUser = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userEmail.trim()) return;
     setBusy(true);
     try {
-      await addUsuario(userEmail.toLowerCase().trim(), userRole, userSede);
+      if (editingUser) {
+        await updateUsuario(editingUser.id || editingUser.email, userEmail.toLowerCase().trim(), userRole, userSede);
+        setEditingUser(null);
+      } else {
+        await addUsuario(userEmail.toLowerCase().trim(), userRole, userSede);
+      }
       setUserEmail('');
+      setUserRole('Analista');
+      if (sedes && sedes.length > 0) {
+        const hasDT = sedes.some(s => s.nome === 'DT');
+        setUserSede(hasDT ? 'DT' : sedes[0].nome);
+      }
     } catch (err) {
       console.error(err);
       alert("Erro ao salvar usuário.");
@@ -48,14 +61,37 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
     }
   };
 
+  const startEdit = (u: Usuario) => {
+    setEditingUser(u);
+    setUserEmail(u.email);
+    setUserRole(u.role);
+    setUserSede(u.sede || 'DT');
+  };
+
+  const cancelEdit = () => {
+    setEditingUser(null);
+    setUserEmail('');
+    setUserRole('Analista');
+    if (sedes && sedes.length > 0) {
+      const hasDT = sedes.some(s => s.nome === 'DT');
+      setUserSede(hasDT ? 'DT' : sedes[0].nome);
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div className="md:col-span-1 bg-slate-50/70 p-5 rounded-2xl border border-slate-100 flex flex-col justify-between">
         <div>
-          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-1">Novo Usuário</h3>
-          <p className="text-xs text-slate-400 font-medium mb-4">Adicione um novo colaborador com privilégios de acesso e sede específica.</p>
+          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-1">
+            {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
+          </h3>
+          <p className="text-xs text-slate-400 font-medium mb-4">
+            {editingUser 
+              ? 'Altere o papel de acesso ou a sede vinculada à conta do colaborador.' 
+              : 'Adicione um novo colaborador com privilégios de acesso e sede específica.'}
+          </p>
           
-          <form onSubmit={handleAddUser} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-500 uppercase">E-mail Corporativo</label>
               <input
@@ -103,14 +139,30 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
               </select>
             </div>
 
-            <button
-              type="submit"
-              disabled={busy || !userEmail.trim()}
-              className="w-full mt-2 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition shrink-0 flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              Cadastrar
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={busy || !userEmail.trim()}
+                className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition shrink-0 flex items-center justify-center gap-1.5 cursor-pointer text-white ${
+                  editingUser 
+                    ? 'bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300' 
+                    : 'bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300'
+                }`}
+              >
+                {editingUser ? <Edit className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                {editingUser ? 'Salvar' : 'Cadastrar'}
+              </button>
+              {editingUser && (
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  className="py-3 px-3 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-xl text-xs font-bold uppercase tracking-wider transition flex items-center justify-center cursor-pointer"
+                  title="Cancelar Edição"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </form>
         </div>
 
@@ -130,7 +182,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                 <th className="px-5 py-3">E-mail</th>
                 <th className="px-5 py-3">Nível</th>
                 <th className="px-5 py-3">Sede</th>
-                <th className="px-5 py-3 text-right">Ação</th>
+                <th className="px-5 py-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
@@ -157,29 +209,38 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    <button
-                      onClick={() => {
-                        if (u.email && currentUserEmail && u.email.toLowerCase() === currentUserEmail.toLowerCase()) {
-                          alert("Você não pode deletar sua própria conta de administrador!");
-                          return;
-                        }
-                        if (confirmAction) {
-                          confirmAction(
-                            "Excluir Usuário",
-                            `Você tem certeza de que deseja remover o usuário "${u.email}" do sistema? Esta pessoa perderá acesso imediato às permissões do ATS.`,
-                            () => deleteUsuario(u.id || u.email)
-                          );
-                        } else {
-                          if (confirm(`Excluir conta do usuário ${u.email}?`)) {
-                            deleteUsuario(u.id || u.email);
+                    <div className="flex items-center justify-end gap-2.5">
+                      <button
+                        onClick={() => startEdit(u)}
+                        className="p-1 px-2.5 border border-slate-200 bg-white rounded-lg hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 transition text-[10px] uppercase tracking-wider font-bold text-slate-500 cursor-pointer flex items-center gap-1"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (u.email && currentUserEmail && u.email.toLowerCase() === currentUserEmail.toLowerCase()) {
+                            alert("Você não pode deletar sua própria conta de administrador!");
+                            return;
                           }
-                        }
-                      }}
-                      className="p-1 px-2.5 border border-slate-200 rounded-lg hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 transition text-[10px] uppercase tracking-wider font-bold text-slate-400 cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 inline mr-1" />
-                      Excluir
-                    </button>
+                          if (confirmAction) {
+                            confirmAction(
+                              "Excluir Usuário",
+                              `Você tem certeza de que deseja remover o usuário "${u.email}" do sistema? Esta pessoa perderá acesso imediato às permissões do ATS.`,
+                              () => deleteUsuario(u.id || u.email)
+                            );
+                          } else {
+                            if (confirm(`Excluir conta do usuário ${u.email}?`)) {
+                              deleteUsuario(u.id || u.email);
+                            }
+                          }
+                        }}
+                        className="p-1 px-2.5 border border-slate-200 bg-white rounded-lg hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 transition text-[10px] uppercase tracking-wider font-bold text-slate-500 cursor-pointer flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Excluir
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -25,6 +25,7 @@ interface AdminPanelProps {
   setores: Setor[];
   logs: SystemLog[];
   addUsuario: (email: string, role: 'Administrador' | 'Analista', sede?: string) => Promise<void>;
+  updateUsuario: (id: string, email: string, role: 'Administrador' | 'Analista', sede?: string) => Promise<void>;
   deleteUsuario: (id: string) => Promise<void>;
   addSede: (nome: string, regiao: string, sigla?: string) => Promise<void>;
   updateSede: (id: string, nome: string, regiao: string, sigla?: string) => Promise<void>;
@@ -48,6 +49,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   setores,
   logs,
   addUsuario,
+  updateUsuario,
   deleteUsuario,
   addSede,
   updateSede,
@@ -154,6 +156,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             sedes={sedes}
             currentUserEmail={currentUserEmail}
             addUsuario={addUsuario}
+            updateUsuario={updateUsuario}
             deleteUsuario={deleteUsuario}
             confirmAction={confirmAction}
           />

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Background Rounded Rect -->
+  <rect width="32" height="32" rx="8" fill="#f97316" />
+  
+  <!-- Group of Users (Silhouettes) -->
+  <g fill="#ffffff">
+    <!-- Left/Back Person -->
+    <path d="M11 19c-2.2 0-4 1.8-4 4v1h8v-1c0-2.2-1.8-4-4-4zm0-6c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" opacity="0.8" />
+    <!-- Right/Front Person -->
+    <path d="M21 17c-2.2 0-4 1.8-4 4v1h8v-1c0-2.2-1.8-4-4-4zm0-6c-1.66 0-3 1.34-3 3 s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+  </g>
+</svg>

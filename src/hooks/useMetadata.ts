@@ -359,6 +359,41 @@ export function useMetadata(currentUser: any) {
     }
   };
 
+  const updateUsuario = async (id: string, email: string, role: 'Administrador' | 'Analista', sede?: string) => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) return;
+
+    if (usingFirebase && db) {
+      try {
+        if (id !== cleanEmail) {
+          await deleteDoc(doc(db, 'usuarios', id));
+          await setDoc(doc(db, 'usuarios', cleanEmail), {
+            email: cleanEmail,
+            role,
+            sede: sede || ''
+          });
+        } else {
+          await setDoc(doc(db, 'usuarios', id), {
+            email: cleanEmail,
+            role,
+            sede: sede || ''
+          });
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `usuarios/${id}`);
+      }
+    } else {
+      const updated = usuarios.map(u => {
+        if (u.id === id || u.email === id) {
+          return { ...u, email: cleanEmail, role, sede: sede || '' };
+        }
+        return u;
+      });
+      setUsuarios(updated);
+      localStorage.setItem(USERS_LOCAL_KEY, JSON.stringify(updated));
+    }
+  };
+
   // Operations: Sede
   const addSede = async (nome: string, regiao: string, sigla?: string) => {
     const cleanNome = nome.trim();
@@ -570,6 +605,7 @@ export function useMetadata(currentUser: any) {
     selectedSede,
     setSelectedSede: changeSelectedSede,
     addUsuario,
+    updateUsuario,
     deleteUsuario,
     addSede,
     updateSede,

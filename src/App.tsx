@@ -67,6 +67,7 @@ export default function App() {
     selectedSede,
     setSelectedSede,
     addUsuario, 
+    updateUsuario,
     deleteUsuario, 
     addSede, 
     updateSede,
@@ -229,6 +230,12 @@ export default function App() {
     executeWithLoading("Cadastrando novo perfil de usuário autorizado...", async () => {
       await addUsuario(email, role, sede);
       await logAction('CRIOU', 'Usuários', `Usuário "${email}" convidado como "${role}" na unidade "${sede || 'DT'}".`);
+    });
+
+  const wrappedUpdateUsuario = (id: string, email: string, role: 'Administrador' | 'Analista', sede?: string) => 
+    executeWithLoading("Atualizando dados do usuário...", async () => {
+      await updateUsuario(id, email, role, sede);
+      await logAction('ALTEROU', 'Usuários', `Dados do usuário "${email}" atualizados para papel "${role}" e sede "${sede || 'DT'}".`);
     });
 
   const wrappedDeleteUsuario = (id: string) => 
@@ -793,6 +800,7 @@ export default function App() {
                 setores={setores || []}
                 logs={logs || []}
                 addUsuario={wrappedAddUsuario}
+                updateUsuario={wrappedUpdateUsuario}
                 deleteUsuario={wrappedDeleteUsuario}
                 addSede={wrappedAddSede}
                 updateSede={wrappedUpdateSede}
