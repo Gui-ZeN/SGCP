@@ -277,7 +277,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       await addExperiencia({
         colaborador: candidato.trim(),
         funcao: vagaToConclude.vaga,
-        setor: vagaToConclude.sede, // Storing Sede/Setor as 'setor' in experiencia is standard?
+        setor: vagaToConclude.setor || '',
+        sede: vagaToConclude.sede,
         dataAdmissao: finalAdmissao,
         supervisor: vagaToConclude.solicitante || '', // Requester as default supervisor
         status: 'EM_ANALISE',
@@ -1255,10 +1256,11 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                                       }
                                     }
                                   }}
-                                  className="p-1 text-rose-500 hover:bg-rose-50 hover:text-rose-700 rounded-lg cursor-pointer transition border border-transparent hover:border-rose-100"
+                                  className="p-1.5 px-2.5 text-rose-600 bg-rose-50/50 border border-rose-150 hover:border-rose-300 hover:bg-rose-50 shadow-sm rounded-xl text-[10px] font-bold cursor-pointer inline-flex items-center gap-1 transition"
                                   title="Deletar permanentemente"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                  Excluir
                                 </button>
                               </>
                             )}
@@ -1644,10 +1646,11 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                         }
                       }
                     }}
-                    className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white rounded-xl cursor-pointer transition border border-rose-100"
+                    className="px-4 py-2 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer transition"
                     title="Excluir Vaga"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Excluir Vaga
                   </button>
                 </div>
               )}

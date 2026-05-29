@@ -22,18 +22,30 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
+// Support Vercel environment variables or local applet configs seamlessly
+const finalFirebaseConfig = {
+  projectId: ((import.meta as any).env?.VITE_FIREBASE_PROJECT_ID as string) || firebaseConfig?.projectId || "",
+  appId: ((import.meta as any).env?.VITE_FIREBASE_APP_ID as string) || firebaseConfig?.appId || "",
+  apiKey: ((import.meta as any).env?.VITE_FIREBASE_API_KEY as string) || firebaseConfig?.apiKey || "",
+  authDomain: ((import.meta as any).env?.VITE_FIREBASE_AUTH_DOMAIN as string) || firebaseConfig?.authDomain || "",
+  firestoreDatabaseId: ((import.meta as any).env?.VITE_FIREBASE_DATABASE_ID as string) || firebaseConfig?.firestoreDatabaseId || "",
+  storageBucket: ((import.meta as any).env?.VITE_FIREBASE_STORAGE_BUCKET as string) || firebaseConfig?.storageBucket || "",
+  messagingSenderId: ((import.meta as any).env?.VITE_FIREBASE_MESSAGING_SENDER_ID as string) || firebaseConfig?.messagingSenderId || "",
+  measurementId: ((import.meta as any).env?.VITE_FIREBASE_MEASUREMENT_ID as string) || firebaseConfig?.measurementId || ""
+};
+
 export let db: any = null;
 export let auth: any = null;
 export let googleProvider: any = null;
 export let isFirebaseEnabled = false;
 
 // Robust check to see if Firebase was fully configured
-if (firebaseConfig && firebaseConfig.projectId && firebaseConfig.apiKey) {
+if (finalFirebaseConfig.projectId && finalFirebaseConfig.apiKey) {
   try {
-    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    const app = getApps().length === 0 ? initializeApp(finalFirebaseConfig) : getApp();
     
     // Check if a custom database ID is configured, otherwise use default
-    db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
+    db = getFirestore(app, finalFirebaseConfig.firestoreDatabaseId || '(default)');
     auth = getAuth(app);
     googleProvider = new GoogleAuthProvider();
     isFirebaseEnabled = true;

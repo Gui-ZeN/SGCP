@@ -136,7 +136,7 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
       </div>
 
       {/* Quick Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
         {/* Stat 1 */}
         <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm transition hover:shadow-md group cursor-pointer" onClick={() => setActiveTab('vagas')}>
@@ -163,21 +163,6 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
           <div>
             <h3 className="text-4xl font-black text-slate-800 tracking-tight mb-2">{treinamentosRealizados}</h3>
             <p className="text-sm font-semibold text-slate-500">Participações em Treinamentos</p>
-          </div>
-        </div>
-
-        {/* Stat 3 */}
-        <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm transition hover:shadow-md group cursor-pointer relative overflow-hidden" onClick={() => setActiveTab('ai_assistant')}>
-          <div className="absolute right-0 top-0 -m-8 w-32 h-32 bg-amber-400/10 rounded-full blur-2xl"></div>
-          <div className="flex justify-between items-start mb-6 relative z-10">
-            <div className="p-3 bg-amber-50 text-amber-500 rounded-2xl group-hover:scale-110 transition-transform">
-              <Sparkles className="w-6 h-6" />
-            </div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Beta</span>
-          </div>
-          <div className="relative z-10">
-            <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2 leading-none mt-2">Assistente IA</h3>
-            <p className="text-sm font-semibold text-slate-500 mt-2">Gerar descrições e analisar dados</p>
           </div>
         </div>
 

@@ -14,3 +14,51 @@
   --color-orange-600: #ea580c;
   --color-orange-700: #c2410c;
 }
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+  
+  main {
+    padding: 0 !important;
+    background: none !important;
+  }
+
+  /* Force landscape page breaks for presentation slide look */
+  @page {
+    size: A4 landscape;
+    margin: 15mm;
+  }
+
+  .print-slide {
+    display: flex !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    height: 100vh !important;
+    width: 100vw !important;
+    max-height: 100% !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: white !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+    margin-bottom: 0 !important;
+    justify-content: space-between !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .print-slide * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+

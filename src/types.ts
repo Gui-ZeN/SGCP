@@ -53,6 +53,7 @@ export interface Experiencia {
   colaborador: string;
   funcao: string;
   setor: string;
+  sede?: string;
   dataAdmissao: string;
   supervisor: string;
   observacoes?: string;

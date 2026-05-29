@@ -600,69 +600,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Quick Access Simulator Area within Sidebar */}
-          <div className="hidden lg:block bg-slate-50 border border-slate-200 p-3 rounded-2xl space-y-2.5 w-full shrink-0 mt-2">
-            <div>
-              <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">Simulador de Perfil</span>
-              <div className="grid grid-cols-2 gap-1.5">
-                <button
-                  onClick={() => {
-                    setSelectedRole('Administrador');
-                    notify("Perfil alterado: Administrador (Acesso completo)", "success");
-                  }}
-                  className={`py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1 shrink-0 ${
-                    selectedRole === 'Administrador'
-                      ? 'bg-slate-900 text-white shadow-sm font-extrabold'
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 bg-white border border-slate-200'
-                  }`}
-                  title="Acesso completo para simular permissões."
-                >
-                  <ShieldCheck className="w-3 h-3 text-orange-500 shrink-0" />
-                  <span>Admin</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedRole('Analista');
-                    notify("Perfil alterado: Usuário / Analista (Apenas visualização do quadro)", "info");
-                  }}
-                  className={`py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1 shrink-0 ${
-                    selectedRole === 'Analista'
-                      ? 'bg-slate-900 text-white shadow-sm font-extrabold'
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 bg-white border border-slate-200'
-                  }`}
-                  title="Acesso limitado para simulação."
-                >
-                  <User className="w-3 h-3 text-blue-500 shrink-0" />
-                  <span>Analista</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="border-t border-slate-200/60 pt-2">
-              <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1">Simulador de Sede</span>
-              <select
-                value={selectedSede}
-                onChange={(e) => {
-                  setSelectedSede(e.target.value);
-                  notify(`Sede simulada com sucesso: ${e.target.value}`, "success");
-                }}
-                className="w-full text-[10px] px-2.5 py-2 border border-slate-250 bg-white rounded-xl outline-none font-bold text-slate-700 cursor-pointer hover:border-slate-350 focus:border-slate-800"
-              >
-                {sedes && sedes.length > 0 ? (
-                  sedes.map(s => (
-                    <option key={s.id} value={s.nome}>{s.nome}{s.sigla ? ` [${s.sigla}]` : ''} ({s.regiao})</option>
-                  ))
-                ) : (
-                  <>
-                    <option value="DT">DT (Sudeste)</option>
-                    <option value="BENFICA">BENFICA (Sul)</option>
-                    <option value="Construtora">Construtora (Sudeste)</option>
-                  </>
-                )}
-              </select>
-            </div>
-          </div>
-
           {/* Sidebar Footer User Card with Integrated System Indicators & Copyright */}
           <div className="hidden lg:flex flex-col gap-3 mt-auto pt-4 border-t border-slate-100 w-full shrink-0">
             {user ? (
@@ -793,6 +730,7 @@ export default function App() {
               updateExperiencia={wrappedUpdateExperiencia} 
               deleteExperiencia={wrappedDeleteExperiencia}
               confirmAction={askConfirmation}
+              sedes={sedes}
             />
           )}
 
@@ -920,6 +858,7 @@ export default function App() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

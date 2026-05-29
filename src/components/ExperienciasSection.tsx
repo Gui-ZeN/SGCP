@@ -5,6 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Experiencia } from '../types';
+import { Sede } from '../hooks/useMetadata';
 import { 
   ShieldCheck, 
   Search, 
@@ -28,6 +29,7 @@ interface ExperienciasSectionProps {
   updateExperiencia: (id: string, updatedFields: Partial<Experiencia>) => Promise<void>;
   deleteExperiencia: (id: string) => Promise<void>;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
+  sedes?: Sede[];
 }
 
 interface ReviewAlert {
@@ -151,10 +153,12 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
   addExperiencia,
   updateExperiencia,
   deleteExperiencia,
-  confirmAction
+  confirmAction,
+  sedes = []
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
+  const [activeTableTab, setActiveTableTab] = useState<'ativos' | 'efetivados' | 'encerrados'>('ativos');
+  const [selectedSede, setSelectedSede] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -162,6 +166,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
   const [colaborador, setColaborador] = useState('');
   const [funcao, setFuncao] = useState('');
   const [setor, setSetor] = useState('Infra');
+  const [sede, setSede] = useState(sedes[0]?.nome || '');
   const [dataAdmissao, setDataAdmissao] = useState('');
   const [supervisor, setSupervisor] = useState('');
   const [observacoes, setObservacoes] = useState('');
@@ -204,11 +209,20 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
         e.funcao.toLowerCase().includes(searchTerm.toLowerCase()) || 
         e.supervisor.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchStatus = !selectedStatus || e.status === selectedStatus;
+      let matchesTab = false;
+      if (activeTableTab === 'ativos') {
+        matchesTab = e.status === 'EM_ANALISE' || e.status === 'PRORROGADO';
+      } else if (activeTableTab === 'efetivados') {
+        matchesTab = e.status === 'EFETIVADO';
+      } else if (activeTableTab === 'encerrados') {
+        matchesTab = e.status === 'ENCERRADO';
+      }
 
-      return matchText && matchStatus;
+      const matchSede = !selectedSede || e.sede === selectedSede;
+
+      return matchText && matchesTab && matchSede;
     });
-  }, [experiencias, searchTerm, selectedStatus]);
+  }, [experiencias, searchTerm, activeTableTab, selectedSede]);
 
   // Due / Urgent reviews summary for Notification Center
   const dueReviewsSummary = useMemo(() => {
@@ -259,8 +273,8 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
-    if (!colaborador.trim() || !funcao.trim() || !dataAdmissao.trim()) {
-      setErrorMsg("Por favor, preencha o nome do Colaborador, a Função e a Data de Admissão.");
+    if (!colaborador.trim() || !funcao.trim() || !dataAdmissao.trim() || !sede) {
+      setErrorMsg("Por favor, preencha o nome do Colaborador, a Função, a Sede/Unidade e a Data de Admissão.");
       return;
     }
 
@@ -275,6 +289,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
       colaborador,
       funcao,
       setor,
+      sede,
       dataAdmissao: formattedAdm,
       supervisor,
       observacoes,
@@ -377,15 +392,14 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
         </div>
 
         <select
-          className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500"
-          value={selectedStatus}
-          onChange={(e) => setSelectedStatus(e.target.value)}
+          className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 font-medium"
+          value={selectedSede}
+          onChange={(e) => setSelectedSede(e.target.value)}
         >
-          <option value="">Todos os Status de Experiência</option>
-          <option value="EM_ANALISE">Em Análise (Período de Teste)</option>
-          <option value="PRORROGADO">Prorrogado (+45 dias)</option>
-          <option value="EFETIVADO">Efetivado (Contrato Concluído)</option>
-          <option value="ENCERRADO">Encerrado / Desligado</option>
+          <option value="">Todas as Sedes / Unidades</option>
+          {sedes.map((s) => (
+            <option key={s.id} value={s.nome}>{s.nome}</option>
+          ))}
         </select>
       </div>
 
@@ -496,6 +510,54 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
         </div>
       )}
 
+      {/* Segment Tabs */}
+      <div className="flex border-b border-slate-200 overflow-x-auto scrollbar-none gap-1.5 md:gap-6 mt-2 select-none">
+        <button
+          onClick={() => setActiveTableTab('ativos')}
+          className={`pb-3 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTableTab === 'ativos'
+              ? 'border-orange-500 text-orange-600'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <Clock className={`w-4 h-4 ${activeTableTab === 'ativos' ? 'text-orange-500 animate-pulse' : 'text-slate-450'}`} />
+          <span>Em Experiência</span>
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${activeTableTab === 'ativos' ? 'bg-orange-100 text-orange-750' : 'bg-slate-100 text-slate-500'}`}>
+            {stats.emAnalise + stats.prorrogado}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTableTab('efetivados')}
+          className={`pb-3 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTableTab === 'efetivados'
+              ? 'border-emerald-500 text-emerald-600'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <CheckCircle className={`w-4 h-4 ${activeTableTab === 'efetivados' ? 'text-emerald-500' : 'text-slate-450'}`} />
+          <span>Efetivados</span>
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${activeTableTab === 'efetivados' ? 'bg-emerald-100 text-emerald-755' : 'bg-slate-100 text-slate-500'}`}>
+            {stats.efetivado}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTableTab('encerrados')}
+          className={`pb-3 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTableTab === 'encerrados'
+              ? 'border-slate-500 text-slate-705'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <AlertCircle className={`w-4 h-4 ${activeTableTab === 'encerrados' ? 'text-slate-600' : 'text-slate-450'}`} />
+          <span>Encerrados</span>
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${activeTableTab === 'encerrados' ? 'bg-slate-200 text-slate-750' : 'bg-slate-100 text-slate-500'}`}>
+            {stats.encerrado}
+          </span>
+        </button>
+      </div>
+
       {/* Main List Table */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -522,7 +584,21 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-slate-900">{e.colaborador}</div>
                       <div className="font-semibold text-slate-600 mt-0.5">{e.funcao}</div>
-                      <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mt-0.5">{e.setor}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                        {e.sede ? (
+                          <span className="inline-flex items-center gap-1 text-[9.5px] font-black text-orange-700 bg-orange-50 border border-orange-150 px-1.5 py-0.5 rounded-md uppercase tracking-wider leading-none">
+                            <MapPin className="w-2.5 h-2.5 shrink-0" />
+                            {e.sede}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[9.5px] font-black text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md uppercase tracking-wider leading-none">
+                            <MapPin className="w-2.5 h-2.5 shrink-0" />
+                            Sem Sede
+                          </span>
+                        )}
+                        <span className="text-[9.5px] text-slate-400 font-black tracking-widest">•</span>
+                        <span className="text-[10px] text-slate-500 font-extrabold bg-slate-100/70 border border-slate-200/70 px-1.5 py-0.5 rounded-md leading-none">{e.setor}</span>
+                      </div>
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Admissão: <span className="text-slate-600">{e.dataAdmissao}</span></div>
@@ -671,17 +747,32 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cargo / Função *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Analista de RH"
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
+                  value={funcao}
+                  onChange={(e) => setFuncao(e.target.value)}
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cargo / Função *</label>
-                  <input
-                    type="text"
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Sede / Unidade *</label>
+                  <select
                     required
-                    placeholder="Ex: Analista de RH"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={funcao}
-                    onChange={(e) => setFuncao(e.target.value)}
-                  />
+                    value={sede}
+                    onChange={(e) => setSede(e.target.value)}
+                  >
+                    <option value="">Selecione a Sede *</option>
+                    {sedes.map((s) => (
+                      <option key={s.id} value={s.nome}>{s.nome}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

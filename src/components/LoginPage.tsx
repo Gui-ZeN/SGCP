@@ -305,44 +305,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 </span>
               </div>
             </div>
-
-            {/* Offline Helper simulation trigger */}
-            {!isFirebaseEnabled && (
-              <div className="border-t border-slate-100 pt-4 mt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowSimulateInput(!showSimulateInput)}
-                  className="text-[10px] text-indigo-600 hover:text-indigo-700 hover:underline font-extrabold uppercase tracking-widest flex items-center gap-1.5 mx-auto transition-all"
-                >
-                  <span>Simulador de Usuário</span>
-                  <ArrowRight className={`w-3.5 h-3.5 text-indigo-655 transition-transform duration-250 ${showSimulateInput ? 'rotate-90' : ''}`} />
-                </button>
-
-                {showSimulateInput && (
-                  <div className="space-y-3 mt-3.5 pt-3 border-t border-slate-100 text-xs text-left animate-in fade-in slide-in-from-top-1.5 duration-200">
-                    <div>
-                      <label className="block text-[9px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">E-mail para Simulação</label>
-                      <input
-                        type="email"
-                        value={customEmail}
-                        onChange={(e) => setCustomEmail(e.target.value)}
-                        className="w-full text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl p-2.5 outline-none font-semibold focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[9px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Nome de Exibição</label>
-                      <input
-                        type="text"
-                        value={customName}
-                        onChange={(e) => setCustomName(e.target.value)}
-                        className="w-full text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl p-2.5 outline-none font-semibold focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+        </div>
 
           {/* Security details bottom section */}
           <div className="mt-8 text-center space-y-2">
