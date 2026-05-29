@@ -154,7 +154,13 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
     if (setores && setores.length > 0) {
       return [...setores.map(s => s.nome)].sort((a,b) => a.localeCompare(b));
     }
-    return ["TI", "Jurídico", "Idiomas DT", "Pedagógico", "Infra", "Coordenação", "Lojinha", "Secretaria", "Cantina", "CPA", "SOM", "D. Valéria"].sort((a,b) => a.localeCompare(b));
+    return [
+      "Almoxarifado", "Almoxarifado geral", "Atendimento", "Cantina", "Compras", 
+      "Comunicação Digital", "Construtora", "Coordenação", "CPA", "D. Valéria", 
+      "Idiomas DT", "Infra", "Infraestrutura", "Jurídico", "Livros escolares", 
+      "Lojinha", "Marketing", "Metalurgica", "MKT", "Pedagógico", "Redes", 
+      "Secretaria", "Som", "TI"
+    ].sort((a,b) => a.localeCompare(b));
   }, [setores]);
 
   useEffect(() => {

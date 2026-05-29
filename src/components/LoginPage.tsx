@@ -135,7 +135,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               SGPC <span className="text-[9px] bg-orange-500/10 text-orange-600 px-1.5 py-0.5 rounded-md border border-orange-500/20 ml-1 font-extrabold uppercase">ATS</span>
             </h2>
             <p className="text-[10px] text-slate-450 font-bold tracking-wider uppercase mt-1">
-              Sistema Integrado de Gestão de Talentos
+              Sistema de Gestão de Pessoas Christus
             </p>
           </div>
         </div>
@@ -238,7 +238,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         {/* Lower Tagline / Compliance Info */}
         <div className="border-t border-slate-200/70 pt-6 z-10 shrink-0">
           <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider text-center lg:text-left">
-            Sistema Integrado de Gestão de Talentos • SGPC ATS
+            Sistema de Gestão de Pessoas Christus • SGPC ATS
           </p>
         </div>
       </div>

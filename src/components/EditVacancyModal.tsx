@@ -207,7 +207,13 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
               >
                 {(setores && setores.length > 0 
                   ? [...setores.map(s => s.nome)]
-                  : ["TI", "Jurídico", "Idiomas DT", "Pedagógico", "Infra", "Coordenação", "Lojinha", "Secretaria", "Cantina", "CPA", "SOM", "D. Valéria"]
+                  : [
+                      "Almoxarifado", "Almoxarifado geral", "Atendimento", "Cantina", "Compras", 
+                      "Comunicação Digital", "Construtora", "Coordenação", "CPA", "D. Valéria", 
+                      "Idiomas DT", "Infra", "Infraestrutura", "Jurídico", "Livros escolares", 
+                      "Lojinha", "Marketing", "Metalurgica", "MKT", "Pedagógico", "Redes", 
+                      "Secretaria", "Som", "TI"
+                    ]
                 ).sort((a,b) => a.localeCompare(b)).map((opt, idx) => (
                   <option key={idx} value={opt}>{opt}</option>
                 ))}

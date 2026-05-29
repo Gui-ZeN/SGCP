@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   db, 
   isFirebaseEnabled, 
@@ -54,6 +54,7 @@ export interface Setor {
 }
 
 export function useMetadata(currentUser: any) {
+  const hasSeededSetores = useRef(false);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [regioes, setRegioes] = useState<Regiao[]>([]);
@@ -70,6 +71,8 @@ export function useMetadata(currentUser: any) {
     }
     return 'Administrador'; // Default is Administrador so creators see all features out-of-the-box!
   });
+
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(true);
 
   const [selectedSede, setSelectedSede] = useState<string>(() => {
     const saved = localStorage.getItem('ats_simulated_sede');
@@ -135,18 +138,30 @@ export function useMetadata(currentUser: any) {
   ];
 
   const defaultSetores: Setor[] = [
-    { id: 'setor_1', nome: 'TI' },
-    { id: 'setor_2', nome: 'Jurídico' },
-    { id: 'setor_3', nome: 'Idiomas DT' },
-    { id: 'setor_4', nome: 'Pedagógico' },
-    { id: 'setor_5', nome: 'Infra' },
-    { id: 'setor_6', nome: 'Coordenação' },
-    { id: 'setor_7', nome: 'Lojinha' },
-    { id: 'setor_8', nome: 'Secretaria' },
-    { id: 'setor_9', nome: 'Cantina' },
-    { id: 'setor_10', nome: 'CPA' },
-    { id: 'setor_11', nome: 'SOM' },
-    { id: 'setor_12', nome: 'D. Valéria' }
+    { id: 'setor_1', nome: 'Almoxarifado' },
+    { id: 'setor_2', nome: 'Almoxarifado geral' },
+    { id: 'setor_3', nome: 'Atendimento' },
+    { id: 'setor_4', nome: 'Cantina' },
+    { id: 'setor_5', nome: 'Compras' },
+    { id: 'setor_6', nome: 'Comunicação Digital' },
+    { id: 'setor_7', nome: 'Construtora' },
+    { id: 'setor_8', nome: 'Coordenação' },
+    { id: 'setor_9', nome: 'CPA' },
+    { id: 'setor_10', nome: 'D. Valéria' },
+    { id: 'setor_11', nome: 'Idiomas DT' },
+    { id: 'setor_12', nome: 'Infra' },
+    { id: 'setor_13', nome: 'Infraestrutura' },
+    { id: 'setor_14', nome: 'Jurídico' },
+    { id: 'setor_15', nome: 'Livros escolares' },
+    { id: 'setor_16', nome: 'Lojinha' },
+    { id: 'setor_17', nome: 'Marketing' },
+    { id: 'setor_18', nome: 'Metalurgica' },
+    { id: 'setor_19', nome: 'MKT' },
+    { id: 'setor_20', nome: 'Pedagógico' },
+    { id: 'setor_21', nome: 'Redes' },
+    { id: 'setor_22', nome: 'Secretaria' },
+    { id: 'setor_23', nome: 'Som' },
+    { id: 'setor_24', nome: 'TI' }
   ];
 
   const defaultUsuarios: Usuario[] = [
@@ -197,13 +212,34 @@ export function useMetadata(currentUser: any) {
       });
 
       // 5. Setores Realtime Sync
-      const unsubSetores = onSnapshot(collection(db, 'setores'), (snapshot: any) => {
+      const unsubSetores = onSnapshot(collection(db, 'setores'), async (snapshot: any) => {
         const list: Setor[] = [];
         snapshot.forEach((docSnap: any) => {
           list.push({ id: docSnap.id, ...docSnap.data() } as Setor);
         });
-        setSetores(list);
-        setLoading(false);
+        
+        if (!hasSeededSetores.current) {
+          hasSeededSetores.current = true;
+          const existingNames = new Set(list.map(s => s.nome.trim().toLowerCase()));
+          const missing = defaultSetores.filter(ds => !existingNames.has(ds.nome.trim().toLowerCase()));
+          
+          if (missing.length > 0) {
+            console.log(`Auto-seeding ${missing.length} missing default sectors to Firestore...`);
+            for (const s of missing) {
+              try {
+                await addDoc(collection(db, 'setores'), { nome: s.nome });
+              } catch (e) {
+                console.error("Error seeding sector:", s.nome, e);
+              }
+            }
+          } else {
+            setSetores(list);
+            setLoading(false);
+          }
+        } else {
+          setSetores(list);
+          setLoading(false);
+        }
       });
 
       return () => {
@@ -273,7 +309,17 @@ export function useMetadata(currentUser: any) {
     const storedSetores = localStorage.getItem(SETORES_LOCAL_KEY);
     if (storedSetores) {
       const parsed = JSON.parse(storedSetores);
-      setSetores(Array.isArray(parsed) ? parsed : defaultSetores);
+      const list = Array.isArray(parsed) ? parsed : defaultSetores;
+      // Ensure all default ones exist
+      const existingNames = new Set(list.map((s: any) => s.nome.trim().toLowerCase()));
+      const missing = defaultSetores.filter(ds => !existingNames.has(ds.nome.trim().toLowerCase()));
+      if (missing.length > 0) {
+        const enriched = [...list, ...missing.map((s, idx) => ({ id: `local_setor_${Date.now()}_${idx}`, nome: s.nome }))];
+        setSetores(enriched);
+        localStorage.setItem(SETORES_LOCAL_KEY, JSON.stringify(enriched));
+      } else {
+        setSetores(list);
+      }
     } else {
       setSetores(defaultSetores);
       localStorage.setItem(SETORES_LOCAL_KEY, JSON.stringify(defaultSetores));
@@ -285,6 +331,7 @@ export function useMetadata(currentUser: any) {
   // Compute Active Auth Role based on current user email
   useEffect(() => {
     if (!currentUser) {
+      setIsAuthorized(false);
       return;
     }
 
@@ -294,6 +341,7 @@ export function useMetadata(currentUser: any) {
     if (email === 'guizen2006@gmail.com') {
       setSelectedRole('Administrador');
       localStorage.setItem('ats_simulated_role', 'Administrador');
+      setIsAuthorized(true);
       const matched = usuarios.find(u => u.email && u.email.toLowerCase() === email);
       if (matched && matched.sede) {
         setSelectedSede(matched.sede);
@@ -306,16 +354,23 @@ export function useMetadata(currentUser: any) {
     if (matched) {
       setSelectedRole(matched.role);
       localStorage.setItem('ats_simulated_role', matched.role);
+      setIsAuthorized(true);
       if (matched.sede) {
         setSelectedSede(matched.sede);
         localStorage.setItem('ats_simulated_sede', matched.sede);
       }
     } else {
-      // Default fallback if authenticated but not registered is Analista
+      // Default fallback if authenticated but not registered
       setSelectedRole('Analista');
       localStorage.setItem('ats_simulated_role', 'Analista');
+      
+      if (loading) {
+        setIsAuthorized(true);
+      } else {
+        setIsAuthorized(false);
+      }
     }
-  }, [currentUser, usuarios]);
+  }, [currentUser, usuarios, loading]);
 
   // Operations: Users
   const addUsuario = async (email: string, role: 'Administrador' | 'Analista', sede?: string) => {
@@ -597,6 +652,7 @@ export function useMetadata(currentUser: any) {
     cargos,
     setores,
     loading,
+    isAuthorized,
     usingFirebase,
     userRole,
     isAdmin,

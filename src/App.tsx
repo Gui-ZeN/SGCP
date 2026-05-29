@@ -60,6 +60,7 @@ export default function App() {
     cargos, 
     setores,
     loading: loadingMetadata, 
+    isAuthorized,
     userRole, 
     isAdmin, 
     selectedRole,
@@ -435,6 +436,35 @@ export default function App() {
     );
   }
 
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white border border-slate-200 rounded-3xl p-8 shadow-xl text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
+          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto shadow-md">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div className="space-y-4">
+            <h2 className="text-base font-black text-slate-800 uppercase tracking-tight">Acesso Pendente / Negado</h2>
+            <p className="text-xs text-slate-500 leading-relaxed font-semibold">
+              Sua conta <span className="font-extrabold text-slate-800 font-mono text-[11px] bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{user?.email}</span> não está cadastrada como autorizada neste sistema.
+            </p>
+            <p className="text-xs text-slate-500 leading-relaxed font-semibold">
+              Peça a um Administrador organizacional do SGCP para cadastrar seu e-mail no painel de controle de usuários.
+            </p>
+          </div>
+          <div className="pt-2">
+            <button
+              onClick={handleLogout}
+              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold uppercase rounded-xl cursor-pointer shadow-md transition-all border border-slate-950"
+            >
+              Fazer logout e trocar de conta
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen w-screen bg-slate-50 font-sans antialiased text-slate-700 flex flex-col overflow-hidden">
       {/* Top Main Navigation Header (Glued to top) */}
@@ -448,7 +478,7 @@ export default function App() {
             <h1 className="text-sm font-extrabold text-slate-800 tracking-tight leading-none flex items-center gap-1">
               <span>SGPC</span>
               <span className="hidden sm:inline text-xs font-semibold text-slate-400 mx-0.5">|</span>
-              <span className="hidden sm:inline text-xs font-medium text-slate-500">Sistema Integrado de Gestão de Talentos</span>
+              <span className="hidden sm:inline text-xs font-medium text-slate-500">Sistema de Gestão de Pessoas Christus</span>
               <span className="text-[9px] font-bold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-md border border-orange-200 ml-1 shrink-0">v1.2.0</span>
             </h1>
             <p className="text-[11px] text-slate-500 font-bold mt-1 leading-none uppercase tracking-wider">

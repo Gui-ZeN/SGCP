@@ -425,9 +425,12 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   }, [vagas, sedes, userSede]);
 
   const setoresList = useMemo(() => {
+    if (setores && setores.length > 0) {
+      return [...setores.map(s => s.nome)].sort((a, b) => a.localeCompare(b));
+    }
     const list = vagas.map(v => v.setor).filter(Boolean);
     return Array.from(new Set(list)).sort();
-  }, [vagas]);
+  }, [vagas, setores]);
 
   const statusList = ['ABERTA', 'FECHADA', 'PAUSADA', 'SUSPENSA', 'DOCUMENTAÇÃO', 'REABERTA'];
 
