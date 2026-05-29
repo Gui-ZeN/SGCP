@@ -6,7 +6,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Vaga, Experiencia } from '../types';
 import { AddVacancyForm } from './AddVacancyForm';
-import { Sede, Cargo } from '../hooks/useMetadata';
+import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import { EditVacancyModal } from './EditVacancyModal';
 import { ConcludeVacancyModal } from './ConcludeVacancyModal';
 import { 
@@ -57,10 +57,12 @@ interface VacancyTableProps {
   addExperiencia?: (input: Omit<Experiencia, 'id' | 'termino1' | 'termino2'>) => Promise<void>;
   sedes?: Sede[];
   cargos?: Cargo[];
+  setores?: Setor[];
   isAdmin?: boolean;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
   triggerAddModal?: number;
   userSede?: string;
+  userRole?: string;
 }
 
 export const VacancyTable: React.FC<VacancyTableProps> = ({ 
@@ -71,11 +73,14 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   addExperiencia,
   sedes,
   cargos,
+  setores,
   isAdmin = false,
   confirmAction,
   triggerAddModal,
-  userSede
+  userSede,
+  userRole
 }) => {
+  const canManageVagas = isAdmin || userRole === 'Analista' || userRole === 'Administrador';
   const getSedeLabel = (nome: string) => {
     const matched = sedes?.find(s => s.nome.toLowerCase() === nome.toLowerCase());
     return matched && matched.sigla ? `${matched.nome} (${matched.sigla})` : nome;
@@ -88,9 +93,17 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
   // Advanced Filter state
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSede, setSelectedSede] = useState('');
+  const [selectedSede, setSelectedSede] = useState(() => {
+    return !isAdmin && userSede ? userSede : '';
+  });
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedSetor, setSelectedSetor] = useState('');
+
+  useEffect(() => {
+    if (!isAdmin && userSede) {
+      setSelectedSede(userSede);
+    }
+  }, [userSede, isAdmin]);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -141,7 +154,54 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
   const [editingVaga, setEditingVaga] = useState<Vaga | null>(null);
 
+  const [dragMoveConfirm, setDragMoveConfirm] = useState<{
+    vagaId: string;
+    laneId: string;
+    vagaTitle: string;
+    vagaCodigo: string;
+    oldLaneTitle: string;
+    newLaneTitle: string;
+  } | null>(null);
+
+  const getLaneIdFromVaga = (v: Vaga): string => {
+    if (v.status === 'ABERTA' || v.status === 'REABERTA') return 'lane-aberta';
+    if (v.status === 'DOCUMENTAÇÃO') return 'lane-doc';
+    if (v.status === 'PAUSADA' || v.status === 'SUSPENSA') return 'lane-paused';
+    if (v.status === 'FECHADA') return 'lane-closed';
+    return 'lane-aberta';
+  };
+
   const handleDragDrop = async (vagaId: string, laneId: string) => {
+    const targetVaga = vagas.find(v => v.id === vagaId);
+    if (!targetVaga) return;
+
+    const currentLaneId = getLaneIdFromVaga(targetVaga);
+    if (currentLaneId === laneId) return; // No real change
+
+    if (laneId === 'lane-closed') {
+      // Conclude vacancy flow (has its own full form modal/confirmation)
+      handleOpenConcludeModal(targetVaga);
+      return;
+    }
+
+    const laneTitles: Record<string, string> = {
+      'lane-aberta': 'Ativas / Abertas',
+      'lane-doc': 'Admissão / Doc',
+      'lane-paused': 'Pausada / Suspensa',
+      'lane-closed': 'Concluídas / Fechadas'
+    };
+
+    setDragMoveConfirm({
+      vagaId,
+      laneId,
+      vagaTitle: targetVaga.vaga,
+      vagaCodigo: targetVaga.codigo || '',
+      oldLaneTitle: laneTitles[currentLaneId] || targetVaga.status,
+      newLaneTitle: laneTitles[laneId] || laneId,
+    });
+  };
+
+  const executeDragDrop = async (vagaId: string, laneId: string) => {
     const targetVaga = vagas.find(v => v.id === vagaId);
     if (!targetVaga) return;
 
@@ -156,10 +216,6 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     } else if (laneId === 'lane-paused') {
       if (targetVaga.status !== 'PAUSADA' && targetVaga.status !== 'SUSPENSA') {
         await updateVaga(vagaId, { status: 'PAUSADA' });
-      }
-    } else if (laneId === 'lane-closed') {
-      if (targetVaga.status !== 'FECHADA') {
-        handleOpenConcludeModal(targetVaga);
       }
     }
   };
@@ -307,16 +363,26 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     }
   };
 
-  // 2. AGGREGATING ADVANCED KPIS (Clicking these cards will filter state)
+  // 2. AGGREGATING ADVANCED KPIS (Respects Sede limit for Non-Admins or selected Sede)
   const stats = useMemo(() => {
-    const total = vagas.length;
+    const relevantVagas = vagas.filter(v => {
+      if (!isAdmin && userSede) {
+        return v.sede && v.sede.toLowerCase() === userSede.toLowerCase();
+      }
+      if (selectedSede) {
+        return v.sede && v.sede.toLowerCase() === selectedSede.toLowerCase();
+      }
+      return true;
+    });
+
+    const total = relevantVagas.length;
     let ativas = 0;
     let concluidas = 0;
     let alertas = 0;
     let somaTempoConclusao = 0;
     let countConcluidasComTempo = 0;
 
-    vagas.forEach(v => {
+    relevantVagas.forEach(v => {
       const days = getDiasEmAberto(v);
       if (v.status === 'FECHADA') {
         concluidas++;
@@ -339,7 +405,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       : 0;
 
     return { total, ativas, concluidas, alertas, tempoMedio };
-  }, [vagas]);
+  }, [vagas, selectedSede, userSede, isAdmin]);
 
   // Derive unique options for filter dropdowns safely
   const sedesList = useMemo(() => {
@@ -402,7 +468,9 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     }
 
     // Branch filter
-    if (selectedSede) {
+    if (!isAdmin && userSede) {
+      result = result.filter(v => v.sede && v.sede.toLowerCase() === userSede.toLowerCase());
+    } else if (selectedSede) {
       result = result.filter(v => v.sede === selectedSede);
     }
 
@@ -440,7 +508,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     });
 
     return result;
-  }, [vagas, searchTerm, selectedSede, selectedStatus, selectedSetor, sortBy, sortOrder, statusGroupFilter]);
+  }, [vagas, searchTerm, selectedSede, selectedStatus, selectedSetor, sortBy, sortOrder, statusGroupFilter, userSede, isAdmin]);
 
   // Paginated chunk
   const paginatedVagas = useMemo(() => {
@@ -552,8 +620,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         </div>
         <button
           onClick={() => {
-            if (!isAdmin) {
-              alert("Apenas Administradores podem criar vagas. Altere o perfil para Admin para simular!");
+            if (!canManageVagas) {
+              alert("Apenas Administradores e Analistas podem criar vagas. Altere o perfil para Admin ou Analista para simular!");
               return;
             }
             setShowAddVagaModal(true);
@@ -720,14 +788,20 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
           {/* Sede Dropdown */}
           <select
-            className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200/90 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-700 font-medium transition"
+            className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200/90 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-700 font-medium transition disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
             value={selectedSede}
             onChange={(e) => { setSelectedSede(e.target.value); setCurrentPage(1); }}
+            disabled={!isAdmin && !!userSede}
           >
-            <option value="">Todas as Sedes ({sedesList.length})</option>
-            {sedesList.map((s, idx) => (
-              <option key={idx} value={s}>{getSedeSigla(s)}</option>
-            ))}
+            {(!userSede || isAdmin) && <option value="">Todas as Sedes ({sedesList.length})</option>}
+            {sedesList.map((s, idx) => {
+              if (!isAdmin && userSede && s.toLowerCase() !== userSede.toLowerCase()) {
+                return null;
+              }
+              return (
+                <option key={idx} value={s}>{getSedeSigla(s)}</option>
+              );
+            })}
           </select>
 
           {/* Sector Dropdown */}
@@ -853,20 +927,20 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
             {/* Register Action Button */}
             <button
               onClick={() => {
-                if (isAdmin) {
+                if (canManageVagas) {
                   setShowAddVagaModal(true);
                 } else {
-                  alert("Acesso restrito: Apenas administradores podem cadastrar novas vagas! Clique em 'Admin' no topo para habilitar.");
+                  alert("Acesso restrito: Apenas Administradores e Analistas podem cadastrar novas vagas! Selecione um perfil adequado no topo para habilitar.");
                 }
               }}
               className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-all ${
-                isAdmin 
+                canManageVagas 
                   ? 'bg-slate-900 hover:bg-slate-800 text-white shadow-md' 
                   : 'bg-slate-100 text-slate-400 border border-slate-205 cursor-not-allowed'
               }`}
             >
               <PlusCircle className="w-4 h-4 text-orange-500 shrink-0" />
-              <span>Nova Vaga {!isAdmin && "🔒"}</span>
+              <span>Nova Vaga {!canManageVagas && "🔒"}</span>
             </button>
           </div>
 
@@ -1072,7 +1146,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                               >
                                 <Eye className="w-3 h-3" />
                               </button>
-                              {isAdmin && (
+                              {canManageVagas && (
                                 <button
                                   onClick={() => startEditing(vaga)}
                                   className="p-1 px-2 border border-slate-200 text-orange-600 hover:text-white rounded-lg hover:bg-orange-500 hover:border-orange-500 transition-colors"
@@ -1084,7 +1158,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                             </div>
 
                             {/* Direct state switcher */}
-                            {isAdmin && (
+                            {canManageVagas && (
                               <div className="flex items-center gap-1.5">
                                 {vaga.status === 'ABERTA' && (
                                   <button
@@ -1224,7 +1298,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                               Detalhes
                             </button>
 
-                            {isAdmin && (
+                            {canManageVagas && (
                               <>
                                 <button
                                   onClick={() => startEditing(vaga)}
@@ -1391,7 +1465,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                         <span>Detalhes</span>
                       </button>
 
-                      {isAdmin && (
+                      {canManageVagas && (
                         <div className="flex items-center gap-2">
                           {vaga.status !== 'FECHADA' && (
                             <button 
@@ -1608,7 +1682,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                 Fechar Detalhes
               </button>
 
-              {isAdmin && (
+              {canManageVagas && (
                 <div className="flex items-center gap-2">
                   {selectedDetailsVaga.status !== 'FECHADA' && (
                     <button
@@ -1668,6 +1742,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           vaga={editingVaga}
           cargos={cargos}
           sedes={sedes}
+          setores={setores}
           onClose={() => setEditingVaga(null)}
           onSave={handleEditSave}
         />
@@ -1689,6 +1764,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                 addVaga={addVaga} 
                 sedes={sedes}
                 cargos={cargos}
+                setores={setores}
                 onSuccess={() => setShowAddVagaModal(false)}
                 userSede={userSede}
               />
@@ -1704,6 +1780,90 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           onClose={() => setVagaToConclude(null)}
           onConclude={handleSaveConclusion}
         />
+      )}
+
+      {/* 5D: KANBAN ACCIDENTAL DRAG PREVENTION CONFIRMATION MODAL */}
+      {dragMoveConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
+            {/* Header */}
+            <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center">
+                  <Workflow className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">Confirmar Mudança de Fase</h3>
+                  <p className="text-[11px] text-slate-500 font-semibold">Evite movimentações acidentais</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setDragMoveConfirm(null)}
+                className="w-7 h-7 rounded-full bg-white border border-slate-205 hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-6 space-y-5">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col gap-1.5 text-center">
+                <span className="text-[10px] font-mono text-slate-400 font-bold tracking-widest">VAGA #{dragMoveConfirm.vagaCodigo}</span>
+                <span className="text-xs font-extrabold text-slate-800 leading-tight">{dragMoveConfirm.vagaTitle}</span>
+              </div>
+
+              <div className="space-y-2">
+                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide text-center">Transição do Processo</span>
+                
+                <div className="grid grid-cols-7 items-center gap-2 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
+                  {/* Origin */}
+                  <div className="col-span-3 text-center p-2.5 bg-white border border-slate-200/80 rounded-xl flex flex-col justify-center items-center gap-1 min-h-[64px]">
+                    <span className="text-[9px] text-slate-400 uppercase font-bold">Origem</span>
+                    <span className="text-xs font-bold text-slate-600 line-clamp-2 leading-tight">{dragMoveConfirm.oldLaneTitle}</span>
+                  </div>
+
+                  {/* Arrow Indicator */}
+                  <div className="col-span-1 flex flex-col items-center justify-center text-slate-350">
+                    <ChevronRight className="w-5 h-5 text-orange-500" />
+                  </div>
+
+                  {/* Destination */}
+                  <div className="col-span-3 text-center p-2.5 bg-orange-50/30 border border-orange-200 rounded-xl flex flex-col justify-center items-center gap-1 min-h-[64px]">
+                    <span className="text-[9px] text-orange-600 uppercase font-bold">Destino</span>
+                    <span className="text-xs font-extrabold text-orange-700 line-clamp-2 leading-tight">{dragMoveConfirm.newLaneTitle}</span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs font-semibold text-slate-500 leading-relaxed text-center px-2">
+                Tem certeza que deseja mover esta vaga para a coluna <span className="font-extrabold text-slate-700">{dragMoveConfirm.newLaneTitle}</span>?
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDragMoveConfirm(null)}
+                className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold rounded-xl text-slate-650 transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const { vagaId, laneId } = dragMoveConfirm;
+                  setDragMoveConfirm(null);
+                  await executeDragDrop(vagaId, laneId);
+                }}
+                className="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-xs font-bold rounded-xl text-white shadow-md shadow-orange-600/10 transition cursor-pointer flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4 text-white" />
+                <span>Confirmar Transição</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

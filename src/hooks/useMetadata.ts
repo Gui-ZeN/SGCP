@@ -22,6 +22,7 @@ const USERS_LOCAL_KEY = 'ats_users_fallback';
 const SEDES_LOCAL_KEY = 'ats_sedes_fallback';
 const REGIOES_LOCAL_KEY = 'ats_regioes_fallback';
 const CARGOS_LOCAL_KEY = 'ats_cargos_fallback';
+const SETORES_LOCAL_KEY = 'ats_setores_fallback';
 
 export interface Usuario {
   id: string; // email or unique id
@@ -47,11 +48,17 @@ export interface Cargo {
   nome: string;
 }
 
+export interface Setor {
+  id: string;
+  nome: string;
+}
+
 export function useMetadata(currentUser: any) {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [regioes, setRegioes] = useState<Regiao[]>([]);
   const [cargos, setCargos] = useState<Cargo[]>([]);
+  const [setores, setSetores] = useState<Setor[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingFirebase, setUsingFirebase] = useState(isFirebaseEnabled);
 
@@ -127,6 +134,21 @@ export function useMetadata(currentUser: any) {
     { id: 'cargo_8', nome: 'Oficial de Manutenção' }
   ];
 
+  const defaultSetores: Setor[] = [
+    { id: 'setor_1', nome: 'TI' },
+    { id: 'setor_2', nome: 'Jurídico' },
+    { id: 'setor_3', nome: 'Idiomas DT' },
+    { id: 'setor_4', nome: 'Pedagógico' },
+    { id: 'setor_5', nome: 'Infra' },
+    { id: 'setor_6', nome: 'Coordenação' },
+    { id: 'setor_7', nome: 'Lojinha' },
+    { id: 'setor_8', nome: 'Secretaria' },
+    { id: 'setor_9', nome: 'Cantina' },
+    { id: 'setor_10', nome: 'CPA' },
+    { id: 'setor_11', nome: 'SOM' },
+    { id: 'setor_12', nome: 'D. Valéria' }
+  ];
+
   const defaultUsuarios: Usuario[] = [
     { id: 'user_1', email: 'guizen2006@gmail.com', role: 'Administrador', sede: 'DT' },
     { id: 'user_2', email: 'recrutamento@empresa.com', role: 'Analista', sede: 'BENFICA' }
@@ -172,6 +194,15 @@ export function useMetadata(currentUser: any) {
           list.push({ id: docSnap.id, ...docSnap.data() } as Cargo);
         });
         setCargos(list);
+      });
+
+      // 5. Setores Realtime Sync
+      const unsubSetores = onSnapshot(collection(db, 'setores'), (snapshot: any) => {
+        const list: Setor[] = [];
+        snapshot.forEach((docSnap: any) => {
+          list.push({ id: docSnap.id, ...docSnap.data() } as Setor);
+        });
+        setSetores(list);
         setLoading(false);
       });
 
@@ -180,6 +211,7 @@ export function useMetadata(currentUser: any) {
         unsubSedes();
         unsubRegioes();
         unsubCargos();
+        unsubSetores();
       };
     } else {
       // Local fallbacks
@@ -235,6 +267,16 @@ export function useMetadata(currentUser: any) {
     } else {
       setCargos(defaultCargos);
       localStorage.setItem(CARGOS_LOCAL_KEY, JSON.stringify(defaultCargos));
+    }
+
+    // Setores
+    const storedSetores = localStorage.getItem(SETORES_LOCAL_KEY);
+    if (storedSetores) {
+      const parsed = JSON.parse(storedSetores);
+      setSetores(Array.isArray(parsed) ? parsed : defaultSetores);
+    } else {
+      setSetores(defaultSetores);
+      localStorage.setItem(SETORES_LOCAL_KEY, JSON.stringify(defaultSetores));
     }
 
     setLoading(false);
@@ -475,11 +517,50 @@ export function useMetadata(currentUser: any) {
     }
   };
 
+  // Operations: Setor
+  const addSetor = async (nome: string) => {
+    const cleanNome = nome.trim();
+    if (!cleanNome) return;
+
+    if (usingFirebase && db) {
+      try {
+        await addDoc(collection(db, 'setores'), {
+          nome: cleanNome
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'setores');
+      }
+    } else {
+      const newSetor: Setor = {
+        id: `local_setor_${Date.now()}`,
+        nome: cleanNome
+      };
+      const updated = [...setores, newSetor];
+      setSetores(updated);
+      localStorage.setItem(SETORES_LOCAL_KEY, JSON.stringify(updated));
+    }
+  };
+
+  const deleteSetor = async (id: string) => {
+    if (usingFirebase && db) {
+      try {
+        await deleteDoc(doc(db, 'setores', id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `setores/${id}`);
+      }
+    } else {
+      const updated = setores.filter(s => s.id !== id);
+      setSetores(updated);
+      localStorage.setItem(SETORES_LOCAL_KEY, JSON.stringify(updated));
+    }
+  };
+
   return {
     usuarios,
     sedes,
     regioes,
     cargos,
+    setores,
     loading,
     usingFirebase,
     userRole,
@@ -497,6 +578,8 @@ export function useMetadata(currentUser: any) {
     updateRegiao,
     deleteRegiao,
     addCargo,
-    deleteCargo
+    deleteCargo,
+    addSetor,
+    deleteSetor
   };
 }

@@ -5,14 +5,16 @@ import {
   Map, 
   Briefcase, 
   ShieldAlert,
-  History
+  History,
+  FolderTree
 } from 'lucide-react';
-import { Usuario, Sede, Regiao, Cargo } from '../hooks/useMetadata';
+import { Usuario, Sede, Regiao, Cargo, Setor } from '../hooks/useMetadata';
 import { SystemLog } from '../hooks/useLogs';
 import { AdminUsersTab } from './AdminUsersTab';
 import { AdminSedesTab } from './AdminSedesTab';
 import { AdminRegioesTab } from './AdminRegioesTab';
 import { AdminCargosTab } from './AdminCargosTab';
+import { AdminSetoresTab } from './AdminSetoresTab';
 import { AdminLogsTab } from './AdminLogsTab';
 
 interface AdminPanelProps {
@@ -20,6 +22,7 @@ interface AdminPanelProps {
   sedes: Sede[];
   regioes: Regiao[];
   cargos: Cargo[];
+  setores: Setor[];
   logs: SystemLog[];
   addUsuario: (email: string, role: 'Administrador' | 'Analista', sede?: string) => Promise<void>;
   deleteUsuario: (id: string) => Promise<void>;
@@ -31,6 +34,8 @@ interface AdminPanelProps {
   deleteRegiao: (id: string) => Promise<void>;
   addCargo: (nome: string) => Promise<void>;
   deleteCargo: (id: string) => Promise<void>;
+  addSetor: (nome: string) => Promise<void>;
+  deleteSetor: (id: string) => Promise<void>;
   currentUserEmail: string;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
 }
@@ -40,6 +45,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   sedes,
   regioes,
   cargos,
+  setores,
   logs,
   addUsuario,
   deleteUsuario,
@@ -51,10 +57,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   deleteRegiao,
   addCargo,
   deleteCargo,
+  addSetor,
+  deleteSetor,
   currentUserEmail,
   confirmAction
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'usuarios' | 'sedes' | 'regioes' | 'cargos' | 'logs'>('usuarios');
+  const [activeSubTab, setActiveSubTab] = useState<'usuarios' | 'sedes' | 'regioes' | 'cargos' | 'setores' | 'logs'>('usuarios');
   
   return (
     <div className="bg-transparent space-y-6">
@@ -116,6 +124,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               Cargos
             </button>
             <button
+              onClick={() => setActiveSubTab('setores')}
+              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
+                activeSubTab === 'setores' 
+                  ? 'bg-slate-900 text-white shadow-md' 
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <FolderTree className="w-3.5 h-3.5" />
+              Setores
+            </button>
+            <button
               onClick={() => setActiveSubTab('logs')}
               className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
                 activeSubTab === 'logs' 
@@ -166,6 +185,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             cargos={cargos}
             addCargo={addCargo}
             deleteCargo={deleteCargo}
+            confirmAction={confirmAction}
+          />
+        )}
+
+        {activeSubTab === 'setores' && (
+          <AdminSetoresTab
+            setores={setores}
+            addSetor={addSetor}
+            deleteSetor={deleteSetor}
             confirmAction={confirmAction}
           />
         )}

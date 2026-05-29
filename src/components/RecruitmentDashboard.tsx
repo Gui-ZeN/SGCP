@@ -54,6 +54,7 @@ interface RecruitmentDashboardProps {
   turnover?: Turnover[];
   sedes?: Sede[];
   userSede?: string;
+  isAdmin?: boolean;
 }
 
 export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({ 
@@ -63,7 +64,8 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   entrevistas = [], 
   turnover = [],
   sedes = [],
-  userSede
+  userSede,
+  isAdmin = false
 }) => {
   const getSedeLabel = (nome: string) => {
     const matched = sedes?.find(s => s.nome.toLowerCase() === nome.toLowerCase());
@@ -76,9 +78,17 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   };
 
   // --- Estados de Filtros Interativos ---
-  const [selectedSede, setSelectedSede] = useState<string>('TODAS');
+  const [selectedSede, setSelectedSede] = useState<string>(() => {
+    return !isAdmin && userSede ? userSede : 'TODAS';
+  });
   const [selectedSetor, setSelectedSetor] = useState<string>('TODOS');
   const [selectedAno, setSelectedAno] = useState<string>('TODOS');
+
+  React.useEffect(() => {
+    if (!isAdmin && userSede) {
+      setSelectedSede(userSede);
+    }
+  }, [userSede, isAdmin]);
 
   // --- Extração de Opções para Filtros ---
   const listSedes = useMemo(() => {
@@ -345,19 +355,25 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Filtros Ativos:</span>
           </div>
 
-          {/* Sede Select */}
+           {/* Sede Select */}
           <div className="flex flex-col">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider ml-1 mb-0.5">Sede</label>
             <select
               id="filter-sede-select"
               value={selectedSede}
               onChange={(e) => setSelectedSede(e.target.value)}
-              className="text-xs bg-white border border-slate-250 py-1.5 px-3 rounded-xl font-bold text-slate-700 focus:border-indigo-500 focus:outline-none shadow-sm cursor-pointer"
+              disabled={!isAdmin && !!userSede}
+              className="text-xs bg-white border border-slate-250 py-1.5 px-3 rounded-xl font-bold text-slate-700 focus:border-indigo-500 focus:outline-none shadow-sm cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
             >
-              <option value="TODAS">Sede: Todas</option>
-              {listSedes.filter(s => s !== 'TODAS').map((s, idx) => (
-                <option key={idx} value={s}>{getSedeSigla(s)}</option>
-              ))}
+              {(!userSede || isAdmin) && <option value="TODAS">Sede: Todas</option>}
+              {listSedes.filter(s => s !== 'TODAS').map((s, idx) => {
+                if (!isAdmin && userSede && s.toLowerCase() !== userSede.toLowerCase()) {
+                  return null;
+                }
+                return (
+                  <option key={idx} value={s}>{getSedeSigla(s)}</option>
+                );
+              })}
             </select>
           </div>
 

@@ -26,6 +26,8 @@ interface TreinamentosSectionProps {
   deleteTreinamento: (id: string) => Promise<void>;
   sedes?: Sede[];
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
+  userSede?: string;
+  isAdmin?: boolean;
 }
 
 export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({ 
@@ -33,13 +35,23 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
   addTreinamento, 
   deleteTreinamento,
   sedes,
-  confirmAction
+  confirmAction,
+  userSede,
+  isAdmin = false
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUnidade, setSelectedUnidade] = useState('');
+  const [selectedUnidade, setSelectedUnidade] = useState(() => {
+    return !isAdmin && userSede ? userSede : '';
+  });
   const [selectedTipo, setSelectedTipo] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  React.useEffect(() => {
+    if (!isAdmin && userSede) {
+      setSelectedUnidade(userSede);
+    }
+  }, [userSede, isAdmin]);
 
   // New Training form state
   const [tema, setTema] = useState('');
@@ -99,12 +111,14 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
         t.facilitador.toLowerCase().includes(searchTerm.toLowerCase()) || 
         t.publico.toLowerCase().includes(searchTerm.toLowerCase());
       
-      const matchUnidade = !selectedUnidade || t.unidade === selectedUnidade;
+      const matchUnidade = !isAdmin && userSede
+        ? t.unidade && t.unidade.toLowerCase() === userSede.toLowerCase()
+        : (!selectedUnidade || t.unidade === selectedUnidade);
       const matchTipo = !selectedTipo || t.tipo === selectedTipo;
 
       return matchText && matchUnidade && matchTipo;
     });
-  }, [treinamentos, searchTerm, selectedUnidade, selectedTipo]);
+  }, [treinamentos, searchTerm, selectedUnidade, selectedTipo, userSede, isAdmin]);
 
   // Stats
   const stats = useMemo(() => {
@@ -281,14 +295,20 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
         </div>
 
         <select
-          className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500"
+          className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
           value={selectedUnidade}
           onChange={(e) => setSelectedUnidade(e.target.value)}
+          disabled={!isAdmin && !!userSede}
         >
-          <option value="">Todas as Unidades</option>
-          {unidadesList.map((u, i) => (
-            <option key={i} value={u}>{u}</option>
-          ))}
+          {(!userSede || isAdmin) && <option value="">Todas as Unidades</option>}
+          {unidadesList.map((u, i) => {
+            if (!isAdmin && userSede && u.toLowerCase() !== userSede.toLowerCase()) {
+              return null;
+            }
+            return (
+              <option key={i} value={u}>{u}</option>
+            );
+          })}
         </select>
 
         <select

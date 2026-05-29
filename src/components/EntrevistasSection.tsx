@@ -71,13 +71,17 @@ interface EntrevistasSectionProps {
   addEntrevista: (input: Omit<Entrevista, 'id' | 'codigo'>) => Promise<void>;
   deleteEntrevista: (id: string) => Promise<void>;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
+  userSede?: string;
+  isAdmin?: boolean;
 }
 
 export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
   entrevistas,
   addEntrevista,
   deleteEntrevista,
-  confirmAction
+  confirmAction,
+  userSede,
+  isAdmin = false
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -106,6 +110,14 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
   const [sugestoes, setSugestoes] = useState('');
   const [entrevistador, setEntrevistador] = useState('');
 
+  // Secure relevant interviews list restricted by Sede for non-admins
+  const relevantEntrevistas = useMemo(() => {
+    if (!isAdmin && userSede) {
+      return entrevistas.filter(e => e.unidade && e.unidade.toLowerCase() === userSede.toLowerCase());
+    }
+    return entrevistas;
+  }, [entrevistas, isAdmin, userSede]);
+
   // Stats
   const stats = useMemo(() => {
     let sumClima = 0;
@@ -113,22 +125,22 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
     let sumCrescimento = 0;
     let totalSimVoltaria = 0;
 
-    entrevistas.forEach(e => {
+    relevantEntrevistas.forEach(e => {
       sumClima += (e.notaClimaOrg || 0);
       sumSalario += (e.notaSalario || 0);
       sumCrescimento += (e.notaCrescimento || 0);
       if (e.voltaria === 'Sim') totalSimVoltaria++;
     });
 
-    const count = entrevistas.length || 1;
+    const count = relevantEntrevistas.length || 1;
     return {
       climaMedio: (sumClima / count).toFixed(1),
       salarioMedio: (sumSalario / count).toFixed(1),
       crescimentoMedio: (sumCrescimento / count).toFixed(1),
       retornoPct: Math.round((totalSimVoltaria / count) * 100),
-      totalEntrevistadas: entrevistas.length
+      totalEntrevistadas: relevantEntrevistas.length
     };
-  }, [entrevistas]);
+  }, [relevantEntrevistas]);
 
   // Options
   const motivoOptions = [
@@ -144,13 +156,13 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
 
   // Filtered
   const filteredList = useMemo(() => {
-    return entrevistas.filter(e => {
+    return relevantEntrevistas.filter(e => {
       return !searchTerm.trim() || 
         e.colaborador.toLowerCase().includes(searchTerm.toLowerCase()) || 
         e.funcao.toLowerCase().includes(searchTerm.toLowerCase()) || 
         e.motivoSaida.toLowerCase().includes(searchTerm.toLowerCase());
     });
-  }, [entrevistas, searchTerm]);
+  }, [relevantEntrevistas, searchTerm]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

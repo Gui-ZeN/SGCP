@@ -69,6 +69,15 @@
       },
       "required": ["nome"]
     },
+    "setor": {
+      "title": "Setor",
+      "description": "Setor ou departamento do ecossistema corporativo",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string", "description": "Nome oficial do setor ou departamento" }
+      },
+      "required": ["nome"]
+    },
     "treinamento": {
       "title": "Treinamento",
       "description": "Treinamentos realizados ou planejados na corporação",
@@ -183,6 +192,10 @@
     "/cargos/{cargoId}": {
       "schema": "cargo",
       "description": "Catálogo com títulos de cargos autorizados pela empresa"
+    },
+    "/setores/{setorId}": {
+      "schema": "setor",
+      "description": "Coleção contendo todos os setores e departamentos operacionais"
     },
     "/treinamentos/{treinamentoId}": {
       "schema": "treinamento",

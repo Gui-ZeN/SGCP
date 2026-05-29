@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Vaga } from '../types';
-import { Sede, Cargo } from '../hooks/useMetadata';
+import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import { Edit2 } from 'lucide-react';
 
 interface EditVacancyModalProps {
   vaga: Vaga;
   cargos?: Cargo[];
   sedes?: Sede[];
+  setores?: Setor[];
   onClose: () => void;
   onSave: (id: string, updatedFields: Partial<Vaga>) => Promise<void>;
 }
 
-export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos, sedes, onClose, onSave }) => {
+export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos, sedes, setores, onClose, onSave }) => {
   const [tempStatus, setTempStatus] = useState<Vaga['status']>('ABERTA');
   const [tempEtapa, setTempEtapa] = useState('');
   const [tempAprovado, setTempAprovado] = useState('');
@@ -204,10 +205,10 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
                 value={tempSetor}
                 onChange={(e) => setTempSetor(e.target.value)}
               >
-                {[
-                  "Administrativo", "Financeiro", "Operações", "Comercial", "Logística",
-                  "Recursos Humanos", "T.I.", "Marketing", "Jurídico", "Faturamento", "Frota", "Manutenção", "Segurança"
-                ].sort((a,b) => a.localeCompare(b)).map((opt, idx) => (
+                {(setores && setores.length > 0 
+                  ? [...setores.map(s => s.nome)]
+                  : ["TI", "Jurídico", "Idiomas DT", "Pedagógico", "Infra", "Coordenação", "Lojinha", "Secretaria", "Cantina", "CPA", "SOM", "D. Valéria"]
+                ).sort((a,b) => a.localeCompare(b)).map((opt, idx) => (
                   <option key={idx} value={opt}>{opt}</option>
                 ))}
               </select>

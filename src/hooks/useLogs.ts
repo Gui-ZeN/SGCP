@@ -14,7 +14,7 @@ export interface SystemLog {
   timestamp: string; // ISO String
   usuario: string; // Email of the user who performed the log
   acao: 'CRIOU' | 'ALTEROU' | 'EXCLUIU' | 'SINALIZOU'; 
-  modulo: 'Vagas' | 'Sedes' | 'Regiões' | 'Cargos' | 'Usuários' | 'Treinamentos' | 'Experiências' | 'Entrevistas' | 'Turnover';
+  modulo: 'Vagas' | 'Sedes' | 'Regiões' | 'Cargos' | 'Setores' | 'Usuários' | 'Treinamentos' | 'Experiências' | 'Entrevistas' | 'Turnover';
   detalhes: string;
 }
 

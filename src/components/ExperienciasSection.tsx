@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Experiencia } from '../types';
-import { Sede } from '../hooks/useMetadata';
+import { Sede, Setor } from '../hooks/useMetadata';
 import { 
   ShieldCheck, 
   Search, 
@@ -30,6 +30,9 @@ interface ExperienciasSectionProps {
   deleteExperiencia: (id: string) => Promise<void>;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
   sedes?: Sede[];
+  setores?: Setor[];
+  userSede?: string;
+  isAdmin?: boolean;
 }
 
 interface ReviewAlert {
@@ -154,13 +157,24 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
   updateExperiencia,
   deleteExperiencia,
   confirmAction,
-  sedes = []
+  sedes = [],
+  setores = [],
+  userSede,
+  isAdmin = false
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTableTab, setActiveTableTab] = useState<'ativos' | 'efetivados' | 'encerrados'>('ativos');
-  const [selectedSede, setSelectedSede] = useState('');
+  const [selectedSede, setSelectedSede] = useState(() => {
+    return !isAdmin && userSede ? userSede : '';
+  });
   const [showAddForm, setShowAddForm] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  React.useEffect(() => {
+    if (!isAdmin && userSede) {
+      setSelectedSede(userSede);
+    }
+  }, [userSede, isAdmin]);
 
   // New review form
   const [colaborador, setColaborador] = useState('');
@@ -171,6 +185,14 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
   const [supervisor, setSupervisor] = useState('');
   const [observacoes, setObservacoes] = useState('');
 
+  // Secure relevant experiences list restricted by Sede for non-admins
+  const relevantExperiencias = useMemo(() => {
+    if (!isAdmin && userSede) {
+      return experiencias.filter(e => e.sede && e.sede.toLowerCase() === userSede.toLowerCase());
+    }
+    return experiencias;
+  }, [experiencias, isAdmin, userSede]);
+
   // Stats
   const stats = useMemo(() => {
     let emAnalise = 0;
@@ -178,7 +200,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
     let efetivado = 0;
     let encerrado = 0;
 
-    experiencias.forEach(e => {
+    relevantExperiencias.forEach(e => {
       if (e.status === 'EM_ANALISE') emAnalise++;
       else if (e.status === 'PRORROGADO') prorrogado++;
       else if (e.status === 'EFETIVADO') efetivado++;
@@ -196,14 +218,25 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
       taxaRetencao,
       totalAtivos: emAnalise + prorrogado
     };
-  }, [experiencias]);
+  }, [relevantExperiencias]);
 
   // Options
-  const sectorsList = ["TI", "Jurídico", "Idiomas DT", "Pedagógico", "Infra", "Coordenação", "Lojinha", "Secretaria", "Cantina", "CPA", "SOM", "D. Valéria"].sort((a,b) => a.localeCompare(b));
+  const sectorsList = useMemo(() => {
+    if (setores && setores.length > 0) {
+      return [...setores.map(s => s.nome)].sort((a,b) => a.localeCompare(b));
+    }
+    return ["TI", "Jurídico", "Idiomas DT", "Pedagógico", "Infra", "Coordenação", "Lojinha", "Secretaria", "Cantina", "CPA", "SOM", "D. Valéria"].sort((a,b) => a.localeCompare(b));
+  }, [setores]);
+
+  React.useEffect(() => {
+    if (sectorsList && sectorsList.length > 0 && !sectorsList.includes(setor)) {
+      setSetor(sectorsList[0]);
+    }
+  }, [sectorsList, setor]);
 
   // Filtered
   const filteredList = useMemo(() => {
-    return experiencias.filter(e => {
+    return relevantExperiencias.filter(e => {
       const matchText = !searchTerm.trim() || 
         e.colaborador.toLowerCase().includes(searchTerm.toLowerCase()) || 
         e.funcao.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -218,18 +251,19 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
         matchesTab = e.status === 'ENCERRADO';
       }
 
+      // Sede filter for Admins
       const matchSede = !selectedSede || e.sede === selectedSede;
 
       return matchText && matchesTab && matchSede;
     });
-  }, [experiencias, searchTerm, activeTableTab, selectedSede]);
+  }, [relevantExperiencias, searchTerm, activeTableTab, selectedSede]);
 
   // Due / Urgent reviews summary for Notification Center
   const dueReviewsSummary = useMemo(() => {
     const overdue: { exp: Experiencia; alert: ReviewAlert }[] = [];
     const urgent: { exp: Experiencia; alert: ReviewAlert }[] = [];
 
-    experiencias.forEach(e => {
+    relevantExperiencias.forEach(e => {
       const alert = getReviewAlert(e);
       if (alert.type === 'danger') {
         overdue.push({ exp: e, alert });
@@ -239,7 +273,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
     });
 
     return { overdue, urgent };
-  }, [experiencias]);
+  }, [relevantExperiencias]);
 
   const renderAlertBadge = (alert: ReviewAlert) => {
     if (alert.type === 'none' || alert.type === 'success') {
@@ -392,14 +426,20 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
         </div>
 
         <select
-          className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 font-medium"
+          className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 font-medium disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
           value={selectedSede}
           onChange={(e) => setSelectedSede(e.target.value)}
+          disabled={!isAdmin && !!userSede}
         >
-          <option value="">Todas as Sedes / Unidades</option>
-          {sedes.map((s) => (
-            <option key={s.id} value={s.nome}>{s.nome}</option>
-          ))}
+          {(!userSede || isAdmin) && <option value="">Todas as Sedes / Unidades</option>}
+          {sedes.map((s) => {
+            if (!isAdmin && userSede && s.nome.toLowerCase() !== userSede.toLowerCase()) {
+              return null;
+            }
+            return (
+              <option key={s.id} value={s.nome}>{s.nome}</option>
+            );
+          })}
         </select>
       </div>
 

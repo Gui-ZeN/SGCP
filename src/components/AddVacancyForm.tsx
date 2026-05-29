@@ -6,17 +6,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Vaga } from '../types';
 import { PlusCircle, FileText, CheckCircle } from 'lucide-react';
-import { Sede, Cargo } from '../hooks/useMetadata';
+import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 
 interface AddVacancyFormProps {
   addVaga: (vaga: Omit<Vaga, 'id' | 'codigo'>) => Promise<void>;
   onSuccess: () => void;
   sedes?: Sede[];
   cargos?: Cargo[];
+  setores?: Setor[];
   userSede?: string;
 }
 
-export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSuccess, sedes, cargos, userSede }) => {
+export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSuccess, sedes, cargos, setores, userSede }) => {
   const [vagaName, setVagaName] = useState('');
   const [sede, setSede] = useState(userSede || 'DT');
 
@@ -149,7 +150,19 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
     });
     return list;
   }, [sedes, userSede]);
-  const sectorOptions = ["TI", "Jurídico", "Idiomas DT", "Pedagógico", "Infra", "Coordenação", "Lojinha", "Secretaria", "Cantina", "CPA", "SOM", "D. Valéria"].sort((a,b) => a.localeCompare(b));
+  const sectorOptions = useMemo(() => {
+    if (setores && setores.length > 0) {
+      return [...setores.map(s => s.nome)].sort((a,b) => a.localeCompare(b));
+    }
+    return ["TI", "Jurídico", "Idiomas DT", "Pedagógico", "Infra", "Coordenação", "Lojinha", "Secretaria", "Cantina", "CPA", "SOM", "D. Valéria"].sort((a,b) => a.localeCompare(b));
+  }, [setores]);
+
+  useEffect(() => {
+    if (sectorOptions && sectorOptions.length > 0 && !sectorOptions.includes(setor)) {
+      setSetor(sectorOptions[0]);
+    }
+  }, [sectorOptions, setor]);
+
   const motivoOptions = [
     "Substituição por desligamento", 
     "Substituição por demissão", 

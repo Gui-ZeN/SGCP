@@ -57,6 +57,7 @@ export default function App() {
     sedes, 
     regioes, 
     cargos, 
+    setores,
     loading: loadingMetadata, 
     userRole, 
     isAdmin, 
@@ -73,7 +74,9 @@ export default function App() {
     updateRegiao,
     deleteRegiao, 
     addCargo, 
-    deleteCargo 
+    deleteCargo,
+    addSetor,
+    deleteSetor 
   } = useMetadata(user);
 
   const {
@@ -283,6 +286,19 @@ export default function App() {
       const c = cargos.find(item => item.id === id);
       await deleteCargo(id);
       await logAction('EXCLUIU', 'Cargos', `Cargo catalogado "${c?.nome || id}" excluído.`);
+    });
+
+  const wrappedAddSetor = (nome: string) => 
+    executeWithLoading("Definindo setor autorizado...", async () => {
+      await addSetor(nome);
+      await logAction('CRIOU', 'Setores', `Setor catalogado "${nome}" adicionado.`);
+    });
+
+  const wrappedDeleteSetor = (id: string) => 
+    executeWithLoading("Sincronizando remoção do setor catalogado...", async () => {
+      const s = setores.find(item => item.id === id);
+      await deleteSetor(id);
+      await logAction('EXCLUIU', 'Setores', `Setor catalogado "${s?.nome || id}" excluído.`);
     });
 
   // Track Auth state if Firebase is active
@@ -682,6 +698,8 @@ export default function App() {
               setActiveTab={setActiveTab}
               userName={user?.displayName}
               sedes={sedes}
+              userSede={selectedSede}
+              isAdmin={isAdmin}
             />
           )}
 
@@ -694,6 +712,7 @@ export default function App() {
               turnover={turnover}
               sedes={sedes}
               userSede={selectedSede}
+              isAdmin={isAdmin}
             />
           )}
           
@@ -710,6 +729,7 @@ export default function App() {
               confirmAction={askConfirmation}
               triggerAddModal={triggerAddModal}
               userSede={selectedSede}
+              userRole={selectedRole}
             />
           )}
 
@@ -720,6 +740,8 @@ export default function App() {
               deleteTreinamento={wrappedDeleteTreinamento}
               sedes={sedes}
               confirmAction={askConfirmation}
+              userSede={selectedSede}
+              isAdmin={isAdmin}
             />
           )}
 
@@ -731,6 +753,9 @@ export default function App() {
               deleteExperiencia={wrappedDeleteExperiencia}
               confirmAction={askConfirmation}
               sedes={sedes}
+              setores={setores}
+              userSede={selectedSede}
+              isAdmin={isAdmin}
             />
           )}
 
@@ -740,6 +765,8 @@ export default function App() {
               addEntrevista={wrappedAddEntrevista} 
               deleteEntrevista={wrappedDeleteEntrevista}
               confirmAction={askConfirmation}
+              userSede={selectedSede}
+              isAdmin={isAdmin}
             />
           )}
 
@@ -759,6 +786,7 @@ export default function App() {
                 sedes={sedes || []}
                 regioes={regioes || []}
                 cargos={cargos || []}
+                setores={setores || []}
                 logs={logs || []}
                 addUsuario={wrappedAddUsuario}
                 deleteUsuario={wrappedDeleteUsuario}
@@ -770,6 +798,8 @@ export default function App() {
                 deleteRegiao={wrappedDeleteRegiao}
                 addCargo={wrappedAddCargo}
                 deleteCargo={wrappedDeleteCargo}
+                addSetor={wrappedAddSetor}
+                deleteSetor={wrappedDeleteSetor}
                 currentUserEmail={user?.email || 'guizen2006@gmail.com'}
                 confirmAction={askConfirmation}
               />

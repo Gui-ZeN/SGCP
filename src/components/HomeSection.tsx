@@ -26,6 +26,8 @@ interface HomeSectionProps {
   setActiveTab: (tab: any) => void;
   userName?: string;
   sedes?: Sede[];
+  userSede?: string;
+  isAdmin?: boolean;
 }
 
 export const HomeSection: React.FC<HomeSectionProps> = ({ 
@@ -35,10 +37,26 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
   entrevistas, 
   setActiveTab,
   userName,
-  sedes = []
+  sedes = [],
+  userSede,
+  isAdmin = false
 }) => {
-  const vagasAbertas = vagas.filter(v => ['ABERTA', 'REABERTA'].includes(v.status.toUpperCase())).length;
-  const treinamentosRealizados = treinamentos.reduce((acc, t) => acc + (t.qtdRealizada || 0), 0);
+  const filteredVagas = React.useMemo(() => {
+    if (!isAdmin && userSede) {
+      return vagas.filter(v => v.sede && v.sede.toLowerCase() === userSede.toLowerCase());
+    }
+    return vagas;
+  }, [vagas, isAdmin, userSede]);
+
+  const filteredTreinamentos = React.useMemo(() => {
+    if (!isAdmin && userSede) {
+      return treinamentos.filter(t => t.unidade && t.unidade.toLowerCase() === userSede.toLowerCase());
+    }
+    return treinamentos;
+  }, [treinamentos, isAdmin, userSede]);
+
+  const vagasAbertas = filteredVagas.filter(v => ['ABERTA', 'REABERTA'].includes(v.status.toUpperCase())).length;
+  const treinamentosRealizados = filteredTreinamentos.reduce((acc, t) => acc + (t.qtdRealizada || 0), 0);
   
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -81,7 +99,7 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
   };
 
   const vagasComAlertaSla = React.useMemo(() => {
-    return vagas
+    return filteredVagas
       .filter(v => ['ABERTA', 'REABERTA', 'PAUSADA', 'SUSPENSA', 'DOCUMENTAÇÃO'].includes(v.status.toUpperCase()))
       .map(v => ({
         ...v,
@@ -89,7 +107,7 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
       }))
       .filter(v => v.dias > 20)
       .sort((a, b) => b.dias - a.dias);
-  }, [vagas, sedes]);
+  }, [filteredVagas]);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
