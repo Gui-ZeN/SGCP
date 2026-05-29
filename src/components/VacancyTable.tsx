@@ -363,12 +363,9 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     }
   };
 
-  // 2. AGGREGATING ADVANCED KPIS (Respects Sede limit for Non-Admins or selected Sede)
+  // 2. AGGREGATING ADVANCED KPIS (Respects selected Sede)
   const stats = useMemo(() => {
     const relevantVagas = vagas.filter(v => {
-      if (!isAdmin && userSede) {
-        return v.sede && v.sede.toLowerCase() === userSede.toLowerCase();
-      }
       if (selectedSede) {
         return v.sede && v.sede.toLowerCase() === selectedSede.toLowerCase();
       }
@@ -468,10 +465,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     }
 
     // Branch filter
-    if (!isAdmin && userSede) {
-      result = result.filter(v => v.sede && v.sede.toLowerCase() === userSede.toLowerCase());
-    } else if (selectedSede) {
-      result = result.filter(v => v.sede === selectedSede);
+    if (selectedSede) {
+      result = result.filter(v => v.sede && v.sede.toLowerCase() === selectedSede.toLowerCase());
     }
 
     // Status filter
@@ -791,17 +786,11 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
             className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200/90 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-700 font-medium transition disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
             value={selectedSede}
             onChange={(e) => { setSelectedSede(e.target.value); setCurrentPage(1); }}
-            disabled={!isAdmin && !!userSede}
           >
-            {(!userSede || isAdmin) && <option value="">Todas as Sedes ({sedesList.length})</option>}
-            {sedesList.map((s, idx) => {
-              if (!isAdmin && userSede && s.toLowerCase() !== userSede.toLowerCase()) {
-                return null;
-              }
-              return (
-                <option key={idx} value={s}>{getSedeSigla(s)}</option>
-              );
-            })}
+            <option value="">Todas as Sedes ({sedesList.length})</option>
+            {sedesList.map((s, idx) => (
+              <option key={idx} value={s}>{getSedeSigla(s)}</option>
+            ))}
           </select>
 
           {/* Sector Dropdown */}

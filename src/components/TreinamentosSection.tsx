@@ -111,9 +111,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
         t.facilitador.toLowerCase().includes(searchTerm.toLowerCase()) || 
         t.publico.toLowerCase().includes(searchTerm.toLowerCase());
       
-      const matchUnidade = !isAdmin && userSede
-        ? t.unidade && t.unidade.toLowerCase() === userSede.toLowerCase()
-        : (!selectedUnidade || t.unidade === selectedUnidade);
+      const matchUnidade = !selectedUnidade || (t.unidade && t.unidade.toLowerCase() === selectedUnidade.toLowerCase());
       const matchTipo = !selectedTipo || t.tipo === selectedTipo;
 
       return matchText && matchUnidade && matchTipo;
@@ -298,17 +296,11 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
           className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
           value={selectedUnidade}
           onChange={(e) => setSelectedUnidade(e.target.value)}
-          disabled={!isAdmin && !!userSede}
         >
-          {(!userSede || isAdmin) && <option value="">Todas as Unidades</option>}
-          {unidadesList.map((u, i) => {
-            if (!isAdmin && userSede && u.toLowerCase() !== userSede.toLowerCase()) {
-              return null;
-            }
-            return (
-              <option key={i} value={u}>{u}</option>
-            );
-          })}
+          <option value="">Todas as Unidades</option>
+          {unidadesList.map((u, i) => (
+            <option key={i} value={u}>{u}</option>
+          ))}
         </select>
 
         <select

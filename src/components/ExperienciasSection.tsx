@@ -185,13 +185,13 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
   const [supervisor, setSupervisor] = useState('');
   const [observacoes, setObservacoes] = useState('');
 
-  // Secure relevant experiences list restricted by Sede for non-admins
+  // Secure relevant experiences list restricted by Sede
   const relevantExperiencias = useMemo(() => {
-    if (!isAdmin && userSede) {
-      return experiencias.filter(e => e.sede && e.sede.toLowerCase() === userSede.toLowerCase());
+    if (selectedSede) {
+      return experiencias.filter(e => e.sede && e.sede.toLowerCase() === selectedSede.toLowerCase());
     }
     return experiencias;
-  }, [experiencias, isAdmin, userSede]);
+  }, [experiencias, selectedSede]);
 
   // Stats
   const stats = useMemo(() => {
@@ -429,17 +429,11 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
           className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 font-medium disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
           value={selectedSede}
           onChange={(e) => setSelectedSede(e.target.value)}
-          disabled={!isAdmin && !!userSede}
         >
-          {(!userSede || isAdmin) && <option value="">Todas as Sedes / Unidades</option>}
-          {sedes.map((s) => {
-            if (!isAdmin && userSede && s.nome.toLowerCase() !== userSede.toLowerCase()) {
-              return null;
-            }
-            return (
-              <option key={s.id} value={s.nome}>{s.nome}</option>
-            );
-          })}
+          <option value="">Todas as Sedes / Unidades</option>
+          {sedes.map((s) => (
+            <option key={s.id} value={s.nome}>{s.nome}</option>
+          ))}
         </select>
       </div>
 

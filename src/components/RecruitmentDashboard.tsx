@@ -362,18 +362,12 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
               id="filter-sede-select"
               value={selectedSede}
               onChange={(e) => setSelectedSede(e.target.value)}
-              disabled={!isAdmin && !!userSede}
               className="text-xs bg-white border border-slate-250 py-1.5 px-3 rounded-xl font-bold text-slate-700 focus:border-indigo-500 focus:outline-none shadow-sm cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
             >
-              {(!userSede || isAdmin) && <option value="TODAS">Sede: Todas</option>}
-              {listSedes.filter(s => s !== 'TODAS').map((s, idx) => {
-                if (!isAdmin && userSede && s.toLowerCase() !== userSede.toLowerCase()) {
-                  return null;
-                }
-                return (
-                  <option key={idx} value={s}>{getSedeSigla(s)}</option>
-                );
-              })}
+              <option value="TODAS">Sede: Todas</option>
+              {listSedes.filter(s => s !== 'TODAS').map((s, idx) => (
+                <option key={idx} value={s}>{getSedeSigla(s)}</option>
+              ))}
             </select>
           </div>
 
