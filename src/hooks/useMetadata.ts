@@ -243,8 +243,8 @@ export function useMetadata(currentUser: any) {
       const parsed = JSON.parse(storedUsers);
       setUsuarios(Array.isArray(parsed) ? parsed : []);
     } else {
-      setUsuarios([]);
-      localStorage.setItem(USERS_LOCAL_KEY, JSON.stringify([]));
+      setUsuarios(defaultUsuarios);
+      localStorage.setItem(USERS_LOCAL_KEY, JSON.stringify(defaultUsuarios));
     }
 
     // Sedes
@@ -253,8 +253,8 @@ export function useMetadata(currentUser: any) {
       const parsed = JSON.parse(storedSedes);
       setSedes(Array.isArray(parsed) ? parsed : []);
     } else {
-      setSedes([]);
-      localStorage.setItem(SEDES_LOCAL_KEY, JSON.stringify([]));
+      setSedes(defaultSedes);
+      localStorage.setItem(SEDES_LOCAL_KEY, JSON.stringify(defaultSedes));
     }
 
     // Regioes
@@ -263,8 +263,8 @@ export function useMetadata(currentUser: any) {
       const parsed = JSON.parse(storedRegioes);
       setRegioes(Array.isArray(parsed) ? parsed : []);
     } else {
-      setRegioes([]);
-      localStorage.setItem(REGIOES_LOCAL_KEY, JSON.stringify([]));
+      setRegioes(defaultRegioes);
+      localStorage.setItem(REGIOES_LOCAL_KEY, JSON.stringify(defaultRegioes));
     }
 
     // Cargos
@@ -273,8 +273,8 @@ export function useMetadata(currentUser: any) {
       const parsed = JSON.parse(storedCargos);
       setCargos(Array.isArray(parsed) ? parsed : []);
     } else {
-      setCargos([]);
-      localStorage.setItem(CARGOS_LOCAL_KEY, JSON.stringify([]));
+      setCargos(defaultCargos);
+      localStorage.setItem(CARGOS_LOCAL_KEY, JSON.stringify(defaultCargos));
     }
 
     // Setores
@@ -284,8 +284,8 @@ export function useMetadata(currentUser: any) {
       const list = Array.isArray(parsed) ? parsed : [];
       setSetores(list);
     } else {
-      setSetores([]);
-      localStorage.setItem(SETORES_LOCAL_KEY, JSON.stringify([]));
+      setSetores(defaultSetores);
+      localStorage.setItem(SETORES_LOCAL_KEY, JSON.stringify(defaultSetores));
     }
 
     setLoading(false);

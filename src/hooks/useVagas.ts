@@ -74,8 +74,13 @@ export function useVagas() {
         setVagas([]);
       }
     } else {
-      setVagas([]);
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([]));
+      const seeded = initialVagas.map((v, index) => ({
+        id: `local_vaga_${index + 1}`,
+        ...v
+      } as Vaga));
+      seeded.sort((a, b) => b.codigo - a.codigo);
+      setVagas(seeded);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(seeded));
     }
     setLoading(false);
   };

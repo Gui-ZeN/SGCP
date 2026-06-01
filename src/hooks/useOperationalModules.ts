@@ -348,8 +348,8 @@ export function useOperationalModules() {
     if (storedT) {
       setTreinamentos(JSON.parse(storedT));
     } else {
-      setTreinamentos([]);
-      localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify([]));
+      setTreinamentos(initialTreinamentos);
+      localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify(initialTreinamentos));
     }
 
     // Experiencia
@@ -357,8 +357,8 @@ export function useOperationalModules() {
     if (storedE) {
       setExperiencias(JSON.parse(storedE));
     } else {
-      setExperiencias([]);
-      localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify([]));
+      setExperiencias(initialExperiencia);
+      localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify(initialExperiencia));
     }
 
     // Entrevistas
@@ -366,8 +366,8 @@ export function useOperationalModules() {
     if (storedEnt) {
       setEntrevistas(JSON.parse(storedEnt));
     } else {
-      setEntrevistas([]);
-      localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify([]));
+      setEntrevistas(initialEntrevistas);
+      localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(initialEntrevistas));
     }
 
     // Turnover
@@ -375,8 +375,8 @@ export function useOperationalModules() {
     if (storedTo) {
       setTurnover(JSON.parse(storedTo));
     } else {
-      setTurnover([]);
-      localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify([]));
+      setTurnover(initialTurnover);
+      localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify(initialTurnover));
     }
 
     setLoading(false);
