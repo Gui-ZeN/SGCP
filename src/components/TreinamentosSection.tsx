@@ -415,7 +415,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                   </div>
                 </div>
 
-                {/* Delete button (shows on hover) */}
+                {/* Delete button (displays clearly for explicit manual cleanups) */}
                 <button
                   onClick={() => {
                     if (confirmAction) {
@@ -430,7 +430,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                       }
                     }
                   }}
-                  className="absolute top-4 right-4 p-1.5 bg-white border border-rose-200 text-rose-500 hover:bg-rose-50 rounded-xl cursor-pointer opacity-0 group-hover:opacity-100 transition-all shadow-sm z-10"
+                  className="absolute top-4 right-4 p-1.5 bg-white border border-rose-200 text-rose-500 hover:bg-rose-50 rounded-xl cursor-pointer transition-all shadow-sm z-10"
                   title="Excluir"
                 >
                   <Trash2 className="w-4 h-4" />

@@ -903,6 +903,7 @@ export default function App() {
                 deleteSetor={wrappedDeleteSetor}
                 currentUserEmail={user?.email || 'guizen2006@gmail.com'}
                 confirmAction={askConfirmation}
+                clearAllData={wrappedClearAllTransactionData}
               />
             </ErrorBoundary>
           )}

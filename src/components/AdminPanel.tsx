@@ -6,7 +6,8 @@ import {
   Briefcase, 
   ShieldAlert,
   History,
-  FolderTree
+  FolderTree,
+  Database
 } from 'lucide-react';
 import { Usuario, Sede, Regiao, Cargo, Setor } from '../hooks/useMetadata';
 import { SystemLog } from '../hooks/useLogs';
@@ -39,6 +40,7 @@ interface AdminPanelProps {
   deleteSetor: (id: string) => Promise<void>;
   currentUserEmail: string;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
+  clearAllData?: (fullReset: boolean) => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -62,9 +64,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   addSetor,
   deleteSetor,
   currentUserEmail,
-  confirmAction
+  confirmAction,
+  clearAllData
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'usuarios' | 'sedes' | 'regioes' | 'cargos' | 'setores' | 'logs'>('usuarios');
+  const [activeSubTab, setActiveSubTab] = useState<'usuarios' | 'sedes' | 'regioes' | 'cargos' | 'setores' | 'logs' | 'manutencao'>('usuarios');
   
   return (
     <div className="bg-transparent space-y-6">
@@ -147,6 +150,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <History className="w-3.5 h-3.5" />
               Logs de Auditoria
             </button>
+            <button
+              onClick={() => setActiveSubTab('manutencao')}
+              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
+                activeSubTab === 'manutencao' 
+                  ? 'bg-rose-600 text-white shadow-md' 
+                  : 'text-rose-500 hover:text-rose-700'
+              }`}
+            >
+              <Database className="w-3.5 h-3.5" />
+              Banco de Dados & Senso
+            </button>
           </div>
         </div>
 
@@ -203,6 +217,79 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         {activeSubTab === 'logs' && (
           <AdminLogsTab logs={logs} />
+        )}
+
+        {activeSubTab === 'manutencao' && (
+          <div className="space-y-6">
+            <div className="bg-amber-50 rounded-2xl p-6 border border-amber-200">
+              <h3 className="text-base font-bold text-amber-800 mb-2">Por que os dados deletados reaparecem?</h3>
+              <p className="text-xs text-amber-700 leading-relaxed mb-4">
+                No Painel do console Firebase, a sua aplicação está conectada ao Banco de Dados Firestore customizado 
+                <code className="bg-amber-100 px-1.5 py-0.5 rounded mx-1 font-mono font-bold">ai-studio-2b395015-7429-44d1-83dd-233de9cd3c47</code> 
+                e <strong>NÃO</strong> ao banco padrão <code className="bg-amber-100 px-1.5 py-0.5 rounded mx-1 font-mono font-bold">(default)</code>.
+              </p>
+              <p className="text-xs text-amber-700 leading-relaxed">
+                Ao abrir o Firestore no console do Firebase, se você excluir coleções do banco de dados <code className="bg-amber-100 px-1.5 py-0.5 rounded mx-1 font-mono font-bold">(default)</code>,
+                elas não surtirão efeito porque o aplicativo lê a base de dados customizada do AI Studio. 
+                Selecione o dropdown de banco de dados na parte superior do console do Firebase e escolha o ID correspondente acima!
+              </p>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 mb-1">Limpeza & Sanitização Direta do Banco</h3>
+                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Ações administrativas irreversíveis para restaurar ou zerar dados</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="border border-slate-100 rounded-2xl p-5 bg-slate-50/20 space-y-4 hover:border-slate-200 transition">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Limpar Dados de Operação</h4>
+                    <p className="text-xs text-slate-400 mt-1">Esvazia completamente as tabelas de Vagas, Treinamentos, Experiência, Entrevistas de Desligamento, Turnover e Logs de Auditoria. Preserva a estrutura de usuários, sedes, cargos e setores de acesso.</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (confirmAction) {
+                        confirmAction(
+                          "Zerar dados operacionais",
+                          "Tem certeza de que deseja apagar absolutamente todas as vagas, treinamentos, avaliações, feedbacks de desligamento e dados estatísticos? Esta ação é irreversível.",
+                          () => clearAllData?.(false)
+                        );
+                      } else if (window.confirm("Confirmar limpeza de dados operacionais?")) {
+                        clearAllData?.(false);
+                      }
+                    }}
+                    className="w-full py-2 px-4 bg-orange-500 hover:bg-orange-600 active:scale-95 text-xs text-white uppercase font-bold tracking-wider rounded-xl transition cursor-pointer shadow-sm shadow-orange-100"
+                  >
+                    Saneamento Parcial (Operacional)
+                  </button>
+                </div>
+
+                <div className="border border-rose-100 rounded-2xl p-5 bg-rose-50/5 space-y-4 hover:border-rose-200 transition">
+                  <div>
+                    <h4 className="text-xs font-bold text-rose-800 uppercase tracking-wide">Reset Completo de Fábrica</h4>
+                    <p className="text-xs text-slate-400 mt-1">Limpa a base inteira: remove absolutamente todos os cadastros adicionais do Firestore e LocalStorage. Você precisará se cadastrar e recalibrar as configurações ao efetuar o novo login.</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (confirmAction) {
+                        confirmAction(
+                          "Reset Completo de Fábrica",
+                          "Esta ação irá DELETAR absolutamente tudo das bases Firestore e locales de backup, incluindo os perfis de Usuários, Sedes, Regiões, Cargos e Setores catalogados. O sistema será reiniciado do zero absoluto.",
+                          () => clearAllData?.(true)
+                        );
+                      } else if (window.confirm("CONFIRMAR RESET TOTAL DE FÁBRICA?")) {
+                        clearAllData?.(true);
+                      }
+                    }}
+                    className="w-full py-2 px-4 bg-rose-600 hover:bg-rose-700 active:scale-95 text-xs text-white uppercase font-bold tracking-wider rounded-xl transition cursor-pointer shadow-sm shadow-rose-100"
+                  >
+                    Redefinir Tudo (Reset Total)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

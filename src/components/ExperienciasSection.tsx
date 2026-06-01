@@ -718,27 +718,26 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                             Efetivar
                           </button>
                         )}
-                        {(e.status === 'EFETIVADO' || e.status === 'ENCERRADO') && (
-                          <button
-                            onClick={() => {
-                              if (confirmAction) {
-                                confirmAction(
-                                  "Excluir Acompanhamento",
-                                  `Você tem certeza de que deseja remover permanentemente o acompanhamento de período de experiência de "${e.colaborador}"? Esta ação não afetará sua admissão primária.`,
-                                  () => deleteExperiencia(e.id)
-                                );
-                              } else {
-                                if (confirm(`Remover definitivamente acompanhamento de ${e.colaborador}?`)) {
-                                  deleteExperiencia(e.id);
-                                }
+                        {/* Always allow manual deletion of any record (including mock/demo items) seamlessly */}
+                        <button
+                          onClick={() => {
+                            if (confirmAction) {
+                              confirmAction(
+                                "Excluir Acompanhamento",
+                                `Você tem certeza de que deseja remover permanentemente o acompanhamento de período de experiência de "${e.colaborador}"? Esta ação não afetará sua admissão primária.`,
+                                () => deleteExperiencia(e.id)
+                              );
+                            } else {
+                              if (confirm(`Remover definitivamente acompanhamento de ${e.colaborador}?`)) {
+                                deleteExperiencia(e.id);
                               }
-                            }}
-                            className="p-1 px-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-700 rounded-lg cursor-pointer transition border border-transparent hover:border-rose-100"
-                            title="Limpar registro"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                            }
+                          }}
+                          className="p-1 px-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-700 rounded-lg cursor-pointer transition border border-transparent hover:border-rose-100 shrink-0"
+                          title="Limpar registro"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
