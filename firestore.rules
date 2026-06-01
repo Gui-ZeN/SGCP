@@ -75,6 +75,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /system_config/{configId} {
+      allow read, write: if true;
+    }
+
     match /logs/{logId} {
       allow read: if isAdmin();
       allow create: if isSignedIn();

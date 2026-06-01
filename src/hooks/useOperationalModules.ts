@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Treinamento, Experiencia, Entrevista, Turnover } from '../types';
 import { 
   db, 
@@ -15,7 +15,9 @@ import {
   deleteDoc,
   doc,
   handleFirestoreError,
-  OperationType
+  OperationType,
+  getDoc,
+  setDoc
 } from '../lib/firebase';
 
 const TREINAMENTOS_LOCAL_KEY = 'ats_treinamentos_fallback';
@@ -259,11 +261,7 @@ export function useOperationalModules() {
           list.push({ id: docSnap.id, ...docSnap.data() } as Treinamento);
         });
         if (list.length === 0) {
-          initialTreinamentos.forEach(async (t) => {
-            const copy = { ...t };
-            delete (copy as any).id;
-            await addDoc(collection(db, 'treinamentos'), copy);
-          });
+          setTreinamentos([]);
         } else {
           list.sort((a, b) => b.codigo - a.codigo);
           setTreinamentos(list);
@@ -280,11 +278,7 @@ export function useOperationalModules() {
           list.push({ id: docSnap.id, ...docSnap.data() } as Experiencia);
         });
         if (list.length === 0) {
-          initialExperiencia.forEach(async (e) => {
-            const copy = { ...e };
-            delete (copy as any).id;
-            await addDoc(collection(db, 'experiencia'), copy);
-          });
+          setExperiencias([]);
         } else {
           setExperiencias(list);
         }
@@ -300,11 +294,7 @@ export function useOperationalModules() {
           list.push({ id: docSnap.id, ...docSnap.data() } as Entrevista);
         });
         if (list.length === 0) {
-          initialEntrevistas.forEach(async (ent) => {
-            const copy = { ...ent };
-            delete (copy as any).id;
-            await addDoc(collection(db, 'entrevistas'), copy);
-          });
+          setEntrevistas([]);
         } else {
           list.sort((a, b) => b.codigo - a.codigo);
           setEntrevistas(list);
@@ -321,11 +311,7 @@ export function useOperationalModules() {
           list.push({ id: docSnap.id, ...docSnap.data() } as Turnover);
         });
         if (list.length === 0) {
-          initialTurnover.forEach(async (to) => {
-            const copy = { ...to };
-            delete (copy as any).id;
-            await addDoc(collection(db, 'turnover'), copy);
-          });
+          setTurnover([]);
         } else {
           // Sort by date key (represented as mm/yyyy)
           list.sort((a, b) => {

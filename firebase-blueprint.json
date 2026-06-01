@@ -170,9 +170,25 @@
         "detalhes": { "type": "string", "description": "Descrição detalhada do evento" }
       },
       "required": ["timestamp", "usuario", "acao", "modulo", "detalhes"]
+    },
+    "systemConfig": {
+      "title": "SystemConfig",
+      "description": "Configurações internas e estado de banco de dados do sistema",
+      "type": "object",
+      "properties": {
+        "vagas_seeded": { "type": "boolean" },
+        "treinamentos_seeded": { "type": "boolean" },
+        "experiencia_seeded": { "type": "boolean" },
+        "entrevistas_seeded": { "type": "boolean" },
+        "turnover_seeded": { "type": "boolean" }
+      }
     }
   },
   "firestore": {
+    "/system_config/{configId}": {
+      "schema": "systemConfig",
+      "description": "Configurações globais e status de seed do banco de dados"
+    },
     "/vagas/{vagaId}": {
       "schema": "vaga",
       "description": "Coleção com todos os registros e requisições de vagas"

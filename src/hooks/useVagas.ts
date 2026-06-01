@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Vaga } from '../types';
 import { initialVagas } from '../data/initial_vagas';
 import { 
@@ -17,7 +17,9 @@ import {
   doc, 
   onSnapshot,
   handleFirestoreError,
-  OperationType
+  OperationType,
+  getDoc,
+  setDoc
 } from '../lib/firebase';
 
 const LOCAL_STORAGE_KEY = 'ats_vagas_fallback';
@@ -44,13 +46,8 @@ export function useVagas() {
         // Sort by code descending so newest are on top
         firestoreList.sort((a, b) => b.codigo - a.codigo);
         
-        // If Firestore is completely empty, suggest seeding the top 100 entries so user gets beautiful data instantly
-        if (firestoreList.length === 0) {
-          seedInitialData();
-        } else {
-          setVagas(firestoreList);
-          setLoading(false);
-        }
+        setVagas(firestoreList);
+        setLoading(false);
       }, (error: any) => {
         handleFirestoreError(error, OperationType.LIST, 'vagas');
         setErrorMessage("Erro ao conectar com Firestore. Redirecionando para banco local.");
@@ -62,24 +59,6 @@ export function useVagas() {
       loadLocalFallback();
     }
   }, []);
-
-  // Seed online Firestore with initial spreadsheet records
-  const seedInitialData = async () => {
-    try {
-      console.log("Seeding Firestore with initial spreadsheet records...");
-      const vagasCollection = collection(db, 'vagas');
-      
-      // To keep it fast, we seed a rich subset of the first 80 records
-      const seedBatch = initialVagas.slice(0, 80);
-      for (const item of seedBatch) {
-        await addDoc(vagasCollection, item);
-      }
-      // The onSnapshot will automatically trigger and set the state
-    } catch (error) {
-      console.error("Erro ao popular banco inicial:", error);
-      loadLocalFallback();
-    }
-  };
 
   // Local fallback engine using localStorage and initial JSON data
   const loadLocalFallback = () => {
