@@ -40,7 +40,7 @@ export function useVagas() {
       const unsubscribe = onSnapshot(vagasCollection, (snapshot: any) => {
         const firestoreList: Vaga[] = [];
         snapshot.forEach((docSnap: any) => {
-          firestoreList.push({ id: docSnap.id, ...docSnap.data() } as Vaga);
+          firestoreList.push({ ...docSnap.data(), id: docSnap.id } as Vaga);
         });
         
         // Sort by code descending so newest are on top

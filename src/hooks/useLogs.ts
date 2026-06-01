@@ -34,7 +34,7 @@ export function useLogs(currentUser: any) {
       const unsubscribe = onSnapshot(logsCollection, (snapshot: any) => {
         const firestoreList: SystemLog[] = [];
         snapshot.forEach((docSnap: any) => {
-          firestoreList.push({ id: docSnap.id, ...docSnap.data() } as SystemLog);
+          firestoreList.push({ ...docSnap.data(), id: docSnap.id } as SystemLog);
         });
         
         // Sort by timestamp descending

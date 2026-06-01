@@ -258,7 +258,7 @@ export function useOperationalModules() {
       const unsubTreinamentos = onSnapshot(collection(db, 'treinamentos'), (snapshot) => {
         const list: Treinamento[] = [];
         snapshot.forEach((docSnap) => {
-          list.push({ id: docSnap.id, ...docSnap.data() } as Treinamento);
+          list.push({ ...docSnap.data(), id: docSnap.id } as Treinamento);
         });
         if (list.length === 0) {
           setTreinamentos([]);
@@ -275,7 +275,7 @@ export function useOperationalModules() {
       const unsubExperiencia = onSnapshot(collection(db, 'experiencia'), (snapshot) => {
         const list: Experiencia[] = [];
         snapshot.forEach((docSnap) => {
-          list.push({ id: docSnap.id, ...docSnap.data() } as Experiencia);
+          list.push({ ...docSnap.data(), id: docSnap.id } as Experiencia);
         });
         if (list.length === 0) {
           setExperiencias([]);
@@ -291,7 +291,7 @@ export function useOperationalModules() {
       const unsubEntrevistas = onSnapshot(collection(db, 'entrevistas'), (snapshot) => {
         const list: Entrevista[] = [];
         snapshot.forEach((docSnap) => {
-          list.push({ id: docSnap.id, ...docSnap.data() } as Entrevista);
+          list.push({ ...docSnap.data(), id: docSnap.id } as Entrevista);
         });
         if (list.length === 0) {
           setEntrevistas([]);
@@ -308,7 +308,7 @@ export function useOperationalModules() {
       const unsubTurnover = onSnapshot(collection(db, 'turnover'), (snapshot) => {
         const list: Turnover[] = [];
         snapshot.forEach((docSnap) => {
-          list.push({ id: docSnap.id, ...docSnap.data() } as Turnover);
+          list.push({ ...docSnap.data(), id: docSnap.id } as Turnover);
         });
         if (list.length === 0) {
           setTurnover([]);

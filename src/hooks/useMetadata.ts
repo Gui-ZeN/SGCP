@@ -177,7 +177,7 @@ export function useMetadata(currentUser: any) {
       const unsubUsuarios = onSnapshot(collection(db, 'usuarios'), (snapshot: any) => {
         const list: Usuario[] = [];
         snapshot.forEach((docSnap: any) => {
-          list.push({ id: docSnap.id, ...docSnap.data() } as Usuario);
+          list.push({ ...docSnap.data(), id: docSnap.id } as Usuario);
         });
         setUsuarios(list);
       }, (error: any) => {
@@ -188,7 +188,7 @@ export function useMetadata(currentUser: any) {
       const unsubSedes = onSnapshot(collection(db, 'sedes'), (snapshot: any) => {
         const list: Sede[] = [];
         snapshot.forEach((docSnap: any) => {
-          list.push({ id: docSnap.id, ...docSnap.data() } as Sede);
+          list.push({ ...docSnap.data(), id: docSnap.id } as Sede);
         });
         setSedes(list);
       });
@@ -197,7 +197,7 @@ export function useMetadata(currentUser: any) {
       const unsubRegioes = onSnapshot(collection(db, 'regioes'), (snapshot: any) => {
         const list: Regiao[] = [];
         snapshot.forEach((docSnap: any) => {
-          list.push({ id: docSnap.id, ...docSnap.data() } as Regiao);
+          list.push({ ...docSnap.data(), id: docSnap.id } as Regiao);
         });
         setRegioes(list);
       });
@@ -206,7 +206,7 @@ export function useMetadata(currentUser: any) {
       const unsubCargos = onSnapshot(collection(db, 'cargos'), (snapshot: any) => {
         const list: Cargo[] = [];
         snapshot.forEach((docSnap: any) => {
-          list.push({ id: docSnap.id, ...docSnap.data() } as Cargo);
+          list.push({ ...docSnap.data(), id: docSnap.id } as Cargo);
         });
         setCargos(list);
       });
@@ -215,7 +215,7 @@ export function useMetadata(currentUser: any) {
       const unsubSetores = onSnapshot(collection(db, 'setores'), (snapshot: any) => {
         const list: Setor[] = [];
         snapshot.forEach((docSnap: any) => {
-          list.push({ id: docSnap.id, ...docSnap.data() } as Setor);
+          list.push({ ...docSnap.data(), id: docSnap.id } as Setor);
         });
         setSetores(list);
         setLoading(false);
