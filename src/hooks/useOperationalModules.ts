@@ -19,6 +19,7 @@ import {
   OperationType
 } from '../lib/firebase';
 import type { ImportableEntrevista, ImportableTreinamento } from '../lib/spreadsheetImport';
+import { stripUndefinedFields } from '../lib/firestoreData';
 
 const TREINAMENTOS_LOCAL_KEY = 'ats_treinamentos_fallback';
 const EXPERIENCIA_LOCAL_KEY = 'ats_experiencia_fallback';
@@ -532,7 +533,7 @@ export function useOperationalModules() {
 
         const existingCodes = replace ? new Set<number>() : new Set(treinamentos.map(t => t.codigo));
         const toCreate = imported.filter(t => !existingCodes.has(t.codigo));
-        await Promise.all(toCreate.map(({ id, ...treinamento }: any) => addDoc(collection(db, 'treinamentos'), treinamento)));
+        await Promise.all(toCreate.map(({ id, ...treinamento }: any) => addDoc(collection(db, 'treinamentos'), stripUndefinedFields(treinamento))));
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, 'treinamentos/import');
       }
@@ -560,7 +561,7 @@ export function useOperationalModules() {
 
         const existingKeys = replace ? new Set<string>() : new Set(entrevistas.map(e => `${e.colaborador}|${e.dataEntrevista}|${e.funcao}`.toLowerCase()));
         const toCreate = imported.filter(e => !existingKeys.has(`${e.colaborador}|${e.dataEntrevista}|${e.funcao}`.toLowerCase()));
-        await Promise.all(toCreate.map(({ id, ...entrevista }: any) => addDoc(collection(db, 'entrevistas'), entrevista)));
+        await Promise.all(toCreate.map(({ id, ...entrevista }: any) => addDoc(collection(db, 'entrevistas'), stripUndefinedFields(entrevista))));
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, 'entrevistas/import');
       }

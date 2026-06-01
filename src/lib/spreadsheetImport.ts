@@ -220,7 +220,6 @@ async function parseVagas(file: File, warnings: string[]): Promise<ImportableVag
       mesConclusao: monthAbbrFromDate(conclusao),
       categoria: 'Importado',
       tempoSla: numberValue(value(row, 'Tempo do processo')),
-      diasEmAberto: undefined,
       ano: yearFromDate(solicitacao),
       categoriaMotivo: motivo.toLowerCase().includes('aumento') ? 'Aumento de Quadro' : 'Substituição'
     }];

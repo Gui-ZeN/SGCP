@@ -20,6 +20,7 @@ import {
   OperationType
 } from '../lib/firebase';
 import type { ImportableVaga } from '../lib/spreadsheetImport';
+import { stripUndefinedFields } from '../lib/firestoreData';
 
 const LOCAL_STORAGE_KEY = 'ats_vagas_fallback';
 
@@ -172,7 +173,7 @@ export function useVagas() {
 
         const existingCodes = replace ? new Set<number>() : new Set(vagas.map(v => v.codigo));
         const toCreate = imported.filter(v => !existingCodes.has(v.codigo));
-        await Promise.all(toCreate.map(({ id, ...vaga }: any) => addDoc(collection(db, 'vagas'), vaga)));
+        await Promise.all(toCreate.map(({ id, ...vaga }: any) => addDoc(collection(db, 'vagas'), stripUndefinedFields(vaga))));
       } catch (error) {
         handleFirestoreError(error, OperationType.CREATE, 'vagas/import');
       }
