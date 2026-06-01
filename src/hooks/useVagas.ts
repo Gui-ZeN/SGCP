@@ -10,6 +10,7 @@ import {
   db, 
   isFirebaseEnabled, 
   collection, 
+  getDocs,
   addDoc, 
   updateDoc, 
   deleteDoc, 
@@ -18,6 +19,7 @@ import {
   handleFirestoreError,
   OperationType
 } from '../lib/firebase';
+import type { ImportableVaga } from '../lib/spreadsheetImport';
 
 const LOCAL_STORAGE_KEY = 'ats_vagas_fallback';
 
@@ -158,6 +160,34 @@ export function useVagas() {
     }
   };
 
+  const importVagas = async (imported: ImportableVaga[], replace = false) => {
+    if (imported.length === 0) return;
+
+    if (usingFirebase && db) {
+      try {
+        if (replace) {
+          const snap = await getDocs(collection(db, 'vagas'));
+          await Promise.all(snap.docs.map((docSnap: any) => deleteDoc(doc(db, 'vagas', docSnap.id))));
+        }
+
+        const existingCodes = replace ? new Set<number>() : new Set(vagas.map(v => v.codigo));
+        const toCreate = imported.filter(v => !existingCodes.has(v.codigo));
+        await Promise.all(toCreate.map(({ id, ...vaga }: any) => addDoc(collection(db, 'vagas'), vaga)));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'vagas/import');
+      }
+    } else {
+      const existingCodes = replace ? new Set<number>() : new Set(vagas.map(v => v.codigo));
+      const toCreate = imported
+        .filter(v => !existingCodes.has(v.codigo))
+        .map((v, index) => ({ id: `local_import_vaga_${Date.now()}_${index}`, ...v } as Vaga));
+      const updatedList = replace ? toCreate : [...toCreate, ...vagas];
+      updatedList.sort((a, b) => b.codigo - a.codigo);
+      setVagas(updatedList);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedList));
+    }
+  };
+
   return {
     vagas,
     loading,
@@ -165,6 +195,7 @@ export function useVagas() {
     errorMessage,
     addVaga,
     updateVaga,
-    deleteVaga
+    deleteVaga,
+    importVagas
   };
 }

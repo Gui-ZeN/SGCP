@@ -10,6 +10,7 @@ import {
   isFirebaseEnabled, 
   collection, 
   onSnapshot,
+  getDocs,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -17,6 +18,7 @@ import {
   handleFirestoreError,
   OperationType
 } from '../lib/firebase';
+import type { ImportableEntrevista, ImportableTreinamento } from '../lib/spreadsheetImport';
 
 const TREINAMENTOS_LOCAL_KEY = 'ats_treinamentos_fallback';
 const EXPERIENCIA_LOCAL_KEY = 'ats_experiencia_fallback';
@@ -518,6 +520,62 @@ export function useOperationalModules() {
     }
   };
 
+  const importTreinamentos = async (imported: ImportableTreinamento[], replace = false) => {
+    if (imported.length === 0) return;
+
+    if (usingFirebase && db) {
+      try {
+        if (replace) {
+          const snap = await getDocs(collection(db, 'treinamentos'));
+          await Promise.all(snap.docs.map((docSnap: any) => deleteDoc(doc(db, 'treinamentos', docSnap.id))));
+        }
+
+        const existingCodes = replace ? new Set<number>() : new Set(treinamentos.map(t => t.codigo));
+        const toCreate = imported.filter(t => !existingCodes.has(t.codigo));
+        await Promise.all(toCreate.map(({ id, ...treinamento }: any) => addDoc(collection(db, 'treinamentos'), treinamento)));
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, 'treinamentos/import');
+      }
+    } else {
+      const existingCodes = replace ? new Set<number>() : new Set(treinamentos.map(t => t.codigo));
+      const toCreate = imported
+        .filter(t => !existingCodes.has(t.codigo))
+        .map((t, index) => ({ id: `local_import_t_${Date.now()}_${index}`, ...t } as Treinamento));
+      const updated = replace ? toCreate : [...toCreate, ...treinamentos];
+      updated.sort((a, b) => b.codigo - a.codigo);
+      setTreinamentos(updated);
+      localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify(updated));
+    }
+  };
+
+  const importEntrevistas = async (imported: ImportableEntrevista[], replace = false) => {
+    if (imported.length === 0) return;
+
+    if (usingFirebase && db) {
+      try {
+        if (replace) {
+          const snap = await getDocs(collection(db, 'entrevistas'));
+          await Promise.all(snap.docs.map((docSnap: any) => deleteDoc(doc(db, 'entrevistas', docSnap.id))));
+        }
+
+        const existingKeys = replace ? new Set<string>() : new Set(entrevistas.map(e => `${e.colaborador}|${e.dataEntrevista}|${e.funcao}`.toLowerCase()));
+        const toCreate = imported.filter(e => !existingKeys.has(`${e.colaborador}|${e.dataEntrevista}|${e.funcao}`.toLowerCase()));
+        await Promise.all(toCreate.map(({ id, ...entrevista }: any) => addDoc(collection(db, 'entrevistas'), entrevista)));
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, 'entrevistas/import');
+      }
+    } else {
+      const existingKeys = replace ? new Set<string>() : new Set(entrevistas.map(e => `${e.colaborador}|${e.dataEntrevista}|${e.funcao}`.toLowerCase()));
+      const toCreate = imported
+        .filter(e => !existingKeys.has(`${e.colaborador}|${e.dataEntrevista}|${e.funcao}`.toLowerCase()))
+        .map((e, index) => ({ id: `local_import_ent_${Date.now()}_${index}`, ...e } as Entrevista));
+      const updated = replace ? toCreate : [...toCreate, ...entrevistas];
+      updated.sort((a, b) => b.codigo - a.codigo);
+      setEntrevistas(updated);
+      localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(updated));
+    }
+  };
+
   // ==================== CRUD TURNOVER ====================
   const addTurnover = async (input: Omit<Turnover, 'id'>) => {
     if (usingFirebase && db) {
@@ -557,11 +615,13 @@ export function useOperationalModules() {
     addTreinamento,
     updateTreinamento,
     deleteTreinamento,
+    importTreinamentos,
     addExperiencia,
     updateExperiencia,
     deleteExperiencia,
     addEntrevista,
     deleteEntrevista,
+    importEntrevistas,
     addTurnover,
     deleteTurnover
   };

@@ -34,16 +34,28 @@ import {
   HeartCrack,
   Percent,
   User,
-  Users
+  Users,
+  Upload,
+  FileSpreadsheet,
+  X
 } from 'lucide-react';
 import { auth, googleProvider, isFirebaseEnabled, db } from './lib/firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
 
 export default function App() {
-  const { vagas, loading, usingFirebase, errorMessage, addVaga, updateVaga, deleteVaga } = useVagas();
+  const { vagas, loading, usingFirebase, errorMessage, addVaga, updateVaga, deleteVaga, importVagas } = useVagas();
   const [user, setUser] = useState<any>(null);
   const [toast, setToast] = useState<{ message: string, type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
   const [triggerAddModal, setTriggerAddModal] = useState(0);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importReplace, setImportReplace] = useState(false);
+  const [importingSpreadsheet, setImportingSpreadsheet] = useState(false);
+  const [importSelection, setImportSelection] = useState({
+    vagas: true,
+    treinamentos: true,
+    entrevistas: true
+  });
 
   const notify = (message: string, type: 'error' | 'success' | 'info' | 'warning' = 'info') => {
     setToast({ message, type });
@@ -91,11 +103,13 @@ export default function App() {
     addTreinamento,
     updateTreinamento,
     deleteTreinamento,
+    importTreinamentos,
     addExperiencia,
     updateExperiencia,
     deleteExperiencia,
     addEntrevista,
     deleteEntrevista,
+    importEntrevistas,
     addTurnover,
     deleteTurnover
   } = useOperationalModules();
@@ -369,6 +383,60 @@ export default function App() {
       }, 1500);
     });
 
+  const handleSpreadsheetImport = async () => {
+    if (!importFile) {
+      notify("Selecione uma planilha .xlsx para importar.", "warning");
+      return;
+    }
+    if (!importSelection.vagas && !importSelection.treinamentos && !importSelection.entrevistas) {
+      notify("Selecione pelo menos um módulo para importar.", "warning");
+      return;
+    }
+
+    setImportingSpreadsheet(true);
+    try {
+      const { parseSgpcSpreadsheet } = await import('./lib/spreadsheetImport');
+      const parsed = await parseSgpcSpreadsheet(importFile);
+      const importedCounts = {
+        vagas: 0,
+        treinamentos: 0,
+        entrevistas: 0
+      };
+
+      if (importSelection.vagas) {
+        await importVagas(parsed.vagas, importReplace);
+        importedCounts.vagas = parsed.vagas.length;
+      }
+      if (importSelection.treinamentos) {
+        await importTreinamentos(parsed.treinamentos, importReplace);
+        importedCounts.treinamentos = parsed.treinamentos.length;
+      }
+      if (importSelection.entrevistas) {
+        await importEntrevistas(parsed.entrevistas, importReplace);
+        importedCounts.entrevistas = parsed.entrevistas.length;
+      }
+
+      const summary = [
+        importSelection.vagas ? `${importedCounts.vagas} vagas` : null,
+        importSelection.treinamentos ? `${importedCounts.treinamentos} treinamentos` : null,
+        importSelection.entrevistas ? `${importedCounts.entrevistas} entrevistas` : null
+      ].filter(Boolean).join(', ');
+
+      await logAction('CRIOU', 'Vagas', `Importação de planilha SGPC concluída: ${summary}. Modo: ${importReplace ? 'substituição' : 'adição sem duplicar'}.`);
+      notify(`Importação concluída: ${summary}.`, parsed.warnings.length ? "warning" : "success");
+      if (parsed.warnings.length) {
+        console.warn("Avisos da importação SGPC:", parsed.warnings.slice(0, 30));
+      }
+      setShowImportModal(false);
+      setImportFile(null);
+    } catch (err: any) {
+      console.error(err);
+      notify(`Erro ao importar planilha: ${err.message || err}`, "error");
+    } finally {
+      setImportingSpreadsheet(false);
+    }
+  };
+
   // Track Auth state if Firebase is active
   useState(() => {
     if (isFirebaseEnabled && auth) {
@@ -554,6 +622,16 @@ export default function App() {
 
         {/* Sync Status Badge & Button */}
         <div className="flex items-center gap-3">
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setShowImportModal(true)}
+              className="hidden sm:flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-full border border-slate-950 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Importar Excel
+            </button>
+          )}
           {usingFirebase ? (
             <div className="flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-100 text-[10px] font-bold uppercase tracking-wider">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5 animate-pulse"></span>
@@ -911,6 +989,93 @@ export default function App() {
       </div>
 
       {/* Floating Toast Notification in-app UI */}{/* Floating Toast Notification in-app UI */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[100] flex items-center justify-center p-4 transition-all duration-300 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 bg-slate-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-300" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold uppercase tracking-wider">Importar planilha SGPC</h3>
+                  <p className="text-[11px] text-slate-300 font-semibold mt-0.5">Vagas, treinamentos e entrevistas de desligamento.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center text-slate-300 hover:text-white cursor-pointer transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <label className="block">
+                <span className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Arquivo .xlsx</span>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                  className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-900 file:px-4 file:py-2.5 file:text-xs file:font-bold file:uppercase file:tracking-wider file:text-white hover:file:bg-slate-800 file:cursor-pointer cursor-pointer"
+                />
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  ['vagas', 'Vagas'],
+                  ['treinamentos', 'Treinamentos'],
+                  ['entrevistas', 'Entrevistas']
+                ].map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={importSelection[key as keyof typeof importSelection]}
+                      onChange={(e) => setImportSelection(prev => ({ ...prev, [key]: e.target.checked }))}
+                      className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+
+              <label className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={importReplace}
+                  onChange={(e) => setImportReplace(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-amber-300 text-orange-500 focus:ring-orange-500"
+                />
+                <span>
+                  <strong className="block uppercase tracking-wider text-[10px]">Substituir dados dos módulos selecionados</strong>
+                  Se desmarcado, o SGPC adiciona registros novos e evita duplicar pelo código ou pela chave da entrevista.
+                </span>
+              </label>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowImportModal(false)}
+                  className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-xs font-bold rounded-xl text-slate-600 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSpreadsheetImport}
+                  disabled={importingSpreadsheet}
+                  className="px-5 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-xs font-bold rounded-xl text-white shadow-lg shadow-orange-500/20 cursor-pointer flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  {importingSpreadsheet ? 'Importando...' : 'Importar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div 
           id="toast-notification" 
