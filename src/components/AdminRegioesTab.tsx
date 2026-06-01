@@ -151,7 +151,7 @@ export const AdminRegioesTab: React.FC<AdminRegioesTabProps> = ({
                           if (confirmAction) {
                             confirmAction(
                               "Excluir Região",
-                              `Deseja realmente remover a região de operação "${r.nome}" do ATS?`,
+                              `Deseja realmente remover a região de operação "${r.nome}" do SGPC?`,
                               () => deleteRegiao(r.id)
                             );
                           } else {

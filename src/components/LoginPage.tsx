@@ -91,7 +91,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     {
       icon: <Bot className="w-5 h-5 text-purple-600" />,
       bg: 'bg-purple-50 border-purple-100',
-      title: 'Assistente IA de ATS',
+      title: 'Assistente IA do SGPC',
       desc: 'Modelagem automatizada de requisitos de cargo e suporte ativo inteligente.'
     }
   ];
@@ -132,7 +132,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </div>
           <div>
             <h2 className="text-sm font-black text-slate-800 tracking-tight leading-none uppercase">
-              SGPC <span className="text-[9px] bg-orange-500/10 text-orange-600 px-1.5 py-0.5 rounded-md border border-orange-500/20 ml-1 font-extrabold uppercase">ATS</span>
+              SGPC <span className="text-[9px] bg-orange-500/10 text-orange-600 px-1.5 py-0.5 rounded-md border border-orange-500/20 ml-1 font-extrabold uppercase">RH</span>
             </h2>
             <p className="text-[10px] text-slate-450 font-bold tracking-wider uppercase mt-1">
               Sistema de Gestão de Pessoas Christus
@@ -238,7 +238,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         {/* Lower Tagline / Compliance Info */}
         <div className="border-t border-slate-200/70 pt-6 z-10 shrink-0">
           <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider text-center lg:text-left">
-            Sistema de Gestão de Pessoas Christus • SGPC ATS
+            Sistema de Gestão de Pessoas Christus • SGPC
           </p>
         </div>
       </div>
@@ -254,7 +254,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             </div>
             <div>
               <h2 className="text-sm font-black text-slate-800 tracking-tight leading-none uppercase">
-                SGPC <span className="text-[9px] bg-orange-500/10 text-orange-600 px-1.5 py-0.5 rounded-md border border-orange-500/20 ml-1 font-extrabold uppercase">ATS</span>
+                SGPC <span className="text-[9px] bg-orange-500/10 text-orange-600 px-1.5 py-0.5 rounded-md border border-orange-500/20 ml-1 font-extrabold uppercase">RH</span>
               </h2>
             </div>
           </div>

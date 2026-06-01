@@ -226,7 +226,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                           if (confirmAction) {
                             confirmAction(
                               "Excluir Usuário",
-                              `Você tem certeza de que deseja remover o usuário "${u.email}" do sistema? Esta pessoa perderá acesso imediato às permissões do ATS.`,
+                              `Você tem certeza de que deseja remover o usuário "${u.email}" do sistema? Esta pessoa perderá acesso imediato às permissões do SGPC.`,
                               () => deleteUsuario(u.id || u.email)
                             );
                           } else {

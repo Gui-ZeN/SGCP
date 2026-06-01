@@ -1627,7 +1627,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                 <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Status & Contratação</h4>
                 <div className="grid grid-cols-2 gap-3 text-xs leading-relaxed">
                   <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                    <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Etapa Atual no ATS</span>
+                    <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Etapa Atual no SGPC</span>
                     <span className="text-orange-700 font-bold bg-orange-50 px-2 py-0.5 rounded border border-orange-150 uppercase text-[9px] inline-block mt-0.5">
                       {selectedDetailsVaga.etapa || 'Triagem'}
                     </span>

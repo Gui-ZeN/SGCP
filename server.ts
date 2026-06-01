@@ -37,7 +37,7 @@ async function bootstrap() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[ATS Server] Servidor ativo em porta ${PORT}`);
+    console.log(`[SGPC Server] Servidor ativo em porta ${PORT}`);
   });
 }
 

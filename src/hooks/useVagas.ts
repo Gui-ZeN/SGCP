@@ -3,23 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Vaga } from '../types';
 import { initialVagas } from '../data/initial_vagas';
 import { 
   db, 
   isFirebaseEnabled, 
   collection, 
-  getDocs, 
   addDoc, 
   updateDoc, 
   deleteDoc, 
   doc, 
   onSnapshot,
   handleFirestoreError,
-  OperationType,
-  getDoc,
-  setDoc
+  OperationType
 } from '../lib/firebase';
 
 const LOCAL_STORAGE_KEY = 'ats_vagas_fallback';
@@ -47,6 +44,7 @@ export function useVagas() {
         firestoreList.sort((a, b) => b.codigo - a.codigo);
         
         setVagas(firestoreList);
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(firestoreList));
         setLoading(false);
       }, (error: any) => {
         handleFirestoreError(error, OperationType.LIST, 'vagas');

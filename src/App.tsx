@@ -135,7 +135,7 @@ export default function App() {
 
   // Wrapped operations for automatic loading states, error notifications and audit logging
   const wrappedAddVaga = (vagaInput: any) => 
-    executeWithLoading("Cadastrando nova vaga no ATS...", async () => {
+    executeWithLoading("Cadastrando nova vaga no SGPC...", async () => {
       await addVaga(vagaInput);
       await logAction('CRIOU', 'Vagas', `Vaga "${vagaInput.vaga}" (Sede: ${vagaInput.sede || selectedSede}) cadastrada.`);
     });
@@ -508,7 +508,7 @@ export default function App() {
               Sua conta <span className="font-extrabold text-slate-800 font-mono text-[11px] bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{user?.email}</span> não está cadastrada como autorizada neste sistema.
             </p>
             <p className="text-xs text-slate-500 leading-relaxed font-semibold">
-              Peça a um Administrador organizacional do SGCP para cadastrar seu e-mail no painel de controle de usuários.
+              Peça a um Administrador organizacional do SGPC para cadastrar seu e-mail no painel de controle de usuários.
             </p>
           </div>
           <div className="pt-2">
@@ -757,7 +757,7 @@ export default function App() {
                 className="w-full px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md border border-slate-950 hover:scale-[1.01] transition-all"
               >
                 <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Entrar no ATS</span>
+                <span>Entrar no SGPC</span>
               </button>
             ) : (
               <div className="bg-slate-50 text-[9px] p-3 rounded-2xl text-slate-400 text-center font-bold uppercase tracking-wider leading-normal">
@@ -772,7 +772,7 @@ export default function App() {
                 <span>Firestore Sincronizado</span>
               </div>
               <div className="text-[8px] text-slate-400/80 font-semibold normal-case pt-1 flex justify-between items-center leading-none">
-                <span>© {new Date().getFullYear()} Gestor ATS</span>
+                <span>© {new Date().getFullYear()} SGPC</span>
                 <span>v1.2.0</span>
               </div>
             </div>

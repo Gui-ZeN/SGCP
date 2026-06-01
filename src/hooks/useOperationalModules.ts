@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Treinamento, Experiencia, Entrevista, Turnover } from '../types';
 import { 
   db, 
@@ -15,9 +15,7 @@ import {
   deleteDoc,
   doc,
   handleFirestoreError,
-  OperationType,
-  getDoc,
-  setDoc
+  OperationType
 } from '../lib/firebase';
 
 const TREINAMENTOS_LOCAL_KEY = 'ats_treinamentos_fallback';
@@ -260,12 +258,9 @@ export function useOperationalModules() {
         snapshot.forEach((docSnap) => {
           list.push({ ...docSnap.data(), id: docSnap.id } as Treinamento);
         });
-        if (list.length === 0) {
-          setTreinamentos([]);
-        } else {
-          list.sort((a, b) => b.codigo - a.codigo);
-          setTreinamentos(list);
-        }
+        list.sort((a, b) => b.codigo - a.codigo);
+        setTreinamentos(list);
+        localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify(list));
       }, (err) => {
         console.warn("Erro ao ler Treinamentos do Firestore, usando local fallback:", err);
         loadLocalFallback();
@@ -277,11 +272,8 @@ export function useOperationalModules() {
         snapshot.forEach((docSnap) => {
           list.push({ ...docSnap.data(), id: docSnap.id } as Experiencia);
         });
-        if (list.length === 0) {
-          setExperiencias([]);
-        } else {
-          setExperiencias(list);
-        }
+        setExperiencias(list);
+        localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify(list));
       }, (err) => {
         console.warn("Erro ao ler Experiencia do Firestore, usando local fallback:", err);
         loadLocalFallback();
@@ -293,12 +285,9 @@ export function useOperationalModules() {
         snapshot.forEach((docSnap) => {
           list.push({ ...docSnap.data(), id: docSnap.id } as Entrevista);
         });
-        if (list.length === 0) {
-          setEntrevistas([]);
-        } else {
-          list.sort((a, b) => b.codigo - a.codigo);
-          setEntrevistas(list);
-        }
+        list.sort((a, b) => b.codigo - a.codigo);
+        setEntrevistas(list);
+        localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(list));
       }, (err) => {
         console.warn("Erro ao ler Entrevistas do Firestore, usando local fallback:", err);
         loadLocalFallback();
@@ -310,19 +299,16 @@ export function useOperationalModules() {
         snapshot.forEach((docSnap) => {
           list.push({ ...docSnap.data(), id: docSnap.id } as Turnover);
         });
-        if (list.length === 0) {
-          setTurnover([]);
-        } else {
-          // Sort by date key (represented as mm/yyyy)
-          list.sort((a, b) => {
-            const partsA = a.mesAno.split('/');
-            const partsB = b.mesAno.split('/');
-            const yearDiff = parseInt(partsA[1] || '0') - parseInt(partsB[1] || '0');
-            if (yearDiff !== 0) return yearDiff;
-            return parseInt(partsA[0] || '0') - parseInt(partsB[0] || '0');
-          });
-          setTurnover(list);
-        }
+        // Sort by date key (represented as mm/yyyy)
+        list.sort((a, b) => {
+          const partsA = a.mesAno.split('/');
+          const partsB = b.mesAno.split('/');
+          const yearDiff = parseInt(partsA[1] || '0') - parseInt(partsB[1] || '0');
+          if (yearDiff !== 0) return yearDiff;
+          return parseInt(partsA[0] || '0') - parseInt(partsB[0] || '0');
+        });
+        setTurnover(list);
+        localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify(list));
         setLoading(false);
       }, (err) => {
         console.warn("Erro ao ler Turnover do Firestore, usando local fallback:", err);
