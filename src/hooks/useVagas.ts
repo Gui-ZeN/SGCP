@@ -74,10 +74,13 @@ export function useVagas() {
         setVagas([]);
       }
     } else {
-      const seeded = initialVagas.map((v, index) => ({
+      const isCleanMode = localStorage.getItem('ats_db_clean_mode') === 'true';
+      const initial = isCleanMode ? [] : initialVagas.map((v, index) => ({
         id: `local_vaga_${index + 1}`,
         ...v
       } as Vaga));
+      
+      const seeded = [...initial];
       seeded.sort((a, b) => b.codigo - a.codigo);
       setVagas(seeded);
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(seeded));

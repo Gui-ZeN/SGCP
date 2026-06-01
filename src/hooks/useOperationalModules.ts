@@ -267,8 +267,8 @@ export function useOperationalModules() {
           setTreinamentos(list);
         }
       }, (err) => {
-        console.warn("Erro ao ler Treinamentos do Firestore:", err);
-        handleFirestoreError(err, OperationType.GET, 'treinamentos');
+        console.warn("Erro ao ler Treinamentos do Firestore, usando local fallback:", err);
+        loadLocalFallback();
       });
 
       // --- 2. Experiencia Realtime Sync ---
@@ -283,8 +283,8 @@ export function useOperationalModules() {
           setExperiencias(list);
         }
       }, (err) => {
-        console.warn("Erro ao ler Experiencia do Firestore:", err);
-        handleFirestoreError(err, OperationType.GET, 'experiencia');
+        console.warn("Erro ao ler Experiencia do Firestore, usando local fallback:", err);
+        loadLocalFallback();
       });
 
       // --- 3. Entrevistas Realtime Sync ---
@@ -300,8 +300,8 @@ export function useOperationalModules() {
           setEntrevistas(list);
         }
       }, (err) => {
-        console.warn("Erro ao ler Entrevistas do Firestore:", err);
-        handleFirestoreError(err, OperationType.GET, 'entrevistas');
+        console.warn("Erro ao ler Entrevistas do Firestore, usando local fallback:", err);
+        loadLocalFallback();
       });
 
       // --- 4. Turnover Realtime Sync ---
@@ -325,8 +325,8 @@ export function useOperationalModules() {
         }
         setLoading(false);
       }, (err) => {
-        console.warn("Erro ao ler Turnover do Firestore:", err);
-        handleFirestoreError(err, OperationType.GET, 'turnover');
+        console.warn("Erro ao ler Turnover do Firestore, usando local fallback:", err);
+        loadLocalFallback();
       });
 
       return () => {
@@ -342,14 +342,16 @@ export function useOperationalModules() {
 
   const loadLocalFallback = () => {
     setUsingFirebase(false);
+    const isCleanMode = localStorage.getItem('ats_db_clean_mode') === 'true';
 
     // Treinamentos
     const storedT = localStorage.getItem(TREINAMENTOS_LOCAL_KEY);
     if (storedT) {
       setTreinamentos(JSON.parse(storedT));
     } else {
-      setTreinamentos(initialTreinamentos);
-      localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify(initialTreinamentos));
+      const initial = isCleanMode ? [] : initialTreinamentos;
+      setTreinamentos(initial);
+      localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify(initial));
     }
 
     // Experiencia
@@ -357,8 +359,9 @@ export function useOperationalModules() {
     if (storedE) {
       setExperiencias(JSON.parse(storedE));
     } else {
-      setExperiencias(initialExperiencia);
-      localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify(initialExperiencia));
+      const initial = isCleanMode ? [] : initialExperiencia;
+      setExperiencias(initial);
+      localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify(initial));
     }
 
     // Entrevistas
@@ -366,8 +369,9 @@ export function useOperationalModules() {
     if (storedEnt) {
       setEntrevistas(JSON.parse(storedEnt));
     } else {
-      setEntrevistas(initialEntrevistas);
-      localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(initialEntrevistas));
+      const initial = isCleanMode ? [] : initialEntrevistas;
+      setEntrevistas(initial);
+      localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(initial));
     }
 
     // Turnover
@@ -375,8 +379,9 @@ export function useOperationalModules() {
     if (storedTo) {
       setTurnover(JSON.parse(storedTo));
     } else {
-      setTurnover(initialTurnover);
-      localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify(initialTurnover));
+      const initial = isCleanMode ? [] : initialTurnover;
+      setTurnover(initial);
+      localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify(initial));
     }
 
     setLoading(false);
