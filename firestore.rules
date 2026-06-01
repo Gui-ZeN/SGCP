@@ -80,9 +80,7 @@ service cloud.firestore {
     }
 
     match /logs/{logId} {
-      allow read: if isAdmin();
-      allow create: if isSignedIn();
-      allow update, delete: if false;
+      allow read, write: if true;
     }
   }
 }

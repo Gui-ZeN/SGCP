@@ -20,14 +20,14 @@ export interface SystemLog {
 
 const LOCAL_STORAGE_KEY = 'ats_system_logs_fallback';
 
-export function useLogs(currentUser: any) {
+export function useLogs(currentUser: any, isAdmin: boolean = false) {
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingFirebase, setUsingFirebase] = useState(isFirebaseEnabled);
 
   // Synchronize system logs
   useEffect(() => {
-    if (isFirebaseEnabled && db) {
+    if (isFirebaseEnabled && db && currentUser && isAdmin) {
       setLoading(true);
       const logsCollection = collection(db, 'logs');
       
@@ -50,7 +50,7 @@ export function useLogs(currentUser: any) {
     } else {
       loadLocalFallback();
     }
-  }, []);
+  }, [currentUser, isAdmin]);
 
   const loadLocalFallback = () => {
     setUsingFirebase(false);

@@ -100,7 +100,7 @@ export default function App() {
     deleteTurnover
   } = useOperationalModules();
 
-  const { logs, logAction } = useLogs(user);
+  const { logs, logAction } = useLogs(user, isAdmin);
 
   const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'admin'>('home');
 
