@@ -236,7 +236,6 @@ export function useMetadata(currentUser: any) {
 
   const loadLocalFallback = () => {
     setUsingFirebase(false);
-    const hasAlreadySeeded = localStorage.getItem('ats_demo_seeded') === 'true';
 
     // Users
     const storedUsers = localStorage.getItem(USERS_LOCAL_KEY);
@@ -244,27 +243,18 @@ export function useMetadata(currentUser: any) {
       const parsed = JSON.parse(storedUsers);
       setUsuarios(Array.isArray(parsed) ? parsed : []);
     } else {
-      const def = hasAlreadySeeded ? [] : defaultUsuarios;
-      setUsuarios(def);
-      localStorage.setItem(USERS_LOCAL_KEY, JSON.stringify(def));
+      setUsuarios([]);
+      localStorage.setItem(USERS_LOCAL_KEY, JSON.stringify([]));
     }
 
     // Sedes
     const storedSedes = localStorage.getItem(SEDES_LOCAL_KEY);
     if (storedSedes) {
       const parsed = JSON.parse(storedSedes);
-      const enriched = (Array.isArray(parsed) ? parsed : []).map(s => {
-        if (!s.sigla) {
-          const match = defaultSedes.find(ds => ds.nome.toLowerCase() === s.nome.toLowerCase());
-          if (match) return { ...s, sigla: match.sigla };
-        }
-        return s;
-      });
-      setSedes(enriched);
+      setSedes(Array.isArray(parsed) ? parsed : []);
     } else {
-      const def = hasAlreadySeeded ? [] : defaultSedes;
-      setSedes(def);
-      localStorage.setItem(SEDES_LOCAL_KEY, JSON.stringify(def));
+      setSedes([]);
+      localStorage.setItem(SEDES_LOCAL_KEY, JSON.stringify([]));
     }
 
     // Regioes
@@ -273,9 +263,8 @@ export function useMetadata(currentUser: any) {
       const parsed = JSON.parse(storedRegioes);
       setRegioes(Array.isArray(parsed) ? parsed : []);
     } else {
-      const def = hasAlreadySeeded ? [] : defaultRegioes;
-      setRegioes(def);
-      localStorage.setItem(REGIOES_LOCAL_KEY, JSON.stringify(def));
+      setRegioes([]);
+      localStorage.setItem(REGIOES_LOCAL_KEY, JSON.stringify([]));
     }
 
     // Cargos
@@ -284,9 +273,8 @@ export function useMetadata(currentUser: any) {
       const parsed = JSON.parse(storedCargos);
       setCargos(Array.isArray(parsed) ? parsed : []);
     } else {
-      const def = hasAlreadySeeded ? [] : defaultCargos;
-      setCargos(def);
-      localStorage.setItem(CARGOS_LOCAL_KEY, JSON.stringify(def));
+      setCargos([]);
+      localStorage.setItem(CARGOS_LOCAL_KEY, JSON.stringify([]));
     }
 
     // Setores
@@ -296,9 +284,8 @@ export function useMetadata(currentUser: any) {
       const list = Array.isArray(parsed) ? parsed : [];
       setSetores(list);
     } else {
-      const def = hasAlreadySeeded ? [] : defaultSetores;
-      setSetores(def);
-      localStorage.setItem(SETORES_LOCAL_KEY, JSON.stringify(def));
+      setSetores([]);
+      localStorage.setItem(SETORES_LOCAL_KEY, JSON.stringify([]));
     }
 
     setLoading(false);

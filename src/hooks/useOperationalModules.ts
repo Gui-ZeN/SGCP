@@ -342,20 +342,14 @@ export function useOperationalModules() {
 
   const loadLocalFallback = () => {
     setUsingFirebase(false);
-    const hasAlreadySeeded = localStorage.getItem('ats_demo_seeded') === 'true';
 
     // Treinamentos
     const storedT = localStorage.getItem(TREINAMENTOS_LOCAL_KEY);
     if (storedT) {
       setTreinamentos(JSON.parse(storedT));
     } else {
-      if (hasAlreadySeeded) {
-        setTreinamentos([]);
-        localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify([]));
-      } else {
-        setTreinamentos(initialTreinamentos);
-        localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify(initialTreinamentos));
-      }
+      setTreinamentos([]);
+      localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify([]));
     }
 
     // Experiencia
@@ -363,13 +357,8 @@ export function useOperationalModules() {
     if (storedE) {
       setExperiencias(JSON.parse(storedE));
     } else {
-      if (hasAlreadySeeded) {
-        setExperiencias([]);
-        localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify([]));
-      } else {
-        setExperiencias(initialExperiencia);
-        localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify(initialExperiencia));
-      }
+      setExperiencias([]);
+      localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify([]));
     }
 
     // Entrevistas
@@ -377,13 +366,8 @@ export function useOperationalModules() {
     if (storedEnt) {
       setEntrevistas(JSON.parse(storedEnt));
     } else {
-      if (hasAlreadySeeded) {
-        setEntrevistas([]);
-        localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify([]));
-      } else {
-        setEntrevistas(initialEntrevistas);
-        localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(initialEntrevistas));
-      }
+      setEntrevistas([]);
+      localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify([]));
     }
 
     // Turnover
@@ -391,13 +375,8 @@ export function useOperationalModules() {
     if (storedTo) {
       setTurnover(JSON.parse(storedTo));
     } else {
-      if (hasAlreadySeeded) {
-        setTurnover([]);
-        localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify([]));
-      } else {
-        setTurnover(initialTurnover);
-        localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify(initialTurnover));
-      }
+      setTurnover([]);
+      localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify([]));
     }
 
     setLoading(false);

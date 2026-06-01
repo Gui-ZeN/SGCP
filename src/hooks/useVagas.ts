@@ -64,7 +64,6 @@ export function useVagas() {
   const loadLocalFallback = () => {
     setUsingFirebase(false);
     const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-    const hasAlreadySeeded = localStorage.getItem('ats_demo_seeded') === 'true';
 
     if (stored) {
       try {
@@ -75,26 +74,10 @@ export function useVagas() {
         setVagas([]);
       }
     } else {
-      if (hasAlreadySeeded) {
-        setVagas([]);
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([]));
-      } else {
-        setupFallbackDefaults();
-      }
+      setVagas([]);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([]));
     }
     setLoading(false);
-  };
-
-  const setupFallbackDefaults = () => {
-    // Inject IDs on spreadsheet entries for full-fidelity client handling
-    const defaultList = initialVagas.map((item, index) => ({
-      id: `local_${index}_${item.codigo}`,
-      ...item
-    })) as Vaga[];
-    defaultList.sort((a, b) => b.codigo - a.codigo);
-    setVagas(defaultList);
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(defaultList));
-    localStorage.setItem('ats_demo_seeded', 'true');
   };
 
   // Add a new vacancy (Full-Stack CRUD supporting both online Firestore and Local Fallback)
