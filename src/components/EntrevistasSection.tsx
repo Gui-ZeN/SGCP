@@ -14,6 +14,7 @@ import {
   Calendar,
   Eye,
   Trash2,
+  Pencil,
   ThumbsUp,
   ThumbsDown,
   MessageSquare
@@ -69,6 +70,7 @@ const StarRatingInput = ({ value, onChange, label }: { value: number, onChange: 
 interface EntrevistasSectionProps {
   entrevistas: Entrevista[];
   addEntrevista: (input: Omit<Entrevista, 'id' | 'codigo'>) => Promise<void>;
+  updateEntrevista: (id: string, updatedFields: Partial<Entrevista>) => Promise<void>;
   deleteEntrevista: (id: string) => Promise<void>;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
   userSede?: string;
@@ -78,6 +80,7 @@ interface EntrevistasSectionProps {
 export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
   entrevistas,
   addEntrevista,
+  updateEntrevista,
   deleteEntrevista,
   confirmAction,
   userSede,
@@ -86,6 +89,7 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [viewingRecord, setViewingRecord] = useState<Entrevista | null>(null);
+  const [editingEntrevista, setEditingEntrevista] = useState<Entrevista | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   // New interview registration
@@ -154,6 +158,70 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
     "Outros"
   ].sort((a,b) => a.localeCompare(b));
 
+  const dateToInput = (value?: string) => {
+    if (!value) return '';
+    const parts = value.split('/');
+    if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    return value.includes('-') ? value.slice(0, 10) : '';
+  };
+
+  const resetForm = () => {
+    setColaborador('');
+    setDataEntrevista('');
+    setFuncao('');
+    setUnidade(userSede || 'DT');
+    setAdmissao('');
+    setDesligamento('');
+    setMotivoSaida('Melhor proposta salarial no mercado');
+    setMotivoSaidaOutro('');
+    setGostavaTrabalho('Sim');
+    setOqMaisGostava('');
+    setOqMenosGostava('');
+    setNotaSalario(3);
+    setNotaTreinamento(3);
+    setNotaCrescimento(3);
+    setNotaRelacionamentoColegas(4);
+    setNotaRelacionamentoChefia(4);
+    setNotaClimaOrg(4);
+    setVoltaria('Sim');
+    setSugestoes('');
+    setEntrevistador('');
+    setEditingEntrevista(null);
+    setErrorMsg('');
+  };
+
+  const openCreateForm = () => {
+    resetForm();
+    setShowAddForm(true);
+  };
+
+  const openEditForm = (entrevista: Entrevista) => {
+    setEditingEntrevista(entrevista);
+    setColaborador(entrevista.colaborador || '');
+    setDataEntrevista(dateToInput(entrevista.dataEntrevista));
+    setFuncao(entrevista.funcao || '');
+    setUnidade(entrevista.unidade || userSede || 'DT');
+    setAdmissao(dateToInput(entrevista.admissao));
+    setDesligamento(dateToInput(entrevista.desligamento));
+    setMotivoSaida(motivoOptions.includes(entrevista.motivoSaida) ? entrevista.motivoSaida : 'Outros');
+    setMotivoSaidaOutro(motivoOptions.includes(entrevista.motivoSaida) ? '' : entrevista.motivoSaida || '');
+    setGostavaTrabalho(entrevista.gostavaTrabalho || 'Sim');
+    setOqMaisGostava(entrevista.oqMaisGostava || '');
+    setOqMenosGostava(entrevista.oqMenosGostava || '');
+    setNotaSalario(entrevista.notaSalario || 3);
+    setNotaTreinamento(entrevista.notaTreinamento || 3);
+    setNotaCrescimento(entrevista.notaCrescimento || 3);
+    setNotaRelacionamentoColegas(entrevista.notaRelacionamentoColegas || 4);
+    setNotaRelacionamentoChefia(entrevista.notaRelacionamentoChefia || 4);
+    setNotaClimaOrg(entrevista.notaClimaOrg || 4);
+    setVoltaria(entrevista.voltaria || 'Sim');
+    setSugestoes(entrevista.sugestoes || '');
+    setEntrevistador(entrevista.entrevistador || '');
+    setErrorMsg('');
+    setViewingRecord(null);
+    setShowAddForm(true);
+  };
+
   // Filtered
   const filteredList = useMemo(() => {
     return relevantEntrevistas.filter(e => {
@@ -195,7 +263,7 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
       ? `Outros: ${motivoSaidaOutro.trim()}`
       : motivoSaida;
 
-    await addEntrevista({
+    const payload = {
       colaborador,
       dataEntrevista: formattedInterview,
       funcao,
@@ -215,19 +283,15 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
       voltaria,
       sugestoes: sugestoes || undefined,
       entrevistador: entrevistador || 'RH'
-    });
+    };
 
-    // Reset
-    setColaborador('');
-    setDataEntrevista('');
-    setFuncao('');
-    setOqMaisGostava('');
-    setOqMenosGostava('');
-    setSugestoes('');
-    setEntrevistador('');
-    setMotivoSaida('Melhor proposta salarial no mercado');
-    setMotivoSaidaOutro('');
-    setErrorMsg('');
+    if (editingEntrevista) {
+      await updateEntrevista(editingEntrevista.id, payload);
+    } else {
+      await addEntrevista(payload);
+    }
+
+    resetForm();
     setShowAddForm(false);
   };
 
@@ -267,7 +331,7 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
           <p className="text-slate-500 text-sm font-medium">Investigue motivos de saídas, colete sugestões e estude o nível de satisfação organizacional.</p>
         </div>
         <button
-          onClick={() => setShowAddForm(true)}
+          onClick={openCreateForm}
           className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
         >
           <PlusCircle className="w-4 h-4" />
@@ -384,6 +448,13 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
                     Ver Detalhes
                   </button>
                   <button
+                    onClick={() => openEditForm(e)}
+                    className="p-1 px-2.5 border border-slate-200 hover:bg-slate-50 hover:border-slate-350 text-xs font-bold rounded-lg text-slate-600 flex items-center gap-1 cursor-pointer transition"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-slate-400" />
+                    Editar
+                  </button>
+                  <button
                     onClick={() => {
                       if (confirmAction) {
                         confirmAction(
@@ -421,6 +492,12 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
                 </span>
                 <h3 className="text-lg font-bold mt-1">{viewingRecord.colaborador}</h3>
               </div>
+              <button
+                onClick={() => openEditForm(viewingRecord)}
+                className="text-xs bg-white/10 hover:bg-white/15 text-white font-bold px-3 py-1.5 rounded-xl cursor-pointer transition mr-3"
+              >
+                Editar
+              </button>
               <button 
                 onClick={() => setViewingRecord(null)} 
                 className="text-slate-400 hover:text-white font-bold text-2xl cursor-pointer leading-none"
@@ -527,10 +604,10 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
             <div className="p-5 bg-slate-950 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <HeartCrack className="w-5 h-5 text-orange-500" />
-                <h3 className="text-lg font-bold">Registrar Entrevista de Desligamento</h3>
+                <h3 className="text-lg font-bold">{editingEntrevista ? 'Editar Entrevista de Desligamento' : 'Registrar Entrevista de Desligamento'}</h3>
               </div>
               <button 
-                onClick={() => { setErrorMsg(''); setShowAddForm(false); }} 
+                onClick={() => { resetForm(); setShowAddForm(false); }} 
                 className="text-slate-400 hover:text-white font-bold text-2xl cursor-pointer leading-none"
               >
                 &times;
@@ -733,7 +810,7 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => { setErrorMsg(''); setShowAddForm(false); }}
+                  onClick={() => { resetForm(); setShowAddForm(false); }}
                   className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-sm font-bold rounded-xl text-slate-600 cursor-pointer"
                 >
                   Cancelar
@@ -742,7 +819,7 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
                   type="submit"
                   className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-sm font-bold rounded-xl text-white shadow-lg shadow-orange-500/20 cursor-pointer"
                 >
-                  Salvar Entrevista
+                  {editingEntrevista ? 'Atualizar Entrevista' : 'Salvar Entrevista'}
                 </button>
               </div>
             </form>

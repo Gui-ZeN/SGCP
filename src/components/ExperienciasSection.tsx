@@ -20,6 +20,7 @@ import {
   ArrowUpRight,
   ChevronRight,
   Sparkles,
+  Pencil,
   Trash2
 } from 'lucide-react';
 
@@ -168,6 +169,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
     return !isAdmin && userSede ? userSede : '';
   });
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingExperiencia, setEditingExperiencia] = useState<Experiencia | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   React.useEffect(() => {
@@ -239,6 +241,44 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
       setSetor(sectorsList[0]);
     }
   }, [sectorsList, setor]);
+
+  const dateToInput = (value?: string) => {
+    if (!value) return '';
+    if (value.includes('-')) return value;
+    const parts = value.split('/');
+    if (parts.length !== 3) return '';
+    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+  };
+
+  const resetForm = () => {
+    setColaborador('');
+    setFuncao('');
+    setSetor(sectorsList[0] || '');
+    setSede(!isAdmin && userSede ? userSede : sedes[0]?.nome || '');
+    setDataAdmissao('');
+    setSupervisor('');
+    setObservacoes('');
+    setEditingExperiencia(null);
+    setErrorMsg('');
+  };
+
+  const openCreateForm = () => {
+    resetForm();
+    setShowAddForm(true);
+  };
+
+  const openEditForm = (experiencia: Experiencia) => {
+    setEditingExperiencia(experiencia);
+    setColaborador(experiencia.colaborador || '');
+    setFuncao(experiencia.funcao || '');
+    setSetor(experiencia.setor || sectorsList[0] || '');
+    setSede(experiencia.sede || '');
+    setDataAdmissao(dateToInput(experiencia.dataAdmissao));
+    setSupervisor(experiencia.supervisor || '');
+    setObservacoes(experiencia.observacoes || '');
+    setErrorMsg('');
+    setShowAddForm(true);
+  };
 
   // Filtered
   const filteredList = useMemo(() => {
@@ -325,24 +365,26 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
       formattedAdm = `${parts[2]}/${parts[1]}/${parts[0]}`;
     }
 
-    await addExperiencia({
+    const payload = {
       colaborador,
       funcao,
       setor,
       sede,
       dataAdmissao: formattedAdm,
       supervisor,
-      observacoes,
-      status: 'EM_ANALISE'
-    });
+      observacoes
+    };
 
-    // Reset
-    setColaborador('');
-    setFuncao('');
-    setDataAdmissao('');
-    setSupervisor('');
-    setObservacoes('');
-    setErrorMsg('');
+    if (editingExperiencia) {
+      await updateExperiencia(editingExperiencia.id, payload);
+    } else {
+      await addExperiencia({
+        ...payload,
+        status: 'EM_ANALISE'
+      });
+    }
+
+    resetForm();
     setShowAddForm(false);
   };
 
@@ -363,7 +405,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
           <p className="text-slate-500 text-sm font-medium">Monitore datas limites de vencimento de períodos de teste de novos colaboradores.</p>
         </div>
         <button
-          onClick={() => setShowAddForm(true)}
+          onClick={openCreateForm}
           className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
         >
           <PlusCircle className="w-4 h-4" />
@@ -718,6 +760,13 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                             Efetivar
                           </button>
                         )}
+                        <button
+                          onClick={() => openEditForm(e)}
+                          className="p-1 px-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 rounded-lg cursor-pointer transition border border-transparent hover:border-slate-200 shrink-0"
+                          title="Editar acompanhamento"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
                         {/* Always allow manual deletion of any record (including mock/demo items) seamlessly */}
                         <button
                           onClick={() => {
@@ -756,10 +805,10 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
             <div className="p-5 bg-slate-950 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-orange-500" />
-                <h3 className="text-lg font-bold">Adicionar Acompanhamento de Experiência</h3>
+                <h3 className="text-lg font-bold">{editingExperiencia ? 'Editar Acompanhamento de Experiência' : 'Adicionar Acompanhamento de Experiência'}</h3>
               </div>
               <button 
-                onClick={() => { setErrorMsg(''); setShowAddForm(false); }} 
+                onClick={() => { resetForm(); setShowAddForm(false); }} 
                 className="text-slate-400 hover:text-white font-bold text-2xl cursor-pointer leading-none"
               >
                 &times;
@@ -866,7 +915,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => { setErrorMsg(''); setShowAddForm(false); }}
+                  onClick={() => { resetForm(); setShowAddForm(false); }}
                   className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-sm font-bold rounded-xl text-slate-600 cursor-pointer"
                 >
                   Cancelar
@@ -875,7 +924,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                   type="submit"
                   className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-sm font-bold rounded-xl text-white shadow-lg shadow-orange-500/20 cursor-pointer"
                 >
-                  Salvar Acompanhamento
+                  {editingExperiencia ? 'Atualizar Acompanhamento' : 'Salvar Acompanhamento'}
                 </button>
               </div>
             </form>

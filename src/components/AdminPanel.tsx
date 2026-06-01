@@ -7,7 +7,8 @@ import {
   ShieldAlert,
   History,
   FolderTree,
-  Database
+  Upload,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Usuario, Sede, Regiao, Cargo, Setor } from '../hooks/useMetadata';
 import { SystemLog } from '../hooks/useLogs';
@@ -40,7 +41,22 @@ interface AdminPanelProps {
   deleteSetor: (id: string) => Promise<void>;
   currentUserEmail: string;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
-  clearAllData?: (fullReset: boolean) => void;
+  importFile: File | null;
+  setImportFile: (file: File | null) => void;
+  importReplace: boolean;
+  setImportReplace: (replace: boolean) => void;
+  importingSpreadsheet: boolean;
+  importSelection: {
+    vagas: boolean;
+    treinamentos: boolean;
+    entrevistas: boolean;
+  };
+  setImportSelection: React.Dispatch<React.SetStateAction<{
+    vagas: boolean;
+    treinamentos: boolean;
+    entrevistas: boolean;
+  }>>;
+  onImportSpreadsheet: () => Promise<void>;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -65,9 +81,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   deleteSetor,
   currentUserEmail,
   confirmAction,
-  clearAllData
+  importFile,
+  setImportFile,
+  importReplace,
+  setImportReplace,
+  importingSpreadsheet,
+  importSelection,
+  setImportSelection,
+  onImportSpreadsheet
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'usuarios' | 'sedes' | 'regioes' | 'cargos' | 'setores' | 'logs' | 'manutencao'>('usuarios');
+  const [activeSubTab, setActiveSubTab] = useState<'usuarios' | 'sedes' | 'regioes' | 'cargos' | 'setores' | 'logs' | 'importacao'>('usuarios');
   
   return (
     <div className="bg-transparent space-y-6">
@@ -151,15 +174,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               Logs de Auditoria
             </button>
             <button
-              onClick={() => setActiveSubTab('manutencao')}
+              onClick={() => setActiveSubTab('importacao')}
               className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
-                activeSubTab === 'manutencao' 
-                  ? 'bg-rose-600 text-white shadow-md' 
-                  : 'text-rose-500 hover:text-rose-700'
+                activeSubTab === 'importacao' 
+                  ? 'bg-slate-900 text-white shadow-md' 
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Database className="w-3.5 h-3.5" />
-              Banco de Dados & Senso
+              <Upload className="w-3.5 h-3.5" />
+              Importar Excel
             </button>
           </div>
         </div>
@@ -219,72 +242,84 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <AdminLogsTab logs={logs} />
         )}
 
-        {activeSubTab === 'manutencao' && (
+        {activeSubTab === 'importacao' && (
           <div className="space-y-6">
-            <div className="bg-amber-50 rounded-2xl p-6 border border-amber-200">
-              <h3 className="text-base font-bold text-amber-800 mb-2">Por que os dados deletados reaparecem?</h3>
-              <p className="text-xs text-amber-700 leading-relaxed mb-4">
-                No Painel do console Firebase, a sua aplicação está conectada ao Banco de Dados Firestore customizado 
-                <code className="bg-amber-100 px-1.5 py-0.5 rounded mx-1 font-mono font-bold">ai-studio-2b395015-7429-44d1-83dd-233de9cd3c47</code> 
-                e <strong>NÃO</strong> ao banco padrão <code className="bg-amber-100 px-1.5 py-0.5 rounded mx-1 font-mono font-bold">(default)</code>.
-              </p>
-              <p className="text-xs text-amber-700 leading-relaxed">
-                Ao abrir o Firestore no console do Firebase, se você excluir coleções do banco de dados <code className="bg-amber-100 px-1.5 py-0.5 rounded mx-1 font-mono font-bold">(default)</code>,
-                elas não surtirão efeito porque o aplicativo lê a base de dados customizada do AI Studio. 
-                Selecione o dropdown de banco de dados na parte superior do console do Firebase e escolha o ID correspondente acima!
-              </p>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
-              <div>
-                <h3 className="text-sm font-bold text-slate-800 mb-1">Limpeza & Sanitização Direta do Banco</h3>
-                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Ações administrativas irreversíveis para restaurar ou zerar dados</p>
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 border-b border-slate-100 pb-5 mb-6">
+                <div className="flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-850 tracking-tight">Importar planilha SGPC</h3>
+                    <p className="text-xs text-slate-500 font-semibold mt-1">Importe vagas, treinamentos e entrevistas de desligamento a partir de Excel.</p>
+                  </div>
+                </div>
+                {importFile && (
+                  <span className="inline-flex max-w-full items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-600 truncate">
+                    {importFile.name}
+                  </span>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="border border-slate-100 rounded-2xl p-5 bg-slate-50/20 space-y-4 hover:border-slate-200 transition">
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Limpar Dados de Operação</h4>
-                    <p className="text-xs text-slate-400 mt-1">Esvazia completamente as tabelas de Vagas, Treinamentos, Experiência, Entrevistas de Desligamento, Turnover e Logs de Auditoria. Preserva a estrutura de usuários, sedes, cargos e setores de acesso.</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (confirmAction) {
-                        confirmAction(
-                          "Zerar dados operacionais",
-                          "Tem certeza de que deseja apagar absolutamente todas as vagas, treinamentos, avaliações, feedbacks de desligamento e dados estatísticos? Esta ação é irreversível.",
-                          () => clearAllData?.(false)
-                        );
-                      } else if (window.confirm("Confirmar limpeza de dados operacionais?")) {
-                        clearAllData?.(false);
-                      }
-                    }}
-                    className="w-full py-2 px-4 bg-orange-500 hover:bg-orange-600 active:scale-95 text-xs text-white uppercase font-bold tracking-wider rounded-xl transition cursor-pointer shadow-sm shadow-orange-100"
-                  >
-                    Saneamento Parcial (Operacional)
-                  </button>
+              <div className="space-y-5 max-w-3xl">
+                <label className="block">
+                  <span className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Arquivo .xlsx</span>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                    className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-900 file:px-4 file:py-2.5 file:text-xs file:font-bold file:uppercase file:tracking-wider file:text-white hover:file:bg-slate-800 file:cursor-pointer cursor-pointer"
+                  />
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    ['vagas', 'Vagas'],
+                    ['treinamentos', 'Treinamentos'],
+                    ['entrevistas', 'Entrevistas']
+                  ].map(([key, label]) => (
+                    <label key={key} className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={importSelection[key as keyof typeof importSelection]}
+                        onChange={(e) => setImportSelection(prev => ({ ...prev, [key]: e.target.checked }))}
+                        className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
+                      />
+                      {label}
+                    </label>
+                  ))}
                 </div>
 
-                <div className="border border-rose-100 rounded-2xl p-5 bg-rose-50/5 space-y-4 hover:border-rose-200 transition">
-                  <div>
-                    <h4 className="text-xs font-bold text-rose-800 uppercase tracking-wide">Reset Completo de Fábrica</h4>
-                    <p className="text-xs text-slate-400 mt-1">Limpa a base inteira: remove absolutamente todos os cadastros adicionais do Firestore e LocalStorage. Você precisará se cadastrar e recalibrar as configurações ao efetuar o novo login.</p>
-                  </div>
+                <label className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={importReplace}
+                    onChange={(e) => setImportReplace(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-amber-300 text-orange-500 focus:ring-orange-500"
+                  />
+                  <span>
+                    <strong className="block uppercase tracking-wider text-[10px]">Substituir dados dos módulos selecionados</strong>
+                    Se desmarcado, o SGPC adiciona registros novos e evita duplicar pelo código ou pela chave da entrevista.
+                  </span>
+                </label>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                   <button
-                    onClick={() => {
-                      if (confirmAction) {
-                        confirmAction(
-                          "Reset Completo de Fábrica",
-                          "Esta ação irá DELETAR absolutamente tudo das bases Firestore e locales de backup, incluindo os perfis de Usuários, Sedes, Regiões, Cargos e Setores catalogados. O sistema será reiniciado do zero absoluto.",
-                          () => clearAllData?.(true)
-                        );
-                      } else if (window.confirm("CONFIRMAR RESET TOTAL DE FÁBRICA?")) {
-                        clearAllData?.(true);
-                      }
-                    }}
-                    className="w-full py-2 px-4 bg-rose-600 hover:bg-rose-700 active:scale-95 text-xs text-white uppercase font-bold tracking-wider rounded-xl transition cursor-pointer shadow-sm shadow-rose-100"
+                    type="button"
+                    onClick={() => setImportFile(null)}
+                    className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-xs font-bold rounded-xl text-slate-600 cursor-pointer"
                   >
-                    Redefinir Tudo (Reset Total)
+                    Limpar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onImportSpreadsheet}
+                    disabled={importingSpreadsheet}
+                    className="px-5 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-xs font-bold rounded-xl text-white shadow-lg shadow-orange-500/20 cursor-pointer flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {importingSpreadsheet ? 'Importando...' : 'Importar'}
                   </button>
                 </div>
               </div>
@@ -295,3 +330,5 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     </div>
   );
 };
+
+

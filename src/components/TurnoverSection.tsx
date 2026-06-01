@@ -10,6 +10,7 @@ import {
   PlusCircle, 
   Calculator, 
   Trash2, 
+  Pencil,
   TrendingUp, 
   Users, 
   UserPlus, 
@@ -32,6 +33,7 @@ import {
 interface TurnoverSectionProps {
   turnover: Turnover[];
   addTurnover: (input: Omit<Turnover, 'id'>) => Promise<void>;
+  updateTurnover: (id: string, updatedFields: Partial<Turnover>) => Promise<void>;
   deleteTurnover: (id: string) => Promise<void>;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
 }
@@ -39,10 +41,12 @@ interface TurnoverSectionProps {
 export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
   turnover,
   addTurnover,
+  updateTurnover,
   deleteTurnover,
   confirmAction
 }) => {
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingTurnover, setEditingTurnover] = useState<Turnover | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   // Form states
@@ -51,6 +55,38 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
   const [totalAdmissao, setTotalAdmissao] = useState<number>(5);
   const [pediramSair, setPediramSair] = useState<number>(2);
   const [foramDesligados, setForamDesligados] = useState<number>(2);
+
+  const mesAnoToInput = (value: string) => {
+    const parts = value.split('/');
+    if (parts.length === 2) return `${parts[1]}-${parts[0].padStart(2, '0')}`;
+    return value;
+  };
+
+  const resetForm = () => {
+    setMesAno('');
+    setTotalFuncionarios(150);
+    setTotalAdmissao(5);
+    setPediramSair(2);
+    setForamDesligados(2);
+    setEditingTurnover(null);
+    setErrorMsg('');
+  };
+
+  const openCreateForm = () => {
+    resetForm();
+    setShowAddForm(true);
+  };
+
+  const openEditForm = (item: Turnover) => {
+    setEditingTurnover(item);
+    setMesAno(mesAnoToInput(item.mesAno || ''));
+    setTotalFuncionarios(item.totalFuncionarios || 0);
+    setTotalAdmissao(item.totalAdmissao || 0);
+    setPediramSair(item.pediramSair || 0);
+    setForamDesligados(item.foramDesligados || 0);
+    setErrorMsg('');
+    setShowAddForm(true);
+  };
 
   // Auto computations mapping for chart visualization
   const computedData = useMemo(() => {
@@ -110,16 +146,21 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
       cleanMesAno = `${parts[1]}/${parts[0]}`;
     }
 
-    await addTurnover({
+    const payload = {
       mesAno: cleanMesAno,
       totalFuncionarios: Number(totalFuncionarios) || 0,
       totalAdmissao: Number(totalAdmissao) || 0,
       pediramSair: Number(pediramSair) || 0,
       foramDesligados: Number(foramDesligados) || 0
-    });
+    };
 
-    setMesAno('');
-    setErrorMsg('');
+    if (editingTurnover) {
+      await updateTurnover(editingTurnover.id, payload);
+    } else {
+      await addTurnover(payload);
+    }
+
+    resetForm();
     setShowAddForm(false);
   };
 
@@ -135,7 +176,7 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
           <p className="text-slate-500 text-sm font-medium font-sans">Acompanhe estatísticas mensais de admissão, demissão espontânea e demissão induzida.</p>
         </div>
         <button
-          onClick={() => setShowAddForm(true)}
+          onClick={openCreateForm}
           className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
         >
           <PlusCircle className="w-4 h-4" />
@@ -287,6 +328,13 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                     </td>
                     <td className="py-3 px-5 text-right">
                       <button
+                        onClick={() => openEditForm(item)}
+                        className="p-1 px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 rounded-lg cursor-pointer transition border border-transparent hover:border-slate-200 mr-1"
+                        title="Editar registro"
+                      >
+                         <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => {
                           if (confirmAction) {
                             confirmAction(
@@ -322,10 +370,10 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
             <div className="p-5 bg-slate-950 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Percent className="w-5 h-5 text-orange-500" />
-                <h3 className="text-lg font-bold">Registrar Quadro de Turnover Mensal</h3>
+                <h3 className="text-lg font-bold">{editingTurnover ? 'Editar Quadro de Turnover Mensal' : 'Registrar Quadro de Turnover Mensal'}</h3>
               </div>
               <button 
-                onClick={() => { setErrorMsg(''); setShowAddForm(false); }} 
+                onClick={() => { resetForm(); setShowAddForm(false); }} 
                 className="text-slate-400 hover:text-white font-bold text-2xl cursor-pointer leading-none"
               >
                 &times;
@@ -399,7 +447,7 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => { setErrorMsg(''); setShowAddForm(false); }}
+                  onClick={() => { resetForm(); setShowAddForm(false); }}
                   className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-sm font-bold rounded-xl text-slate-600 cursor-pointer"
                 >
                   Cancelar
@@ -408,7 +456,7 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                   type="submit"
                   className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-sm font-bold rounded-xl text-white shadow-lg shadow-orange-500/20 cursor-pointer"
                 >
-                  Registar Índices
+                  {editingTurnover ? 'Atualizar Índices' : 'Registar Índices'}
                 </button>
               </div>
             </form>

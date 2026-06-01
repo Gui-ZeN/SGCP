@@ -171,7 +171,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
     return [
       { name: 'Em andamento', value: filteredVagas.filter(v => ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO'].includes(v.status.toUpperCase())).length, color: '#3b82f6' },
       { name: 'Fechadas', value: filteredVagas.filter(v => v.status.toUpperCase() === 'FECHADA').length, color: '#10b981' },
-      { name: 'Pausadas/Canc', value: filteredVagas.filter(v => ['PAUSADA', 'SUSPENSA'].includes(v.status.toUpperCase())).length, color: '#f43f5e' },
+      { name: 'Pausadas/Canc', value: filteredVagas.filter(v => ['PAUSADA', 'SUSPENSA'].includes(v.status.toUpperCase())).length, color: '#94a3b8' },
     ];
   }, [filteredVagas]);
 

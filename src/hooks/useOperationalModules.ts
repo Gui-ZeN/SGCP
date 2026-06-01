@@ -405,7 +405,7 @@ export function useOperationalModules() {
         const payload = { ...updatedFields };
         delete payload.id;
         delete payload.codigo;
-        await updateDoc(ref, payload);
+        await updateDoc(ref, stripUndefinedFields(payload));
       } catch (err) {
         handleFirestoreError(err, OperationType.UPDATE, `treinamentos/${id}`);
       }
@@ -455,17 +455,25 @@ export function useOperationalModules() {
   };
 
   const updateExperiencia = async (id: string, updatedFields: Partial<Experiencia>) => {
+    const recalculatedFields = updatedFields.dataAdmissao
+      ? {
+          ...updatedFields,
+          termino1: addDaysToDate(updatedFields.dataAdmissao, 45),
+          termino2: addDaysToDate(updatedFields.dataAdmissao, 90)
+        }
+      : updatedFields;
+
     if (usingFirebase && db) {
       try {
         const ref = doc(db, 'experiencia', id);
-        const payload = { ...updatedFields };
+        const payload = { ...recalculatedFields };
         delete payload.id;
-        await updateDoc(ref, payload);
+        await updateDoc(ref, stripUndefinedFields(payload));
       } catch (err) {
         handleFirestoreError(err, OperationType.UPDATE, `experiencia/${id}`);
       }
     } else {
-      const updated = experiencias.map(e => e.id === id ? { ...e, ...updatedFields } : e);
+      const updated = experiencias.map(e => e.id === id ? { ...e, ...recalculatedFields } : e);
       setExperiencias(updated);
       localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify(updated));
     }
@@ -516,6 +524,24 @@ export function useOperationalModules() {
       }
     } else {
       const updated = entrevistas.filter(e => e.id !== id);
+      setEntrevistas(updated);
+      localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(updated));
+    }
+  };
+
+  const updateEntrevista = async (id: string, updatedFields: Partial<Entrevista>) => {
+    if (usingFirebase && db) {
+      try {
+        const ref = doc(db, 'entrevistas', id);
+        const payload = { ...updatedFields };
+        delete payload.id;
+        delete payload.codigo;
+        await updateDoc(ref, stripUndefinedFields(payload));
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `entrevistas/${id}`);
+      }
+    } else {
+      const updated = entrevistas.map(e => e.id === id ? { ...e, ...updatedFields } : e);
       setEntrevistas(updated);
       localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(updated));
     }
@@ -607,6 +633,23 @@ export function useOperationalModules() {
     }
   };
 
+  const updateTurnover = async (id: string, updatedFields: Partial<Turnover>) => {
+    if (usingFirebase && db) {
+      try {
+        const ref = doc(db, 'turnover', id);
+        const payload = { ...updatedFields };
+        delete payload.id;
+        await updateDoc(ref, stripUndefinedFields(payload));
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `turnover/${id}`);
+      }
+    } else {
+      const updated = turnover.map(t => t.id === id ? { ...t, ...updatedFields } : t);
+      setTurnover(updated);
+      localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify(updated));
+    }
+  };
+
   return {
     treinamentos,
     experiencias,
@@ -621,9 +664,11 @@ export function useOperationalModules() {
     updateExperiencia,
     deleteExperiencia,
     addEntrevista,
+    updateEntrevista,
     deleteEntrevista,
     importEntrevistas,
     addTurnover,
+    updateTurnover,
     deleteTurnover
   };
 }

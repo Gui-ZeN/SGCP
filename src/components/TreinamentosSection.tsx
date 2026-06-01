@@ -16,13 +16,15 @@ import {
   Calendar,
   X,
   FileSpreadsheet,
-  Trash2
+  Trash2,
+  Pencil
 } from 'lucide-react';
 import { Sede } from '../hooks/useMetadata';
 
 interface TreinamentosSectionProps {
   treinamentos: Treinamento[];
   addTreinamento: (input: Omit<Treinamento, 'id' | 'codigo'>) => Promise<void>;
+  updateTreinamento: (id: string, updatedFields: Partial<Treinamento>) => Promise<void>;
   deleteTreinamento: (id: string) => Promise<void>;
   sedes?: Sede[];
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
@@ -33,6 +35,7 @@ interface TreinamentosSectionProps {
 export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({ 
   treinamentos, 
   addTreinamento, 
+  updateTreinamento,
   deleteTreinamento,
   sedes,
   confirmAction,
@@ -45,6 +48,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
   });
   const [selectedTipo, setSelectedTipo] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingTreinamento, setEditingTreinamento] = useState<Treinamento | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   React.useEffect(() => {
@@ -102,6 +106,53 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
   }, [treinamentos, sedes]);
 
   const tiposList: Treinamento['tipo'][] = ['Liderança', 'Integração', 'Técnico', 'Operacional', 'Comportamental'].sort((a,b) => a.localeCompare(b)) as Treinamento['tipo'][];
+
+  const dateToInput = (value?: string) => {
+    if (!value) return '';
+    const parts = value.split('/');
+    if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    return value.includes('-') ? value.slice(0, 10) : '';
+  };
+
+  const resetForm = () => {
+    setTema('');
+    setDataInicio('');
+    setDataTermino('');
+    setTipo('Técnico');
+    setFacilitador('');
+    setPublico('');
+    setUnidade(userSede || 'DT');
+    setCargaHoraria(8);
+    setQtdPrevista(10);
+    setQtdRealizada(10);
+    setValorInvestido(500);
+    setMesReferenciaOverride('');
+    setEditingTreinamento(null);
+    setErrorMsg('');
+  };
+
+  const openCreateForm = () => {
+    resetForm();
+    setShowAddForm(true);
+  };
+
+  const openEditForm = (treinamento: Treinamento) => {
+    setEditingTreinamento(treinamento);
+    setTema(treinamento.tema || '');
+    setDataInicio(dateToInput(treinamento.dataInicio));
+    setDataTermino(dateToInput(treinamento.dataTermino));
+    setTipo(treinamento.tipo || 'Técnico');
+    setFacilitador(treinamento.facilitador || '');
+    setPublico(treinamento.publico || '');
+    setUnidade(treinamento.unidade || userSede || 'DT');
+    setCargaHoraria(treinamento.cargaHoraria || 0);
+    setQtdPrevista(treinamento.qtdPrevista || 0);
+    setQtdRealizada(treinamento.qtdRealizada || 0);
+    setValorInvestido(treinamento.valorInvestido || 0);
+    setMesReferenciaOverride(treinamento.mesReferencia || '');
+    setErrorMsg('');
+    setShowAddForm(true);
+  };
 
   // Filters
   const filteredList = useMemo(() => {
@@ -187,7 +238,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
 
     const totalCalculatedHours = Number(qtdRealizada) * Number(cargaHoraria);
 
-    await addTreinamento({
+    const payload = {
       dataInicio: finalDataInicio,
       dataTermino: finalDataTermino || undefined,
       mesReferencia: mesReferenciaOverride || refMonth,
@@ -201,15 +252,15 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
       qtdRealizada: Number(qtdRealizada) || 0,
       totalHorasFormacao: totalCalculatedHours,
       valorInvestido: Number(valorInvestido) || 0
-    });
+    };
 
-    // Reset
-    setTema('');
-    setDataInicio('');
-    setDataTermino('');
-    setFacilitador('');
-    setPublico('');
-    setErrorMsg('');
+    if (editingTreinamento) {
+      await updateTreinamento(editingTreinamento.id, payload);
+    } else {
+      await addTreinamento(payload);
+    }
+
+    resetForm();
     setShowAddForm(false);
   };
 
@@ -226,7 +277,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
         </div>
         <button
           id="btn-show-add-treinamento"
-          onClick={() => setShowAddForm(true)}
+          onClick={openCreateForm}
           className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
         >
           <PlusCircle className="w-4 h-4" />
@@ -415,6 +466,14 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                   </div>
                 </div>
 
+                <button
+                  onClick={() => openEditForm(t)}
+                  className="absolute top-4 right-14 p-1.5 bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 rounded-xl cursor-pointer transition-all shadow-sm z-10"
+                  title="Editar"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+
                 {/* Delete button (displays clearly for explicit manual cleanups) */}
                 <button
                   onClick={() => {
@@ -449,10 +508,10 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
             <div className="p-5 bg-slate-950 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <GraduationCap className="w-5 h-5 text-orange-500" />
-                <h3 className="text-lg font-bold">Registrar Novo Treinamento</h3>
+                <h3 className="text-lg font-bold">{editingTreinamento ? 'Editar Treinamento' : 'Registrar Novo Treinamento'}</h3>
               </div>
               <button 
-                onClick={() => { setErrorMsg(''); setShowAddForm(false); }} 
+                onClick={() => { resetForm(); setShowAddForm(false); }} 
                 className="text-slate-400 hover:text-white font-bold text-2xl cursor-pointer leading-none"
               >
                 &times;
@@ -617,7 +676,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => { setErrorMsg(''); setShowAddForm(false); }}
+                  onClick={() => { resetForm(); setShowAddForm(false); }}
                   className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-sm font-bold rounded-xl text-slate-600 cursor-pointer"
                 >
                   Cancelar
@@ -626,7 +685,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                   type="submit"
                   className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-sm font-bold rounded-xl text-white shadow-lg shadow-orange-500/20 cursor-pointer"
                 >
-                  Salvar Treinamento
+                  {editingTreinamento ? 'Atualizar Treinamento' : 'Salvar Treinamento'}
                 </button>
               </div>
             </form>

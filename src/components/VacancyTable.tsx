@@ -252,7 +252,20 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     return diffDays < 0 ? 0 : diffDays;
   };
 
-  const getSlaInfo = (days: number, isClosed: boolean) => {
+  const isPausedOrSuspended = (status?: string) => ['PAUSADA', 'SUSPENSA'].includes((status || '').toUpperCase());
+
+  const getSlaInfo = (days: number, isClosed: boolean, isPaused = false) => {
+    if (isPaused) {
+      return {
+        label: 'SLA Pausado',
+        color: 'text-slate-600 bg-slate-100 border-slate-200',
+        bullet: 'bg-slate-400',
+        progressBar: 'bg-slate-300',
+        percent: Math.min(100, Math.max(8, (days / 30) * 100)),
+        desc: 'Processo temporariamente paralisado; SLA sem alerta ativo.'
+      };
+    }
+
     if (days <= 10) {
       return { 
         label: 'SLA Regular', 
@@ -391,7 +404,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         if (v.status === 'ABERTA' || v.status === 'REABERTA' || v.status === 'DOCUMENTAÇÃO') {
           ativas++;
         }
-        if (days > 20) {
+        if (days > 20 && !isPausedOrSuspended(v.status)) {
           alertas++;
         }
       }
@@ -488,7 +501,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     } else if (statusGroupFilter === 'CONCLUIDAS') {
       result = result.filter(v => v.status === 'FECHADA');
     } else if (statusGroupFilter === 'ALERTA_SLA') {
-      result = result.filter(v => getDiasEmAberto(v) > 20 && v.status !== 'FECHADA');
+      result = result.filter(v => getDiasEmAberto(v) > 20 && v.status !== 'FECHADA' && !isPausedOrSuspended(v.status));
     }
 
     // Sorting implementation
@@ -581,15 +594,15 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         );
       case 'PAUSADA':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-            <Pause className="w-3 h-3 text-blue-600" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+            <Pause className="w-3 h-3 text-slate-500" />
             Pausada
           </span>
         );
       case 'SUSPENSA':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
-            <AlertCircle className="w-3" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+            <AlertCircle className="w-3 text-slate-500" />
             Suspensa
           </span>
         );
@@ -1030,11 +1043,13 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                   ) : (
                     laneVagas.map(vaga => {
                       const daysOpen = getDiasEmAberto(vaga);
-                      const sla = getSlaInfo(daysOpen, vaga.status === 'FECHADA');
+                      const sla = getSlaInfo(daysOpen, vaga.status === 'FECHADA', isPausedOrSuspended(vaga.status));
                       const isCurrentlyDragging = draggingVagaId === vaga.id;
 
                       let borderLeftColor = 'border-l-emerald-500';
-                      if (vaga.status === 'FECHADA') {
+                      if (isPausedOrSuspended(vaga.status)) {
+                        borderLeftColor = 'border-l-slate-300';
+                      } else if (vaga.status === 'FECHADA') {
                         borderLeftColor = 'border-l-indigo-500';
                       } else if (daysOpen > 20) {
                         borderLeftColor = 'border-l-rose-500';
@@ -1231,7 +1246,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                 ) : (
                   paginatedVagas.map((vaga) => {
                     const diffDays = getDiasEmAberto(vaga);
-                    const sla = getSlaInfo(diffDays, vaga.status === 'FECHADA');
+                    const sla = getSlaInfo(diffDays, vaga.status === 'FECHADA', isPausedOrSuspended(vaga.status));
 
                     return (
                       <tr key={vaga.id} className="hover:bg-slate-50/60 transition-colors odd:bg-white even:bg-slate-50/15">
@@ -1376,10 +1391,12 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
             ) : (
               paginatedVagas.map(vaga => {
                 const diffDays = getDiasEmAberto(vaga);
-                const sla = getSlaInfo(diffDays, vaga.status === 'FECHADA');
+                const sla = getSlaInfo(diffDays, vaga.status === 'FECHADA', isPausedOrSuspended(vaga.status));
 
                 let borderLeftColor = 'border-l-emerald-500';
-                if (vaga.status === 'FECHADA') {
+                if (isPausedOrSuspended(vaga.status)) {
+                  borderLeftColor = 'border-l-slate-300';
+                } else if (vaga.status === 'FECHADA') {
                   borderLeftColor = 'border-l-indigo-500';
                 } else if (diffDays > 20) {
                   borderLeftColor = 'border-l-rose-500';
@@ -1553,17 +1570,17 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                     <span>Cronômetro de SLA</span>
                   </div>
                   <span className={`px-2 py-0.5 font-bold rounded-lg text-[9px] uppercase border font-sans ${
-                    getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA').color
+                    getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA', isPausedOrSuspended(selectedDetailsVaga.status)).color
                   }`}>
-                    {getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA').label}
+                    {getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA', isPausedOrSuspended(selectedDetailsVaga.status)).label}
                   </span>
                 </div>
 
                 <div className="space-y-1">
                   <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                     <div 
-                      className={`h-full ${getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA').progressBar}`} 
-                      style={{ width: `${getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA').percent}%` }}
+                      className={`h-full ${getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA', isPausedOrSuspended(selectedDetailsVaga.status)).progressBar}`} 
+                      style={{ width: `${getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA', isPausedOrSuspended(selectedDetailsVaga.status)).percent}%` }}
                     ></div>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-500">
@@ -1574,7 +1591,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                 </div>
 
                 <p className="text-xs text-slate-500 font-medium italic">
-                  {getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA').desc}
+                  {getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA', isPausedOrSuspended(selectedDetailsVaga.status)).desc}
                 </p>
               </div>
 
