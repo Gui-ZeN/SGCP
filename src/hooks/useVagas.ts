@@ -64,16 +64,23 @@ export function useVagas() {
   const loadLocalFallback = () => {
     setUsingFirebase(false);
     const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const hasAlreadySeeded = localStorage.getItem('ats_demo_seeded') === 'true';
+
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as Vaga[];
         parsed.sort((a, b) => b.codigo - a.codigo);
         setVagas(parsed);
       } catch (err) {
-        setupFallbackDefaults();
+        setVagas([]);
       }
     } else {
-      setupFallbackDefaults();
+      if (hasAlreadySeeded) {
+        setVagas([]);
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([]));
+      } else {
+        setupFallbackDefaults();
+      }
     }
     setLoading(false);
   };
@@ -87,6 +94,7 @@ export function useVagas() {
     defaultList.sort((a, b) => b.codigo - a.codigo);
     setVagas(defaultList);
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(defaultList));
+    localStorage.setItem('ats_demo_seeded', 'true');
   };
 
   // Add a new vacancy (Full-Stack CRUD supporting both online Firestore and Local Fallback)

@@ -342,14 +342,20 @@ export function useOperationalModules() {
 
   const loadLocalFallback = () => {
     setUsingFirebase(false);
+    const hasAlreadySeeded = localStorage.getItem('ats_demo_seeded') === 'true';
 
     // Treinamentos
     const storedT = localStorage.getItem(TREINAMENTOS_LOCAL_KEY);
     if (storedT) {
       setTreinamentos(JSON.parse(storedT));
     } else {
-      setTreinamentos(initialTreinamentos);
-      localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify(initialTreinamentos));
+      if (hasAlreadySeeded) {
+        setTreinamentos([]);
+        localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify([]));
+      } else {
+        setTreinamentos(initialTreinamentos);
+        localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify(initialTreinamentos));
+      }
     }
 
     // Experiencia
@@ -357,8 +363,13 @@ export function useOperationalModules() {
     if (storedE) {
       setExperiencias(JSON.parse(storedE));
     } else {
-      setExperiencias(initialExperiencia);
-      localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify(initialExperiencia));
+      if (hasAlreadySeeded) {
+        setExperiencias([]);
+        localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify([]));
+      } else {
+        setExperiencias(initialExperiencia);
+        localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify(initialExperiencia));
+      }
     }
 
     // Entrevistas
@@ -366,8 +377,13 @@ export function useOperationalModules() {
     if (storedEnt) {
       setEntrevistas(JSON.parse(storedEnt));
     } else {
-      setEntrevistas(initialEntrevistas);
-      localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(initialEntrevistas));
+      if (hasAlreadySeeded) {
+        setEntrevistas([]);
+        localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify([]));
+      } else {
+        setEntrevistas(initialEntrevistas);
+        localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(initialEntrevistas));
+      }
     }
 
     // Turnover
@@ -375,8 +391,13 @@ export function useOperationalModules() {
     if (storedTo) {
       setTurnover(JSON.parse(storedTo));
     } else {
-      setTurnover(initialTurnover);
-      localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify(initialTurnover));
+      if (hasAlreadySeeded) {
+        setTurnover([]);
+        localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify([]));
+      } else {
+        setTurnover(initialTurnover);
+        localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify(initialTurnover));
+      }
     }
 
     setLoading(false);

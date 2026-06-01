@@ -212,34 +212,13 @@ export function useMetadata(currentUser: any) {
       });
 
       // 5. Setores Realtime Sync
-      const unsubSetores = onSnapshot(collection(db, 'setores'), async (snapshot: any) => {
+      const unsubSetores = onSnapshot(collection(db, 'setores'), (snapshot: any) => {
         const list: Setor[] = [];
         snapshot.forEach((docSnap: any) => {
           list.push({ id: docSnap.id, ...docSnap.data() } as Setor);
         });
-        
-        if (!hasSeededSetores.current) {
-          hasSeededSetores.current = true;
-          const existingNames = new Set(list.map(s => s.nome.trim().toLowerCase()));
-          const missing = defaultSetores.filter(ds => !existingNames.has(ds.nome.trim().toLowerCase()));
-          
-          if (missing.length > 0) {
-            console.log(`Auto-seeding ${missing.length} missing default sectors to Firestore...`);
-            for (const s of missing) {
-              try {
-                await addDoc(collection(db, 'setores'), { nome: s.nome });
-              } catch (e) {
-                console.error("Error seeding sector:", s.nome, e);
-              }
-            }
-          } else {
-            setSetores(list);
-            setLoading(false);
-          }
-        } else {
-          setSetores(list);
-          setLoading(false);
-        }
+        setSetores(list);
+        setLoading(false);
       });
 
       return () => {
@@ -257,22 +236,24 @@ export function useMetadata(currentUser: any) {
 
   const loadLocalFallback = () => {
     setUsingFirebase(false);
+    const hasAlreadySeeded = localStorage.getItem('ats_demo_seeded') === 'true';
 
     // Users
     const storedUsers = localStorage.getItem(USERS_LOCAL_KEY);
     if (storedUsers) {
       const parsed = JSON.parse(storedUsers);
-      setUsuarios(Array.isArray(parsed) ? parsed : defaultUsuarios);
+      setUsuarios(Array.isArray(parsed) ? parsed : []);
     } else {
-      setUsuarios(defaultUsuarios);
-      localStorage.setItem(USERS_LOCAL_KEY, JSON.stringify(defaultUsuarios));
+      const def = hasAlreadySeeded ? [] : defaultUsuarios;
+      setUsuarios(def);
+      localStorage.setItem(USERS_LOCAL_KEY, JSON.stringify(def));
     }
 
     // Sedes
     const storedSedes = localStorage.getItem(SEDES_LOCAL_KEY);
     if (storedSedes) {
       const parsed = JSON.parse(storedSedes);
-      const enriched = (Array.isArray(parsed) ? parsed : defaultSedes).map(s => {
+      const enriched = (Array.isArray(parsed) ? parsed : []).map(s => {
         if (!s.sigla) {
           const match = defaultSedes.find(ds => ds.nome.toLowerCase() === s.nome.toLowerCase());
           if (match) return { ...s, sigla: match.sigla };
@@ -281,48 +262,43 @@ export function useMetadata(currentUser: any) {
       });
       setSedes(enriched);
     } else {
-      setSedes(defaultSedes);
-      localStorage.setItem(SEDES_LOCAL_KEY, JSON.stringify(defaultSedes));
+      const def = hasAlreadySeeded ? [] : defaultSedes;
+      setSedes(def);
+      localStorage.setItem(SEDES_LOCAL_KEY, JSON.stringify(def));
     }
 
     // Regioes
     const storedRegioes = localStorage.getItem(REGIOES_LOCAL_KEY);
     if (storedRegioes) {
       const parsed = JSON.parse(storedRegioes);
-      setRegioes(Array.isArray(parsed) ? parsed : defaultRegioes);
+      setRegioes(Array.isArray(parsed) ? parsed : []);
     } else {
-      setRegioes(defaultRegioes);
-      localStorage.setItem(REGIOES_LOCAL_KEY, JSON.stringify(defaultRegioes));
+      const def = hasAlreadySeeded ? [] : defaultRegioes;
+      setRegioes(def);
+      localStorage.setItem(REGIOES_LOCAL_KEY, JSON.stringify(def));
     }
 
     // Cargos
     const storedCargos = localStorage.getItem(CARGOS_LOCAL_KEY);
     if (storedCargos) {
       const parsed = JSON.parse(storedCargos);
-      setCargos(Array.isArray(parsed) ? parsed : defaultCargos);
+      setCargos(Array.isArray(parsed) ? parsed : []);
     } else {
-      setCargos(defaultCargos);
-      localStorage.setItem(CARGOS_LOCAL_KEY, JSON.stringify(defaultCargos));
+      const def = hasAlreadySeeded ? [] : defaultCargos;
+      setCargos(def);
+      localStorage.setItem(CARGOS_LOCAL_KEY, JSON.stringify(def));
     }
 
     // Setores
     const storedSetores = localStorage.getItem(SETORES_LOCAL_KEY);
     if (storedSetores) {
       const parsed = JSON.parse(storedSetores);
-      const list = Array.isArray(parsed) ? parsed : defaultSetores;
-      // Ensure all default ones exist
-      const existingNames = new Set(list.map((s: any) => s.nome.trim().toLowerCase()));
-      const missing = defaultSetores.filter(ds => !existingNames.has(ds.nome.trim().toLowerCase()));
-      if (missing.length > 0) {
-        const enriched = [...list, ...missing.map((s, idx) => ({ id: `local_setor_${Date.now()}_${idx}`, nome: s.nome }))];
-        setSetores(enriched);
-        localStorage.setItem(SETORES_LOCAL_KEY, JSON.stringify(enriched));
-      } else {
-        setSetores(list);
-      }
+      const list = Array.isArray(parsed) ? parsed : [];
+      setSetores(list);
     } else {
-      setSetores(defaultSetores);
-      localStorage.setItem(SETORES_LOCAL_KEY, JSON.stringify(defaultSetores));
+      const def = hasAlreadySeeded ? [] : defaultSetores;
+      setSetores(def);
+      localStorage.setItem(SETORES_LOCAL_KEY, JSON.stringify(def));
     }
 
     setLoading(false);

@@ -36,7 +36,7 @@ import {
   User,
   Users
 } from 'lucide-react';
-import { auth, googleProvider, isFirebaseEnabled } from './lib/firebase';
+import { auth, googleProvider, isFirebaseEnabled, db } from './lib/firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
 
 export default function App() {
@@ -308,6 +308,65 @@ export default function App() {
       const s = setores.find(item => item.id === id);
       await deleteSetor(id);
       await logAction('EXCLUIU', 'Setores', `Setor catalogado "${s?.nome || id}" excluído.`);
+    });
+
+  const clearAllTransactionData = async (fullReset: boolean) => {
+    if (isFirebaseEnabled && db) {
+      const collectionsToClear = ['vagas', 'treinamentos', 'experiencia', 'entrevistas', 'turnover', 'logs'];
+      if (fullReset) {
+        collectionsToClear.push('usuarios', 'sedes', 'regioes', 'cargos', 'setores');
+      }
+      
+      const { getDocs, collection, doc, deleteDoc } = await import('firebase/firestore');
+      
+      for (const colName of collectionsToClear) {
+        try {
+          const snap = await getDocs(collection(db, colName));
+          const deletePromises = snap.docs.map(docSnap => deleteDoc(doc(db, colName, docSnap.id)));
+          await Promise.all(deletePromises);
+        } catch (e) {
+          console.error(`Error clearing ${colName}:`, e);
+        }
+      }
+    }
+    
+    const keysToClear = [
+      'ats_vagas_fallback',
+      'ats_treinamentos_fallback',
+      'ats_experiencia_fallback',
+      'ats_entrevistas_fallback',
+      'ats_turnover_fallback',
+      'ats_system_logs_fallback'
+    ];
+    if (fullReset) {
+      keysToClear.push(
+        'ats_users_fallback',
+        'ats_sedes_fallback',
+        'ats_regioes_fallback',
+        'ats_cargos_fallback',
+        'ats_setores_fallback'
+      );
+    }
+    
+    keysToClear.forEach(key => localStorage.removeItem(key));
+
+    if (fullReset) {
+      localStorage.removeItem('ats_db_clean_mode');
+    } else {
+      localStorage.setItem('ats_db_clean_mode', 'true');
+    }
+  };
+
+  const wrappedClearAllTransactionData = (fullReset: boolean) =>
+    executeWithLoading("Saneando e reiniciando banco de dados...", async () => {
+      try {
+        await logAction('EXCLUIU', 'Usuários', `Iniciou a limpeza do banco de dados (Reset Completo: ${fullReset ? 'Sim' : 'Não'}).`);
+      } catch (e) {}
+      await clearAllTransactionData(fullReset);
+      notify("Banco de dados saneado. Recarregando sistema...", "success");
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     });
 
   // Track Auth state if Firebase is active
