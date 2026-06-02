@@ -30,6 +30,7 @@ interface TreinamentosSectionProps {
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
   userSede?: string;
   isAdmin?: boolean;
+  canManage?: boolean;
 }
 
 export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({ 
@@ -40,7 +41,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
   sedes,
   confirmAction,
   userSede,
-  isAdmin = false
+  isAdmin = false,
+  canManage = true
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUnidade, setSelectedUnidade] = useState(() => {
@@ -275,14 +277,16 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
           </h2>
           <p className="text-slate-500 text-sm font-medium">Controle de capacitações, horas de formação e investimentos corporativos.</p>
         </div>
-        <button
-          id="btn-show-add-treinamento"
-          onClick={openCreateForm}
-          className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
-        >
-          <PlusCircle className="w-4 h-4" />
-          Registrar Treinamento
-        </button>
+        {canManage && (
+          <button
+            id="btn-show-add-treinamento"
+            onClick={openCreateForm}
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Registrar Treinamento
+          </button>
+        )}
       </div>
 
       {/* KPI Bento Grid */}
@@ -466,6 +470,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                   </div>
                 </div>
 
+                {canManage && (
+                  <>
                 <button
                   onClick={() => openEditForm(t)}
                   className="absolute top-4 right-14 p-1.5 bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 rounded-xl cursor-pointer transition-all shadow-sm z-10"
@@ -494,6 +500,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
+                  </>
+                )}
               </div>
             );
           })

@@ -75,6 +75,7 @@ interface EntrevistasSectionProps {
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
   userSede?: string;
   isAdmin?: boolean;
+  canManage?: boolean;
 }
 
 export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
@@ -84,7 +85,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
   deleteEntrevista,
   confirmAction,
   userSede,
-  isAdmin = false
+  isAdmin = false,
+  canManage = true
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -330,13 +332,15 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
           </h2>
           <p className="text-slate-500 text-sm font-medium">Investigue motivos de saídas, colete sugestões e estude o nível de satisfação organizacional.</p>
         </div>
-        <button
-          onClick={openCreateForm}
-          className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
-        >
-          <PlusCircle className="w-4 h-4" />
-          Registrar Entrevista
-        </button>
+        {canManage && (
+          <button
+            onClick={openCreateForm}
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Registrar Entrevista
+          </button>
+        )}
       </div>
 
       {/* Stats Bento Grid */}
@@ -440,6 +444,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
                 </span>
 
                 <div className="flex items-center gap-2">
+                  {canManage && (
+                    <>
                   <button
                     onClick={() => setViewingRecord(e)}
                     className="p-1 px-2.5 border border-slate-200 hover:bg-slate-50 hover:border-slate-350 text-xs font-bold rounded-lg text-slate-600 flex items-center gap-1 cursor-pointer transition"
@@ -454,6 +460,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
                     <Pencil className="w-3.5 h-3.5 text-slate-400" />
                     Editar
                   </button>
+                    </>
+                  )}
                   <button
                     onClick={() => {
                       if (confirmAction) {
@@ -492,12 +500,14 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
                 </span>
                 <h3 className="text-lg font-bold mt-1">{viewingRecord.colaborador}</h3>
               </div>
+              {canManage && (
               <button
                 onClick={() => openEditForm(viewingRecord)}
                 className="text-xs bg-white/10 hover:bg-white/15 text-white font-bold px-3 py-1.5 rounded-xl cursor-pointer transition mr-3"
               >
                 Editar
               </button>
+              )}
               <button 
                 onClick={() => setViewingRecord(null)} 
                 className="text-slate-400 hover:text-white font-bold text-2xl cursor-pointer leading-none"

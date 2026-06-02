@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, HelpCircle, Edit, X } from 'lucide-react';
-import { Usuario, Sede } from '../hooks/useMetadata';
+import { Usuario, Sede, type UserRole } from '../hooks/useMetadata';
 
 interface AdminUsersTabProps {
   usuarios: Usuario[];
   sedes: Sede[];
   currentUserEmail: string;
-  addUsuario: (email: string, role: 'Administrador' | 'Analista', sede?: string) => Promise<void>;
-  updateUsuario: (id: string, email: string, role: 'Administrador' | 'Analista', sede?: string) => Promise<void>;
+  addUsuario: (email: string, role: UserRole, sede?: string) => Promise<void>;
+  updateUsuario: (id: string, email: string, role: UserRole, sede?: string) => Promise<void>;
   deleteUsuario: (id: string) => Promise<void>;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
 }
@@ -22,7 +22,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   confirmAction
 }) => {
   const [userEmail, setUserEmail] = useState('');
-  const [userRole, setUserRole] = useState<'Administrador' | 'Analista'>('Analista');
+  const [userRole, setUserRole] = useState<UserRole>('Analista');
   const [userSede, setUserSede] = useState<string>('DT');
   const [busy, setBusy] = useState(false);
   const [editingUser, setEditingUser] = useState<Usuario | null>(null);
@@ -42,10 +42,10 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
     setBusy(true);
     try {
       if (editingUser) {
-        await updateUsuario(editingUser.id || editingUser.email, userEmail.toLowerCase().trim(), userRole, userSede);
+        await updateUsuario(editingUser.id || editingUser.email, userEmail.toLowerCase().trim(), userRole, userRole === 'Visualizador' ? '' : userSede);
         setEditingUser(null);
       } else {
-        await addUsuario(userEmail.toLowerCase().trim(), userRole, userSede);
+        await addUsuario(userEmail.toLowerCase().trim(), userRole, userRole === 'Visualizador' ? '' : userSede);
       }
       setUserEmail('');
       setUserRole('Analista');
@@ -112,6 +112,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                 className="w-full text-xs px-3.5 py-3 border border-slate-200 rounded-xl outline-none bg-white font-medium focus:border-slate-800"
               >
                 <option value="Analista">Analista (visualiza e edita vagas)</option>
+                <option value="Visualizador">Visualizador (somente leitura em tudo)</option>
                 <option value="Administrador">Administrador (controle total)</option>
               </select>
             </div>
@@ -119,10 +120,14 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-500 uppercase">Sede Responsável</label>
               <select
-                value={userSede}
+                value={userRole === 'Visualizador' ? '' : userSede}
                 onChange={(e) => setUserSede(e.target.value)}
+                disabled={userRole === 'Visualizador'}
                 className="w-full text-xs px-3.5 py-3 border border-slate-200 rounded-xl outline-none bg-white font-medium focus:border-slate-800 focus:ring-2 focus:ring-slate-900/10"
               >
+                {userRole === 'Visualizador' && (
+                  <option value="">Todas as sedes</option>
+                )}
                 {sedes && sedes.length > 0 ? (
                   sedes.map(s => (
                     <option key={s.id} value={s.nome}>
@@ -168,7 +173,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
 
         <div className="mt-8 border-t border-slate-200/50 pt-4 text-[11px] text-slate-400 font-medium flex items-start gap-1.5 leading-relaxed">
           <HelpCircle className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-          <span>Administradores gerenciam listas e usuários. Analistas têm acesso de leitura ou gravação às vagas da sua respectiva Sede.</span>
+          <span>Administradores gerenciam listas e usuários. Analistas editam dados da sua sede. Visualizadores enxergam tudo, sem alterar nada.</span>
         </div>
       </div>
 
@@ -198,6 +203,8 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
                       u.role === 'Administrador' 
                         ? 'bg-rose-50 text-rose-700 border-rose-100' 
+                        : u.role === 'Visualizador'
+                        ? 'bg-slate-100 text-slate-700 border-slate-200'
                         : 'bg-blue-50 text-blue-700 border-blue-100'
                     }`}>
                       {u.role}
@@ -205,7 +212,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                   </td>
                   <td className="px-5 py-3.5">
                     <span className="px-2.5 py-0.5 bg-slate-100 text-slate-700 rounded-full font-mono text-[10px] uppercase font-bold border border-slate-200">
-                      {u.sede || 'DT'}
+                      {u.role === 'Visualizador' ? 'TODAS' : (u.sede || 'DT')}
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-right">

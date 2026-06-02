@@ -34,6 +34,7 @@ interface ExperienciasSectionProps {
   setores?: Setor[];
   userSede?: string;
   isAdmin?: boolean;
+  canManage?: boolean;
 }
 
 interface ReviewAlert {
@@ -161,7 +162,8 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
   sedes = [],
   setores = [],
   userSede,
-  isAdmin = false
+  isAdmin = false,
+  canManage = true
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTableTab, setActiveTableTab] = useState<'ativos' | 'efetivados' | 'encerrados'>('ativos');
@@ -404,13 +406,15 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
           </h2>
           <p className="text-slate-500 text-sm font-medium">Monitore datas limites de vencimento de períodos de teste de novos colaboradores.</p>
         </div>
-        <button
-          onClick={openCreateForm}
-          className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
-        >
-          <PlusCircle className="w-4 h-4" />
-          Novo Acompanhamento
-        </button>
+        {canManage && (
+          <button
+            onClick={openCreateForm}
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Novo Acompanhamento
+          </button>
+        )}
       </div>
 
       {/* Stats Grid */}
@@ -725,8 +729,10 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      {/* Action trigger menu shortcuts */}
-                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                      {canManage ? (
+                      <>
+                        {/* Action trigger menu shortcuts */}
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
                         {e.status === 'EM_ANALISE' && (
                           <>
                             <button
@@ -787,7 +793,11 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      </div>
+                        </div>
+                      </>
+                      ) : (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Leitura</span>
+                      )}
                     </td>
                   </tr>
                 ))

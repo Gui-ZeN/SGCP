@@ -11,7 +11,7 @@ import { AddVacancyForm } from './components/AddVacancyForm';
 import { AdminPanel } from './components/AdminPanel';
 import { HomeSection } from './components/HomeSection';
 import { LoginPage } from './components/LoginPage';
-import { useMetadata } from './hooks/useMetadata';
+import { useMetadata, type UserRole } from './hooks/useMetadata';
 import { useLogs } from './hooks/useLogs';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useOperationalModules } from './hooks/useOperationalModules';
@@ -70,6 +70,7 @@ export default function App() {
     isAuthorized,
     userRole, 
     isAdmin, 
+    isViewer,
     selectedRole,
     setSelectedRole,
     selectedSede,
@@ -114,6 +115,8 @@ export default function App() {
   const { logs, logAction } = useLogs(user, isAdmin);
 
   const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'admin'>('home');
+  const scopedUserSede = isViewer ? '' : selectedSede;
+  const canManageModules = !isViewer;
 
   // Custom global confirmation modal & loading state
   const [globalLoading, setGlobalLoading] = useState<string | null>(null);
@@ -259,13 +262,13 @@ export default function App() {
       await logAction('ALTEROU', 'Turnover', `Balanço de Headcount/Turnover para o mês "${updatedFields.mesAno || turn?.mesAno || id}" atualizado.`);
     });
 
-  const wrappedAddUsuario = (email: string, role: 'Administrador' | 'Analista', sede?: string) => 
+  const wrappedAddUsuario = (email: string, role: UserRole, sede?: string) => 
     executeWithLoading("Cadastrando novo perfil de usuário autorizado...", async () => {
       await addUsuario(email, role, sede);
       await logAction('CRIOU', 'Usuários', `Usuário "${email}" convidado como "${role}" na unidade "${sede || 'DT'}".`);
     });
 
-  const wrappedUpdateUsuario = (id: string, email: string, role: 'Administrador' | 'Analista', sede?: string) => 
+  const wrappedUpdateUsuario = (id: string, email: string, role: UserRole, sede?: string) => 
     executeWithLoading("Atualizando dados do usuário...", async () => {
       await updateUsuario(id, email, role, sede);
       await logAction('ALTEROU', 'Usuários', `Dados do usuário "${email}" atualizados para papel "${role}" e sede "${sede || 'DT'}".`);
@@ -762,12 +765,14 @@ export default function App() {
                     <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded font-extrabold uppercase border leading-none ${
                       isAdmin 
                         ? 'bg-rose-50 text-rose-600 border-rose-100' 
+                        : isViewer
+                        ? 'bg-slate-100 text-slate-600 border-slate-200'
                         : 'bg-indigo-50 text-indigo-600 border-indigo-100'
                     }`}>
                       {userRole}
                     </span>
-                    <span className="inline-block text-[9px] px-1.5 py-0.5 rounded font-mono text-slate-600 bg-slate-100 border border-slate-250 font-extrabold uppercase leading-none" title={`Sede: ${selectedSede}`}>
-                      {sedes.find(s => s.nome.toLowerCase() === selectedSede?.toLowerCase())?.sigla || selectedSede}
+                    <span className="inline-block text-[9px] px-1.5 py-0.5 rounded font-mono text-slate-600 bg-slate-100 border border-slate-250 font-extrabold uppercase leading-none" title={isViewer ? 'Acesso a todas as sedes' : `Sede: ${selectedSede}`}>
+                      {isViewer ? 'TODAS' : (sedes.find(s => s.nome.toLowerCase() === selectedSede?.toLowerCase())?.sigla || selectedSede)}
                     </span>
                   </div>
                   <button
@@ -825,7 +830,7 @@ export default function App() {
               setActiveTab={setActiveTab}
               userName={user?.displayName}
               sedes={sedes}
-              userSede={selectedSede}
+              userSede={scopedUserSede}
               isAdmin={isAdmin}
             />
           )}
@@ -838,7 +843,7 @@ export default function App() {
               entrevistas={entrevistas}
               turnover={turnover}
               sedes={sedes}
-              userSede={selectedSede}
+              userSede={scopedUserSede}
               isAdmin={isAdmin}
             />
           )}
@@ -855,7 +860,7 @@ export default function App() {
               isAdmin={isAdmin}
               confirmAction={askConfirmation}
               triggerAddModal={triggerAddModal}
-              userSede={selectedSede}
+              userSede={scopedUserSede}
               userRole={selectedRole}
             />
           )}
@@ -868,8 +873,9 @@ export default function App() {
               deleteTreinamento={wrappedDeleteTreinamento}
               sedes={sedes}
               confirmAction={askConfirmation}
-              userSede={selectedSede}
+              userSede={scopedUserSede}
               isAdmin={isAdmin}
+              canManage={canManageModules}
             />
           )}
 
@@ -882,8 +888,9 @@ export default function App() {
               confirmAction={askConfirmation}
               sedes={sedes}
               setores={setores}
-              userSede={selectedSede}
+              userSede={scopedUserSede}
               isAdmin={isAdmin}
+              canManage={canManageModules}
             />
           )}
 
@@ -894,8 +901,9 @@ export default function App() {
               updateEntrevista={wrappedUpdateEntrevista}
               deleteEntrevista={wrappedDeleteEntrevista}
               confirmAction={askConfirmation}
-              userSede={selectedSede}
+              userSede={scopedUserSede}
               isAdmin={isAdmin}
+              canManage={canManageModules}
             />
           )}
 
@@ -906,6 +914,7 @@ export default function App() {
               updateTurnover={wrappedUpdateTurnover}
               deleteTurnover={wrappedDeleteTurnover}
               confirmAction={askConfirmation}
+              canManage={canManageModules}
             />
           )}
 
@@ -1031,4 +1040,3 @@ export default function App() {
     </div>
   );
 }
-

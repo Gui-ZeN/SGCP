@@ -10,7 +10,7 @@ import {
   Upload,
   FileSpreadsheet
 } from 'lucide-react';
-import { Usuario, Sede, Regiao, Cargo, Setor } from '../hooks/useMetadata';
+import { Usuario, Sede, Regiao, Cargo, Setor, type UserRole } from '../hooks/useMetadata';
 import { SystemLog } from '../hooks/useLogs';
 import { AdminUsersTab } from './AdminUsersTab';
 import { AdminSedesTab } from './AdminSedesTab';
@@ -26,8 +26,8 @@ interface AdminPanelProps {
   cargos: Cargo[];
   setores: Setor[];
   logs: SystemLog[];
-  addUsuario: (email: string, role: 'Administrador' | 'Analista', sede?: string) => Promise<void>;
-  updateUsuario: (id: string, email: string, role: 'Administrador' | 'Analista', sede?: string) => Promise<void>;
+  addUsuario: (email: string, role: UserRole, sede?: string) => Promise<void>;
+  updateUsuario: (id: string, email: string, role: UserRole, sede?: string) => Promise<void>;
   deleteUsuario: (id: string) => Promise<void>;
   addSede: (nome: string, regiao: string, sigla?: string) => Promise<void>;
   updateSede: (id: string, nome: string, regiao: string, sigla?: string) => Promise<void>;
@@ -330,5 +330,4 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     </div>
   );
 };
-
 

@@ -1011,6 +1011,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                   }
                 }}
                 onDrop={(e) => {
+                  if (!canManageVagas) return;
                   const vagaId = e.dataTransfer.getData('text/plain');
                   handleDragDrop(vagaId, lane.id);
                   setDraggedOverLaneId(null);
@@ -1060,8 +1061,9 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                       return (
                         <div 
                           key={vaga.id} 
-                          draggable={true}
+                          draggable={canManageVagas}
                           onDragStart={(e) => {
+                            if (!canManageVagas) return;
                             e.dataTransfer.setData('text/plain', vaga.id);
                             setDraggingVagaId(vaga.id);
                           }}

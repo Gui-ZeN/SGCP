@@ -36,6 +36,7 @@ interface TurnoverSectionProps {
   updateTurnover: (id: string, updatedFields: Partial<Turnover>) => Promise<void>;
   deleteTurnover: (id: string) => Promise<void>;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
+  canManage?: boolean;
 }
 
 export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
@@ -43,7 +44,8 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
   addTurnover,
   updateTurnover,
   deleteTurnover,
-  confirmAction
+  confirmAction,
+  canManage = true
 }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTurnover, setEditingTurnover] = useState<Turnover | null>(null);
@@ -175,6 +177,7 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
           </h2>
           <p className="text-slate-500 text-sm font-medium font-sans">Acompanhe estatísticas mensais de admissão, demissão espontânea e demissão induzida.</p>
         </div>
+        {canManage && (
         <button
           onClick={openCreateForm}
           className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
@@ -182,6 +185,7 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
           <PlusCircle className="w-4 h-4" />
           Logar Mês Operacional
         </button>
+        )}
       </div>
 
       {/* KPI Stats Widgets */}
@@ -327,6 +331,8 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                        </div>
                     </td>
                     <td className="py-3 px-5 text-right">
+                      {canManage ? (
+                        <>
                       <button
                         onClick={() => openEditForm(item)}
                         className="p-1 px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 rounded-lg cursor-pointer transition border border-transparent hover:border-slate-200 mr-1"
@@ -353,6 +359,10 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                       >
                          <Trash2 className="w-4 h-4" />
                       </button>
+                        </>
+                      ) : (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Leitura</span>
+                      )}
                     </td>
                   </tr>
                 ))

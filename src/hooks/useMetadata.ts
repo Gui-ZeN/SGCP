@@ -24,10 +24,12 @@ const REGIOES_LOCAL_KEY = 'ats_regioes_fallback';
 const CARGOS_LOCAL_KEY = 'ats_cargos_fallback';
 const SETORES_LOCAL_KEY = 'ats_setores_fallback';
 
+export type UserRole = 'Administrador' | 'Analista' | 'Visualizador';
+
 export interface Usuario {
   id: string; // email or unique id
   email: string;
-  role: 'Administrador' | 'Analista';
+  role: UserRole;
   sede?: string;
 }
 
@@ -64,10 +66,10 @@ export function useMetadata(currentUser: any) {
   const [usingFirebase, setUsingFirebase] = useState(isFirebaseEnabled);
 
   // Simulative/Computed Role and overrides for easy Sandbox testing
-  const [selectedRole, setSelectedRole] = useState<'Administrador' | 'Analista'>(() => {
+  const [selectedRole, setSelectedRole] = useState<UserRole>(() => {
     const saved = localStorage.getItem('ats_simulated_role');
-    if (saved === 'Administrador' || saved === 'Analista') {
-      return saved as 'Administrador' | 'Analista';
+    if (saved === 'Administrador' || saved === 'Analista' || saved === 'Visualizador') {
+      return saved as UserRole;
     }
     return 'Administrador'; // Default is Administrador so creators see all features out-of-the-box!
   });
@@ -79,7 +81,7 @@ export function useMetadata(currentUser: any) {
     return saved || 'DT';
   });
 
-  const changeSelectedRole = (role: 'Administrador' | 'Analista') => {
+  const changeSelectedRole = (role: UserRole) => {
     setSelectedRole(role);
     localStorage.setItem('ats_simulated_role', role);
   };
@@ -101,6 +103,7 @@ export function useMetadata(currentUser: any) {
 
   const userRole = selectedRole;
   const isAdmin = selectedRole === 'Administrador';
+  const isViewer = selectedRole === 'Visualizador';
 
   // Initial defaults
   const defaultRegioes: Regiao[] = [
@@ -166,7 +169,8 @@ export function useMetadata(currentUser: any) {
 
   const defaultUsuarios: Usuario[] = [
     { id: 'user_1', email: 'guizen2006@gmail.com', role: 'Administrador', sede: 'DT' },
-    { id: 'user_2', email: 'recrutamento@empresa.com', role: 'Analista', sede: 'BENFICA' }
+    { id: 'user_2', email: 'recrutamento@empresa.com', role: 'Analista', sede: 'BENFICA' },
+    { id: 'user_3', email: 'visualizador@empresa.com', role: 'Visualizador', sede: '' }
   ];
 
   useEffect(() => {
@@ -336,7 +340,7 @@ export function useMetadata(currentUser: any) {
   }, [currentUser, usuarios, loading]);
 
   // Operations: Users
-  const addUsuario = async (email: string, role: 'Administrador' | 'Analista', sede?: string) => {
+  const addUsuario = async (email: string, role: UserRole, sede?: string) => {
     const cleanEmail = email.trim();
     if (!cleanEmail) return;
 
@@ -377,7 +381,7 @@ export function useMetadata(currentUser: any) {
     }
   };
 
-  const updateUsuario = async (id: string, email: string, role: 'Administrador' | 'Analista', sede?: string) => {
+  const updateUsuario = async (id: string, email: string, role: UserRole, sede?: string) => {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) return;
 
@@ -619,6 +623,7 @@ export function useMetadata(currentUser: any) {
     usingFirebase,
     userRole,
     isAdmin,
+    isViewer,
     selectedRole,
     setSelectedRole: changeSelectedRole,
     selectedSede,
