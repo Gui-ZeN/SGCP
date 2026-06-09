@@ -21,7 +21,8 @@ import {
   LineChart,
   Line,
   AreaChart,
-  Area
+  Area,
+  LabelList
 } from 'recharts';
 import { 
   Briefcase, 
@@ -45,6 +46,35 @@ import {
   HelpCircle,
   DollarSign
 } from 'lucide-react';
+
+// --- Tema de gráficos: paleta coesa + tooltip estilizado reutilizável ---
+const CHART = {
+  primary: '#6366f1', // indigo (marca)
+  emerald: '#10b981',
+  amber: '#f59e0b',
+  rose: '#f43f5e',
+  slate: '#94a3b8'
+};
+
+const BAR_CURSOR = { fill: '#6366f1', fillOpacity: 0.06 } as const;
+
+const ChartTooltip: React.FC<any> = ({ active, payload, label, suffix = '' }) => {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div className="bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl shadow-lg px-3 py-2">
+      {label !== undefined && label !== '' && (
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">{label}</p>
+      )}
+      {payload.map((p: any, i: number) => (
+        <div key={i} className="flex items-center gap-2 text-[11px] font-bold text-slate-600">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color || p.fill }} />
+          <span>{p.name}</span>
+          <span className="ml-auto pl-4 text-slate-900 font-black">{p.value}{suffix}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 interface RecruitmentDashboardProps {
   vagas: Vaga[];
@@ -164,7 +194,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   const mediaClima = filteredEntrevistas.length > 0 
     ? (filteredEntrevistas.reduce((acc, e) => acc + (e.notaClimaOrg || 0), 0) / filteredEntrevistas.length).toFixed(1) 
     : '0.0';
-  const turnoverGeral = turnover.length > 0 ? turnover[turnover.length - 1].taxaTurnoverGeral : 0;
+  const turnoverGeral = turnover.length > 0 ? (turnover[turnover.length - 1].taxaTurnoverGeral ?? 0) : 0;
 
   // --- Vagas Status Chart Data ---
   const statusData = useMemo(() => {
@@ -272,8 +302,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
       return {
         mes: t.mesAno,
         Admissões: t.totalAdmissao || 0,
-        Desligamentos: exits,
-        ContrataçõesLíquidas: (t.totalAdmissao || 0) - exits,
+        Desligamentos: exits
       };
     }).slice(-6); // Last 6 historical slots
   }, [turnover]);
@@ -566,7 +595,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
                     >
                       {statusData.map((e, idx) => <Cell key={idx} fill={e.color} stroke="transparent" />)}
                     </Pie>
-                    <Tooltip formatter={(value) => [value, 'Vagas']} cursor={{fill: '#f1f5f9'}} />
+                    <Tooltip content={(p: any) => <ChartTooltip {...p} suffix=" vagas" />} cursor={{ fill: '#f1f5f9' }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -594,12 +623,14 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             <p className="text-[10px] text-slate-400 font-extrabold uppercase mb-4">Volume total distribuído geograficamente</p>
             <div className="h-56 mt-auto">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={sedeChartData} margin={{ top: 10, left: -25, right: 0, bottom: 0 }}>
+                <BarChart data={sedeChartData} margin={{ top: 18, left: -10, right: 8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="name" fontSize={10} stroke="#64748b" tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
                   <YAxis fontSize={10} stroke="#64748b" tickLine={false} axisLine={false} />
-                  <Tooltip cursor={{fill: '#fff', opacity: 0.5}} />
-                  <Bar dataKey="quantidade" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={36} />
+                  <Tooltip content={<ChartTooltip />} cursor={BAR_CURSOR} />
+                  <Bar dataKey="quantidade" fill={CHART.primary} radius={[6, 6, 0, 0]} barSize={36}>
+                    <LabelList dataKey="quantidade" position="top" fontSize={10} fill="#475569" />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -615,12 +646,14 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             <div className="h-56 mt-auto">
               {slaSetorChartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart layout="vertical" data={slaSetorChartData} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
+                  <BarChart layout="vertical" data={slaSetorChartData} margin={{ top: 0, right: 28, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                     <XAxis type="number" fontSize={10} stroke="#64748b" tickLine={false} axisLine={false} />
                     <YAxis dataKey="name" type="category" fontSize={10} stroke="#475569" tickLine={false} axisLine={false} width={80} />
-                    <Tooltip cursor={{fill: '#fff', opacity: 0.5}} formatter={(value) => [`${value} dias`, 'SLA Médio']} />
-                    <Bar dataKey="sla" fill="#ff7a00" radius={[0, 4, 4, 0]} barSize={12} />
+                    <Tooltip content={(p: any) => <ChartTooltip {...p} suffix=" dias" />} cursor={BAR_CURSOR} />
+                    <Bar dataKey="sla" fill={CHART.amber} radius={[0, 4, 4, 0]} barSize={14}>
+                      <LabelList dataKey="sla" position="right" fontSize={10} fill="#475569" />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -650,14 +683,14 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
 
             <div className="h-60">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={headcountFlowData} margin={{ top: 10, left: -25, right: 0, bottom: 0 }}>
+                <BarChart data={headcountFlowData} margin={{ top: 10, left: -10, right: 8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="mes" fontSize={10} stroke="#64748b" tickLine={false} />
                   <YAxis fontSize={10} stroke="#64748b" tickLine={false} />
-                  <Tooltip />
+                  <Tooltip content={<ChartTooltip />} cursor={BAR_CURSOR} />
                   <Legend verticalAlign="top" height={36} iconSize={10} wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                  <Bar dataKey="Admissões" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
-                  <Bar dataKey="Desligamentos" fill="#f43f5e" radius={[4, 4, 0, 0]} barSize={20} />
+                  <Bar dataKey="Admissões" fill={CHART.emerald} radius={[4, 4, 0, 0]} barSize={20} />
+                  <Bar dataKey="Desligamentos" fill={CHART.rose} radius={[4, 4, 0, 0]} barSize={20} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -675,18 +708,19 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
 
             <div className="h-60">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart layout="vertical" data={dimensoesClima} margin={{ top: 0, right: 10, left: 15, bottom: 0 }}>
+                <BarChart layout="vertical" data={dimensoesClima} margin={{ top: 0, right: 28, left: 8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                   <XAxis type="number" domain={[0, 5]} fontSize={10} stroke="#64748b" tickLine={false} />
                   <YAxis dataKey="name" type="category" fontSize={10} stroke="#334155" tickLine={false} width={110} />
-                  <Tooltip formatter={(value) => [`${value} / 5.0`, 'Nota']} />
-                  <Bar dataKey="score" fill="#10B981" radius={[0, 4, 4, 0]} barSize={14}>
+                  <Tooltip content={(p: any) => <ChartTooltip {...p} suffix=" / 5.0" />} cursor={BAR_CURSOR} />
+                  <Bar dataKey="score" fill={CHART.emerald} radius={[0, 4, 4, 0]} barSize={14}>
                     {dimensoesClima.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={entry.score >= 4.0 ? '#10b981' : entry.score >= 3.0 ? '#f59e0b' : '#ef4444'} 
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={entry.score >= 4.0 ? CHART.emerald : entry.score >= 3.0 ? CHART.amber : '#ef4444'}
                       />
                     ))}
+                    <LabelList dataKey="score" position="right" fontSize={10} fill="#475569" />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -724,12 +758,14 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             {trTypeMap.length > 0 ? (
               <div className="h-40">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={trTypeMap} margin={{ top: 0, left: -25, right: 0, bottom: 0 }}>
+                  <BarChart data={trTypeMap} margin={{ top: 18, left: -10, right: 8, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="name" fontSize={9} stroke="#64748b" tickLine={false} />
                     <YAxis fontSize={9} stroke="#64748b" tickLine={false} />
-                    <Tooltip />
-                    <Bar dataKey="total" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={24} />
+                    <Tooltip content={<ChartTooltip />} cursor={BAR_CURSOR} />
+                    <Bar dataKey="total" fill={CHART.primary} radius={[4, 4, 0, 0]} barSize={24}>
+                      <LabelList dataKey="total" position="top" fontSize={10} fill="#475569" />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
