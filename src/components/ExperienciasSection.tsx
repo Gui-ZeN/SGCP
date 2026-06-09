@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Experiencia } from '../types';
 import { Sede, Setor } from '../hooks/useMetadata';
+import { dateFromValue, toISOInput, formatDateBR } from '../utils/date';
 import { 
   ShieldCheck, 
   Search, 
@@ -44,16 +45,8 @@ interface ReviewAlert {
   message: string;
 }
 
-// Date utilities
-const parseBRDate = (str: string): Date | null => {
-  if (!str) return null;
-  const parts = str.split('/');
-  if (parts.length !== 3) return null;
-  const day = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10) - 1;
-  const year = parseInt(parts[2], 10);
-  return new Date(year, month, day);
-};
+// Date utilities (delegam para utils/date — fonte única e validada)
+const parseBRDate = (str: string): Date | null => dateFromValue(str);
 
 const getDaysDifference = (targetDateStr: string): number => {
   const target = parseBRDate(targetDateStr);
@@ -244,13 +237,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
     }
   }, [sectorsList, setor]);
 
-  const dateToInput = (value?: string) => {
-    if (!value) return '';
-    if (value.includes('-')) return value;
-    const parts = value.split('/');
-    if (parts.length !== 3) return '';
-    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-  };
+  const dateToInput = (value?: string) => toISOInput(value);
 
   const resetForm = () => {
     setColaborador('');
@@ -360,12 +347,8 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
       return;
     }
 
-    // Adapt standard YYYY-MM-DD input date to Brazilian format if necessary
-    let formattedAdm = dataAdmissao;
-    if (dataAdmissao.includes('-')) {
-      const parts = dataAdmissao.split('-');
-      formattedAdm = `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
+    // Converte a data do input (ISO) para o formato BR usado no domínio.
+    const formattedAdm = formatDateBR(dataAdmissao);
 
     const payload = {
       colaborador,

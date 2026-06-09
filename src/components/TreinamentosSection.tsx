@@ -5,6 +5,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Treinamento } from '../types';
+import { toISOInput } from '../utils/date';
 import { 
   GraduationCap, 
   Search, 
@@ -109,12 +110,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
 
   const tiposList: Treinamento['tipo'][] = ['Liderança', 'Integração', 'Técnico', 'Operacional', 'Comportamental'].sort((a,b) => a.localeCompare(b)) as Treinamento['tipo'][];
 
-  const dateToInput = (value?: string) => {
-    if (!value) return '';
-    const parts = value.split('/');
-    if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-    return value.includes('-') ? value.slice(0, 10) : '';
-  };
+  const dateToInput = (value?: string) => toISOInput(value);
 
   const resetForm = () => {
     setTema('');
