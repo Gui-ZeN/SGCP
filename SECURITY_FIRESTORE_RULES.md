@@ -45,7 +45,7 @@ Três níveis de "quem é o usuário" são usados nas regras:
 
 | Coleção          | Leitura          | Escrita            | Observação                                   |
 | ---------------- | ---------------- | ------------------ | -------------------------------------------- |
-| `vagas`          | **pública** ⚠️   | editor             | leitura pública é **exceção temporária**     |
+| `vagas`          | app user         | editor             | integração externa lê via service account    |
 | `usuarios`       | app user         | admin (+validação) | leitura ampla: o app lista para achar o papel|
 | `sedes`          | app user         | admin              |                                              |
 | `regioes`        | app user         | admin              |                                              |
@@ -64,28 +64,22 @@ Três níveis de "quem é o usuário" são usados nas regras:
 
 ---
 
-## 2. A exceção `vagas` e a integração externa
+## 2. A integração externa `vagas` (RESOLVIDA)
 
-O dashboard de Absenteísmo (projeto **Google Apps Script separado**) lê hoje a
-coleção `vagas` via **Firestore REST API usando só a apiKey web, sem login**.
-Isso só funciona porque as regras eram públicas.
+O dashboard de Absenteísmo (projeto **Google Apps Script separado**) lia a
+coleção `vagas` via **Firestore REST API usando só a apiKey web, sem login** —
+o que só funcionava porque as regras eram públicas.
 
-Por isso, **a leitura de `vagas` foi mantida pública (apenas a leitura)** com um
-comentário de TODO bem destacado nas regras. A **escrita já foi fechada** para
-editores — então o buraco grave ("qualquer um edita/apaga vagas") já está tampado.
+**Status:** migrado para a **opção (a)** — o Apps Script agora autentica via
+**service account** (OAuth JWT, papel Cloud Datastore Viewer) e a leitura de
+`vagas` foi **fechada** (`allow read: if isAppUser()`). A service account usa
+IAM, que não passa pelas regras de segurança, então a leitura continua
+funcionando com a coleção fechada ao público.
 
-Para **fechar também a leitura**, migre a integração com **uma** das opções
-abaixo e troque, em `firestore.rules`:
+O leitor migrado vive em `DashboardWebApp.gs` (função `fetchVagasFromFirestore_`,
+que usa `sgcpAccessToken_`); `AbsenteismoVagas.gs` foi o validador inicial.
 
-```diff
-  match /vagas/{vagaId} {
--   allow read: if true; // TODO(segurança): trocar por isAppUser() ...
-+   allow read: if isAppUser();
-    allow create, update, delete: if isEditor();
-  }
-```
-
-### Opção (a) — Apps Script autentica via Service Account (OAuth JWT)  ✅ ESCOLHIDA
+### Opção (a) — Apps Script autentica via Service Account (OAuth JWT)  ✅ ADOTADA
 
 O Apps Script passa a autenticar no Firestore com uma **service account** do
 Google Cloud (papel read-only), em vez de usar só a apiKey.
@@ -231,13 +225,13 @@ O `firebase.json` aplica estas regras aos **dois** bancos configurados
 
 ## 4. Decisões e pendências
 
-- **Decisão:** adotada a **opção (a)** (service account no Apps Script). Código
-  pronto em [`apps-script/AbsenteismoVagas.gs`](apps-script/AbsenteismoVagas.gs).
-- **Decisão (interim):** `vagas` permanece com **leitura pública** até o Apps
-  Script ser migrado e testado. Escrita já fechada.
-- **Pendência (você):** executar os passos 1–5 da opção (a) e, ao confirmar que
-  o `testarLeituraVagas` funciona, fazer o passo 6 — trocar `allow read: if true`
-  → `allow read: if isAppUser()` em `vagas` e deployar as regras.
+- **Decisão:** adotada a **opção (a)** (service account no Apps Script),
+  **concluída**. O dashboard lê via `DashboardWebApp.gs` → `fetchVagasFromFirestore_`
+  (auth por `sgcpAccessToken_`). Validado com 168 vagas lidas.
+- **`vagas` fechada:** leitura agora exige `isAppUser()`; escrita só editores.
+- **Pendência (você):** rodar o teste no emulador e `firebase deploy --only
+  firestore:rules`. Opcional: remover a Script Property `FIREBASE_API_KEY` (não
+  é mais usada) e **rotacionar a chave da service account exposta no chat**.
 - **Nota sobre `usuarios`:** a leitura é liberada a qualquer usuário verificado
   porque o app lista a coleção inteira na inicialização para descobrir o papel do
   usuário. Expõe e-mails/papéis (não dados de colaboradores) a usuários

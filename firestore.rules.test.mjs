@@ -81,8 +81,14 @@ function test(name, fn) {
 // ---------------------------------------------------------------------------
 //  VAGAS — leitura pública (exceção temporária), escrita só editor
 // ---------------------------------------------------------------------------
-test("vagas: leitura SEM auth é permitida (exceção temporária)", () =>
-  assertSucceeds(getDoc(doc(ctx.unauth(), "vagas", "v1"))));
+test("vagas: leitura SEM auth é NEGADA (integração externa usa service account/IAM)", () =>
+  assertFails(getDoc(doc(ctx.unauth(), "vagas", "v1"))));
+
+test("vagas: leitura por usuário do app (provisionado) é permitida", () =>
+  assertSucceeds(getDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "v1"))));
+
+test("vagas: leitura por conta Google verificada porém NÃO provisionada é negada", () =>
+  assertFails(getDoc(doc(ctx.user(STRANGER_EMAIL), "vagas", "v1"))));
 
 test("vagas: escrita SEM auth é negada", () =>
   assertFails(setDoc(doc(ctx.unauth(), "vagas", "v2"), { codigo: 2, vaga: "Y", status: "ABERTA" })));

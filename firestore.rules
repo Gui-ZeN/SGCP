@@ -80,21 +80,15 @@ service cloud.firestore {
     }
 
     // =====================================================================
-    //  VAGAS  (dados de requisição de vaga — menor sensibilidade)
+    //  VAGAS  (dados de requisição de vaga)
     // =====================================================================
-    //
-    //  ⚠️  EXCEÇÃO TEMPORÁRIA DE LEITURA PÚBLICA  ⚠️
-    //  A leitura é pública porque o dashboard externo de Absenteísmo
-    //  (projeto Google Apps Script separado) lê esta coleção via Firestore
-    //  REST API usando apenas a apiKey web, sem autenticação.
-    //
-    //  Para FECHAR a leitura (recomendado), migre a integração externa e
-    //  troque `allow read: if true;` por `allow read: if isAppUser();`.
-    //  Veja o playbook em SECURITY_FIRESTORE_RULES.md (opções a / b).
-    //
-    //  A ESCRITA já está protegida: apenas editores (Admin/Analista).
+    //  Leitura: usuários do app (verificados e provisionados).
+    //  A integração externa de Absenteísmo (Apps Script) lê esta coleção via
+    //  service account (IAM, papel Cloud Datastore Viewer), que NÃO passa pelas
+    //  regras de segurança — ver opção (a) em SECURITY_FIRESTORE_RULES.md.
+    //  Escrita: apenas editores (Admin/Analista).
     match /vagas/{vagaId} {
-      allow read: if true; // TODO(segurança): trocar por isAppUser() após migrar o Apps Script
+      allow read: if isAppUser();
       allow create, update, delete: if isEditor();
     }
 
