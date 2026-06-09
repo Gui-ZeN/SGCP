@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Vaga } from '../types';
+import { toISOInput, formatDateBR, monthAbbrFromDate, yearFromDate } from '../utils/date';
 import { PlusCircle, FileText, CheckCircle } from 'lucide-react';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 
@@ -36,13 +37,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
   const [sexo, setSexo] = useState<Vaga['sexo']>('INDIFERENTE');
   const [observacoes, setObservacoes] = useState('');
 
-  const getTodayISO = () => {
-    const todayDate = new Date();
-    const yyyy = todayDate.getFullYear();
-    const mm = String(todayDate.getMonth() + 1).padStart(2, '0');
-    const dd = String(todayDate.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  };
+  const getTodayISO = () => toISOInput(new Date());
   const [solicitacao, setSolicitacao] = useState(getTodayISO());
 
   const [busy, setBusy] = useState(false);
@@ -59,29 +54,10 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
 
     setBusy(true);
 
-    const todayDate = new Date();
-    let formattedDate = '';
-    let monthText = '';
-    let inputYear = todayDate.getFullYear();
-
-    if (solicitacao) {
-      const parts = solicitacao.split('-'); // ["YYYY", "MM", "DD"]
-      if (parts.length === 3) {
-        formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
-        const monthNum = parseInt(parts[1], 10);
-        const monthsAbr = ["jan.", "fev.", "mar.", "abr.", "mai.", "jun.", "jul.", "ago.", "set.", "out.", "nov.", "dez."];
-        if (monthNum >= 1 && monthNum <= 12) {
-          monthText = monthsAbr[monthNum - 1];
-        }
-        inputYear = parseInt(parts[0], 10) || todayDate.getFullYear();
-      }
-    }
-
-    if (!formattedDate) {
-      formattedDate = `${String(todayDate.getDate()).padStart(2, '0')}/${String(todayDate.getMonth() + 1).padStart(2, '0')}/${todayDate.getFullYear()}`;
-      const monthsAbr = ["jan.", "fev.", "mar.", "abr.", "mai.", "jun.", "jul.", "ago.", "set.", "out.", "nov.", "dez."];
-      monthText = monthsAbr[todayDate.getMonth()];
-    }
+    // Data de solicitação (input ISO) -> BR + mês abreviado, com fallback para hoje.
+    const formattedDate = formatDateBR(solicitacao) || formatDateBR(new Date());
+    const monthText = monthAbbrFromDate(solicitacao) || monthAbbrFromDate(new Date());
+    const inputYear = yearFromDate(solicitacao);
 
     try {
       const finalMotivo = motivo === 'Outros' && motivoOutro.trim() 

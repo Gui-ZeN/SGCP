@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Vaga } from '../types';
+import { dateFromValue, toISOInput, formatDateBR, monthAbbrFromDate } from '../utils/date';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import { Edit2 } from 'lucide-react';
 
@@ -47,14 +48,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
     setTempSetor(vaga.setor || '');
     setTempSexo(vaga.sexo || 'INDIFERENTE');
 
-    let dateInputVal = '';
-    if (vaga.solicitacao) {
-      const parts = vaga.solicitacao.split('/');
-      if (parts.length === 3) {
-        dateInputVal = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      }
-    }
-    setTempSolicitacao(dateInputVal);
+    setTempSolicitacao(toISOInput(vaga.solicitacao));
 
     setTempSolicitante(vaga.solicitante || '');
     
@@ -73,28 +67,18 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
     let finalSolicitacao = vaga.solicitacao;
     let finalMesSolicitacao = vaga.mesSolicitacao;
     if (tempSolicitacao && tempSolicitacao !== vaga.solicitacao) {
-      const parts = tempSolicitacao.split('-');
-      if (parts.length === 3) {
-        finalSolicitacao = `${parts[2]}/${parts[1]}/${parts[0]}`;
-        const monthNum = parseInt(parts[1], 10);
-        const monthsAbr = ["jan.", "fev.", "mar.", "abr.", "mai.", "jun.", "jul.", "ago.", "set.", "out.", "nov.", "dez."];
-        if (monthNum >= 1 && monthNum <= 12) {
-          finalMesSolicitacao = monthsAbr[monthNum - 1];
-        }
+      const d = dateFromValue(tempSolicitacao);
+      if (d) {
+        finalSolicitacao = formatDateBR(d);
+        finalMesSolicitacao = monthAbbrFromDate(d);
       }
     }
 
     // Automatically match months text based on completion date
     let rawMonthConclusao = vaga.mesConclusao;
     if (tempConclusao && tempConclusao !== vaga.conclusao) {
-      const parts = tempConclusao.split('/');
-      if (parts.length === 3) {
-        const monthNum = parseInt(parts[1], 10);
-        const monthsAbr = ["jan.", "fev.", "mar.", "abr.", "mai.", "jun.", "jul.", "ago.", "set.", "out.", "nov.", "dez."];
-        if (monthNum >= 1 && monthNum <= 12) {
-          rawMonthConclusao = monthsAbr[monthNum - 1];
-        }
-      }
+      const d = dateFromValue(tempConclusao);
+      if (d) rawMonthConclusao = monthAbbrFromDate(d);
     }
 
     const finalMotivoVal = tempMotivo === 'Outros' && tempMotivoOutro.trim() 

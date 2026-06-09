@@ -1,5 +1,6 @@
 import React from 'react';
 import { Vaga, Treinamento, Experiencia, Entrevista, Turnover } from '../types';
+import { dateFromValue } from '../utils/date';
 import { Sede } from '../hooks/useMetadata';
 import { 
   Building2, 
@@ -65,19 +66,7 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
     return 'Boa noite';
   };
 
-  const parseDateDDMMYYYY = (dateStr: string): Date | null => {
-    if (!dateStr) return null;
-    const parts = dateStr.split('/');
-    if (parts.length === 3) {
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      const year = parseInt(parts[2], 10);
-      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
-        return new Date(year, month, day);
-      }
-    }
-    return null;
-  };
+  const parseDateDDMMYYYY = (dateStr: string): Date | null => dateFromValue(dateStr);
 
   const getDiasEmAberto = (vaga: Vaga): number => {
     if (vaga.status === 'FECHADA') {
