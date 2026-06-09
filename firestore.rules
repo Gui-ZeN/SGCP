@@ -1,86 +1,187 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Core helpers kept for reference/schema tracking
+
+    // =====================================================================
+    //  HELPERS
+    // =====================================================================
+
     function isSignedIn() {
       return request.auth != null;
     }
 
+    // Usuário autenticado E com e-mail verificado.
+    // O login do app é Google Sign-In, que sempre define email_verified == true.
     function isVerifiedUser() {
-      return request.auth != null && request.auth.token.email_verified == true;
+      return isSignedIn() && request.auth.token.email_verified == true;
     }
-    
+
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
-    
+
     function incoming() {
       return request.resource.data;
     }
-    
+
     function existing() {
       return resource.data;
     }
 
-    function isAdmin() {
-      return isSignedIn() 
-        && (
-          request.auth.token.email == "guizen2006@gmail.com" 
-          || (
-            exists(/databases/$(database)/documents/usuarios/$(request.auth.token.email))
-            && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.role == "Administrador"
-          )
-        );
-    }
-    
-    // Fully permissive rules for development speed, fluidity, and error-free seeding
-    match /vagas/{vagaId} {
-      allow read, write: if true;
+    // Caminho do documento do usuário corrente na coleção `usuarios`
+    // (o ID do documento é o e-mail, conforme src/hooks/useMetadata.ts).
+    function userPath() {
+      return /databases/$(database)/documents/usuarios/$(request.auth.token.email);
     }
 
+    // Usuário autenticado que possui registro na coleção `usuarios`.
+    function isRegistered() {
+      return isSignedIn() && exists(userPath());
+    }
+
+    // Papel ("role") do usuário corrente. Só chamar após isRegistered().
+    function roleOf() {
+      return get(userPath()).data.role;
+    }
+
+    // Administrador: o admin bootstrap (por e-mail) OU papel "Administrador".
+    function isAdmin() {
+      return isSignedIn()
+        && (
+          request.auth.token.email == "guizen2006@gmail.com"
+          || (isRegistered() && roleOf() == "Administrador")
+        );
+    }
+
+    // Editor: pode criar/editar/excluir dados operacionais.
+    // Inclui Administrador e Analista. Visualizador é somente leitura.
+    // Usuário autenticado mas SEM registro em `usuarios` NÃO é editor
+    // (espelha a tela de "não autorizado" do app para contas não cadastradas).
+    function isEditor() {
+      return isAdmin()
+        || (isRegistered() && roleOf() in ['Administrador', 'Analista']);
+    }
+
+    // Usuário do app: verificado E provisionado (admin bootstrap ou cadastrado
+    // em `usuarios`). Mais restrito que isVerifiedUser(), pois o login Google
+    // não tem restrição de domínio — sem isto, qualquer conta Google poderia
+    // ler dados sensíveis (entrevistas de desligamento, período de experiência).
+    function isAppUser() {
+      return isVerifiedUser() && (isAdmin() || isRegistered());
+    }
+
+    // Validação do documento de usuário (escrita sempre grava o objeto completo).
+    function isValidUsuario() {
+      let d = incoming();
+      return d.email is string
+        && d.email.size() <= 320
+        && d.role in ['Administrador', 'Analista', 'Visualizador']
+        && (!('sede' in d.keys()) || d.sede is string);
+    }
+
+    // =====================================================================
+    //  VAGAS  (dados de requisição de vaga — menor sensibilidade)
+    // =====================================================================
+    //
+    //  ⚠️  EXCEÇÃO TEMPORÁRIA DE LEITURA PÚBLICA  ⚠️
+    //  A leitura é pública porque o dashboard externo de Absenteísmo
+    //  (projeto Google Apps Script separado) lê esta coleção via Firestore
+    //  REST API usando apenas a apiKey web, sem autenticação.
+    //
+    //  Para FECHAR a leitura (recomendado), migre a integração externa e
+    //  troque `allow read: if true;` por `allow read: if isAppUser();`.
+    //  Veja o playbook em SECURITY_FIRESTORE_RULES.md (opções a / b).
+    //
+    //  A ESCRITA já está protegida: apenas editores (Admin/Analista).
+    match /vagas/{vagaId} {
+      allow read: if true; // TODO(segurança): trocar por isAppUser() após migrar o Apps Script
+      allow create, update, delete: if isEditor();
+    }
+
+    // =====================================================================
+    //  COLEÇÕES ADMINISTRATIVAS  (escrita só de Administrador)
+    // =====================================================================
+
+    // Usuários e papéis. Leitura por qualquer usuário verificado porque o
+    // app precisa listar `usuarios` na inicialização para descobrir o papel
+    // do usuário corrente (src/hooks/useMetadata.ts). Escrita só de admin.
     match /usuarios/{email} {
-      allow read, write: if true;
+      allow read: if isAppUser();
+      allow create, update: if isAdmin() && isValidUsuario();
+      allow delete: if isAdmin();
     }
 
     match /sedes/{sedeId} {
-      allow read, write: if true;
+      allow read: if isAppUser();
+      allow write: if isAdmin();
     }
 
     match /regioes/{regiaoId} {
-      allow read, write: if true;
+      allow read: if isAppUser();
+      allow write: if isAdmin();
     }
 
     match /cargos/{cargoId} {
-      allow read, write: if true;
+      allow read: if isAppUser();
+      allow write: if isAdmin();
     }
 
     match /setores/{setorId} {
-      allow read, write: if true;
+      allow read: if isAppUser();
+      allow write: if isAdmin();
     }
 
+    // Configuração interna do sistema. Nenhum cliente lê isto hoje, então
+    // mantemos no menor privilégio: somente Administrador lê e escreve.
+    match /system_config/{configId} {
+      allow read, write: if isAdmin();
+    }
+
+    // =====================================================================
+    //  COLEÇÕES OPERACIONAIS  (leitura: usuário do app; escrita: editor)
+    //  Contêm dados pessoais de colaboradores (entrevistas de desligamento,
+    //  período de experiência etc.), por isso a leitura exige autenticação.
+    // =====================================================================
+
     match /treinamentos/{treinamentoId} {
-      allow read, write: if true;
+      allow read: if isAppUser();
+      allow write: if isEditor();
     }
 
     match /experiencia/{experienciaId} {
-      allow read, write: if true;
+      allow read: if isAppUser();
+      allow write: if isEditor();
     }
 
     match /entrevistas/{entrevistaId} {
-      allow read, write: if true;
+      allow read: if isAppUser();
+      allow write: if isEditor();
     }
 
     match /turnover/{turnoverId} {
-      allow read, write: if true;
+      allow read: if isAppUser();
+      allow write: if isEditor();
     }
 
-    match /system_config/{configId} {
-      allow read, write: if true;
-    }
-
+    // =====================================================================
+    //  LOGS DE AUDITORIA  (append-only)
+    //  Leitura só de Administrador (o app só assina os logs quando admin).
+    //  Criação por editores (que geram os eventos). Sem update/delete para
+    //  preservar a integridade da trilha de auditoria.
+    // =====================================================================
     match /logs/{logId} {
-      allow read, write: if true;
+      allow read: if isAdmin();
+      allow create: if isEditor()
+        && incoming().usuario is string
+        && incoming().acao in ['CRIOU', 'ALTEROU', 'EXCLUIU', 'SINALIZOU'];
+      allow update, delete: if false;
+    }
+
+    // =====================================================================
+    //  NEGAÇÃO PADRÃO  — qualquer outro caminho é bloqueado.
+    // =====================================================================
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

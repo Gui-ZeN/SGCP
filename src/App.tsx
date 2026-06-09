@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useVagas } from './hooks/useVagas';
 import { RecruitmentDashboard } from './components/RecruitmentDashboard';
 import { VacancyTable } from './components/VacancyTable';
@@ -400,7 +400,7 @@ export default function App() {
   };
 
   // Track Auth state if Firebase is active
-  useState(() => {
+  useEffect(() => {
     if (isFirebaseEnabled && auth) {
       const unsubscribe = auth.onAuthStateChanged((currentUser: any) => {
         if (currentUser) {
@@ -429,7 +429,7 @@ export default function App() {
         setUser(null);
       }
     }
-  });
+  }, []);
 
   const handleSimulatedLogin = (email: string, name: string) => {
     const mockUser = {
