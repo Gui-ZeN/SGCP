@@ -3,16 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
 import { Treinamento, Experiencia, Entrevista, Turnover } from '../types';
-import { 
-  db, 
-  isFirebaseEnabled, 
-  collection, 
-  onSnapshot,
+import {
+  db,
+  collection,
   getDocs,
   addDoc,
-  updateDoc,
   deleteDoc,
   doc,
   handleFirestoreError,
@@ -20,6 +16,7 @@ import {
 } from '../lib/firebase';
 import type { ImportableEntrevista, ImportableTreinamento } from '../lib/spreadsheetImport';
 import { stripUndefinedFields } from '../lib/firestoreData';
+import { useFirestoreCollection } from './useFirestoreCollection';
 
 const TREINAMENTOS_LOCAL_KEY = 'ats_treinamentos_fallback';
 const EXPERIENCIA_LOCAL_KEY = 'ats_experiencia_fallback';
@@ -201,376 +198,122 @@ const initialEntrevistas: Entrevista[] = [
 ];
 
 const initialTurnover: Turnover[] = [
-  {
-    id: 'to_1',
-    mesAno: '01/2026',
-    totalFuncionarios: 154,
-    totalAdmissao: 8,
-    pediramSair: 3,
-    foramDesligados: 2
-  },
-  {
-    id: 'to_2',
-    mesAno: '02/2026',
-    totalFuncionarios: 157,
-    totalAdmissao: 6,
-    pediramSair: 1,
-    foramDesligados: 2
-  },
-  {
-    id: 'to_3',
-    mesAno: '03/2026',
-    totalFuncionarios: 160,
-    totalAdmissao: 7,
-    pediramSair: 2,
-    foramDesligados: 1
-  },
-  {
-    id: 'to_4',
-    mesAno: '04/2026',
-    totalFuncionarios: 164,
-    totalAdmissao: 9,
-    pediramSair: 4,
-    foramDesligados: 3
-  },
-  {
-    id: 'to_5',
-    mesAno: '05/2026',
-    totalFuncionarios: 168,
-    totalAdmissao: 12,
-    pediramSair: 2,
-    foramDesligados: 2
-  }
+  { id: 'to_1', mesAno: '01/2026', totalFuncionarios: 154, totalAdmissao: 8, pediramSair: 3, foramDesligados: 2 },
+  { id: 'to_2', mesAno: '02/2026', totalFuncionarios: 157, totalAdmissao: 6, pediramSair: 1, foramDesligados: 2 },
+  { id: 'to_3', mesAno: '03/2026', totalFuncionarios: 160, totalAdmissao: 7, pediramSair: 2, foramDesligados: 1 },
+  { id: 'to_4', mesAno: '04/2026', totalFuncionarios: 164, totalAdmissao: 9, pediramSair: 4, foramDesligados: 3 },
+  { id: 'to_5', mesAno: '05/2026', totalFuncionarios: 168, totalAdmissao: 12, pediramSair: 2, foramDesligados: 2 }
 ];
 
+const turnoverSort = (a: Turnover, b: Turnover) => {
+  const pa = a.mesAno.split('/');
+  const pb = b.mesAno.split('/');
+  const yearDiff = parseInt(pa[1] || '0', 10) - parseInt(pb[1] || '0', 10);
+  if (yearDiff !== 0) return yearDiff;
+  return parseInt(pa[0] || '0', 10) - parseInt(pb[0] || '0', 10);
+};
+
 export function useOperationalModules() {
-  const [treinamentos, setTreinamentos] = useState<Treinamento[]>([]);
-  const [experiencias, setExperiencias] = useState<Experiencia[]>([]);
-  const [entrevistas, setEntrevistas] = useState<Entrevista[]>([]);
-  const [turnover, setTurnover] = useState<Turnover[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [usingFirebase, setUsingFirebase] = useState(isFirebaseEnabled);
+  const treina = useFirestoreCollection<Treinamento>({
+    collectionName: 'treinamentos',
+    localKey: TREINAMENTOS_LOCAL_KEY,
+    seed: initialTreinamentos,
+    sort: (a, b) => b.codigo - a.codigo,
+    newLocalId: () => `local_t_${Date.now()}`,
+    stripOnUpdate: ['codigo']
+  });
 
-  useEffect(() => {
-    if (isFirebaseEnabled && db) {
-      setLoading(true);
+  const exp = useFirestoreCollection<Experiencia>({
+    collectionName: 'experiencia',
+    localKey: EXPERIENCIA_LOCAL_KEY,
+    seed: initialExperiencia,
+    newLocalId: () => `local_exp_${Date.now()}`
+  });
 
-      // --- 1. Treinamentos Realtime Sync ---
-      const unsubTreinamentos = onSnapshot(collection(db, 'treinamentos'), (snapshot) => {
-        const list: Treinamento[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push({ ...docSnap.data(), id: docSnap.id } as Treinamento);
-        });
-        list.sort((a, b) => b.codigo - a.codigo);
-        setTreinamentos(list);
-        localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify(list));
-      }, (err) => {
-        console.warn("Erro ao ler Treinamentos do Firestore, usando local fallback:", err);
-        loadLocalFallback();
-      });
+  const ent = useFirestoreCollection<Entrevista>({
+    collectionName: 'entrevistas',
+    localKey: ENTREVISTAS_LOCAL_KEY,
+    seed: initialEntrevistas,
+    sort: (a, b) => b.codigo - a.codigo,
+    newLocalId: () => `local_ent_${Date.now()}`,
+    stripOnUpdate: ['codigo']
+  });
 
-      // --- 2. Experiencia Realtime Sync ---
-      const unsubExperiencia = onSnapshot(collection(db, 'experiencia'), (snapshot) => {
-        const list: Experiencia[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push({ ...docSnap.data(), id: docSnap.id } as Experiencia);
-        });
-        setExperiencias(list);
-        localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify(list));
-      }, (err) => {
-        console.warn("Erro ao ler Experiencia do Firestore, usando local fallback:", err);
-        loadLocalFallback();
-      });
+  const turn = useFirestoreCollection<Turnover>({
+    collectionName: 'turnover',
+    localKey: TURNOVER_LOCAL_KEY,
+    seed: initialTurnover,
+    sort: turnoverSort,
+    newLocalId: () => `local_to_${Date.now()}`,
+    prepend: false
+  });
 
-      // --- 3. Entrevistas Realtime Sync ---
-      const unsubEntrevistas = onSnapshot(collection(db, 'entrevistas'), (snapshot) => {
-        const list: Entrevista[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push({ ...docSnap.data(), id: docSnap.id } as Entrevista);
-        });
-        list.sort((a, b) => b.codigo - a.codigo);
-        setEntrevistas(list);
-        localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(list));
-      }, (err) => {
-        console.warn("Erro ao ler Entrevistas do Firestore, usando local fallback:", err);
-        loadLocalFallback();
-      });
-
-      // --- 4. Turnover Realtime Sync ---
-      const unsubTurnover = onSnapshot(collection(db, 'turnover'), (snapshot) => {
-        const list: Turnover[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push({ ...docSnap.data(), id: docSnap.id } as Turnover);
-        });
-        // Sort by date key (represented as mm/yyyy)
-        list.sort((a, b) => {
-          const partsA = a.mesAno.split('/');
-          const partsB = b.mesAno.split('/');
-          const yearDiff = parseInt(partsA[1] || '0') - parseInt(partsB[1] || '0');
-          if (yearDiff !== 0) return yearDiff;
-          return parseInt(partsA[0] || '0') - parseInt(partsB[0] || '0');
-        });
-        setTurnover(list);
-        localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify(list));
-        setLoading(false);
-      }, (err) => {
-        console.warn("Erro ao ler Turnover do Firestore, usando local fallback:", err);
-        loadLocalFallback();
-      });
-
-      return () => {
-        unsubTreinamentos();
-        unsubExperiencia();
-        unsubEntrevistas();
-        unsubTurnover();
-      };
-    } else {
-      loadLocalFallback();
-    }
-  }, []);
-
-  const loadLocalFallback = () => {
-    setUsingFirebase(false);
-    const isCleanMode = localStorage.getItem('ats_db_clean_mode') === 'true';
-
-    // Treinamentos
-    const storedT = localStorage.getItem(TREINAMENTOS_LOCAL_KEY);
-    if (storedT) {
-      setTreinamentos(JSON.parse(storedT));
-    } else {
-      const initial = isCleanMode ? [] : initialTreinamentos;
-      setTreinamentos(initial);
-      localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify(initial));
-    }
-
-    // Experiencia
-    const storedE = localStorage.getItem(EXPERIENCIA_LOCAL_KEY);
-    if (storedE) {
-      setExperiencias(JSON.parse(storedE));
-    } else {
-      const initial = isCleanMode ? [] : initialExperiencia;
-      setExperiencias(initial);
-      localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify(initial));
-    }
-
-    // Entrevistas
-    const storedEnt = localStorage.getItem(ENTREVISTAS_LOCAL_KEY);
-    if (storedEnt) {
-      setEntrevistas(JSON.parse(storedEnt));
-    } else {
-      const initial = isCleanMode ? [] : initialEntrevistas;
-      setEntrevistas(initial);
-      localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(initial));
-    }
-
-    // Turnover
-    const storedTo = localStorage.getItem(TURNOVER_LOCAL_KEY);
-    if (storedTo) {
-      setTurnover(JSON.parse(storedTo));
-    } else {
-      const initial = isCleanMode ? [] : initialTurnover;
-      setTurnover(initial);
-      localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify(initial));
-    }
-
-    setLoading(false);
-  };
+  const loading = treina.loading || exp.loading || ent.loading || turn.loading;
 
   // ==================== CRUD TREINAMENTOS ====================
-  const addTreinamento = async (input: Omit<Treinamento, 'id' | 'codigo'>) => {
-    const nextCodigo = treinamentos.length > 0 ? Math.max(...treinamentos.map(t => t.codigo)) + 1 : 101;
-    const body = {
-      ...input,
-      codigo: nextCodigo
-    };
-
-    if (usingFirebase && db) {
-      try {
-        await addDoc(collection(db, 'treinamentos'), body);
-      } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, 'treinamentos');
-      }
-    } else {
-      const newItem: Treinamento = { id: `local_t_${Date.now()}`, ...body };
-      const updated = [newItem, ...treinamentos];
-      setTreinamentos(updated);
-      localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify(updated));
-    }
+  const addTreinamento = (input: Omit<Treinamento, 'id' | 'codigo'>) => {
+    const nextCodigo = treina.items.length > 0 ? Math.max(...treina.items.map(t => t.codigo)) + 1 : 101;
+    return treina.create({ ...input, codigo: nextCodigo });
   };
-
-  const updateTreinamento = async (id: string, updatedFields: Partial<Treinamento>) => {
-    if (usingFirebase && db) {
-      try {
-        const ref = doc(db, 'treinamentos', id);
-        const payload = { ...updatedFields };
-        delete payload.id;
-        delete payload.codigo;
-        await updateDoc(ref, stripUndefinedFields(payload));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, `treinamentos/${id}`);
-      }
-    } else {
-      const updated = treinamentos.map(t => t.id === id ? { ...t, ...updatedFields } : t);
-      setTreinamentos(updated);
-      localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify(updated));
-    }
-  };
-
-  const deleteTreinamento = async (id: string) => {
-    if (usingFirebase && db) {
-      try {
-        await deleteDoc(doc(db, 'treinamentos', id));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `treinamentos/${id}`);
-      }
-    } else {
-      const updated = treinamentos.filter(t => t.id !== id);
-      setTreinamentos(updated);
-      localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify(updated));
-    }
-  };
+  const updateTreinamento = (id: string, updatedFields: Partial<Treinamento>) => treina.update(id, updatedFields);
+  const deleteTreinamento = (id: string) => treina.remove(id);
 
   // ==================== CRUD EXPERIENCIA ====================
-  const addExperiencia = async (input: Omit<Experiencia, 'id' | 'termino1' | 'termino2'>) => {
-    const term1 = addDaysToDate(input.dataAdmissao, 45);
-    const term2 = addDaysToDate(input.dataAdmissao, 90);
-    const body = {
+  const addExperiencia = (input: Omit<Experiencia, 'id' | 'termino1' | 'termino2'>) =>
+    exp.create({
       ...input,
-      termino1: term1,
-      termino2: term2
-    };
-
-    if (usingFirebase && db) {
-      try {
-        await addDoc(collection(db, 'experiencia'), body);
-      } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, 'experiencia');
-      }
-    } else {
-      const newItem: Experiencia = { id: `local_exp_${Date.now()}`, ...body };
-      const updated = [newItem, ...experiencias];
-      setExperiencias(updated);
-      localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify(updated));
-    }
-  };
-
-  const updateExperiencia = async (id: string, updatedFields: Partial<Experiencia>) => {
-    const recalculatedFields = updatedFields.dataAdmissao
-      ? {
-          ...updatedFields,
-          termino1: addDaysToDate(updatedFields.dataAdmissao, 45),
-          termino2: addDaysToDate(updatedFields.dataAdmissao, 90)
-        }
-      : updatedFields;
-
-    if (usingFirebase && db) {
-      try {
-        const ref = doc(db, 'experiencia', id);
-        const payload = { ...recalculatedFields };
-        delete payload.id;
-        await updateDoc(ref, stripUndefinedFields(payload));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, `experiencia/${id}`);
-      }
-    } else {
-      const updated = experiencias.map(e => e.id === id ? { ...e, ...recalculatedFields } : e);
-      setExperiencias(updated);
-      localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify(updated));
-    }
-  };
-
-  const deleteExperiencia = async (id: string) => {
-    if (usingFirebase && db) {
-      try {
-        await deleteDoc(doc(db, 'experiencia', id));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `experiencia/${id}`);
-      }
-    } else {
-      const updated = experiencias.filter(e => e.id !== id);
-      setExperiencias(updated);
-      localStorage.setItem(EXPERIENCIA_LOCAL_KEY, JSON.stringify(updated));
-    }
-  };
+      termino1: addDaysToDate(input.dataAdmissao, 45),
+      termino2: addDaysToDate(input.dataAdmissao, 90)
+    });
+  const updateExperiencia = (id: string, updatedFields: Partial<Experiencia>) =>
+    exp.update(
+      id,
+      updatedFields.dataAdmissao
+        ? {
+            ...updatedFields,
+            termino1: addDaysToDate(updatedFields.dataAdmissao, 45),
+            termino2: addDaysToDate(updatedFields.dataAdmissao, 90)
+          }
+        : updatedFields
+    );
+  const deleteExperiencia = (id: string) => exp.remove(id);
 
   // ==================== CRUD ENTREVISTAS ====================
-  const addEntrevista = async (input: Omit<Entrevista, 'id' | 'codigo'>) => {
-    const nextCodigo = entrevistas.length > 0 ? Math.max(...entrevistas.map(e => e.codigo)) + 1 : 301;
-    const body = {
-      ...input,
-      codigo: nextCodigo
-    };
-
-    if (usingFirebase && db) {
-      try {
-        await addDoc(collection(db, 'entrevistas'), body);
-      } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, 'entrevistas');
-      }
-    } else {
-      const newItem: Entrevista = { id: `local_ent_${Date.now()}`, ...body };
-      const updated = [newItem, ...entrevistas];
-      setEntrevistas(updated);
-      localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(updated));
-    }
+  const addEntrevista = (input: Omit<Entrevista, 'id' | 'codigo'>) => {
+    const nextCodigo = ent.items.length > 0 ? Math.max(...ent.items.map(e => e.codigo)) + 1 : 301;
+    return ent.create({ ...input, codigo: nextCodigo });
   };
+  const updateEntrevista = (id: string, updatedFields: Partial<Entrevista>) => ent.update(id, updatedFields);
+  const deleteEntrevista = (id: string) => ent.remove(id);
 
-  const deleteEntrevista = async (id: string) => {
-    if (usingFirebase && db) {
-      try {
-        await deleteDoc(doc(db, 'entrevistas', id));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `entrevistas/${id}`);
-      }
-    } else {
-      const updated = entrevistas.filter(e => e.id !== id);
-      setEntrevistas(updated);
-      localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(updated));
-    }
-  };
+  // ==================== CRUD TURNOVER ====================
+  const addTurnover = (input: Omit<Turnover, 'id'>) => turn.create(input);
+  const updateTurnover = (id: string, updatedFields: Partial<Turnover>) => turn.update(id, updatedFields);
+  const deleteTurnover = (id: string) => turn.remove(id);
 
-  const updateEntrevista = async (id: string, updatedFields: Partial<Entrevista>) => {
-    if (usingFirebase && db) {
-      try {
-        const ref = doc(db, 'entrevistas', id);
-        const payload = { ...updatedFields };
-        delete payload.id;
-        delete payload.codigo;
-        await updateDoc(ref, stripUndefinedFields(payload));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, `entrevistas/${id}`);
-      }
-    } else {
-      const updated = entrevistas.map(e => e.id === id ? { ...e, ...updatedFields } : e);
-      setEntrevistas(updated);
-      localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(updated));
-    }
-  };
-
+  // ==================== IMPORTS (dedup específico) ====================
   const importTreinamentos = async (imported: ImportableTreinamento[], replace = false) => {
     if (imported.length === 0) return;
 
-    if (usingFirebase && db) {
+    if (treina.usingFirebase && db) {
       try {
         if (replace) {
           const snap = await getDocs(collection(db, 'treinamentos'));
           await Promise.all(snap.docs.map((docSnap: any) => deleteDoc(doc(db, 'treinamentos', docSnap.id))));
         }
-
-        const existingCodes = replace ? new Set<number>() : new Set(treinamentos.map(t => t.codigo));
+        const existingCodes = replace ? new Set<number>() : new Set(treina.items.map(t => t.codigo));
         const toCreate = imported.filter(t => !existingCodes.has(t.codigo));
         await Promise.all(toCreate.map(({ id, ...treinamento }: any) => addDoc(collection(db, 'treinamentos'), stripUndefinedFields(treinamento))));
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, 'treinamentos/import');
       }
     } else {
-      const existingCodes = replace ? new Set<number>() : new Set(treinamentos.map(t => t.codigo));
+      const existingCodes = replace ? new Set<number>() : new Set(treina.items.map(t => t.codigo));
       const toCreate = imported
         .filter(t => !existingCodes.has(t.codigo))
         .map((t, index) => ({ id: `local_import_t_${Date.now()}_${index}`, ...t } as Treinamento));
-      const updated = replace ? toCreate : [...toCreate, ...treinamentos];
-      updated.sort((a, b) => b.codigo - a.codigo);
-      setTreinamentos(updated);
+      const updated = (replace ? toCreate : [...toCreate, ...treina.items]).sort((a, b) => b.codigo - a.codigo);
+      treina.setItems(updated);
       localStorage.setItem(TREINAMENTOS_LOCAL_KEY, JSON.stringify(updated));
     }
   };
@@ -578,83 +321,37 @@ export function useOperationalModules() {
   const importEntrevistas = async (imported: ImportableEntrevista[], replace = false) => {
     if (imported.length === 0) return;
 
-    if (usingFirebase && db) {
+    const dedupKey = (e: { colaborador: string; dataEntrevista: string; funcao: string }) =>
+      `${e.colaborador}|${e.dataEntrevista}|${e.funcao}`.toLowerCase();
+
+    if (ent.usingFirebase && db) {
       try {
         if (replace) {
           const snap = await getDocs(collection(db, 'entrevistas'));
           await Promise.all(snap.docs.map((docSnap: any) => deleteDoc(doc(db, 'entrevistas', docSnap.id))));
         }
-
-        const existingKeys = replace ? new Set<string>() : new Set(entrevistas.map(e => `${e.colaborador}|${e.dataEntrevista}|${e.funcao}`.toLowerCase()));
-        const toCreate = imported.filter(e => !existingKeys.has(`${e.colaborador}|${e.dataEntrevista}|${e.funcao}`.toLowerCase()));
+        const existingKeys = replace ? new Set<string>() : new Set(ent.items.map(dedupKey));
+        const toCreate = imported.filter(e => !existingKeys.has(dedupKey(e)));
         await Promise.all(toCreate.map(({ id, ...entrevista }: any) => addDoc(collection(db, 'entrevistas'), stripUndefinedFields(entrevista))));
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, 'entrevistas/import');
       }
     } else {
-      const existingKeys = replace ? new Set<string>() : new Set(entrevistas.map(e => `${e.colaborador}|${e.dataEntrevista}|${e.funcao}`.toLowerCase()));
+      const existingKeys = replace ? new Set<string>() : new Set(ent.items.map(dedupKey));
       const toCreate = imported
-        .filter(e => !existingKeys.has(`${e.colaborador}|${e.dataEntrevista}|${e.funcao}`.toLowerCase()))
+        .filter(e => !existingKeys.has(dedupKey(e)))
         .map((e, index) => ({ id: `local_import_ent_${Date.now()}_${index}`, ...e } as Entrevista));
-      const updated = replace ? toCreate : [...toCreate, ...entrevistas];
-      updated.sort((a, b) => b.codigo - a.codigo);
-      setEntrevistas(updated);
+      const updated = (replace ? toCreate : [...toCreate, ...ent.items]).sort((a, b) => b.codigo - a.codigo);
+      ent.setItems(updated);
       localStorage.setItem(ENTREVISTAS_LOCAL_KEY, JSON.stringify(updated));
     }
   };
 
-  // ==================== CRUD TURNOVER ====================
-  const addTurnover = async (input: Omit<Turnover, 'id'>) => {
-    if (usingFirebase && db) {
-      try {
-        await addDoc(collection(db, 'turnover'), input);
-      } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, 'turnover');
-      }
-    } else {
-      const newItem: Turnover = { id: `local_to_${Date.now()}`, ...input };
-      const updated = [...turnover, newItem];
-      setTurnover(updated);
-      localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify(updated));
-    }
-  };
-
-  const deleteTurnover = async (id: string) => {
-    if (usingFirebase && db) {
-      try {
-        await deleteDoc(doc(db, 'turnover', id));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `turnover/${id}`);
-      }
-    } else {
-      const updated = turnover.filter(t => t.id !== id);
-      setTurnover(updated);
-      localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify(updated));
-    }
-  };
-
-  const updateTurnover = async (id: string, updatedFields: Partial<Turnover>) => {
-    if (usingFirebase && db) {
-      try {
-        const ref = doc(db, 'turnover', id);
-        const payload = { ...updatedFields };
-        delete payload.id;
-        await updateDoc(ref, stripUndefinedFields(payload));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, `turnover/${id}`);
-      }
-    } else {
-      const updated = turnover.map(t => t.id === id ? { ...t, ...updatedFields } : t);
-      setTurnover(updated);
-      localStorage.setItem(TURNOVER_LOCAL_KEY, JSON.stringify(updated));
-    }
-  };
-
   return {
-    treinamentos,
-    experiencias,
-    entrevistas,
-    turnover,
+    treinamentos: treina.items,
+    experiencias: exp.items,
+    entrevistas: ent.items,
+    turnover: turn.items,
     loading,
     addTreinamento,
     updateTreinamento,
