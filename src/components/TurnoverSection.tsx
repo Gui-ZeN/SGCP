@@ -156,14 +156,17 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
       foramDesligados: Number(foramDesligados) || 0
     };
 
-    if (editingTurnover) {
-      await updateTurnover(editingTurnover.id, payload);
-    } else {
-      await addTurnover(payload);
+    try {
+      if (editingTurnover) {
+        await updateTurnover(editingTurnover.id, payload);
+      } else {
+        await addTurnover(payload);
+      }
+      resetForm();
+      setShowAddForm(false);
+    } catch (err: any) {
+      setErrorMsg('Erro ao salvar. Verifique a conexão e tente novamente.' + (err?.message ? ` (${err.message})` : ''));
     }
-
-    resetForm();
-    setShowAddForm(false);
   };
 
   return (

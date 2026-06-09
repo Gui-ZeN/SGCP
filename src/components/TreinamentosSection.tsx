@@ -256,14 +256,17 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
       valorInvestido: Number(valorInvestido) || 0
     };
 
-    if (editingTreinamento) {
-      await updateTreinamento(editingTreinamento.id, payload);
-    } else {
-      await addTreinamento(payload);
+    try {
+      if (editingTreinamento) {
+        await updateTreinamento(editingTreinamento.id, payload);
+      } else {
+        await addTreinamento(payload);
+      }
+      resetForm();
+      setShowAddForm(false);
+    } catch (err: any) {
+      setErrorMsg('Erro ao salvar. Verifique a conexão e tente novamente.' + (err?.message ? ` (${err.message})` : ''));
     }
-
-    resetForm();
-    setShowAddForm(false);
   };
 
   return (

@@ -1,5 +1,13 @@
 import { readSheet } from 'read-excel-file/browser';
 import { Entrevista, Treinamento, Vaga } from '../types';
+import { MONTHS_FULL } from '../constants/hr';
+import {
+  cleanText,
+  dateFromValue,
+  formatDateBR,
+  monthAbbrFromDate,
+  yearFromDate
+} from '../utils/date';
 
 export type ImportableVaga = Omit<Vaga, 'id'> & { codigo: number };
 export type ImportableTreinamento = Omit<Treinamento, 'id'> & { codigo: number };
@@ -12,23 +20,6 @@ export interface SpreadsheetImportResult {
   warnings: string[];
 }
 
-const MONTHS_FULL = [
-  'janeiro',
-  'fevereiro',
-  'março',
-  'abril',
-  'maio',
-  'junho',
-  'julho',
-  'agosto',
-  'setembro',
-  'outubro',
-  'novembro',
-  'dezembro'
-];
-
-const MONTHS_ABBR = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
-
 function normalizeKey(value: unknown): string {
   return String(value || '')
     .normalize('NFD')
@@ -39,59 +30,10 @@ function normalizeKey(value: unknown): string {
     .toLowerCase();
 }
 
-function cleanText(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  return String(value).replace(/\s+/g, ' ').trim();
-}
-
 function numberValue(value: unknown, fallback = 0): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   const parsed = Number(cleanText(value).replace(/\./g, '').replace(',', '.'));
   return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function excelDateToDate(serial: number): Date | null {
-  if (!Number.isFinite(serial)) return null;
-  const utcDays = Math.floor(serial - 25569);
-  const utcValue = utcDays * 86400;
-  const dateInfo = new Date(utcValue * 1000);
-  return Number.isNaN(dateInfo.getTime()) ? null : new Date(dateInfo.getUTCFullYear(), dateInfo.getUTCMonth(), dateInfo.getUTCDate());
-}
-
-function dateFromValue(value: unknown): Date | null {
-  if (!value) return null;
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
-  if (typeof value === 'number') return excelDateToDate(value);
-
-  const text = cleanText(value);
-  if (!text || text === '-') return null;
-
-  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
-
-  const br = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (br) return new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
-
-  const d = new Date(text);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function formatDateBR(value: unknown): string {
-  const date = dateFromValue(value);
-  if (!date) return cleanText(value);
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  return `${day}/${month}/${date.getFullYear()}`;
-}
-
-function monthAbbrFromDate(value: unknown): string {
-  const date = dateFromValue(value);
-  return date ? MONTHS_ABBR[date.getMonth()] : '';
-}
-
-function yearFromDate(value: unknown): number {
-  const date = dateFromValue(value);
-  return date ? date.getFullYear() : new Date().getFullYear();
 }
 
 function durationHours(value: unknown): number {

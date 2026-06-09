@@ -377,17 +377,20 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
       observacoes
     };
 
-    if (editingExperiencia) {
-      await updateExperiencia(editingExperiencia.id, payload);
-    } else {
-      await addExperiencia({
-        ...payload,
-        status: 'EM_ANALISE'
-      });
+    try {
+      if (editingExperiencia) {
+        await updateExperiencia(editingExperiencia.id, payload);
+      } else {
+        await addExperiencia({
+          ...payload,
+          status: 'EM_ANALISE'
+        });
+      }
+      resetForm();
+      setShowAddForm(false);
+    } catch (err: any) {
+      setErrorMsg('Erro ao salvar. Verifique a conexão e tente novamente.' + (err?.message ? ` (${err.message})` : ''));
     }
-
-    resetForm();
-    setShowAddForm(false);
   };
 
   // Change status helper with action click

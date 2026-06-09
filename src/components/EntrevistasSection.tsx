@@ -287,14 +287,17 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
       entrevistador: entrevistador || 'RH'
     };
 
-    if (editingEntrevista) {
-      await updateEntrevista(editingEntrevista.id, payload);
-    } else {
-      await addEntrevista(payload);
+    try {
+      if (editingEntrevista) {
+        await updateEntrevista(editingEntrevista.id, payload);
+      } else {
+        await addEntrevista(payload);
+      }
+      resetForm();
+      setShowAddForm(false);
+    } catch (err: any) {
+      setErrorMsg('Erro ao salvar. Verifique a conexão e tente novamente.' + (err?.message ? ` (${err.message})` : ''));
     }
-
-    resetForm();
-    setShowAddForm(false);
   };
 
   const renderStars = (rating: number) => {
