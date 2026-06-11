@@ -502,7 +502,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             </h3>
             <p className="text-[11px] text-slate-500 font-bold mt-1.5 flex items-center gap-1">
               <Award className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span>{horasTotaisTreinamento} horas aplicadas de capacitação</span>
+              <span>{horasTotaisTreinamento.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} horas aplicadas de capacitação</span>
             </p>
           </div>
         </div>

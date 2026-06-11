@@ -58,6 +58,11 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
 
   const vagasAbertas = filteredVagas.filter(v => ['ABERTA', 'REABERTA'].includes(v.status.toUpperCase())).length;
   const treinamentosRealizados = filteredTreinamentos.reduce((acc, t) => acc + (t.qtdRealizada || 0), 0);
+  const expAtivas = experiencias.filter(e => ['EM_ANALISE', 'PRORROGADO'].includes(e.status)).length;
+  const climaMedio = entrevistas.length
+    ? (entrevistas.reduce((a, e) => a + (e.notaClimaOrg || 0), 0) / entrevistas.length).toFixed(1).replace('.', ',')
+    : '—';
+  const hojeLabel = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
   
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -96,14 +101,35 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
       }))
       .filter(v => v.dias > 20)
       .sort((a, b) => b.dias - a.dias);
-  }, [filteredVagas]);  return (
+  }, [filteredVagas]);
+
+  const heroStats = [
+    { tab: 'vagas', icon: Briefcase, value: vagasAbertas, label: 'Vagas ativas no momento', badge: 'Atualizado agora', color: 'orange' },
+    { tab: 'treinamentos', icon: GraduationCap, value: treinamentosRealizados, label: 'Participações em treinamentos', badge: 'T&D mensal', color: 'emerald' },
+    { tab: 'experiencias', icon: ShieldCheck, value: expAtivas, label: 'Em período de experiência', badge: '45 / 90 dias', color: 'indigo' },
+    { tab: 'entrevistas', icon: Sparkles, value: climaMedio, label: 'Clima organizacional médio', badge: 'Saídas · / 5', color: 'amber' }
+  ] as const;
+
+  const STAT_COLOR: Record<string, { chip: string; bar: string }> = {
+    orange: { chip: 'bg-orange-50 text-orange-600', bar: 'bg-orange-400' },
+    emerald: { chip: 'bg-emerald-50 text-emerald-600', bar: 'bg-emerald-400' },
+    indigo: { chip: 'bg-indigo-50 text-indigo-600', bar: 'bg-indigo-400' },
+    amber: { chip: 'bg-amber-50 text-amber-600', bar: 'bg-amber-400' }
+  };
+
+  return (
     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700">
       
       {/* Hero Section */}
       <div className="relative overflow-hidden bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm">
         <div className="absolute top-0 right-0 -m-20 w-96 h-96 bg-gradient-to-br from-orange-100 to-rose-100 rounded-full blur-[80px] opacity-60"></div>
         <div className="absolute bottom-0 left-10 -m-20 w-72 h-72 bg-gradient-to-br from-blue-100 to-teal-100 rounded-full blur-[80px] opacity-60"></div>
-        
+
+        <div className="absolute top-6 right-6 z-10 hidden sm:flex items-center gap-2 bg-white/70 backdrop-blur border border-slate-200/70 rounded-full px-3 py-1.5 shadow-sm">
+          <Calendar className="w-3.5 h-3.5 text-orange-500" />
+          <span className="text-[11px] font-bold text-slate-600 capitalize">{hojeLabel}</span>
+        </div>
+
         <div className="relative z-10 max-w-3xl">
           <div className="flex items-center gap-2 mb-3">
             <div className="p-1.5 bg-orange-50 rounded-xl border border-orange-100">
@@ -141,36 +167,28 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
       </div>
 
       {/* Quick Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        
-        {/* Stat 1 */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm transition hover:shadow-md group cursor-pointer" onClick={() => setActiveTab('vagas')}>
-          <div className="flex justify-between items-start mb-3">
-            <div className="p-2.5 bg-orange-50 text-orange-600 rounded-xl group-hover:scale-105 transition-transform">
-              <Briefcase className="w-5 h-5" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {heroStats.map((s, i) => {
+          const c = STAT_COLOR[s.color];
+          const Icon = s.icon;
+          return (
+            <div
+              key={i}
+              onClick={() => setActiveTab(s.tab)}
+              className="group relative bg-white rounded-2xl p-5 border border-slate-200 shadow-sm transition hover:shadow-md hover:-translate-y-0.5 cursor-pointer overflow-hidden"
+            >
+              <span className={`absolute inset-x-0 top-0 h-1 ${c.bar} opacity-80`} />
+              <div className="flex justify-between items-start mb-3">
+                <div className={`p-2.5 ${c.chip} rounded-xl group-hover:scale-105 transition-transform`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 text-right max-w-[40%] leading-tight">{s.badge}</span>
+              </div>
+              <h3 className="text-3xl font-black text-slate-800 tracking-tight mb-1">{s.value}</h3>
+              <p className="text-xs font-bold text-slate-500">{s.label}</p>
             </div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Atualizado agora</span>
-          </div>
-          <div>
-            <h3 className="text-3xl font-black text-slate-800 tracking-tight mb-1">{vagasAbertas}</h3>
-            <p className="text-xs font-bold text-slate-500">Vagas ativas no momento</p>
-          </div>
-        </div>
-
-        {/* Stat 2 */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm transition hover:shadow-md group cursor-pointer" onClick={() => setActiveTab('treinamentos')}>
-          <div className="flex justify-between items-start mb-3">
-            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl group-hover:scale-105 transition-transform">
-              <GraduationCap className="w-5 h-5" />
-            </div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">T&D Mensal</span>
-          </div>
-          <div>
-            <h3 className="text-3xl font-black text-slate-800 tracking-tight mb-1">{treinamentosRealizados}</h3>
-            <p className="text-xs font-bold text-slate-500">Participações em Treinamentos</p>
-          </div>
-        </div>
-
+          );
+        })}
       </div>
 
       {/* Alertas de SLA Section */}
@@ -206,16 +224,22 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {vagasComAlertaSla.map((v) => (
-                <div 
-                  key={v.id} 
+              {vagasComAlertaSla.map((v) => {
+                const sev = v.dias > 60
+                  ? 'bg-red-100 text-red-700 border-red-200'
+                  : v.dias > 40
+                  ? 'bg-orange-50 text-orange-700 border-orange-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200';
+                return (
+                <div
+                  key={v.id}
                   onClick={() => setActiveTab('vagas')}
                   className="bg-slate-50 hover:bg-slate-100/80 border border-slate-200/60 hover:border-rose-200 rounded-xl p-3.5 transition group cursor-pointer flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex justify-between items-start gap-2 mb-1.5">
                       <h4 className="font-bold text-slate-800 text-xs leading-snug group-hover:text-rose-600 transition-colors line-clamp-1">{v.vaga}</h4>
-                      <span className="shrink-0 text-[9px] font-black uppercase px-1.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-100 rounded-md font-mono">
+                      <span className={`shrink-0 text-[9px] font-black uppercase px-1.5 py-0.5 border rounded-md font-mono ${sev}`}>
                         {v.dias} dias
                       </span>
                     </div>
@@ -242,7 +266,8 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -280,6 +305,16 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
                <div>
                   <div className="text-xs font-bold text-slate-800">Cálculo de Turnover</div>
                   <div className="text-[10px] font-semibold text-slate-400">Simular taxas e impactos</div>
+               </div>
+            </button>
+
+            <button onClick={() => setActiveTab('dashboard')} className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-sm transition group text-left cursor-pointer">
+               <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-500 flex items-center justify-center shrink-0 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+                  <Target className="w-4 h-4" />
+               </div>
+               <div>
+                  <div className="text-xs font-bold text-slate-800">Painel de Indicadores</div>
+                  <div className="text-[10px] font-semibold text-slate-400">SLA, clima e turnover</div>
                </div>
             </button>
 

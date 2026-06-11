@@ -308,7 +308,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
           </div>
           <div>
             <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Horas de Formação</div>
-            <div className="text-md font-bold text-slate-800">{stats.totalHorasFormacao} hrs</div>
+            <div className="text-md font-bold text-slate-800">{stats.totalHorasFormacao.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} hrs</div>
           </div>
         </div>
 
@@ -457,7 +457,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                     <div className="flex justify-between items-center pt-3 border-t border-slate-100">
                       <div className="flex flex-col">
                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Carga</span>
-                        <span className="text-xs font-bold text-slate-700">{t.cargaHoraria}h / {t.totalHorasFormacao}h Total</span>
+                        <span className="text-xs font-bold text-slate-700">{t.cargaHoraria}h / {(t.totalHorasFormacao || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}h Total</span>
                       </div>
                       <div className="flex flex-col text-right">
                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Custo (<span className="capitalize">{t.mesReferencia}</span>)</span>
