@@ -54,6 +54,11 @@ export function addDaysToDate(dateStr: string, days: number): string {
   }
 }
 
+// Período de experiência com contagem inclusiva (CLT): o dia da admissão é o dia 1.
+// Logo, o 45º dia = admissão + 44 dias; o 90º dia = admissão + 89 dias.
+const DIAS_EXPERIENCIA_1 = 44; // marca o 45º dia (inclusivo)
+const DIAS_EXPERIENCIA_2 = 89; // marca o 90º dia (inclusivo)
+
 // ---------------------- PRESETS ----------------------
 const initialTreinamentos: Treinamento[] = [
   {
@@ -119,8 +124,8 @@ const initialExperiencia: Experiencia[] = [
     supervisor: 'Guilherme Zen',
     observacoes: 'Excelente pontualidade e dedicação.',
     status: 'EM_ANALISE',
-    termino1: addDaysToDate('12/04/2026', 45),
-    termino2: addDaysToDate('12/04/2026', 90)
+    termino1: addDaysToDate('12/04/2026', DIAS_EXPERIENCIA_1),
+    termino2: addDaysToDate('12/04/2026', DIAS_EXPERIENCIA_2)
   },
   {
     id: 'exp_2',
@@ -131,8 +136,8 @@ const initialExperiencia: Experiencia[] = [
     supervisor: 'Arlana Carvalho',
     observacoes: 'Avaliada positivamente pela gerência. Efetivação solicitada antecipadamente.',
     status: 'EFETIVADO',
-    termino1: addDaysToDate('01/03/2026', 45),
-    termino2: addDaysToDate('01/03/2026', 90)
+    termino1: addDaysToDate('01/03/2026', DIAS_EXPERIENCIA_1),
+    termino2: addDaysToDate('01/03/2026', DIAS_EXPERIENCIA_2)
   },
   {
     id: 'exp_3',
@@ -143,8 +148,8 @@ const initialExperiencia: Experiencia[] = [
     supervisor: 'Valdemar Gomes',
     observacoes: 'Em fase de adaptação prática no posto de trabalho.',
     status: 'EM_ANALISE',
-    termino1: addDaysToDate('10/05/2026', 45),
-    termino2: addDaysToDate('10/05/2026', 90)
+    termino1: addDaysToDate('10/05/2026', DIAS_EXPERIENCIA_1),
+    termino2: addDaysToDate('10/05/2026', DIAS_EXPERIENCIA_2)
   }
 ];
 
@@ -262,8 +267,8 @@ export function useOperationalModules() {
   const addExperiencia = (input: Omit<Experiencia, 'id' | 'termino1' | 'termino2'>) =>
     exp.create({
       ...input,
-      termino1: addDaysToDate(input.dataAdmissao, 45),
-      termino2: addDaysToDate(input.dataAdmissao, 90)
+      termino1: addDaysToDate(input.dataAdmissao, DIAS_EXPERIENCIA_1),
+      termino2: addDaysToDate(input.dataAdmissao, DIAS_EXPERIENCIA_2)
     });
   const updateExperiencia = (id: string, updatedFields: Partial<Experiencia>) =>
     exp.update(
@@ -271,8 +276,8 @@ export function useOperationalModules() {
       updatedFields.dataAdmissao
         ? {
             ...updatedFields,
-            termino1: addDaysToDate(updatedFields.dataAdmissao, 45),
-            termino2: addDaysToDate(updatedFields.dataAdmissao, 90)
+            termino1: addDaysToDate(updatedFields.dataAdmissao, DIAS_EXPERIENCIA_1),
+            termino2: addDaysToDate(updatedFields.dataAdmissao, DIAS_EXPERIENCIA_2)
           }
         : updatedFields
     );
