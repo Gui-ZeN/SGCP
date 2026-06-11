@@ -14,7 +14,7 @@ import { LoginPage } from './components/LoginPage';
 import { useMetadata, type UserRole } from './hooks/useMetadata';
 import { useLogs } from './hooks/useLogs';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { useOperationalModules } from './hooks/useOperationalModules';
+import { useOperationalModules, addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from './hooks/useOperationalModules';
 import { TreinamentosSection } from './components/TreinamentosSection';
 import { ExperienciasSection } from './components/ExperienciasSection';
 import { EntrevistasSection } from './components/EntrevistasSection';
@@ -397,6 +397,33 @@ export default function App() {
     } finally {
       setImportingSpreadsheet(false);
     }
+  };
+
+  // Migração one-time: recalcula os vencimentos 45/90 (contagem inclusiva CLT) das
+  // experiências já cadastradas a partir da data de admissão. Idempotente.
+  const handleRecalcularExperiencias = () => {
+    if (!experiencias.length) {
+      notify("Não há experiências cadastradas para recalcular.", "info");
+      return;
+    }
+    askConfirmation(
+      "Recalcular vencimentos de experiência",
+      `Recalcular os prazos de 45 e 90 dias (contagem inclusiva) de ${experiencias.length} registro(s) a partir da data de admissão? Só altera os que estiverem diferentes.`,
+      () => executeWithLoading("Recalculando vencimentos de experiência...", async () => {
+        let alterados = 0;
+        for (const e of experiencias) {
+          if (!e.dataAdmissao) continue;
+          const t1 = addDaysToDate(e.dataAdmissao, DIAS_EXPERIENCIA_1);
+          const t2 = addDaysToDate(e.dataAdmissao, DIAS_EXPERIENCIA_2);
+          if (e.termino1 !== t1 || e.termino2 !== t2) {
+            await updateExperiencia(e.id, { termino1: t1, termino2: t2 });
+            alterados++;
+          }
+        }
+        await logAction('ALTEROU', 'Experiências', `Recálculo em lote dos vencimentos 45/90 (inclusivo): ${alterados} de ${experiencias.length} registro(s) atualizado(s).`);
+        notify(`Recálculo concluído: ${alterados} registro(s) atualizado(s).`, "success");
+      })
+    );
   };
 
   // Track Auth state if Firebase is active
@@ -950,6 +977,7 @@ export default function App() {
                 importSelection={importSelection}
                 setImportSelection={setImportSelection}
                 onImportSpreadsheet={handleSpreadsheetImport}
+                onRecalcExperiencias={handleRecalcularExperiencias}
               />
             </ErrorBoundary>
           )}

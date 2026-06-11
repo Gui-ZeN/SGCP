@@ -57,6 +57,7 @@ interface AdminPanelProps {
     entrevistas: boolean;
   }>>;
   onImportSpreadsheet: () => Promise<void>;
+  onRecalcExperiencias?: () => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -88,7 +89,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   importingSpreadsheet,
   importSelection,
   setImportSelection,
-  onImportSpreadsheet
+  onImportSpreadsheet,
+  onRecalcExperiencias
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'usuarios' | 'sedes' | 'regioes' | 'cargos' | 'setores' | 'logs' | 'importacao'>('usuarios');
   
@@ -323,6 +325,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </button>
                 </div>
               </div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <History className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-800">Manutenção · Vencimentos de Experiência</h3>
+                  <p className="text-xs font-semibold text-slate-500 mt-0.5 leading-relaxed">
+                    Recalcula os prazos de 45 e 90 dias das experiências já cadastradas usando a contagem inclusiva (o dia da admissão conta como dia 1). Rode uma vez para corrigir os registros antigos; só altera os que estiverem diferentes.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onRecalcExperiencias}
+                disabled={!onRecalcExperiencias}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-xs font-bold rounded-xl text-white shadow-md cursor-pointer flex items-center gap-2"
+              >
+                <History className="w-4 h-4" />
+                Recalcular vencimentos (45/90)
+              </button>
             </div>
           </div>
         )}

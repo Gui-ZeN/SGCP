@@ -56,8 +56,8 @@ export function addDaysToDate(dateStr: string, days: number): string {
 
 // Período de experiência com contagem inclusiva (CLT): o dia da admissão é o dia 1.
 // Logo, o 45º dia = admissão + 44 dias; o 90º dia = admissão + 89 dias.
-const DIAS_EXPERIENCIA_1 = 44; // marca o 45º dia (inclusivo)
-const DIAS_EXPERIENCIA_2 = 89; // marca o 90º dia (inclusivo)
+export const DIAS_EXPERIENCIA_1 = 44; // marca o 45º dia (inclusivo)
+export const DIAS_EXPERIENCIA_2 = 89; // marca o 90º dia (inclusivo)
 
 // ---------------------- PRESETS ----------------------
 const initialTreinamentos: Treinamento[] = [
