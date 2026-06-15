@@ -48,6 +48,7 @@ import {
   FileText,
   GripVertical
 } from 'lucide-react';
+import writeXlsxFile from 'write-excel-file/browser';
 
 interface VacancyTableProps {
   vagas: Vaga[];
@@ -529,49 +530,74 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
   const totalPages = Math.ceil(filteredVagas.length / itemsPerPage) || 1;
 
-  // 3. ENCODE PORTUGUESE CORRECTLY FOR EXCEL
-  const handleExportCSV = () => {
-    const headersList = [
-      'Código', 'Cargo/Vaga', 'Sede', 'Status', 'Setor', 'Sexo Preferencial', 
-      'Data Solicitação', 'Solicitante', 'Motivo', 'Funcionário Substituído', 
-      'Etapa Atual', 'Candidato Aprovado', 'Recruiter Responsável', 'Data Conclusão', 
-      'Dias Processo (SLA)', 'Observações'
+  // Exporta as vagas filtradas para um .xlsx formatado (cabecalho em negrito com
+  // fundo, colunas tipadas e larguras, primeira linha fixa), usando
+  // write-excel-file (mesmo autor do read-excel-file ja usado no import).
+  const handleExportXLSX = async () => {
+    const headerStyle = {
+      fontWeight: 'bold' as const,
+      color: '#ffffff',
+      backgroundColor: '#1e293b',
+      align: 'center' as const,
+      alignVertical: 'center' as const
+    };
+
+    const columns = [
+      { title: 'Código', width: 10 },
+      { title: 'Cargo/Vaga', width: 30 },
+      { title: 'Sede', width: 16 },
+      { title: 'Status', width: 16 },
+      { title: 'Setor', width: 20 },
+      { title: 'Sexo Preferencial', width: 18 },
+      { title: 'Data Solicitação', width: 16 },
+      { title: 'Solicitante', width: 22 },
+      { title: 'Motivo', width: 26 },
+      { title: 'Funcionário Substituído', width: 26 },
+      { title: 'Etapa Atual', width: 24 },
+      { title: 'Candidato Aprovado', width: 26 },
+      { title: 'Recruiter Responsável', width: 22 },
+      { title: 'Data Conclusão', width: 16 },
+      { title: 'Dias Processo (SLA)', width: 16 },
+      { title: 'Observações', width: 44 }
     ];
 
-    const rows = filteredVagas.map(v => [
-      v.codigo,
-      `"${(v.vaga || '').replace(/"/g, '""')}"`,
-      `"${(v.sede || '').replace(/"/g, '""')}"`,
-      v.status,
-      `"${(v.setor || '').replace(/"/g, '""')}"`,
-      v.sexo || 'INDIFERENTE',
-      v.solicitacao || '',
-      `"${(v.solicitante || '').replace(/"/g, '""')}"`,
-      `"${(v.motivo || '').replace(/"/g, '""')}"`,
-      `"${(v.funcionarioSubstituido || '').replace(/"/g, '""')}"`,
-      `"${(v.etapa || '').replace(/"/g, '""')}"`,
-      `"${(v.aprovado || '').replace(/"/g, '""')}"`,
-      `"${(v.responsavel || '').replace(/"/g, '""')}"`,
-      v.conclusao || '',
-      v.tempoProcesso || getDiasEmAberto(v),
-      `"${(v.observacoes || '').replace(/"/g, '""')}"`
-    ]);
+    const headerRow = columns.map(c => ({ value: c.title, ...headerStyle }));
 
-    // Use standard CSV format joining with commas (or semi-colons depending on system)
-    const csvContent = [
-      headersList.join(','),
-      ...rows.map(e => e.join(','))
-    ].join('\n');
+    const dataRows = filteredVagas.map(v => {
+      const sla = Number(v.tempoProcesso || getDiasEmAberto(v)) || null;
+      return [
+        { type: Number, value: v.codigo ?? null },
+        { type: String, value: v.vaga || null },
+        { type: String, value: v.sede || null },
+        { type: String, value: v.status || null },
+        { type: String, value: v.setor || null },
+        { type: String, value: v.sexo || 'INDIFERENTE' },
+        { type: String, value: v.solicitacao || null },
+        { type: String, value: v.solicitante || null },
+        { type: String, value: v.motivo || null },
+        { type: String, value: v.funcionarioSubstituido || null },
+        { type: String, value: v.etapa || null },
+        { type: String, value: v.aprovado || null },
+        { type: String, value: v.responsavel || null },
+        { type: String, value: v.conclusao || null },
+        { type: Number, value: sla },
+        { type: String, value: v.observacoes || null }
+      ];
+    });
 
-    // Add UTF-8 BOM so Excel opens PT accents properly
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `relatorio_de_vagas_rh_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      // fileName dispara o download no browser; não está nos tipos (compartilhados
+      // com a versão Node), por isso o cast.
+      await writeXlsxFile([headerRow, ...dataRows] as any, {
+        columns: columns.map(c => ({ width: c.width })),
+        sheet: 'Vagas',
+        stickyRowsCount: 1,
+        fileName: `relatorio_de_vagas_rh_${new Date().toISOString().slice(0, 10)}.xlsx`
+      } as any);
+    } catch (err) {
+      console.error('Erro ao exportar XLSX:', err);
+      alert('Não foi possível gerar o arquivo Excel. Tente novamente.');
+    }
   };
 
   // Status Badge helper
@@ -838,14 +864,14 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         <div className="flex flex-wrap items-center justify-between pt-3 border-t border-slate-100 gap-3">
           
           <div className="flex items-center gap-2">
-            {/* CSV export */}
+            {/* XLSX export */}
             <button
-              onClick={handleExportCSV}
+              onClick={handleExportXLSX}
               className="px-3.5 py-2 text-xs font-bold uppercase tracking-wider bg-slate-100 hover:bg-slate-200 text-slate-750 rounded-xl border border-slate-250 transition-colors flex items-center gap-1.5 cursor-pointer"
-              title="Download UTF-8 CSV"
+              title="Baixar planilha Excel (.xlsx) formatada"
             >
               <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Exportar Excel (CSV)</span>
+              <span>Exportar Excel (.xlsx)</span>
             </button>
 
             {/* Column Manager Toggle (only relevant in table view) */}
