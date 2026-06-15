@@ -536,7 +536,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   const handleExportXLSX = async () => {
     const headerStyle = {
       fontWeight: 'bold' as const,
-      color: '#ffffff',
+      textColor: '#ffffff',
       backgroundColor: '#1e293b',
       align: 'center' as const,
       alignVertical: 'center' as const
