@@ -24,42 +24,50 @@ import { stripUndefinedFields } from '../lib/firestoreData';
 
 const LOCAL_STORAGE_KEY = 'ats_vagas_fallback';
 
-export function useVagas() {
+export function useVagas(user?: any) {
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingFirebase, setUsingFirebase] = useState(isFirebaseEnabled);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Load initial data
+  // Só assina o Firestore quando há usuário autenticado (as regras exigem auth).
+  // Re-assina quando o usuário muda (login/logout).
   useEffect(() => {
-    if (isFirebaseEnabled && db) {
+    if (isFirebaseEnabled && db && user) {
       setLoading(true);
       const vagasCollection = collection(db, 'vagas');
-      
+
       // Setup realtime Firestore synchronization
       const unsubscribe = onSnapshot(vagasCollection, (snapshot: any) => {
         const firestoreList: Vaga[] = [];
         snapshot.forEach((docSnap: any) => {
           firestoreList.push({ ...docSnap.data(), id: docSnap.id } as Vaga);
         });
-        
+
         // Sort by code descending so newest are on top
         firestoreList.sort((a, b) => b.codigo - a.codigo);
-        
+
         setVagas(firestoreList);
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(firestoreList));
         setLoading(false);
       }, (error: any) => {
-        handleFirestoreError(error, OperationType.LIST, 'vagas');
+        // Não lançar aqui: lançar deixava o app preso em "loading". Apenas registra
+        // e cai no fallback local (que libera o loading).
+        console.warn('Erro ao ler vagas do Firestore, usando local fallback:', error);
         setErrorMessage("Erro ao conectar com Firestore. Redirecionando para banco local.");
         loadLocalFallback();
       });
 
       return () => unsubscribe();
-    } else {
+    } else if (!isFirebaseEnabled) {
       loadLocalFallback();
+    } else {
+      // Firebase ativo, mas sem usuário autenticado: não assina (evita
+      // permission-denied) e libera o loading para o app exibir a tela de login.
+      setVagas([]);
+      setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   // Local fallback engine using localStorage and initial JSON data
   const loadLocalFallback = () => {

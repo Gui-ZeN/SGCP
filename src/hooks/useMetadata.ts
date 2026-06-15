@@ -174,9 +174,9 @@ export function useMetadata(currentUser: any) {
   ];
 
   useEffect(() => {
-    if (isFirebaseEnabled && db) {
+    if (isFirebaseEnabled && db && currentUser) {
       setLoading(true);
-      
+
       // 1. Usuarios Realtime Sync
       const unsubUsuarios = onSnapshot(collection(db, 'usuarios'), (snapshot: any) => {
         const list: Usuario[] = [];
@@ -185,7 +185,10 @@ export function useMetadata(currentUser: any) {
         });
         setUsuarios(list);
       }, (error: any) => {
-        console.warn("Permissão de leitura ou conexão negada para usuários, usando offline fallback.");
+        // Usuário autenticado mas sem permissão (ex.: conta não provisionada):
+        // libera o loading para o app decidir (tela de "não autorizado").
+        console.warn("Permissão de leitura negada para usuários:", error);
+        setLoading(false);
       });
 
       // 2. Sedes Realtime Sync
@@ -223,6 +226,9 @@ export function useMetadata(currentUser: any) {
         });
         setSetores(list);
         setLoading(false);
+      }, (error: any) => {
+        console.warn("Permissão de leitura negada para setores:", error);
+        setLoading(false);
       });
 
       return () => {
@@ -232,11 +238,15 @@ export function useMetadata(currentUser: any) {
         unsubCargos();
         unsubSetores();
       };
-    } else {
-      // Local fallbacks
+    } else if (!isFirebaseEnabled) {
+      // Local fallbacks (modo demonstração)
       loadLocalFallback();
+    } else {
+      // Firebase ativo, mas sem usuário autenticado: não assina (evita
+      // permission-denied) e libera o loading para o app exibir a tela de login.
+      setLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   const loadLocalFallback = () => {
     setUsingFirebase(false);

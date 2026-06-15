@@ -39,8 +39,11 @@ import { auth, googleProvider, isFirebaseEnabled, db } from './lib/firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
 
 export default function App() {
-  const { vagas, loading, usingFirebase, errorMessage, addVaga, updateVaga, deleteVaga, importVagas } = useVagas();
   const [user, setUser] = useState<any>(null);
+  // authReady: a verificação inicial de autenticação já concluiu (evita piscar a
+  // tela de login para quem já está logado e evita travar no "Carregando").
+  const [authReady, setAuthReady] = useState(false);
+  const { vagas, loading, usingFirebase, errorMessage, addVaga, updateVaga, deleteVaga, importVagas } = useVagas(user);
   const [toast, setToast] = useState<{ message: string, type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
   const [triggerAddModal, setTriggerAddModal] = useState(0);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -110,7 +113,7 @@ export default function App() {
     addTurnover,
     updateTurnover,
     deleteTurnover
-  } = useOperationalModules();
+  } = useOperationalModules(user);
 
   const { logs, logAction } = useLogs(user, isAdmin);
 
@@ -444,6 +447,7 @@ export default function App() {
             setUser(null);
           }
         }
+        setAuthReady(true);
       });
       return unsubscribe;
     } else {
@@ -455,6 +459,7 @@ export default function App() {
       } catch (e) {
         setUser(null);
       }
+      setAuthReady(true);
     }
   }, []);
 
@@ -505,7 +510,10 @@ export default function App() {
     notify("Você se desconectou com sucesso.", "info");
   };
 
-  if (loading || loadingMetadata || loadingOps) {
+  // Enquanto a autenticação não resolveu, ou já logado mas carregando os dados,
+  // mostra o spinner. Sem usuário (após authReady), cai direto na tela de login —
+  // sem ficar preso no "Carregando" quando o Firestore nega leitura ao anônimo.
+  if (!authReady || (user && (loading || loadingMetadata || loadingOps))) {
     return (
       <div className="min-h-screen bg-slate-50/50 flex flex-col items-center justify-center space-y-4">
         <div className="w-12 h-12 rounded-2xl bg-indigo-600/10 flex items-center justify-center text-indigo-600 animate-spin">

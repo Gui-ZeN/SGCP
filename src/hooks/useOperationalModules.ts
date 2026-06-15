@@ -218,21 +218,25 @@ const turnoverSort = (a: Turnover, b: Turnover) => {
   return parseInt(pa[0] || '0', 10) - parseInt(pb[0] || '0', 10);
 };
 
-export function useOperationalModules() {
+export function useOperationalModules(user?: any) {
+  const enabled = !!user;
+
   const treina = useFirestoreCollection<Treinamento>({
     collectionName: 'treinamentos',
     localKey: TREINAMENTOS_LOCAL_KEY,
     seed: initialTreinamentos,
     sort: (a, b) => b.codigo - a.codigo,
     newLocalId: () => `local_t_${Date.now()}`,
-    stripOnUpdate: ['codigo']
+    stripOnUpdate: ['codigo'],
+    enabled
   });
 
   const exp = useFirestoreCollection<Experiencia>({
     collectionName: 'experiencia',
     localKey: EXPERIENCIA_LOCAL_KEY,
     seed: initialExperiencia,
-    newLocalId: () => `local_exp_${Date.now()}`
+    newLocalId: () => `local_exp_${Date.now()}`,
+    enabled
   });
 
   const ent = useFirestoreCollection<Entrevista>({
@@ -241,7 +245,8 @@ export function useOperationalModules() {
     seed: initialEntrevistas,
     sort: (a, b) => b.codigo - a.codigo,
     newLocalId: () => `local_ent_${Date.now()}`,
-    stripOnUpdate: ['codigo']
+    stripOnUpdate: ['codigo'],
+    enabled
   });
 
   const turn = useFirestoreCollection<Turnover>({
@@ -250,7 +255,8 @@ export function useOperationalModules() {
     seed: initialTurnover,
     sort: turnoverSort,
     newLocalId: () => `local_to_${Date.now()}`,
-    prepend: false
+    prepend: false,
+    enabled
   });
 
   const loading = treina.loading || exp.loading || ent.loading || turn.loading;

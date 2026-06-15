@@ -41,6 +41,12 @@ export interface UseFirestoreCollectionOptions<T> {
   prepend?: boolean;
   /** Campos extras a remover no update (além de 'id'), ex.: 'codigo'. */
   stripOnUpdate?: (keyof T)[];
+  /**
+   * Habilita a assinatura do Firestore (true quando há usuário autenticado).
+   * Com Firebase ativo e enabled=false, não assina (evita permission-denied) e
+   * libera o loading. Default true (preserva comportamento de quem não passa).
+   */
+  enabled?: boolean;
 }
 
 export interface UseFirestoreCollectionResult<T> {
@@ -63,7 +69,8 @@ export function useFirestoreCollection<T extends { id: string }>(
     sort,
     newLocalId,
     prepend = true,
-    stripOnUpdate = []
+    stripOnUpdate = [],
+    enabled = true
   } = opts;
 
   const [items, setItems] = useState<T[]>([]);
@@ -93,7 +100,7 @@ export function useFirestoreCollection<T extends { id: string }>(
   };
 
   useEffect(() => {
-    if (isFirebaseEnabled && db) {
+    if (isFirebaseEnabled && db && enabled) {
       setLoading(true);
       const unsub = onSnapshot(
         collection(db, collectionName),
@@ -113,11 +120,16 @@ export function useFirestoreCollection<T extends { id: string }>(
         }
       );
       return () => unsub();
-    } else {
+    } else if (!isFirebaseEnabled) {
       loadLocalFallback();
+    } else {
+      // Firebase ativo mas sem usuário autenticado: não assina (evita
+      // permission-denied) e libera o loading para o app exibir a tela de login.
+      setItems([]);
+      setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [enabled]);
 
   const create = async (body: Omit<T, 'id'>) => {
     if (usingFirebase && db) {
