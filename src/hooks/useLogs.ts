@@ -2,11 +2,9 @@ import { useState, useEffect } from 'react';
 import { 
   db, 
   isFirebaseEnabled, 
-  collection, 
+  collection,
   onSnapshot,
-  addDoc,
-  handleFirestoreError,
-  OperationType
+  addDoc
 } from '../lib/firebase';
 
 export interface SystemLog {
@@ -42,7 +40,9 @@ export function useLogs(currentUser: any, isAdmin: boolean = false) {
         setLogs(firestoreList);
         setLoading(false);
       }, (error: any) => {
-        handleFirestoreError(error, OperationType.LIST, 'logs');
+        // Não lançar aqui: lançar (handleFirestoreError) impedia o loadLocalFallback
+        // de rodar, deixando a tela de logs presa em "carregando".
+        console.warn('Erro ao ler logs do Firestore, usando local fallback:', error);
         loadLocalFallback();
       });
 
