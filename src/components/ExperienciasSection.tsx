@@ -520,12 +520,20 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                             </button>
                           </>
                         ) : exp.status === 'PRORROGADO' ? (
-                          <button
-                            onClick={() => handleStatusChange(exp.id, 'EFETIVADO')}
-                            className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition-all"
-                          >
-                            Efetivar
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleStatusChange(exp.id, 'EFETIVADO')}
+                              className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition-all"
+                            >
+                              Efetivar
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange(exp.id, 'ENCERRADO')}
+                              className="px-2 py-1 text-[9px] uppercase font-black bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-lg cursor-pointer transition-all"
+                            >
+                              Encerrar
+                            </button>
+                          </>
                         ) : null}
                       </div>
                     </div>
@@ -565,12 +573,20 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                             </button>
                           </>
                         ) : exp.status === 'PRORROGADO' ? (
-                          <button
-                            onClick={() => handleStatusChange(exp.id, 'EFETIVADO')}
-                            className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition-all"
-                          >
-                            Efetivar
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleStatusChange(exp.id, 'EFETIVADO')}
+                              className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition-all"
+                            >
+                              Efetivar
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange(exp.id, 'ENCERRADO')}
+                              className="px-2 py-1 text-[9px] uppercase font-black bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-lg cursor-pointer transition-all"
+                            >
+                              Encerrar
+                            </button>
+                          </>
                         ) : null}
                       </div>
                     </div>
@@ -745,12 +761,21 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                           </>
                         )}
                         {e.status === 'PRORROGADO' && (
-                          <button
-                            onClick={() => handleStatusChange(e.id, 'EFETIVADO')}
-                            className="px-2 py-1 text-[10px] uppercase font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg cursor-pointer"
-                          >
-                            Efetivar
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleStatusChange(e.id, 'EFETIVADO')}
+                              className="px-2 py-1 text-[10px] uppercase font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg cursor-pointer"
+                            >
+                              Efetivar
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange(e.id, 'ENCERRADO')}
+                              className="px-2 py-1 text-[10px] uppercase font-bold bg-rose-50 hover:bg-rose-150 text-rose-700 border border-rose-200 rounded-lg cursor-pointer"
+                              title="Encerrar/Desligar colaborador"
+                            >
+                              Encerrar
+                            </button>
+                          </>
                         )}
                         <button
                           onClick={() => openEditForm(e)}

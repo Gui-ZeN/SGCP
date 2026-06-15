@@ -110,7 +110,7 @@ export function useVagas(user?: any) {
     if (usingFirebase && db) {
       try {
         const vagasCollection = collection(db, 'vagas');
-        await addDoc(vagasCollection, novaVaga);
+        await addDoc(vagasCollection, stripUndefinedFields(novaVaga as any));
       } catch (error) {
         handleFirestoreError(error, OperationType.CREATE, 'vagas');
       }
@@ -132,10 +132,13 @@ export function useVagas(user?: any) {
       try {
         const docRef = doc(db, 'vagas', id);
         // Clean out ID/code changes to avoid security rule violations
-        const filteredPayload = { ...updatedFields };
+        const filteredPayload: any = { ...updatedFields };
         delete filteredPayload.id;
         delete filteredPayload.codigo;
-        await updateDoc(docRef, filteredPayload);
+        // Remove campos undefined: o updateDoc do Firestore lança erro com
+        // qualquer valor undefined (era a causa do "Erro no processamento" ao
+        // editar vagas pelo modal, que envia o objeto completo).
+        await updateDoc(docRef, stripUndefinedFields(filteredPayload));
       } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `vagas/${id}`);
       }
