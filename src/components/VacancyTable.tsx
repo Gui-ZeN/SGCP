@@ -586,14 +586,13 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     });
 
     try {
-      // fileName dispara o download no browser; não está nos tipos (compartilhados
-      // com a versão Node), por isso o cast.
+      // write-excel-file v4 (browser): writeXlsxFile(...) retorna { toBlob, toFile };
+      // é o .toFile(nome) que gera o arquivo e dispara o download.
       await writeXlsxFile([headerRow, ...dataRows] as any, {
         columns: columns.map(c => ({ width: c.width })),
         sheet: 'Vagas',
-        stickyRowsCount: 1,
-        fileName: `relatorio_de_vagas_rh_${new Date().toISOString().slice(0, 10)}.xlsx`
-      } as any);
+        stickyRowsCount: 1
+      }).toFile(`relatorio_de_vagas_rh_${new Date().toISOString().slice(0, 10)}.xlsx`);
     } catch (err) {
       console.error('Erro ao exportar XLSX:', err);
       alert('Não foi possível gerar o arquivo Excel. Tente novamente.');
