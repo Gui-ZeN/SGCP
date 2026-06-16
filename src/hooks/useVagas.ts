@@ -144,6 +144,30 @@ export function useVagas(user?: any) {
       fields.etapaDesde = new Date().toISOString().slice(0, 10);
     }
 
+    // Congela/retoma o relógio do SLA ao pausar/retomar a vaga. Detecta a
+    // transição comparando com o status atual (só age em mudança real).
+    if (fields.status !== undefined && current) {
+      const PAUSADO = ['PAUSADA', 'SUSPENSA'];
+      const eraPausada = PAUSADO.includes(current.status as string);
+      const seraPausada = PAUSADO.includes(fields.status as string);
+      const hoje = new Date().toISOString().slice(0, 10);
+      if (!eraPausada && seraPausada && fields.pausadaDesde === undefined) {
+        // começou a pausa agora → marca o início (o SLA para de contar a partir daqui)
+        fields.pausadaDesde = hoje;
+      } else if (eraPausada && !seraPausada) {
+        // retomou → acumula o período pausado e limpa o marcador
+        if (current.pausadaDesde) {
+          const ini = new Date(current.pausadaDesde).getTime();
+          const fim = new Date(hoje).getTime();
+          if (!isNaN(ini)) {
+            const dias = Math.max(0, Math.floor((fim - ini) / 86400000));
+            fields.diasPausados = (current.diasPausados || 0) + dias;
+          }
+        }
+        fields.pausadaDesde = '';
+      }
+    }
+
     if (usingFirebase && db) {
       try {
         const docRef = doc(db, 'vagas', id);

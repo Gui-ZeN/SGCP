@@ -251,8 +251,16 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     dateSol.setHours(0, 0, 0, 0);
-    const diffTime = today.getTime() - dateSol.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    let diffDays = Math.floor((today.getTime() - dateSol.getTime()) / 86400000);
+    // Congela o SLA durante pausas: desconta o que já ficou pausado + a pausa atual.
+    diffDays -= (vaga.diasPausados || 0);
+    if (isPausedOrSuspended(vaga.status) && vaga.pausadaDesde) {
+      const ini = new Date(vaga.pausadaDesde);
+      if (!isNaN(ini.getTime())) {
+        ini.setHours(0, 0, 0, 0);
+        diffDays -= Math.max(0, Math.floor((today.getTime() - ini.getTime()) / 86400000));
+      }
+    }
     return diffDays < 0 ? 0 : diffDays;
   };
 
@@ -283,7 +291,16 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         d.setHours(0, 0, 0, 0);
-        return Math.max(0, Math.floor((today.getTime() - d.getTime()) / 86400000));
+        let dias = Math.floor((today.getTime() - d.getTime()) / 86400000);
+        // Congela enquanto pausada: desconta a pausa atual.
+        if (isPausedOrSuspended(vaga.status) && vaga.pausadaDesde) {
+          const ini = new Date(vaga.pausadaDesde);
+          if (!isNaN(ini.getTime())) {
+            ini.setHours(0, 0, 0, 0);
+            dias -= Math.max(0, Math.floor((today.getTime() - ini.getTime()) / 86400000));
+          }
+        }
+        return Math.max(0, dias);
       }
     }
     return getDiasEmAberto(vaga);

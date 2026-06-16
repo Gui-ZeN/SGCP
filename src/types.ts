@@ -17,6 +17,8 @@ export interface Vaga {
   funcionarioSubstituido?: string; // Employee replaced
   etapa?: string; // Recruitment stage
   etapaDesde?: string; // ISO date (YYYY-MM-DD) da última mudança de etapa — base do "dias nesta etapa" no Kanban por etapa
+  pausadaDesde?: string; // ISO date em que foi pausada ('' = não pausada). Congela o relógio do SLA.
+  diasPausados?: number; // dias acumulados em pausa, descontados do SLA
   aprovado?: string; // Approved candidate
   observacoes?: string; // Notes
   responsavel?: string; // Handler recruiter
