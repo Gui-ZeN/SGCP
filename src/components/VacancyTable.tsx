@@ -365,12 +365,19 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     return getDiasEmAberto(vaga);
   };
 
-  // Arrastar entre colunas no board por etapa abre o modal de transição (confirma
-  // os números do funil e, se houve, o motivo de desistência) antes de gravar.
+  // Arrastar entre colunas no board por etapa. Só a transição Triagem → Entrevista
+  // abre o modal de funil (chamou x veio x aprovou + motivo de desistência); as
+  // demais movem direto (etapaDesde é carimbado pelo updateVaga).
   const handleEtapaDrop = async (vagaId: string, etapa: string) => {
     const v = vagas.find(x => x.id === vagaId);
-    if (!v || normalizeEtapa(v) === etapa) return;
-    openEtapaMove(v, etapa);
+    if (!v) return;
+    const atual = normalizeEtapa(v);
+    if (atual === etapa) return;
+    if (atual === 'Triagem' && etapa === 'Entrevista') {
+      openEtapaMove(v, etapa);
+      return;
+    }
+    await updateVaga(vagaId, { etapa });
   };
 
   const getSlaInfo = (days: number, isClosed: boolean, isPaused = false) => {
