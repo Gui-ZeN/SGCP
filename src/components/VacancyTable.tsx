@@ -184,6 +184,14 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     newLaneTitle: string;
   } | null>(null);
 
+  // Modal para confirmar a DATA da pausa (nem sempre se registra no mesmo dia).
+  const [vagaToPause, setVagaToPause] = useState<Vaga | null>(null);
+  const [pauseDateISO, setPauseDateISO] = useState('');
+  const openPauseModal = (v: Vaga) => {
+    setVagaToPause(v);
+    setPauseDateISO(new Date().toISOString().slice(0, 10));
+  };
+
   const getLaneIdFromVaga = (v: Vaga): string => {
     if (v.status === 'ABERTA' || v.status === 'REABERTA') return 'lane-aberta';
     if (v.status === 'DOCUMENTAÇÃO') return 'lane-doc';
@@ -202,6 +210,12 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     if (laneId === 'lane-closed') {
       // Conclude vacancy flow (has its own full form modal/confirmation)
       handleOpenConcludeModal(targetVaga);
+      return;
+    }
+
+    if (laneId === 'lane-paused') {
+      // Pausar tem modal próprio para confirmar a data da pausa
+      openPauseModal(targetVaga);
       return;
     }
 
@@ -1445,7 +1459,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                                 {paused ? (
                                   <button onClick={() => updateVaga(vaga.id, { status: 'ABERTA' })} className="flex-1 flex items-center justify-center gap-1 bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 text-[10px] font-bold uppercase rounded-lg py-1.5 transition-colors cursor-pointer" title="Retomar vaga"><Play className="w-3 h-3" /> Retomar</button>
                                 ) : (
-                                  <button onClick={() => updateVaga(vaga.id, { status: 'PAUSADA' })} className="flex-1 flex items-center justify-center gap-1 bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 text-[10px] font-bold uppercase rounded-lg py-1.5 transition-colors cursor-pointer" title="Pausar vaga"><Pause className="w-3 h-3" /> Pausar</button>
+                                  <button onClick={() => openPauseModal(vaga)} className="flex-1 flex items-center justify-center gap-1 bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 text-[10px] font-bold uppercase rounded-lg py-1.5 transition-colors cursor-pointer" title="Pausar vaga"><Pause className="w-3 h-3" /> Pausar</button>
                                 )}
                                 <button onClick={() => startEditing(vaga)} className="p-1.5 border border-slate-200 text-slate-500 hover:text-orange-600 hover:border-orange-300 rounded-lg transition-colors shrink-0 cursor-pointer" title="Editar"><Edit2 className="w-3 h-3" /></button>
                               </div>
@@ -2099,6 +2113,56 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           onClose={() => setVagaToConclude(null)}
           onConclude={handleSaveConclusion}
         />
+      )}
+
+      {/* Modal: confirmar a data da pausa (congela o SLA a partir dela) */}
+      {vagaToPause && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
+            <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
+              <div className="w-10 h-10 bg-slate-200 text-slate-600 rounded-xl flex items-center justify-center">
+                <Pause className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-slate-800">Pausar vaga</h3>
+                <p className="text-[11px] text-slate-500 font-semibold truncate">#{vagaToPause.codigo} · {vagaToPause.vaga}</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-2">
+              <label htmlFor="pause-date" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide">Pausada desde</label>
+              <input
+                id="pause-date"
+                type="date"
+                max={new Date().toISOString().slice(0, 10)}
+                value={pauseDateISO}
+                onChange={(e) => setPauseDateISO(e.target.value)}
+                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-slate-500/10 focus:border-slate-500 focus:outline-none rounded-xl cursor-pointer"
+              />
+              <p className="text-[11px] text-slate-400 font-medium leading-relaxed">A partir desta data o SLA fica congelado. Ajuste se a vaga foi pausada num dia anterior.</p>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setVagaToPause(null)}
+                className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold rounded-xl text-slate-650 transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const alvo = vagaToPause;
+                  const data = pauseDateISO || new Date().toISOString().slice(0, 10);
+                  setVagaToPause(null);
+                  await updateVaga(alvo.id, { status: 'PAUSADA', pausadaDesde: data });
+                }}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-xs font-bold rounded-xl text-white shadow-md transition cursor-pointer flex items-center gap-1.5"
+              >
+                <Pause className="w-4 h-4" /> Pausar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 5D: KANBAN ACCIDENTAL DRAG PREVENTION CONFIRMATION MODAL */}
