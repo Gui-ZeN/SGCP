@@ -3,22 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useVagas } from './hooks/useVagas';
-import { RecruitmentDashboard } from './components/RecruitmentDashboard';
-import { VacancyTable } from './components/VacancyTable';
 import { AddVacancyForm } from './components/AddVacancyForm';
-import { AdminPanel } from './components/AdminPanel';
 import { HomeSection } from './components/HomeSection';
 import { LoginPage } from './components/LoginPage';
+// Seções pesadas carregadas sob demanda (code-splitting). Export nomeado → default.
+const RecruitmentDashboard = lazy(() => import('./components/RecruitmentDashboard').then(m => ({ default: m.RecruitmentDashboard })));
+const VacancyTable = lazy(() => import('./components/VacancyTable').then(m => ({ default: m.VacancyTable })));
+const AdminPanel = lazy(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
 import { useMetadata, type UserRole } from './hooks/useMetadata';
 import { useLogs } from './hooks/useLogs';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useOperationalModules, addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from './hooks/useOperationalModules';
-import { TreinamentosSection } from './components/TreinamentosSection';
-import { ExperienciasSection } from './components/ExperienciasSection';
-import { EntrevistasSection } from './components/EntrevistasSection';
-import { TurnoverSection } from './components/TurnoverSection';
+const TreinamentosSection = lazy(() => import('./components/TreinamentosSection').then(m => ({ default: m.TreinamentosSection })));
+const ExperienciasSection = lazy(() => import('./components/ExperienciasSection').then(m => ({ default: m.ExperienciasSection })));
+const EntrevistasSection = lazy(() => import('./components/EntrevistasSection').then(m => ({ default: m.EntrevistasSection })));
+const TurnoverSection = lazy(() => import('./components/TurnoverSection').then(m => ({ default: m.TurnoverSection })));
 import { 
   Briefcase, 
   BarChart3, 
@@ -918,8 +919,9 @@ export default function App() {
             </div>
           )}
 
+          <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-7 h-7 text-indigo-600 animate-spin" /></div>}>
           {activeTab === 'home' && (
-            <HomeSection 
+            <HomeSection
               vagas={vagas}
               treinamentos={treinamentos}
               experiencias={experiencias}
@@ -1056,6 +1058,7 @@ export default function App() {
               />
             </ErrorBoundary>
           )}
+          </Suspense>
         </main>
       </div>
 
