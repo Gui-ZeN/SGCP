@@ -105,6 +105,8 @@ export function useVagas(user?: any) {
       codigo: nextCodigo,
       ...vagaInput,
       ano: vagaInput.ano || new Date().getFullYear(),
+      // Marca o início da etapa atual na criação, p/ o "dias nesta etapa" começar do 0.
+      etapaDesde: vagaInput.etapaDesde || new Date().toISOString().slice(0, 10),
     };
 
     if (usingFirebase && db) {
@@ -128,11 +130,25 @@ export function useVagas(user?: any) {
 
   // Update an existing vacancy's details or status
   const updateVaga = async (id: string, updatedFields: Partial<Vaga>) => {
+    // Carimba etapaDesde automaticamente quando a etapa MUDA (e o chamador não
+    // definiu), pro "dias nesta etapa" nascer preciso em qualquer caminho (modal
+    // de edição, kanban por status, ações rápidas). Só quando muda de fato — assim
+    // editar outros campos não reseta o cronômetro da etapa.
+    const fields: Partial<Vaga> = { ...updatedFields };
+    const current = vagas.find(v => v.id === id);
+    if (
+      fields.etapa !== undefined &&
+      fields.etapaDesde === undefined &&
+      current && fields.etapa !== current.etapa
+    ) {
+      fields.etapaDesde = new Date().toISOString().slice(0, 10);
+    }
+
     if (usingFirebase && db) {
       try {
         const docRef = doc(db, 'vagas', id);
         // Clean out ID/code changes to avoid security rule violations
-        const filteredPayload: any = { ...updatedFields };
+        const filteredPayload: any = { ...fields };
         delete filteredPayload.id;
         delete filteredPayload.codigo;
         // Remove campos undefined: o updateDoc do Firestore lança erro com
@@ -146,7 +162,7 @@ export function useVagas(user?: any) {
       // Local fallback CRUD
       const updatedList = vagas.map(v => {
         if (v.id === id) {
-          return { ...v, ...updatedFields };
+          return { ...v, ...fields };
         }
         return v;
       });
