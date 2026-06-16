@@ -16,6 +16,7 @@ export interface Vaga {
   motivo?: string; // Reason
   funcionarioSubstituido?: string; // Employee replaced
   etapa?: string; // Recruitment stage
+  etapaDesde?: string; // ISO date (YYYY-MM-DD) da última mudança de etapa — base do "dias nesta etapa" no Kanban por etapa
   aprovado?: string; // Approved candidate
   observacoes?: string; // Notes
   responsavel?: string; // Handler recruiter
