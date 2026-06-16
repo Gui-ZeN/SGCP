@@ -2,6 +2,7 @@ import React from 'react';
 import { Vaga, Treinamento, Experiencia, Entrevista, Turnover } from '../types';
 import { getDiasEmAberto } from '../utils/vaga';
 import { SLA_META_DIAS } from '../constants/hr';
+import { useTheme } from '../hooks/useTheme';
 import { Sede } from '../hooks/useMetadata';
 import { 
   Building2, 
@@ -100,12 +101,23 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
     { tab: 'entrevistas', icon: Sparkles, value: climaMedio, label: 'Clima organizacional médio', badge: 'Saídas · / 5', color: 'amber' }
   ] as const;
 
-  const STAT_COLOR: Record<string, { chip: string; bar: string }> = {
-    orange: { chip: 'bg-orange-50 text-orange-600', bar: 'bg-orange-400' },
-    emerald: { chip: 'bg-emerald-50 text-emerald-600', bar: 'bg-emerald-400' },
-    indigo: { chip: 'bg-indigo-50 text-indigo-600', bar: 'bg-indigo-400' },
-    amber: { chip: 'bg-amber-50 text-amber-600', bar: 'bg-amber-400' }
-  };
+  // No Suíço os 4 cards usam um único acento cobalto (ousado e coeso); no Clássico,
+  // a variedade colorida original. (As classes indigo viram cobalto via swiss.css.)
+  const theme = useTheme();
+  const swissChip = 'bg-indigo-50 text-indigo-600';
+  const STAT_COLOR: Record<string, { chip: string; bar: string }> = theme === 'swiss'
+    ? {
+        orange: { chip: swissChip, bar: 'bg-indigo-500' },
+        emerald: { chip: swissChip, bar: 'bg-indigo-500' },
+        indigo: { chip: swissChip, bar: 'bg-indigo-500' },
+        amber: { chip: swissChip, bar: 'bg-indigo-500' }
+      }
+    : {
+        orange: { chip: 'bg-orange-50 text-orange-600', bar: 'bg-orange-400' },
+        emerald: { chip: 'bg-emerald-50 text-emerald-600', bar: 'bg-emerald-400' },
+        indigo: { chip: 'bg-indigo-50 text-indigo-600', bar: 'bg-indigo-400' },
+        amber: { chip: 'bg-amber-50 text-amber-600', bar: 'bg-amber-400' }
+      };
 
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700">
