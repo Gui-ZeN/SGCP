@@ -1375,7 +1375,11 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
                             {canManageVagas && (
                               <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
-                                <button onClick={() => handleOpenConcludeModal(vaga)} className="flex-1 flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold uppercase rounded-lg py-1.5 transition-colors cursor-pointer" title="Concluir / contratar"><Check className="w-3 h-3" /> Concluir</button>
+                                {etapa === 'Aguardando admissão' ? (
+                                  <button onClick={() => handleOpenConcludeModal(vaga)} className="flex-1 flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold uppercase rounded-lg py-1.5 transition-colors cursor-pointer" title="Concluir / contratar"><Check className="w-3 h-3" /> Concluir</button>
+                                ) : (
+                                  <button disabled className="flex-1 flex items-center justify-center gap-1 bg-slate-50 border border-slate-200 text-slate-300 text-[10px] font-bold uppercase rounded-lg py-1.5 cursor-not-allowed" title="Concluir fica liberado só em 'Aguardando admissão' — avance a vaga pelas etapas para registrar o funil"><Check className="w-3 h-3" /> Concluir</button>
+                                )}
                                 {paused ? (
                                   <button onClick={() => updateVaga(vaga.id, { status: 'ABERTA' })} className="flex-1 flex items-center justify-center gap-1 bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 text-[10px] font-bold uppercase rounded-lg py-1.5 transition-colors cursor-pointer" title="Retomar vaga"><Play className="w-3 h-3" /> Retomar</button>
                                 ) : (
