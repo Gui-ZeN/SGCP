@@ -111,6 +111,24 @@ export function getSlaInfo(days: number, isClosed: boolean, isPaused = false): S
 /** Funil fixo de etapas, em ordem (índice = posição no processo). */
 export const ETAPAS_FUNIL = ['Triagem', 'Entrevista', 'Testes', 'Documentação', 'Aguardando admissão'] as const;
 
+// Etapas do funil que correspondem ao status "DOCUMENTAÇÃO" (fase de admissão/doc).
+const ETAPAS_DOC = ['Documentação', 'Aguardando admissão'];
+
+/**
+ * Status que a vaga deveria ter ao chegar numa etapa do funil — para manter o
+ * Kanban "Por status" coerente com o "Por etapa". Devolve o novo status, ou
+ * undefined quando nada deve mudar. NÃO mexe em PAUSADA/SUSPENSA/FECHADA.
+ */
+export function statusForEtapa(currentStatus: string | undefined, novaEtapa: string): Vaga['status'] | undefined {
+  const cur = (currentStatus || '').toUpperCase();
+  if (cur === 'PAUSADA' || cur === 'SUSPENSA' || cur === 'FECHADA') return undefined;
+  if (ETAPAS_DOC.includes(novaEtapa)) {
+    return cur === 'DOCUMENTAÇÃO' ? undefined : 'DOCUMENTAÇÃO';
+  }
+  // Etapas iniciais (Triagem/Entrevista/Testes): volta a ABERTA se estava em doc.
+  return cur === 'DOCUMENTAÇÃO' ? 'ABERTA' : undefined;
+}
+
 /** Mapeia a etapa (texto livre nas vagas antigas) para uma etapa do funil. */
 export function normalizeEtapa(vaga: Vaga): string {
   if (vaga.status === 'DOCUMENTAÇÃO') return 'Documentação';

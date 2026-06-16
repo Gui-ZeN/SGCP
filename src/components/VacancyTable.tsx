@@ -51,7 +51,7 @@ import {
 } from 'lucide-react';
 import { exportToXlsx } from '../utils/xlsxExporter';
 import { SLA_META_DIAS, MOTIVOS_DESISTENCIA } from '../constants/hr';
-import { parseDateDDMMYYYY, isPausedOrSuspended, getDiasEmAberto, getSlaInfo, ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa } from '../utils/vaga';
+import { parseDateDDMMYYYY, isPausedOrSuspended, getDiasEmAberto, getSlaInfo, ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa, statusForEtapa } from '../utils/vaga';
 
 interface VacancyTableProps {
   vagas: Vaga[];
@@ -215,16 +215,19 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     if (!etapaMove) return;
     const { vaga, novaEtapa, tipo } = etapaMove;
     setEtapaMove(null);
-    // updateVaga carimba etapaDesde sozinho quando a etapa muda.
+    // updateVaga carimba etapaDesde sozinho quando a etapa muda. Sincroniza o
+    // status (mantém o "Por status" coerente) quando aplicável.
+    const novoStatus = statusForEtapa(vaga.status, novaEtapa);
+    const base: any = novoStatus ? { etapa: novaEtapa, status: novoStatus } : { etapa: novaEtapa };
     if (tipo === 'funil') {
       await updateVaga(vaga.id, {
-        etapa: novaEtapa,
+        ...base,
         candChamados: Number(moveChamados) || 0,
         candCompareceram: Number(moveCompareceram) || 0,
         candAprovados: Number(moveAprovados) || 0
       });
     } else {
-      await updateVaga(vaga.id, { etapa: novaEtapa, motivoDesistencia: moveMotivo });
+      await updateVaga(vaga.id, { ...base, motivoDesistencia: moveMotivo });
     }
   };
 
@@ -318,8 +321,9 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       openEtapaMove(v, etapa, 'desistencia');
       return;
     }
-    // Demais avanços: move direto.
-    await updateVaga(vagaId, { etapa });
+    // Demais avanços: move direto (sincroniza o status quando aplicável).
+    const novoStatus = statusForEtapa(v.status, etapa);
+    await updateVaga(vagaId, novoStatus ? { etapa, status: novoStatus } : { etapa });
   };
 
   // 1B. DIALOG HANDLERS TO REMOVE BROWSER PROMPTS (UPGRADING RECRUITER EXPERIENCE)

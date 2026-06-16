@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getDiasEmAberto, getSlaInfo, isPausedOrSuspended, normalizeEtapa } from './vaga';
+import { getDiasEmAberto, getSlaInfo, isPausedOrSuspended, normalizeEtapa, statusForEtapa } from './vaga';
 import type { Vaga } from '../types';
 
 const vaga = (p: Partial<Vaga>) => p as Vaga;
@@ -33,6 +33,26 @@ describe('normalizeEtapa', () => {
   });
   it('desconhecido → Triagem', () => {
     expect(normalizeEtapa(vaga({ etapa: 'qualquer coisa' }))).toBe('Triagem');
+  });
+});
+
+describe('statusForEtapa (sincroniza Por etapa → Por status)', () => {
+  it('etapas de doc/admissão → DOCUMENTAÇÃO', () => {
+    expect(statusForEtapa('ABERTA', 'Documentação')).toBe('DOCUMENTAÇÃO');
+    expect(statusForEtapa('ABERTA', 'Aguardando admissão')).toBe('DOCUMENTAÇÃO');
+    expect(statusForEtapa('REABERTA', 'Documentação')).toBe('DOCUMENTAÇÃO');
+  });
+  it('regredir de doc para etapa inicial → ABERTA', () => {
+    expect(statusForEtapa('DOCUMENTAÇÃO', 'Testes')).toBe('ABERTA');
+  });
+  it('sem mudança necessária → undefined', () => {
+    expect(statusForEtapa('ABERTA', 'Entrevista')).toBeUndefined();
+    expect(statusForEtapa('DOCUMENTAÇÃO', 'Documentação')).toBeUndefined();
+  });
+  it('não mexe em pausada/suspensa/fechada', () => {
+    expect(statusForEtapa('PAUSADA', 'Documentação')).toBeUndefined();
+    expect(statusForEtapa('SUSPENSA', 'Triagem')).toBeUndefined();
+    expect(statusForEtapa('FECHADA', 'Triagem')).toBeUndefined();
   });
 });
 
