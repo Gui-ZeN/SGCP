@@ -149,6 +149,12 @@ export default function App() {
     setActiveTab('vagas');
   };
 
+  // Limpa o foco ao sair da aba Vagas, senão ao voltar o VacancyTable remonta e
+  // reaplica o filtro antigo (bug: "voltei e continuava filtrado").
+  useEffect(() => {
+    if (activeTab !== 'vagas') setVagaFocus(null);
+  }, [activeTab]);
+
   const executeWithLoading = async (message: string, task: () => Promise<void>) => {
     setGlobalLoading(message);
     try {
