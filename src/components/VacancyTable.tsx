@@ -64,6 +64,8 @@ interface VacancyTableProps {
   triggerAddModal?: number;
   userSede?: string;
   userRole?: string;
+  // Foco vindo do Home (alerta de SLA): filtra a tabela pela vaga (token muda a cada clique).
+  focusVaga?: { codigo: string; token: number } | null;
 }
 
 export const VacancyTable: React.FC<VacancyTableProps> = ({ 
@@ -79,7 +81,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   confirmAction,
   triggerAddModal,
   userSede,
-  userRole
+  userRole,
+  focusVaga
 }) => {
   const canManageVagas = isAdmin || userRole === 'Analista' || userRole === 'Administrador';
   const getSedeLabel = (nome: string) => {
@@ -122,7 +125,20 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   const [selectedDetailsVaga, setSelectedDetailsVaga] = useState<Vaga | null>(null);
   const [showColumnManager, setShowColumnManager] = useState(false);
   const [statusGroupFilter, setStatusGroupFilter] = useState<'TODAS' | 'ATIVAS' | 'CONCLUIDAS' | 'ALERTA_SLA'>('TODAS');
-  
+
+  // Foco vindo do Home: filtra pela vaga (busca pelo código, que é único) e limpa
+  // os demais filtros pra ela não ficar escondida. token muda a cada clique → re-aplica.
+  useEffect(() => {
+    if (focusVaga && focusVaga.codigo) {
+      setSearchTerm(focusVaga.codigo);
+      setStatusGroupFilter('TODAS');
+      setSelectedStatus('');
+      setSelectedSetor('');
+      setCurrentPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusVaga?.token]);
+
   // Drag and drop states for Kanban Funnel
   const [draggedOverLaneId, setDraggedOverLaneId] = useState<string | null>(null);
   const [draggingVagaId, setDraggingVagaId] = useState<string | null>(null);

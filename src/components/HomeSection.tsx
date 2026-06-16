@@ -25,6 +25,7 @@ interface HomeSectionProps {
   entrevistas: Entrevista[];
   turnover: Turnover[];
   setActiveTab: (tab: any) => void;
+  onFocusVaga?: (vaga: any) => void;
   userName?: string;
   sedes?: Sede[];
   userSede?: string;
@@ -35,8 +36,9 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
   vagas, 
   treinamentos, 
   experiencias, 
-  entrevistas, 
+  entrevistas,
   setActiveTab,
+  onFocusVaga,
   userName,
   sedes = [],
   userSede,
@@ -233,7 +235,7 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
                 return (
                 <div
                   key={v.id}
-                  onClick={() => setActiveTab('vagas')}
+                  onClick={() => onFocusVaga ? onFocusVaga(v) : setActiveTab('vagas')}
                   className="bg-slate-50 hover:bg-slate-100/80 border border-slate-200/60 hover:border-rose-200 rounded-xl p-3.5 transition group cursor-pointer flex flex-col justify-between"
                 >
                   <div>

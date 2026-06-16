@@ -46,6 +46,8 @@ export default function App() {
   const { vagas, loading, usingFirebase, errorMessage, addVaga, updateVaga, deleteVaga, importVagas } = useVagas(user);
   const [toast, setToast] = useState<{ message: string, type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
   const [triggerAddModal, setTriggerAddModal] = useState(0);
+  // Vaga focada a partir do Home (alerta de SLA) → filtra o Quadro de Vagas por ela.
+  const [vagaFocus, setVagaFocus] = useState<{ codigo: string; token: number } | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importReplace, setImportReplace] = useState(false);
   const [importingSpreadsheet, setImportingSpreadsheet] = useState(false);
@@ -137,6 +139,14 @@ export default function App() {
       message,
       onConfirm
     });
+  };
+
+  // Foco de vaga vindo do Home: troca pra aba Vagas e filtra pelo código (token
+  // novo a cada clique força o VacancyTable a reaplicar o filtro).
+  const handleFocusVaga = (v: any) => {
+    if (v?.codigo == null) { setActiveTab('vagas'); return; }
+    setVagaFocus({ codigo: String(v.codigo), token: Date.now() });
+    setActiveTab('vagas');
   };
 
   const executeWithLoading = async (message: string, task: () => Promise<void>) => {
@@ -910,6 +920,7 @@ export default function App() {
               entrevistas={entrevistas}
               turnover={turnover}
               setActiveTab={setActiveTab}
+              onFocusVaga={handleFocusVaga}
               userName={user?.displayName}
               sedes={sedes}
               userSede={scopedUserSede}
@@ -944,6 +955,7 @@ export default function App() {
               triggerAddModal={triggerAddModal}
               userSede={scopedUserSede}
               userRole={selectedRole}
+              focusVaga={vagaFocus}
             />
           )}
 
