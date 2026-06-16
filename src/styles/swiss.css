@@ -44,7 +44,8 @@ html[data-theme="swiss"] .rounded-3xl { border: 1px solid #E6E5E0; }
 /* Bordas slate viram uma única hairline coesa */
 html[data-theme="swiss"] .border-slate-100,
 html[data-theme="swiss"] .border-slate-200,
-html[data-theme="swiss"] .border-slate-250 { border-color: #E6E5E0 !important; }
+html[data-theme="swiss"] .border-slate-250,
+html[data-theme="swiss"] .border-slate-300 { border-color: #E6E5E0 !important; }
 
 /* Blocos escuros: preto neutro chapado (nav ativa, botões primários, header escuro) */
 html[data-theme="swiss"] .bg-slate-900,
@@ -53,36 +54,89 @@ html[data-theme="swiss"] .bg-slate-800 { background-color: #1A1B1F !important; }
 html[data-theme="swiss"] .border-slate-950,
 html[data-theme="swiss"] .border-slate-900 { border-color: #1A1B1F !important; }
 
-/* ===== Acento único: laranja (marca) → cobalto ===== */
-html[data-theme="swiss"] .text-orange-500,
-html[data-theme="swiss"] .text-orange-600,
-html[data-theme="swiss"] .text-orange-700,
-html[data-theme="swiss"] .text-orange-650 { color: #1B4DD8 !important; }
-html[data-theme="swiss"] .bg-orange-500,
-html[data-theme="swiss"] .bg-orange-600 { background-color: #1B4DD8 !important; }
-html[data-theme="swiss"] .bg-orange-50,
-html[data-theme="swiss"] .bg-orange-55 { background-color: #EAEFFC !important; }
-html[data-theme="swiss"] .border-orange-100,
-html[data-theme="swiss"] .border-orange-150,
-html[data-theme="swiss"] .border-orange-200,
-html[data-theme="swiss"] .border-orange-500 { border-color: #C9D6F6 !important; }
-html[data-theme="swiss"] .hover\:bg-orange-600:hover,
-html[data-theme="swiss"] .hover\:bg-orange-700:hover { background-color: #1740B0 !important; }
-html[data-theme="swiss"] .hover\:text-orange-500:hover,
-html[data-theme="swiss"] .hover\:text-orange-600:hover { color: #1740B0 !important; }
+/* ===== Acento único: laranja (marca) + índigo (dados) → cobalto ===== */
+/* Disciplina suíça de UM acento: tudo que era laranja ou índigo vira cobalto.
+   Cobertura completa dos tons em uso (sólidos, washes /opacidade, rings, bordas). */
 
-/* ===== Índigo (dados) → mesmo cobalto, pra disciplina de 1 acento ===== */
+/* Texto de acento → cobalto (todos os tons, claros e escuros) */
+html[data-theme="swiss"] .text-orange-400,
+html[data-theme="swiss"] .text-orange-500,
+html[data-theme="swiss"] .text-orange-550,
+html[data-theme="swiss"] .text-orange-600,
+html[data-theme="swiss"] .text-orange-650,
+html[data-theme="swiss"] .text-orange-700,
+html[data-theme="swiss"] .text-orange-750,
+html[data-theme="swiss"] .text-orange-800,
+html[data-theme="swiss"] .text-orange-850,
+html[data-theme="swiss"] .text-orange-900,
+html[data-theme="swiss"] .text-orange-950,
+html[data-theme="swiss"] .text-indigo-400,
 html[data-theme="swiss"] .text-indigo-500,
 html[data-theme="swiss"] .text-indigo-600,
 html[data-theme="swiss"] .text-indigo-650,
-html[data-theme="swiss"] .text-indigo-700 { color: #1B4DD8 !important; }
+html[data-theme="swiss"] .text-indigo-700,
+html[data-theme="swiss"] .text-indigo-800 { color: #1B4DD8 !important; }
+
+/* Preenchimentos sólidos fortes → cobalto */
+html[data-theme="swiss"] .bg-orange-400,
+html[data-theme="swiss"] .bg-orange-500,
+html[data-theme="swiss"] .bg-orange-600,
 html[data-theme="swiss"] .bg-indigo-500,
 html[data-theme="swiss"] .bg-indigo-600 { background-color: #1B4DD8 !important; }
+html[data-theme="swiss"] .bg-orange-700,
+html[data-theme="swiss"] .bg-indigo-700 { background-color: #1740B0 !important; }
+html[data-theme="swiss"] .bg-indigo-300,
+html[data-theme="swiss"] .bg-indigo-400 { background-color: #6E8FE6 !important; }
+
+/* Tints claros → wash cobalto */
+html[data-theme="swiss"] .bg-orange-50,
+html[data-theme="swiss"] .bg-orange-55,
 html[data-theme="swiss"] .bg-indigo-50 { background-color: #EAEFFC !important; }
+html[data-theme="swiss"] .bg-orange-100 { background-color: #DCE5FA !important; }
+/* Washes com opacidade (tokens com /) → wash cobalto sutil */
+html[data-theme="swiss"] [class~="bg-orange-50/15"],
+html[data-theme="swiss"] [class~="bg-orange-50/20"],
+html[data-theme="swiss"] [class~="bg-orange-50/30"],
+html[data-theme="swiss"] [class~="bg-orange-50/45"],
+html[data-theme="swiss"] [class~="bg-orange-50/50"],
+html[data-theme="swiss"] [class~="bg-orange-500/10"],
+html[data-theme="swiss"] [class~="bg-indigo-500/5"],
+html[data-theme="swiss"] [class~="bg-indigo-600/10"] { background-color: #F0F4FD !important; }
+
+/* Bordas de acento → hairline cobalto claro (fortes ficam cobalto pleno) */
+html[data-theme="swiss"] .border-orange-100,
+html[data-theme="swiss"] .border-orange-150,
+html[data-theme="swiss"] .border-orange-200,
+html[data-theme="swiss"] .border-orange-300,
 html[data-theme="swiss"] .border-indigo-100,
 html[data-theme="swiss"] .border-indigo-150,
-html[data-theme="swiss"] .border-indigo-200 { border-color: #C9D6F6 !important; }
+html[data-theme="swiss"] .border-indigo-200,
+html[data-theme="swiss"] .border-indigo-300,
+html[data-theme="swiss"] [class~="border-orange-100/50"],
+html[data-theme="swiss"] [class~="border-orange-100/70"],
+html[data-theme="swiss"] [class~="border-orange-500/20"] { border-color: #C9D6F6 !important; }
+html[data-theme="swiss"] .border-orange-500,
+html[data-theme="swiss"] .border-orange-600,
+html[data-theme="swiss"] .border-indigo-500,
+html[data-theme="swiss"] .border-indigo-700 { border-color: #1B4DD8 !important; }
+
+/* Anéis (ring-*) → cobalto via --tw-ring-color */
+html[data-theme="swiss"] .ring-orange-400,
+html[data-theme="swiss"] .ring-orange-500,
+html[data-theme="swiss"] [class~="ring-orange-500/5"],
+html[data-theme="swiss"] [class~="ring-orange-500/10"],
+html[data-theme="swiss"] [class~="ring-orange-500/20"] { --tw-ring-color: #1B4DD8 !important; }
+html[data-theme="swiss"] .ring-indigo-50 { --tw-ring-color: #C9D6F6 !important; }
+
+/* Hover de acento → cobalto mais escuro */
+html[data-theme="swiss"] .hover\:bg-orange-600:hover,
+html[data-theme="swiss"] .hover\:bg-orange-700:hover,
 html[data-theme="swiss"] .hover\:bg-indigo-600:hover { background-color: #1740B0 !important; }
+html[data-theme="swiss"] .hover\:text-orange-500:hover,
+html[data-theme="swiss"] .hover\:text-orange-600:hover { color: #1740B0 !important; }
+
+/* Divisores (divide-*) → mesma hairline coesa */
+html[data-theme="swiss"] [class*="divide-slate"] > * { border-color: #E6E5E0 !important; }
 
 /* ===== Form controls: caixa hairline precisa ===== */
 html[data-theme="swiss"] input,

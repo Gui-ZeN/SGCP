@@ -44,10 +44,10 @@ export default function App() {
   // authReady: a verificação inicial de autenticação já concluiu (evita piscar a
   // tela de login para quem já está logado e evita travar no "Carregando").
   const [authReady, setAuthReady] = useState(false);
-  // Tema visual: 'atual' (padrão) ou 'swiss' (tema alternativo Suíço). Persistido e
-  // aplicado via data-theme na raiz; o swiss.css re-skina tudo quando ativo.
+  // Tema visual: 'swiss' (Suíço — oficial/padrão) ou 'atual' (clássico, opt-in).
+  // Persistido e aplicado via data-theme na raiz; o swiss.css re-skina tudo quando ativo.
   const [theme, setTheme] = useState<'atual' | 'swiss'>(() => (
-    (typeof localStorage !== 'undefined' && localStorage.getItem('sgcp_theme') === 'swiss') ? 'swiss' : 'atual'
+    (typeof localStorage !== 'undefined' && localStorage.getItem('sgcp_theme') === 'atual') ? 'atual' : 'swiss'
   ));
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -905,15 +905,15 @@ export default function App() {
               </div>
             )}
 
-            {/* Toggle de tema visual (Atual / Suíço) */}
+            {/* Toggle de tema visual (Suíço oficial / Clássico) */}
             <button
               onClick={() => setTheme(theme === 'swiss' ? 'atual' : 'swiss')}
               className="w-full mb-2.5 px-3 py-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between gap-2 cursor-pointer transition no-print"
-              title="Alternar tema visual (Atual / Suíço)"
+              title="Alternar tema visual (Suíço / Clássico)"
             >
               <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-orange-500" /> Tema</span>
               <span className={`px-2 py-0.5 rounded-full border text-[9px] ${theme === 'swiss' ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                {theme === 'swiss' ? 'Suíço' : 'Atual'}
+                {theme === 'swiss' ? 'Suíço' : 'Clássico'}
               </span>
             </button>
 

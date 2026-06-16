@@ -19,6 +19,7 @@ import {
   Download
 } from 'lucide-react';
 import { exportToXlsx } from '../utils/xlsxExporter';
+import { useTheme } from '../hooks/useTheme';
 import { 
   AreaChart, 
   Area, 
@@ -49,6 +50,12 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
   confirmAction,
   canManage = true
 }) => {
+  // Acento dos gráficos reativo ao tema: cobalto no Suíço (secundário em cinza
+  // neutro pra não competir com o cobalto), laranja/azul no tema Atual.
+  const theme = useTheme();
+  const accent = theme === 'swiss' ? '#1B4DD8' : '#f97316';
+  const accent2 = theme === 'swiss' ? '#9AA3B2' : '#3b82f6';
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTurnover, setEditingTurnover] = useState<Turnover | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -288,12 +295,12 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                 <AreaChart data={computedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                      <stop offset="5%" stopColor={accent} stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor={accent} stopOpacity={0}/>
                     </linearGradient>
                     <linearGradient id="colorVol" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      <stop offset="5%" stopColor={accent2} stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor={accent2} stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -301,8 +308,8 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                   <YAxis stroke="#94a3b8" style={{ fontSize: 10, fontWeight: 600 }} />
                   <Tooltip wrapperStyle={{ borderRadius: 12, borderColor: '#e2e8f0' }} />
                   <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
-                  <Area type="monotone" name="Turnover Total (%)" dataKey="turnoverTotal" stroke="#f97316" strokeWidth={2.5} fillOpacity={1} fill="url(#colorTotal)" />
-                  <Area type="monotone" name="Voluntário (%)" dataKey="turnoverVoluntario" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorVol)" />
+                  <Area type="monotone" name="Turnover Total (%)" dataKey="turnoverTotal" stroke={accent} strokeWidth={2.5} fillOpacity={1} fill="url(#colorTotal)" />
+                  <Area type="monotone" name="Voluntário (%)" dataKey="turnoverVoluntario" stroke={accent2} strokeWidth={2} fillOpacity={1} fill="url(#colorVol)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
