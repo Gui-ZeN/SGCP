@@ -429,6 +429,53 @@ export default function App() {
     );
   };
 
+  // Migração one-time: reconstrói pausadaDesde das vagas já pausadas, lendo nos
+  // logs quando cada uma foi pausada (evento "Status de ... para PAUSADA/SUSPENSA"),
+  // para o SLA congelar retroativamente. Idempotente; só preenche as que faltam.
+  const handleBackfillPausas = () => {
+    const pausadas = vagas.filter(v => (v.status === 'PAUSADA' || v.status === 'SUSPENSA') && !v.pausadaDesde);
+    if (!pausadas.length) {
+      notify("Nenhuma vaga pausada sem data de pausa registrada.", "info");
+      return;
+    }
+    if (!logs.length) {
+      notify("Logs ainda não carregados (é preciso ser administrador).", "warning");
+      return;
+    }
+    askConfirmation(
+      "Recalcular pausas pelos logs",
+      `Reconstruir a data de pausa de ${pausadas.length} vaga(s) pausada(s) a partir dos logs e congelar o SLA delas retroativamente? Só altera as que ainda não têm a data.`,
+      () => executeWithLoading("Reconstruindo datas de pausa pelos logs...", async () => {
+        let ok = 0;
+        let semLog = 0;
+        for (const v of pausadas) {
+          const marca = `#${v.codigo}`;
+          const statusLogs = logs
+            .filter(l => l.modulo === 'Vagas' && l.detalhes.includes(marca) && /Status de ".*?" para ".*?"/.test(l.detalhes))
+            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+          let inicio: string | null = null;
+          for (const l of statusLogs) {
+            const m = l.detalhes.match(/Status de "(.*?)" para "(.*?)"/);
+            if (!m) continue;
+            const dePausado = m[1] === 'PAUSADA' || m[1] === 'SUSPENSA';
+            const paraPausado = m[2] === 'PAUSADA' || m[2] === 'SUSPENSA';
+            if (!paraPausado) break; // a mudança mais recente já tirou da pausa — para
+            if (!dePausado) { inicio = l.timestamp; break; } // entrou na pausa aqui (vindo de status ativo)
+            // pausado -> pausado (ex.: PAUSADA -> SUSPENSA): continua procurando o início real
+          }
+          if (inicio) {
+            await updateVaga(v.id, { pausadaDesde: new Date(inicio).toISOString().slice(0, 10) });
+            ok++;
+          } else {
+            semLog++;
+          }
+        }
+        await logAction('ALTEROU', 'Vagas', `Backfill de pausas pelos logs: ${ok} vaga(s) com SLA congelado retroativamente${semLog ? `; ${semLog} sem registro de pausa nos logs` : ''}.`);
+        notify(`Concluído: ${ok} vaga(s) ajustada(s)${semLog ? `; ${semLog} sem registro nos logs` : ''}.`, "success");
+      })
+    );
+  };
+
   // Track Auth state if Firebase is active
   useEffect(() => {
     if (isFirebaseEnabled && auth) {
@@ -986,6 +1033,7 @@ export default function App() {
                 setImportSelection={setImportSelection}
                 onImportSpreadsheet={handleSpreadsheetImport}
                 onRecalcExperiencias={handleRecalcularExperiencias}
+                onBackfillPausas={handleBackfillPausas}
               />
             </ErrorBoundary>
           )}

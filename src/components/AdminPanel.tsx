@@ -58,6 +58,7 @@ interface AdminPanelProps {
   }>>;
   onImportSpreadsheet: () => Promise<void>;
   onRecalcExperiencias?: () => void;
+  onBackfillPausas?: () => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -90,7 +91,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   importSelection,
   setImportSelection,
   onImportSpreadsheet,
-  onRecalcExperiencias
+  onRecalcExperiencias,
+  onBackfillPausas
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'usuarios' | 'sedes' | 'regioes' | 'cargos' | 'setores' | 'logs' | 'importacao'>('usuarios');
   
@@ -347,6 +349,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               >
                 <History className="w-4 h-4" />
                 Recalcular vencimentos (45/90)
+              </button>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                  <History className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-800">Manutenção · Congelar SLA de vagas pausadas</h3>
+                  <p className="text-xs font-semibold text-slate-500 mt-0.5 leading-relaxed">
+                    Reconstrói a data de pausa (pausadaDesde) das vagas que já estão pausadas, lendo nos logs quando cada uma foi pausada. A partir daí o SLA delas congela retroativamente. Rode uma vez; só preenche as que ainda não têm a data e que tenham registro de pausa nos logs.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onBackfillPausas}
+                disabled={!onBackfillPausas}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-xs font-bold rounded-xl text-white shadow-md cursor-pointer flex items-center gap-2"
+              >
+                <History className="w-4 h-4" />
+                Recalcular pausas pelos logs
               </button>
             </div>
           </div>
