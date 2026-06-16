@@ -127,9 +127,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         
         {/* Upper Brand Badge */}
         <div className="flex items-center gap-3.5 z-10 shrink-0">
-          <div className="w-11 h-11 bg-orange-500 bg-gradient-to-tr from-orange-600 to-orange-450 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20">
-            <Users className="w-6 h-6 text-white" />
-          </div>
+          <img src="/logo.png" alt="SGPC" className="w-11 h-11 rounded-2xl object-contain shadow-lg shadow-slate-900/5" />
           <div>
             <h2 className="text-sm font-black text-slate-800 tracking-tight leading-none uppercase">
               SGPC <span className="text-[9px] bg-orange-500/10 text-orange-600 px-1.5 py-0.5 rounded-md border border-orange-500/20 ml-1 font-extrabold uppercase">RH</span>
