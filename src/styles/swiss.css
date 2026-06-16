@@ -5,13 +5,13 @@
  * UM acento (cobalto), tipografia grotesca com números tabulares, zero gradiente.
  * O tema padrão (sem data-theme) fica intacto.
  *
- * Paleta: papel #FAFAF8 · tinta #17181B · hairline #E6E5E0 · cobalto #1B4DD8 · tint #EAEFFC
+ * Paleta: papel #FAFAF8 · tinta #17181B · hairline #E2DDD0 · cobalto #1B4DD8 · tint #EAEFFC
  */
 
 /* ===== Base: grotesca + números tabulares (alinham em tabelas/dashboards) ===== */
 html[data-theme="swiss"] { --font-sans: 'Hanken Grotesk', system-ui, sans-serif; }
 html[data-theme="swiss"] body {
-  background-color: #F3F2EE !important;
+  background-color: #F0EEE6 !important;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1, 'ss01' 1;
@@ -37,22 +37,25 @@ html[data-theme="swiss"] .bg-clip-text {
   color: #1B4DD8 !important;
 }
 
-/* ===== Superfícies: UM papel para o "chão" (canvas + sidebar) e branco só nos
-   cartões, que então flutuam de verdade. Header branco = barra de marca no topo. ===== */
-html[data-theme="swiss"] .bg-slate-50 { background-color: #F3F2EE !important; }
-html[data-theme="swiss"] .bg-white { background-color: #FFFFFF !important; }
-html[data-theme="swiss"] .bg-slate-100 { background-color: #EAE9E3 !important; }
-html[data-theme="swiss"] aside { background-color: #F3F2EE !important; }
-html[data-theme="swiss"] header { background-color: #FFFFFF !important; }
+/* ===== Superfícies: sistema de papel COESO (mesma temperatura, sem branco puro).
+   "Chão" = canvas + sidebar (papel); "painéis" = cards + header (off-white levemente
+   mais claro). Nada de branco gélido brigando com bege — tudo morno e tonal, e os
+   painéis se definem pela hairline, não por um salto de cor. ===== */
+html[data-theme="swiss"] .bg-slate-50 { background-color: #F0EEE6 !important; }   /* chão */
+html[data-theme="swiss"] .bg-white { background-color: #FBFAF7 !important; }      /* painel */
+html[data-theme="swiss"] .bg-slate-100 { background-color: #E8E5DB !important; }
+/* Sidebar = chão (não um bloco branco). Seletor com classe vence o .bg-white !important. */
+html[data-theme="swiss"] aside.bg-white,
+html[data-theme="swiss"] aside { background-color: #F0EEE6 !important; }
 
 /* Cartões ganham hairline crisp (substitui a profundidade que vinha da sombra) */
 html[data-theme="swiss"] .rounded-2xl,
-html[data-theme="swiss"] .rounded-3xl { border: 1px solid #E6E5E0; }
+html[data-theme="swiss"] .rounded-3xl { border: 1px solid #E2DDD0; }
 /* Bordas slate viram uma única hairline coesa */
 html[data-theme="swiss"] .border-slate-100,
 html[data-theme="swiss"] .border-slate-200,
 html[data-theme="swiss"] .border-slate-250,
-html[data-theme="swiss"] .border-slate-300 { border-color: #E6E5E0 !important; }
+html[data-theme="swiss"] .border-slate-300 { border-color: #E2DDD0 !important; }
 
 /* Blocos escuros do CONTEÚDO (botões primários: Nova Vaga, Consultar...) → preto neutro */
 html[data-theme="swiss"] .bg-slate-900,
@@ -146,7 +149,50 @@ html[data-theme="swiss"] .hover\:text-orange-500:hover,
 html[data-theme="swiss"] .hover\:text-orange-600:hover { color: #1740B0 !important; }
 
 /* Divisores (divide-*) → mesma hairline coesa */
-html[data-theme="swiss"] [class*="divide-slate"] > * { border-color: #E6E5E0 !important; }
+html[data-theme="swiss"] [class*="divide-slate"] > * { border-color: #E2DDD0 !important; }
+
+/* ===== Varredura: cores DECORATIVAS (azul/roxo/ciano/rosa/etc) → cobalto =====
+   Estas não carregam significado (eram só "variedade" do tema SaaS). Já verde
+   (emerald), âmbar (amber) e vermelho (rose) ficam INTACTOS: são semânticos
+   (sucesso / alerta / erro-saída) — cor que informa é correta no estilo suíço. */
+html[data-theme="swiss"] .text-blue-400, html[data-theme="swiss"] .text-blue-500,
+html[data-theme="swiss"] .text-blue-600, html[data-theme="swiss"] .text-blue-700,
+html[data-theme="swiss"] .text-blue-800, html[data-theme="swiss"] .text-sky-500,
+html[data-theme="swiss"] .text-sky-600, html[data-theme="swiss"] .text-cyan-500,
+html[data-theme="swiss"] .text-cyan-600, html[data-theme="swiss"] .text-purple-500,
+html[data-theme="swiss"] .text-purple-600, html[data-theme="swiss"] .text-purple-650,
+html[data-theme="swiss"] .text-purple-700, html[data-theme="swiss"] .text-violet-500,
+html[data-theme="swiss"] .text-violet-600, html[data-theme="swiss"] .text-pink-500,
+html[data-theme="swiss"] .text-pink-600, html[data-theme="swiss"] .text-pink-700,
+html[data-theme="swiss"] .text-teal-500, html[data-theme="swiss"] .text-teal-600,
+html[data-theme="swiss"] .text-fuchsia-600 { color: #1B4DD8 !important; }
+
+html[data-theme="swiss"] .bg-blue-400, html[data-theme="swiss"] .bg-blue-500,
+html[data-theme="swiss"] .bg-blue-600, html[data-theme="swiss"] .bg-sky-500,
+html[data-theme="swiss"] .bg-cyan-500, html[data-theme="swiss"] .bg-purple-500,
+html[data-theme="swiss"] .bg-purple-600, html[data-theme="swiss"] .bg-violet-500,
+html[data-theme="swiss"] .bg-pink-500, html[data-theme="swiss"] .bg-teal-500 { background-color: #1B4DD8 !important; }
+
+html[data-theme="swiss"] .bg-blue-50, html[data-theme="swiss"] .bg-sky-50,
+html[data-theme="swiss"] .bg-cyan-50, html[data-theme="swiss"] .bg-purple-50,
+html[data-theme="swiss"] .bg-violet-50, html[data-theme="swiss"] .bg-pink-50,
+html[data-theme="swiss"] .bg-blue-100, html[data-theme="swiss"] .bg-teal-50 { background-color: #EAEFFC !important; }
+
+html[data-theme="swiss"] .border-blue-100, html[data-theme="swiss"] .border-blue-200,
+html[data-theme="swiss"] .border-blue-300, html[data-theme="swiss"] .border-sky-200,
+html[data-theme="swiss"] .border-cyan-100, html[data-theme="swiss"] .border-purple-100,
+html[data-theme="swiss"] .border-purple-150, html[data-theme="swiss"] .border-pink-200,
+html[data-theme="swiss"] [class~="border-blue-200/95"] { border-color: #C9D6F6 !important; }
+
+/* Topo colorido das colunas do Kanban (status e etapa) → acento cobalto uniforme.
+   O ponto/dot de cada coluna continua semântico (verde/âmbar/cinza). */
+html[data-theme="swiss"] .border-t-amber-500, html[data-theme="swiss"] .border-t-indigo-500,
+html[data-theme="swiss"] .border-t-blue-500, html[data-theme="swiss"] .border-t-emerald-500,
+html[data-theme="swiss"] .border-t-slate-400, html[data-theme="swiss"] .border-t-rose-500 { border-top-color: #1B4DD8 !important; }
+
+/* Ícones das abas do menu: monocromáticos (herdam a cor do botão) — acaba com o
+   "arco-íris" da lateral. Só no Suíço; o tema Clássico segue colorido. */
+html[data-theme="swiss"] aside button[id^="tab-"] svg { color: inherit !important; }
 
 /* ===== Form controls: caixa hairline precisa ===== */
 html[data-theme="swiss"] input,
