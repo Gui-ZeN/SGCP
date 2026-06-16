@@ -1,0 +1,107 @@
+/**
+ * Tema alternativo "Suíço" (International Typographic Style) — camada de re-skin
+ * aplicada quando <html data-theme="swiss">. Não reescreve componentes: sobrepõe
+ * o visual. Princípios: grade limpa, hairlines no lugar de sombras, cantos discretos,
+ * UM acento (cobalto), tipografia grotesca com números tabulares, zero gradiente.
+ * O tema padrão (sem data-theme) fica intacto.
+ *
+ * Paleta: papel #FAFAF8 · tinta #17181B · hairline #E6E5E0 · cobalto #1B4DD8 · tint #EAEFFC
+ */
+
+/* ===== Base: grotesca + números tabulares (alinham em tabelas/dashboards) ===== */
+html[data-theme="swiss"] { --font-sans: 'Hanken Grotesk', system-ui, sans-serif; }
+html[data-theme="swiss"] body {
+  background-color: #FAFAF8 !important;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'ss01' 1;
+}
+html[data-theme="swiss"] h1,
+html[data-theme="swiss"] h2,
+html[data-theme="swiss"] h3 { letter-spacing: -0.011em; }
+
+/* ===== Geometria: cantos discretos (mantém círculos) + zero sombra/gradiente ===== */
+html[data-theme="swiss"] .rounded,
+html[data-theme="swiss"] .rounded-md { border-radius: 4px !important; }
+html[data-theme="swiss"] .rounded-lg,
+html[data-theme="swiss"] .rounded-xl,
+html[data-theme="swiss"] .rounded-2xl,
+html[data-theme="swiss"] .rounded-3xl { border-radius: 6px !important; }
+html[data-theme="swiss"] [class*="shadow"] { box-shadow: none !important; }
+/* Suíço é anti-gradiente: tudo chapa (não atinge os grids em inline-style) */
+html[data-theme="swiss"] [class*="bg-gradient-"] { background-image: none !important; }
+
+/* ===== Superfícies: papel + branco puro + hairline unificada ===== */
+html[data-theme="swiss"] .bg-slate-50 { background-color: #F4F4F1 !important; }
+html[data-theme="swiss"] .bg-white { background-color: #FFFFFF !important; }
+html[data-theme="swiss"] .bg-slate-100 { background-color: #ECECE7 !important; }
+html[data-theme="swiss"] aside,
+html[data-theme="swiss"] header { background-color: #FFFFFF !important; }
+
+/* Cartões ganham hairline crisp (substitui a profundidade que vinha da sombra) */
+html[data-theme="swiss"] .rounded-2xl,
+html[data-theme="swiss"] .rounded-3xl { border: 1px solid #E6E5E0; }
+/* Bordas slate viram uma única hairline coesa */
+html[data-theme="swiss"] .border-slate-100,
+html[data-theme="swiss"] .border-slate-200,
+html[data-theme="swiss"] .border-slate-250 { border-color: #E6E5E0 !important; }
+
+/* Blocos escuros: preto neutro chapado (nav ativa, botões primários, header escuro) */
+html[data-theme="swiss"] .bg-slate-900,
+html[data-theme="swiss"] .bg-slate-850,
+html[data-theme="swiss"] .bg-slate-800 { background-color: #1A1B1F !important; }
+html[data-theme="swiss"] .border-slate-950,
+html[data-theme="swiss"] .border-slate-900 { border-color: #1A1B1F !important; }
+
+/* ===== Acento único: laranja (marca) → cobalto ===== */
+html[data-theme="swiss"] .text-orange-500,
+html[data-theme="swiss"] .text-orange-600,
+html[data-theme="swiss"] .text-orange-700,
+html[data-theme="swiss"] .text-orange-650 { color: #1B4DD8 !important; }
+html[data-theme="swiss"] .bg-orange-500,
+html[data-theme="swiss"] .bg-orange-600 { background-color: #1B4DD8 !important; }
+html[data-theme="swiss"] .bg-orange-50,
+html[data-theme="swiss"] .bg-orange-55 { background-color: #EAEFFC !important; }
+html[data-theme="swiss"] .border-orange-100,
+html[data-theme="swiss"] .border-orange-150,
+html[data-theme="swiss"] .border-orange-200,
+html[data-theme="swiss"] .border-orange-500 { border-color: #C9D6F6 !important; }
+html[data-theme="swiss"] .hover\:bg-orange-600:hover,
+html[data-theme="swiss"] .hover\:bg-orange-700:hover { background-color: #1740B0 !important; }
+html[data-theme="swiss"] .hover\:text-orange-500:hover,
+html[data-theme="swiss"] .hover\:text-orange-600:hover { color: #1740B0 !important; }
+
+/* ===== Índigo (dados) → mesmo cobalto, pra disciplina de 1 acento ===== */
+html[data-theme="swiss"] .text-indigo-500,
+html[data-theme="swiss"] .text-indigo-600,
+html[data-theme="swiss"] .text-indigo-650,
+html[data-theme="swiss"] .text-indigo-700 { color: #1B4DD8 !important; }
+html[data-theme="swiss"] .bg-indigo-500,
+html[data-theme="swiss"] .bg-indigo-600 { background-color: #1B4DD8 !important; }
+html[data-theme="swiss"] .bg-indigo-50 { background-color: #EAEFFC !important; }
+html[data-theme="swiss"] .border-indigo-100,
+html[data-theme="swiss"] .border-indigo-150,
+html[data-theme="swiss"] .border-indigo-200 { border-color: #C9D6F6 !important; }
+html[data-theme="swiss"] .hover\:bg-indigo-600:hover { background-color: #1740B0 !important; }
+
+/* ===== Form controls: caixa hairline precisa ===== */
+html[data-theme="swiss"] input,
+html[data-theme="swiss"] select,
+html[data-theme="swiss"] textarea {
+  border: 1px solid #D8D7D1 !important;
+  border-radius: 4px !important;
+}
+
+/* ===== Foco: anel cobalto nítido em vez de halo difuso ===== */
+html[data-theme="swiss"] *:focus-visible {
+  outline: 2px solid #1B4DD8 !important;
+  outline-offset: 1px;
+}
+
+/* ===== Detalhes finos: seleção, scrollbar, e orbs do login removidos ===== */
+html[data-theme="swiss"] ::selection { background: #1B4DD8; color: #fff; }
+html[data-theme="swiss"] *::-webkit-scrollbar { width: 9px; height: 9px; }
+html[data-theme="swiss"] *::-webkit-scrollbar-thumb { background: #CFCEC7; border-radius: 0; }
+html[data-theme="swiss"] *::-webkit-scrollbar-track { background: transparent; }
+/* Orbs borrados do login (filtro Gemini) somem; sobra a grade de pontos, bem suíça. */
+html[data-theme="swiss"] [class*="blur-\["] { background: transparent !important; }

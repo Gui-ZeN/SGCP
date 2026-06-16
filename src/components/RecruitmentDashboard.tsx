@@ -7,6 +7,7 @@ import React, { useState, useMemo } from 'react';
 import { Vaga, Treinamento, Experiencia, Entrevista, Turnover } from '../types';
 import { SLA_META_DIAS } from '../constants/hr';
 import { ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa } from '../utils/vaga';
+import { useTheme } from '../hooks/useTheme';
 import { Sede } from '../hooks/useMetadata';
 import { 
   ResponsiveContainer, 
@@ -50,7 +51,8 @@ import {
 } from 'lucide-react';
 
 // --- Tema de gráficos: paleta coesa + tooltip estilizado reutilizável ---
-const CHART = {
+// Duas paletas; a ativa é escolhida em runtime conforme o tema (ver useTheme abaixo).
+const CHART_DEFAULT = {
   primary: '#6366f1', // indigo (marca)
   emerald: '#10b981',
   amber: '#f59e0b',
@@ -58,7 +60,14 @@ const CHART = {
   slate: '#94a3b8'
 };
 
-const BAR_CURSOR = { fill: '#6366f1', fillOpacity: 0.06 } as const;
+// Suíço: cobalto único + semânticos levemente dessaturados pra assentar no papel neutro.
+const CHART_SWISS = {
+  primary: '#1B4DD8', // cobalto (acento único)
+  emerald: '#1F9D6B',
+  amber: '#D99500',
+  rose: '#DC4448',
+  slate: '#9CA0A8'
+};
 
 const ChartTooltip: React.FC<any> = ({ active, payload, label, suffix = '' }) => {
   if (!active || !payload || !payload.length) return null;
@@ -99,6 +108,11 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   userSede,
   isAdmin = false
 }) => {
+  // Paleta de gráficos reativa ao tema (cobalto no Suíço; índigo no Atual).
+  const theme = useTheme();
+  const CHART = theme === 'swiss' ? CHART_SWISS : CHART_DEFAULT;
+  const BAR_CURSOR = { fill: CHART.primary, fillOpacity: 0.06 } as const;
+
   const getSedeLabel = (nome: string) => {
     const matched = sedes?.find(s => s.nome.toLowerCase() === nome.toLowerCase());
     return matched && matched.sigla ? `${matched.nome} (${matched.sigla})` : nome;
