@@ -11,7 +11,7 @@
 /* ===== Base: grotesca + números tabulares (alinham em tabelas/dashboards) ===== */
 html[data-theme="swiss"] { --font-sans: 'Hanken Grotesk', system-ui, sans-serif; }
 html[data-theme="swiss"] body {
-  background-color: #FAFAF8 !important;
+  background-color: #F3F2EE !important;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1, 'ss01' 1;
@@ -30,12 +30,19 @@ html[data-theme="swiss"] .rounded-3xl { border-radius: 6px !important; }
 html[data-theme="swiss"] [class*="shadow"] { box-shadow: none !important; }
 /* Suíço é anti-gradiente: tudo chapa (não atinge os grids em inline-style) */
 html[data-theme="swiss"] [class*="bg-gradient-"] { background-image: none !important; }
+/* Texto com gradiente recortado (bg-clip-text + text-transparent) ficaria invisível
+   sem o gradiente — devolve o preenchimento em cobalto (vira um acento da marca). */
+html[data-theme="swiss"] .bg-clip-text {
+  -webkit-text-fill-color: #1B4DD8 !important;
+  color: #1B4DD8 !important;
+}
 
-/* ===== Superfícies: papel + branco puro + hairline unificada ===== */
-html[data-theme="swiss"] .bg-slate-50 { background-color: #F4F4F1 !important; }
+/* ===== Superfícies: UM papel para o "chão" (canvas + sidebar) e branco só nos
+   cartões, que então flutuam de verdade. Header branco = barra de marca no topo. ===== */
+html[data-theme="swiss"] .bg-slate-50 { background-color: #F3F2EE !important; }
 html[data-theme="swiss"] .bg-white { background-color: #FFFFFF !important; }
-html[data-theme="swiss"] .bg-slate-100 { background-color: #ECECE7 !important; }
-html[data-theme="swiss"] aside,
+html[data-theme="swiss"] .bg-slate-100 { background-color: #EAE9E3 !important; }
+html[data-theme="swiss"] aside { background-color: #F3F2EE !important; }
 html[data-theme="swiss"] header { background-color: #FFFFFF !important; }
 
 /* Cartões ganham hairline crisp (substitui a profundidade que vinha da sombra) */
@@ -47,12 +54,15 @@ html[data-theme="swiss"] .border-slate-200,
 html[data-theme="swiss"] .border-slate-250,
 html[data-theme="swiss"] .border-slate-300 { border-color: #E6E5E0 !important; }
 
-/* Blocos escuros: preto neutro chapado (nav ativa, botões primários, header escuro) */
+/* Blocos escuros do CONTEÚDO (botões primários: Nova Vaga, Consultar...) → preto neutro */
 html[data-theme="swiss"] .bg-slate-900,
 html[data-theme="swiss"] .bg-slate-850,
 html[data-theme="swiss"] .bg-slate-800 { background-color: #1A1B1F !important; }
 html[data-theme="swiss"] .border-slate-950,
 html[data-theme="swiss"] .border-slate-900 { border-color: #1A1B1F !important; }
+/* No menu lateral, o item selecionado usa o acento cobalto (não preto) — fica mais
+   "você está aqui" e menos pesado. Vale também pro chip de tema. */
+html[data-theme="swiss"] aside .bg-slate-900 { background-color: #1B4DD8 !important; }
 
 /* ===== Acento único: laranja (marca) + índigo (dados) → cobalto ===== */
 /* Disciplina suíça de UM acento: tudo que era laranja ou índigo vira cobalto.
