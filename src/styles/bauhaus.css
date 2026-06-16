@@ -1,0 +1,104 @@
+/**
+ * Tema alternativo "Bauhaus" — camada de re-skin aplicada quando
+ * <html data-theme="bauhaus">. Não reescreve componentes: sobrepõe o visual
+ * (paleta primária, fontes display, cantos retos, bordas pretas, sem sombras).
+ * O tema padrão (sem data-theme) fica intacto.
+ *
+ * Paleta: papel #ECE7D9 · tinta #141414 · vermelho #E63329 · azul #1356C2 · mostarda #F2B705
+ */
+
+/* ===== Base ===== */
+/* Sobrescreve o token usado pelas utilities font-sans (Tailwind v4) → corpo em Archivo */
+html[data-theme="bauhaus"] { --font-sans: 'Archivo', system-ui, sans-serif; }
+html[data-theme="bauhaus"] body {
+  background-color: #ECE7D9 !important;
+  color: #141414;
+  font-family: 'Archivo', system-ui, sans-serif;
+}
+
+/* Títulos e rótulos fortes viram display condensada (Big Shoulders) */
+html[data-theme="bauhaus"] h1,
+html[data-theme="bauhaus"] h2,
+html[data-theme="bauhaus"] h3,
+html[data-theme="bauhaus"] h4,
+html[data-theme="bauhaus"] .font-black,
+html[data-theme="bauhaus"] .font-extrabold {
+  font-family: 'Big Shoulders Display', 'Archivo', sans-serif !important;
+  letter-spacing: .015em;
+}
+
+/* ===== Geometria: cantos retos + sem sombra (estrutura por borda) ===== */
+html[data-theme="bauhaus"] [class*="rounded"] { border-radius: 0 !important; }
+html[data-theme="bauhaus"] [class*="shadow"] { box-shadow: none !important; }
+
+/* Cartões (rounded-2xl/3xl) ganham borda preta estrutural */
+html[data-theme="bauhaus"] .rounded-2xl,
+html[data-theme="bauhaus"] .rounded-3xl {
+  border: 2px solid #141414 !important;
+}
+
+/* ===== Superfícies ===== */
+html[data-theme="bauhaus"] .bg-slate-50 { background-color: #ECE7D9 !important; }
+html[data-theme="bauhaus"] .bg-white { background-color: #FBFAF6 !important; }
+html[data-theme="bauhaus"] aside {
+  background-color: #FBFAF6 !important;
+  border-right: 2px solid #141414 !important;
+}
+html[data-theme="bauhaus"] .bg-slate-100 { background-color: #E2DCCB !important; }
+
+/* Blocos escuros viram preto chapado (botões primários, headers escuros) */
+html[data-theme="bauhaus"] .bg-slate-900,
+html[data-theme="bauhaus"] .bg-slate-850,
+html[data-theme="bauhaus"] .bg-slate-800 { background-color: #141414 !important; }
+
+/* ===== Acento de marca: laranja → vermelho Bauhaus ===== */
+html[data-theme="bauhaus"] .text-orange-500,
+html[data-theme="bauhaus"] .text-orange-600,
+html[data-theme="bauhaus"] .text-orange-700,
+html[data-theme="bauhaus"] .text-orange-650 { color: #E63329 !important; }
+html[data-theme="bauhaus"] .bg-orange-500,
+html[data-theme="bauhaus"] .bg-orange-600 { background-color: #E63329 !important; }
+html[data-theme="bauhaus"] .bg-orange-50,
+html[data-theme="bauhaus"] .bg-orange-55 { background-color: #FBE3E0 !important; }
+html[data-theme="bauhaus"] .border-orange-100,
+html[data-theme="bauhaus"] .border-orange-150,
+html[data-theme="bauhaus"] .border-orange-200,
+html[data-theme="bauhaus"] .border-orange-500 { border-color: #E63329 !important; }
+html[data-theme="bauhaus"] .hover\:bg-orange-600:hover,
+html[data-theme="bauhaus"] .hover\:bg-orange-700:hover { background-color: #B71F16 !important; }
+html[data-theme="bauhaus"] .hover\:text-orange-500:hover,
+html[data-theme="bauhaus"] .hover\:text-orange-600:hover { color: #B71F16 !important; }
+
+/* ===== Indigo → azul Bauhaus ===== */
+html[data-theme="bauhaus"] .text-indigo-500,
+html[data-theme="bauhaus"] .text-indigo-600,
+html[data-theme="bauhaus"] .text-indigo-650,
+html[data-theme="bauhaus"] .text-indigo-700 { color: #1356C2 !important; }
+html[data-theme="bauhaus"] .bg-indigo-500,
+html[data-theme="bauhaus"] .bg-indigo-600 { background-color: #1356C2 !important; }
+html[data-theme="bauhaus"] .bg-indigo-50 { background-color: #E1EAF8 !important; }
+html[data-theme="bauhaus"] .border-indigo-100,
+html[data-theme="bauhaus"] .border-indigo-150,
+html[data-theme="bauhaus"] .border-indigo-200 { border-color: #1356C2 !important; }
+html[data-theme="bauhaus"] .hover\:bg-indigo-600:hover { background-color: #0E429A !important; }
+
+/* ===== Âmbar → mostarda ===== */
+html[data-theme="bauhaus"] .bg-amber-500 { background-color: #F2B705 !important; }
+html[data-theme="bauhaus"] .bg-amber-50 { background-color: #FBF0CE !important; }
+html[data-theme="bauhaus"] .text-amber-600,
+html[data-theme="bauhaus"] .text-amber-700,
+html[data-theme="bauhaus"] .text-amber-800 { color: #8A6500 !important; }
+
+/* ===== Form controls: caixa reta com borda preta ===== */
+html[data-theme="bauhaus"] input,
+html[data-theme="bauhaus"] select,
+html[data-theme="bauhaus"] textarea {
+  border: 2px solid #141414 !important;
+  border-radius: 0 !important;
+}
+
+/* ===== Foco: anel quadrado preto em vez de halo suave ===== */
+html[data-theme="bauhaus"] *:focus-visible {
+  outline: 2px solid #141414 !important;
+  outline-offset: 1px;
+}

@@ -44,6 +44,15 @@ export default function App() {
   // authReady: a verificação inicial de autenticação já concluiu (evita piscar a
   // tela de login para quem já está logado e evita travar no "Carregando").
   const [authReady, setAuthReady] = useState(false);
+  // Tema visual: 'atual' (padrão) ou 'bauhaus' (tema alternativo). Persistido e
+  // aplicado via data-theme na raiz; o bauhaus.css re-skina tudo quando ativo.
+  const [theme, setTheme] = useState<'atual' | 'bauhaus'>(() => (
+    (typeof localStorage !== 'undefined' && localStorage.getItem('sgcp_theme') === 'bauhaus') ? 'bauhaus' : 'atual'
+  ));
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('sgcp_theme', theme); } catch (e) {}
+  }, [theme]);
   const { vagas, loading, usingFirebase, errorMessage, addVaga, updateVaga, deleteVaga, importVagas } = useVagas(user);
   const [toast, setToast] = useState<{ message: string, type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
   const [triggerAddModal, setTriggerAddModal] = useState(0);
@@ -895,6 +904,18 @@ export default function App() {
                 Modo Offline
               </div>
             )}
+
+            {/* Toggle de tema visual (Atual / Bauhaus) */}
+            <button
+              onClick={() => setTheme(theme === 'bauhaus' ? 'atual' : 'bauhaus')}
+              className="w-full mb-2.5 px-3 py-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between gap-2 cursor-pointer transition no-print"
+              title="Alternar tema visual (Atual / Bauhaus)"
+            >
+              <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-orange-500" /> Tema</span>
+              <span className={`px-2 py-0.5 rounded-full border text-[9px] ${theme === 'bauhaus' ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                {theme === 'bauhaus' ? 'Bauhaus' : 'Atual'}
+              </span>
+            </button>
 
             {/* Quick System Status Indicators embedded directly in sidebar */}
             <div className="pt-2.5 border-t border-slate-100 space-y-1 text-[9px] text-slate-400 font-extrabold uppercase tracking-wider">
