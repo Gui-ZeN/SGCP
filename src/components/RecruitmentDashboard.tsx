@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Vaga, Treinamento, Experiencia, Entrevista, Turnover } from '../types';
 import { SLA_META_DIAS } from '../constants/hr';
+import { ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa } from '../utils/vaga';
 import { Sede } from '../hooks/useMetadata';
 import { 
   ResponsiveContainer, 
@@ -233,6 +234,53 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
     return Object.keys(sum)
       .map(k => ({ name: k, sla: Math.round(sum[k] / count[k]) }))
       .sort((a, b) => b.sla - a.sla)
+      .slice(0, 6);
+  }, [filteredVagas]);
+
+  // --- Funil de conversão de candidatos (chamou x veio x aprovou) ---
+  const funilData = useMemo(() => {
+    let chamados = 0, compareceram = 0, aprovados = 0;
+    filteredVagas.forEach(v => {
+      chamados += v.candChamados || 0;
+      compareceram += v.candCompareceram || 0;
+      aprovados += v.candAprovados || 0;
+    });
+    return { chamados, compareceram, aprovados };
+  }, [filteredVagas]);
+
+  const funilChartData = useMemo(() => ([
+    { name: 'Chamados', total: funilData.chamados },
+    { name: 'Compareceram', total: funilData.compareceram },
+    { name: 'Aprovados', total: funilData.aprovados }
+  ]), [funilData]);
+
+  const taxaComparecimento = funilData.chamados > 0 ? Math.round((funilData.compareceram / funilData.chamados) * 100) : 0;
+  const taxaAprovacao = funilData.compareceram > 0 ? Math.round((funilData.aprovados / funilData.compareceram) * 100) : 0;
+
+  // --- Tempo médio por etapa (gargalos) — apenas vagas ativas (não fechadas) ---
+  const tempoEtapaData = useMemo(() => {
+    const sum: Record<string, number> = {};
+    const count: Record<string, number> = {};
+    filteredVagas.forEach(v => {
+      if (v.status.toUpperCase() === 'FECHADA') return;
+      const et = normalizeEtapa(v);
+      sum[et] = (sum[et] || 0) + diasNestaEtapa(v);
+      count[et] = (count[et] || 0) + 1;
+    });
+    return ETAPAS_FUNIL
+      .filter(et => count[et])
+      .map(et => ({ name: et, dias: Math.round(sum[et] / count[et]), qtd: count[et] }));
+  }, [filteredVagas]);
+
+  // --- Motivos de desistência (top) ---
+  const motivosDesistData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredVagas.forEach(v => {
+      if (v.motivoDesistencia) counts[v.motivoDesistencia] = (counts[v.motivoDesistencia] || 0) + 1;
+    });
+    return Object.keys(counts)
+      .map(k => ({ name: k, total: counts[k] }))
+      .sort((a, b) => b.total - a.total)
       .slice(0, 6);
   }, [filteredVagas]);
 
@@ -670,9 +718,111 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
       </div>
 
 
+      {/* --- SEÇÃO: FUNIL & GARGALOS DO RECRUTAMENTO --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+        {/* Funil de conversão de candidatos */}
+        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col">
+          <h4 className="font-black text-slate-800 text-base mb-1.5 flex items-center gap-1.5">
+            <Users className="w-5 h-5 text-indigo-600" />
+            <span>Funil de Candidatos</span>
+          </h4>
+          <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-4">Chamados → Compareceram → Aprovados</p>
+          {funilData.chamados > 0 ? (
+            <>
+              <div className="h-40">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <BarChart data={funilChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" fontSize={10} stroke="#64748b" tickLine={false} axisLine={false} />
+                    <YAxis fontSize={10} stroke="#64748b" tickLine={false} axisLine={false} allowDecimals={false} />
+                    <Tooltip content={(p: any) => <ChartTooltip {...p} />} cursor={BAR_CURSOR} />
+                    <Bar dataKey="total" name="Candidatos" fill={CHART.primary} radius={[6, 6, 0, 0]} barSize={42}>
+                      <LabelList dataKey="total" position="top" fontSize={11} fill="#475569" />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <div className="bg-slate-50 rounded-xl p-2.5 text-center">
+                  <span className="block text-lg font-black text-emerald-600">{taxaComparecimento}%</span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Comparecimento</span>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-2.5 text-center">
+                  <span className="block text-lg font-black text-indigo-600">{taxaAprovacao}%</span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Aprovação</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-[180px]">
+              <Users className="w-8 h-8 text-slate-350 mb-1.5" />
+              <p className="text-[11px] text-slate-500 font-bold text-center">Sem dados de funil. Preencha os números ao mover Triagem → Entrevista.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Tempo médio por etapa (gargalos) */}
+        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col">
+          <h4 className="font-black text-slate-800 text-base mb-1.5 flex items-center gap-1.5">
+            <Clock className="w-5 h-5 text-amber-600" />
+            <span>Tempo Médio por Etapa</span>
+          </h4>
+          <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-4">Onde o processo trava (dias, vagas ativas)</p>
+          {tempoEtapaData.length > 0 ? (
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <BarChart data={tempoEtapaData} layout="vertical" margin={{ top: 4, right: 28, left: 0, bottom: 0 }}>
+                  <XAxis type="number" fontSize={10} stroke="#64748b" tickLine={false} axisLine={false} allowDecimals={false} />
+                  <YAxis dataKey="name" type="category" fontSize={10} stroke="#475569" tickLine={false} axisLine={false} width={96} />
+                  <Tooltip content={(p: any) => <ChartTooltip {...p} suffix=" dias" />} cursor={BAR_CURSOR} />
+                  <Bar dataKey="dias" name="Média" fill={CHART.amber} radius={[0, 4, 4, 0]} barSize={16}>
+                    <LabelList dataKey="dias" position="right" fontSize={10} fill="#475569" />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-[180px]">
+              <Clock className="w-8 h-8 text-slate-350 mb-1.5" />
+              <p className="text-[11px] text-slate-500 font-bold text-center">Nenhuma vaga ativa em etapa para medir neste filtro.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Motivos de desistência */}
+        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col">
+          <h4 className="font-black text-slate-800 text-base mb-1.5 flex items-center gap-1.5">
+            <AlertTriangle className="w-5 h-5 text-rose-600" />
+            <span>Motivos de Desistência</span>
+          </h4>
+          <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-4">Por que candidatos caem do processo</p>
+          {motivosDesistData.length > 0 ? (
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <BarChart data={motivosDesistData} layout="vertical" margin={{ top: 4, right: 28, left: 0, bottom: 0 }}>
+                  <XAxis type="number" fontSize={10} stroke="#64748b" tickLine={false} axisLine={false} allowDecimals={false} />
+                  <YAxis dataKey="name" type="category" fontSize={9} stroke="#475569" tickLine={false} axisLine={false} width={104} />
+                  <Tooltip content={(p: any) => <ChartTooltip {...p} />} cursor={BAR_CURSOR} />
+                  <Bar dataKey="total" name="Desistências" fill={CHART.rose} radius={[0, 4, 4, 0]} barSize={16}>
+                    <LabelList dataKey="total" position="right" fontSize={10} fill="#475569" />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-[180px]">
+              <CheckCircle className="w-8 h-8 text-emerald-400 mb-1.5" />
+              <p className="text-[11px] text-slate-500 font-bold text-center">Nenhuma desistência registrada neste filtro.</p>
+            </div>
+          )}
+        </div>
+
+      </div>
+
       {/* --- SEÇÃO GRAFICOS: RECURSOS HUMANOS GERAL --- */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        
+
         {/* Gráfico 1: Headcount Influx & Flow */}
         <div className="lg:col-span-6 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
           <div>
