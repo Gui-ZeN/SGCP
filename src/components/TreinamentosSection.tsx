@@ -6,6 +6,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Treinamento } from '../types';
 import { toISOInput } from '../utils/date';
+import { exportToXlsx } from '../utils/xlsxExporter';
 import { 
   GraduationCap, 
   Search, 
@@ -265,6 +266,48 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
     }
   };
 
+  const handleExportTreinamentos = async () => {
+    if (!filteredList.length) { alert('Nenhum treinamento para exportar.'); return; }
+    const columns = [
+      { title: 'Código', width: 10 },
+      { title: 'Tema', width: 34 },
+      { title: 'Tipo', width: 16 },
+      { title: 'Data Início', width: 14 },
+      { title: 'Data Término', width: 14 },
+      { title: 'Mês Referência', width: 16 },
+      { title: 'Facilitador', width: 24 },
+      { title: 'Público', width: 22 },
+      { title: 'Unidade', width: 16 },
+      { title: 'Carga Horária', width: 14 },
+      { title: 'Qtd Prevista', width: 14 },
+      { title: 'Qtd Realizada', width: 14 },
+      { title: 'Horas Formação', width: 16 },
+      { title: 'Valor Investido (R$)', width: 18 }
+    ];
+    const rows = filteredList.map(t => [
+      { type: Number, value: t.codigo ?? null },
+      { type: String, value: t.tema || null },
+      { type: String, value: t.tipo || null },
+      { type: String, value: t.dataInicio || null },
+      { type: String, value: t.dataTermino || null },
+      { type: String, value: t.mesReferencia || null },
+      { type: String, value: t.facilitador || null },
+      { type: String, value: t.publico || null },
+      { type: String, value: t.unidade || null },
+      { type: Number, value: t.cargaHoraria ?? null },
+      { type: Number, value: t.qtdPrevista ?? null },
+      { type: Number, value: t.qtdRealizada ?? null },
+      { type: Number, value: t.totalHorasFormacao ?? null },
+      { type: Number, value: t.valorInvestido ?? null }
+    ]);
+    try {
+      await exportToXlsx(`relatorio_treinamentos_${new Date().toISOString().slice(0, 10)}.xlsx`, columns, rows, { sheet: 'Treinamentos' });
+    } catch (err) {
+      console.error('Erro ao exportar XLSX:', err);
+      alert('Não foi possível gerar o arquivo Excel. Tente novamente.');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Tab Header Banner */}
@@ -276,16 +319,26 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
           </h2>
           <p className="text-slate-500 text-sm font-medium">Controle de capacitações, horas de formação e investimentos corporativos.</p>
         </div>
-        {canManage && (
+        <div className="flex items-center gap-2 self-start">
           <button
-            id="btn-show-add-treinamento"
-            onClick={openCreateForm}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
+            onClick={handleExportTreinamentos}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded-xl text-xs font-bold uppercase tracking-wider border border-slate-250 flex items-center gap-1.5 cursor-pointer transition-colors"
+            title="Baixar planilha Excel (.xlsx)"
           >
-            <PlusCircle className="w-4 h-4" />
-            Registrar Treinamento
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            Exportar Excel
           </button>
-        )}
+          {canManage && (
+            <button
+              id="btn-show-add-treinamento"
+              onClick={openCreateForm}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
+            >
+              <PlusCircle className="w-4 h-4" />
+              Registrar Treinamento
+            </button>
+          )}
+        </div>
       </div>
 
       {/* KPI Bento Grid */}

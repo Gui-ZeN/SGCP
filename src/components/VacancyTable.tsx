@@ -49,7 +49,7 @@ import {
   FileText,
   GripVertical
 } from 'lucide-react';
-import writeXlsxFile from 'write-excel-file/browser';
+import { exportToXlsx } from '../utils/xlsxExporter';
 import { SLA_META_DIAS, MOTIVOS_DESISTENCIA } from '../constants/hr';
 import { parseDateDDMMYYYY, isPausedOrSuspended, getDiasEmAberto, getSlaInfo, ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa } from '../utils/vaga';
 
@@ -559,14 +559,6 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   // fundo, colunas tipadas e larguras, primeira linha fixa), usando
   // write-excel-file (mesmo autor do read-excel-file ja usado no import).
   const handleExportXLSX = async () => {
-    const headerStyle = {
-      fontWeight: 'bold' as const,
-      textColor: '#ffffff',
-      backgroundColor: '#1e293b',
-      align: 'center' as const,
-      alignVertical: 'center' as const
-    };
-
     const columns = [
       { title: 'Código', width: 10 },
       { title: 'Cargo/Vaga', width: 30 },
@@ -589,8 +581,6 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       { title: 'Aprovados', width: 13 },
       { title: 'Motivo Desistência', width: 26 }
     ];
-
-    const headerRow = columns.map(c => ({ value: c.title, ...headerStyle }));
 
     const dataRows = filteredVagas.map(v => {
       const sla = Number(v.tempoProcesso || getDiasEmAberto(v)) || null;
@@ -619,13 +609,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     });
 
     try {
-      // write-excel-file v4 (browser): writeXlsxFile(...) retorna { toBlob, toFile };
-      // é o .toFile(nome) que gera o arquivo e dispara o download.
-      await writeXlsxFile([headerRow, ...dataRows] as any, {
-        columns: columns.map(c => ({ width: c.width })),
-        sheet: 'Vagas',
-        stickyRowsCount: 1
-      }).toFile(`relatorio_de_vagas_rh_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      await exportToXlsx(`relatorio_de_vagas_rh_${new Date().toISOString().slice(0, 10)}.xlsx`, columns, dataRows, { sheet: 'Vagas' });
     } catch (err) {
       console.error('Erro ao exportar XLSX:', err);
       alert('Não foi possível gerar o arquivo Excel. Tente novamente.');

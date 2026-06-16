@@ -6,19 +6,21 @@
 import React, { useState, useMemo } from 'react';
 import { Entrevista } from '../types';
 import { toISOInput, formatDateBR } from '../utils/date';
-import { 
-  HeartCrack, 
-  Search, 
-  User, 
-  PlusCircle, 
-  Star, 
+import { exportToXlsx } from '../utils/xlsxExporter';
+import {
+  HeartCrack,
+  Search,
+  User,
+  PlusCircle,
+  Star,
   Calendar,
   Eye,
   Trash2,
   Pencil,
   ThumbsUp,
   ThumbsDown,
-  MessageSquare
+  MessageSquare,
+  Download
 } from 'lucide-react';
 
 const StarRatingInput = ({ value, onChange, label }: { value: number, onChange: (val: number) => void, label: string }) => {
@@ -306,6 +308,56 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
     );
   };
 
+  const handleExportEntrevistas = async () => {
+    if (!filteredList.length) { alert('Nenhuma entrevista para exportar.'); return; }
+    const columns = [
+      { title: 'Código', width: 10 },
+      { title: 'Colaborador', width: 26 },
+      { title: 'Data Entrevista', width: 16 },
+      { title: 'Função', width: 22 },
+      { title: 'Unidade', width: 18 },
+      { title: 'Admissão', width: 14 },
+      { title: 'Desligamento', width: 14 },
+      { title: 'Motivo da Saída', width: 30 },
+      { title: 'Gostava do Trabalho', width: 18 },
+      { title: 'Nota Salário', width: 12 },
+      { title: 'Nota Treinamento', width: 14 },
+      { title: 'Nota Crescimento', width: 14 },
+      { title: 'Nota Rel. Colegas', width: 16 },
+      { title: 'Nota Rel. Chefia', width: 16 },
+      { title: 'Nota Clima Org.', width: 14 },
+      { title: 'Voltaria', width: 12 },
+      { title: 'Sugestões', width: 40 },
+      { title: 'Entrevistador', width: 22 }
+    ];
+    const rows = filteredList.map(e => [
+      { type: Number, value: e.codigo ?? null },
+      { type: String, value: e.colaborador || null },
+      { type: String, value: e.dataEntrevista || null },
+      { type: String, value: e.funcao || null },
+      { type: String, value: e.unidade || null },
+      { type: String, value: e.admissao || null },
+      { type: String, value: e.desligamento || null },
+      { type: String, value: e.motivoSaida || null },
+      { type: String, value: e.gostavaTrabalho || null },
+      { type: Number, value: e.notaSalario ?? null },
+      { type: Number, value: e.notaTreinamento ?? null },
+      { type: Number, value: e.notaCrescimento ?? null },
+      { type: Number, value: e.notaRelacionamentoColegas ?? null },
+      { type: Number, value: e.notaRelacionamentoChefia ?? null },
+      { type: Number, value: e.notaClimaOrg ?? null },
+      { type: String, value: e.voltaria || null },
+      { type: String, value: e.sugestoes || null },
+      { type: String, value: e.entrevistador || null }
+    ]);
+    try {
+      await exportToXlsx(`relatorio_entrevistas_desligamento_${new Date().toISOString().slice(0, 10)}.xlsx`, columns, rows, { sheet: 'Entrevistas' });
+    } catch (err) {
+      console.error('Erro ao exportar XLSX:', err);
+      alert('Não foi possível gerar o arquivo Excel. Tente novamente.');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -317,15 +369,25 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
           </h2>
           <p className="text-slate-500 text-sm font-medium">Investigue motivos de saídas, colete sugestões e estude o nível de satisfação organizacional.</p>
         </div>
-        {canManage && (
+        <div className="flex items-center gap-2 self-start">
           <button
-            onClick={openCreateForm}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
+            onClick={handleExportEntrevistas}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded-xl text-xs font-bold uppercase tracking-wider border border-slate-250 flex items-center gap-1.5 cursor-pointer transition-colors"
+            title="Baixar planilha Excel (.xlsx)"
           >
-            <PlusCircle className="w-4 h-4" />
-            Registrar Entrevista
+            <Download className="w-3.5 h-3.5 text-emerald-600" />
+            Exportar Excel
           </button>
-        )}
+          {canManage && (
+            <button
+              onClick={openCreateForm}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
+            >
+              <PlusCircle className="w-4 h-4" />
+              Registrar Entrevista
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats Bento Grid */}
