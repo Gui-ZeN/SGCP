@@ -29,6 +29,11 @@ export interface Vaga {
   diasEmAberto?: number; // Open days
   ano?: number; // Fiscal year
   categoriaMotivo?: string; // General motive
+  // Funil de candidatos (indicadores do processo): chamados x compareceram x aprovados
+  candChamados?: number;
+  candCompareceram?: number;
+  candAprovados?: number;
+  motivoDesistencia?: string; // Motivo padronizado de desistência (lista fixa)
 }
 
 export interface Treinamento {

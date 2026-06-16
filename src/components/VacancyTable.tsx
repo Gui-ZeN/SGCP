@@ -599,7 +599,11 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       { title: 'Recruiter Responsável', width: 22 },
       { title: 'Data Conclusão', width: 16 },
       { title: 'Dias Processo (SLA)', width: 16 },
-      { title: 'Observações', width: 44 }
+      { title: 'Observações', width: 44 },
+      { title: 'Cand. Chamados', width: 15 },
+      { title: 'Compareceram', width: 15 },
+      { title: 'Aprovados', width: 13 },
+      { title: 'Motivo Desistência', width: 26 }
     ];
 
     const headerRow = columns.map(c => ({ value: c.title, ...headerStyle }));
@@ -622,7 +626,11 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         { type: String, value: v.responsavel || null },
         { type: String, value: v.conclusao || null },
         { type: Number, value: sla },
-        { type: String, value: v.observacoes || null }
+        { type: String, value: v.observacoes || null },
+        { type: Number, value: v.candChamados ?? null },
+        { type: Number, value: v.candCompareceram ?? null },
+        { type: Number, value: v.candAprovados ?? null },
+        { type: String, value: v.motivoDesistencia || null }
       ];
     });
 
@@ -1909,6 +1917,33 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Funil de candidatos (indicadores do processo) */}
+              {(!!selectedDetailsVaga.candChamados || !!selectedDetailsVaga.candCompareceram || !!selectedDetailsVaga.candAprovados || !!selectedDetailsVaga.motivoDesistencia) && (
+                <div className="space-y-3">
+                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Funil de Candidatos</h4>
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                      <span className="block text-lg font-extrabold text-slate-800">{selectedDetailsVaga.candChamados || 0}</span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Chamados</span>
+                    </div>
+                    <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                      <span className="block text-lg font-extrabold text-blue-700">{selectedDetailsVaga.candCompareceram || 0}</span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Compareceram</span>
+                    </div>
+                    <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                      <span className="block text-lg font-extrabold text-emerald-700">{selectedDetailsVaga.candAprovados || 0}</span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Aprovados</span>
+                    </div>
+                  </div>
+                  {selectedDetailsVaga.motivoDesistencia && (
+                    <div className="flex items-center gap-2 text-[11px] bg-rose-50/50 border border-rose-100 rounded-xl px-3 py-2">
+                      <span className="font-bold text-rose-700 uppercase text-[9px]">Desistência:</span>
+                      <span className="text-slate-700 font-semibold">{selectedDetailsVaga.motivoDesistencia}</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Notes block */}
               <div className="space-y-2">

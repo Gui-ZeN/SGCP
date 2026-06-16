@@ -35,3 +35,15 @@ export const MONTHS_ABBR = [
   'nov.',
   'dez.'
 ];
+
+// Motivos padronizados de desistência de candidato (lista suspensa em vez de texto
+// livre, para indicadores confiáveis — definido na reunião de mapeamento de RH).
+export const MOTIVOS_DESISTENCIA = [
+  'Salário abaixo do esperado',
+  'Benefícios',
+  'Encontrou outro emprego',
+  'Distância / transporte',
+  'Incompatibilidade de horário',
+  'Não compareceu',
+  'Outros'
+];

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Vaga } from '../types';
 import { dateFromValue, toISOInput, formatDateBR, monthAbbrFromDate } from '../utils/date';
+import { MOTIVOS_DESISTENCIA } from '../constants/hr';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import { Edit2 } from 'lucide-react';
 
@@ -32,6 +33,12 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
   const [tempMotivoOutro, setTempMotivoOutro] = useState('');
   const [tempFuncionarioSubstituido, setTempFuncionarioSubstituido] = useState('');
 
+  // Funil de candidatos + motivo de desistência padronizado
+  const [tempCandChamados, setTempCandChamados] = useState<number>(0);
+  const [tempCandCompareceram, setTempCandCompareceram] = useState<number>(0);
+  const [tempCandAprovados, setTempCandAprovados] = useState<number>(0);
+  const [tempMotivoDesistencia, setTempMotivoDesistencia] = useState('');
+
   const statusList = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO', 'SUSPENSA', 'PAUSADA', 'FECHADA'];
 
   useEffect(() => {
@@ -61,6 +68,11 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
     }
 
     setTempFuncionarioSubstituido(vaga.funcionarioSubstituido || '');
+
+    setTempCandChamados(vaga.candChamados || 0);
+    setTempCandCompareceram(vaga.candCompareceram || 0);
+    setTempCandAprovados(vaga.candAprovados || 0);
+    setTempMotivoDesistencia(vaga.motivoDesistencia || '');
   }, [vaga]);
 
   const handleSave = async () => {
@@ -103,7 +115,11 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
       conclusao: tempConclusao,
       tempoProcesso: Number(tempTempoProcesso) || 0,
       mesConclusao: rawMonthConclusao,
-      categoriaMotivo: finalMotivoVal.includes('Aumento') ? 'Aumento de Quadro' : (finalMotivoVal.includes('Outro') ? 'Outros' : 'Substituição')
+      categoriaMotivo: finalMotivoVal.includes('Aumento') ? 'Aumento de Quadro' : (finalMotivoVal.includes('Outro') ? 'Outros' : 'Substituição'),
+      candChamados: Number(tempCandChamados) || 0,
+      candCompareceram: Number(tempCandCompareceram) || 0,
+      candAprovados: Number(tempCandAprovados) || 0,
+      motivoDesistencia: tempMotivoDesistencia
     });
 
     onClose();
@@ -327,6 +343,60 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
                 value={tempAprovado}
                 onChange={(e) => setTempAprovado(e.target.value)}
               />
+            </div>
+          </div>
+
+          {/* Funil de candidatos + motivo de desistência (indicadores do processo) */}
+          <div className="bg-slate-50/60 p-4 rounded-2xl border border-slate-100 space-y-3">
+            <p className="text-xs font-bold text-slate-500 uppercase">Funil de candidatos</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label htmlFor="modal-chamados" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Chamados</label>
+                <input
+                  id="modal-chamados"
+                  type="number"
+                  min={0}
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
+                  value={tempCandChamados}
+                  onChange={(e) => setTempCandChamados(Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label htmlFor="modal-compareceram" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Compareceram</label>
+                <input
+                  id="modal-compareceram"
+                  type="number"
+                  min={0}
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
+                  value={tempCandCompareceram}
+                  onChange={(e) => setTempCandCompareceram(Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label htmlFor="modal-aprovados" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Aprovados</label>
+                <input
+                  id="modal-aprovados"
+                  type="number"
+                  min={0}
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
+                  value={tempCandAprovados}
+                  onChange={(e) => setTempCandAprovados(Number(e.target.value))}
+                />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="modal-desistencia" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Motivo de desistência (se houve)</label>
+              <select
+                id="modal-desistencia"
+                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl cursor-pointer"
+                value={tempMotivoDesistencia}
+                onChange={(e) => setTempMotivoDesistencia(e.target.value)}
+              >
+                <option value="">— Nenhum / não se aplica —</option>
+                {MOTIVOS_DESISTENCIA.map((m, i) => (
+                  <option key={i} value={m}>{m}</option>
+                ))}
+              </select>
             </div>
           </div>
 
