@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="SGPC">
+  <title>SGPC</title>
+  <rect x="50" y="50" width="42" height="42" fill="#1B4DD8"/>
+  <g fill="none" stroke="#17181B" stroke-width="3">
+    <rect x="8" y="8" width="84" height="84"/>
+    <line x1="50" y1="8" x2="50" y2="92"/>
+    <line x1="8" y1="50" x2="92" y2="50"/>
+  </g>
+  <g font-family="'Hanken Grotesk', Arial, Helvetica, sans-serif" font-weight="800" font-size="30" text-anchor="middle">
+    <text x="29" y="29" fill="#17181B" dominant-baseline="central">S</text>
+    <text x="71" y="29" fill="#17181B" dominant-baseline="central">G</text>
+    <text x="29" y="71" fill="#17181B" dominant-baseline="central">P</text>
+    <text x="71" y="71" fill="#FFFFFF" dominant-baseline="central">C</text>
+  </g>
+</svg>

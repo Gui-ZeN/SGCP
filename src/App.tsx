@@ -667,7 +667,7 @@ export default function App() {
       <header className="flex items-center justify-between bg-white py-3.5 px-6 border-b border-slate-200 shadow-xs shrink-0 z-10 gap-4">
         {/* Logo and Dynamic Screen Name */}
         <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="SGPC" className="w-9 h-9 rounded-xl object-contain shrink-0" />
+          <img src="/logo.svg" alt="SGPC" className="w-9 h-9 rounded-xl object-contain shrink-0" />
           <div>
             <h1 className="text-sm font-extrabold text-slate-800 tracking-tight leading-none flex items-center gap-1">
               <span>SGPC</span>
