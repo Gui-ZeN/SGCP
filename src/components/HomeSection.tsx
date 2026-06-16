@@ -1,6 +1,7 @@
 import React from 'react';
 import { Vaga, Treinamento, Experiencia, Entrevista, Turnover } from '../types';
 import { dateFromValue } from '../utils/date';
+import { SLA_META_DIAS } from '../constants/hr';
 import { Sede } from '../hooks/useMetadata';
 import { 
   Building2, 
@@ -96,12 +97,13 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
 
   const vagasComAlertaSla = React.useMemo(() => {
     return filteredVagas
-      .filter(v => ['ABERTA', 'REABERTA', 'PAUSADA', 'SUSPENSA', 'DOCUMENTAÇÃO'].includes(v.status.toUpperCase()))
+      // Pausadas/suspensas ficam de fora: o relógio delas está congelado, não é "ação imediata".
+      .filter(v => ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO'].includes(v.status.toUpperCase()))
       .map(v => ({
         ...v,
         dias: getDiasEmAberto(v)
       }))
-      .filter(v => v.dias > 20)
+      .filter(v => v.dias > SLA_META_DIAS)
       .sort((a, b) => b.dias - a.dias);
   }, [filteredVagas]);
 
@@ -205,7 +207,7 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
                 Alertas de SLA
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider bg-slate-100 rounded-md px-1.5 py-0.5 ml-1">Para Ação Imediata</span>
               </h2>
-              <p className="text-[11px] font-semibold text-slate-400">Vagas ativas que ultrapassaram o objetivo de 20 dias em aberto</p>
+              <p className="text-[11px] font-semibold text-slate-400">Vagas ativas que ultrapassaram o objetivo de {SLA_META_DIAS} dias em aberto</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -222,7 +224,7 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <h3 className="text-sm font-bold text-slate-700">Todas as vagas saudáveis!</h3>
-              <p className="text-[11px] font-semibold text-slate-400 mt-0.5 max-w-sm">Nenhuma vaga ativa excedeu o limite de segurança de 20 dias.</p>
+              <p className="text-[11px] font-semibold text-slate-400 mt-0.5 max-w-sm">Nenhuma vaga ativa excedeu o limite de segurança de {SLA_META_DIAS} dias.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

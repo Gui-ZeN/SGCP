@@ -49,6 +49,7 @@ import {
   GripVertical
 } from 'lucide-react';
 import writeXlsxFile from 'write-excel-file/browser';
+import { SLA_META_DIAS } from '../constants/hr';
 
 interface VacancyTableProps {
   vagas: Vaga[];
@@ -350,13 +351,13 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         percent: Math.min(100, (days / 15) * 100),
         desc: isClosed ? 'Processo rápido' : 'Vaga recente, sem riscos de SLA.'
       };
-    } else if (days <= 20) {
-      return { 
-        label: 'SLA Alerta', 
-        color: 'text-amber-700 bg-amber-50 border-amber-200', 
+    } else if (days <= SLA_META_DIAS) {
+      return {
+        label: 'SLA Alerta',
+        color: 'text-amber-700 bg-amber-50 border-amber-200',
         bullet: 'bg-amber-500',
-        progressBar: 'bg-amber-500', 
-        percent: Math.min(100, (days / 20) * 100),
+        progressBar: 'bg-amber-500',
+        percent: Math.min(100, (days / SLA_META_DIAS) * 100),
         desc: isClosed ? 'Preenchida no limite' : 'Processo correndo no tempo limite.'
       };
     } else {
@@ -479,7 +480,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         if (v.status === 'ABERTA' || v.status === 'REABERTA' || v.status === 'DOCUMENTAÇÃO') {
           ativas++;
         }
-        if (days > 20 && !isPausedOrSuspended(v.status)) {
+        if (days > SLA_META_DIAS && !isPausedOrSuspended(v.status)) {
           alertas++;
         }
       }
@@ -576,7 +577,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     } else if (statusGroupFilter === 'CONCLUIDAS') {
       result = result.filter(v => v.status === 'FECHADA');
     } else if (statusGroupFilter === 'ALERTA_SLA') {
-      result = result.filter(v => getDiasEmAberto(v) > 20 && v.status !== 'FECHADA' && !isPausedOrSuspended(v.status));
+      result = result.filter(v => getDiasEmAberto(v) > SLA_META_DIAS && v.status !== 'FECHADA' && !isPausedOrSuspended(v.status));
     }
 
     // Sorting implementation
@@ -831,7 +832,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
             <AlertTriangle className={`w-4 h-4 ${statusGroupFilter === 'ALERTA_SLA' ? 'text-white animate-bounce' : 'text-rose-500 animate-pulse'}`} />
           </div>
           <p className="text-2xl font-bold mt-2">{stats.alertas}</p>
-          <div className="text-[10px] opacity-70 mt-1">Vagas &gt; 20 dias abertas</div>
+          <div className="text-[10px] opacity-70 mt-1">Vagas &gt; {SLA_META_DIAS} dias abertas</div>
           {statusGroupFilter === 'ALERTA_SLA' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-white"></div>}
         </div>
       </div>
@@ -1198,7 +1199,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                         borderLeftColor = 'border-l-slate-300';
                       } else if (vaga.status === 'FECHADA') {
                         borderLeftColor = 'border-l-indigo-500';
-                      } else if (daysOpen > 20) {
+                      } else if (daysOpen > SLA_META_DIAS) {
                         borderLeftColor = 'border-l-rose-500';
                       } else if (daysOpen > 10) {
                         borderLeftColor = 'border-l-amber-500';
@@ -1399,7 +1400,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                         const sla = getSlaInfo(dias, false, paused);
                         let borderLeftColor = 'border-l-emerald-500';
                         if (paused) borderLeftColor = 'border-l-slate-300';
-                        else if (dias > 20) borderLeftColor = 'border-l-rose-500';
+                        else if (dias > SLA_META_DIAS) borderLeftColor = 'border-l-rose-500';
                         else if (dias > 10) borderLeftColor = 'border-l-amber-500';
                         const isCurrentlyDragging = draggingVagaId === vaga.id;
                         return (
@@ -1680,7 +1681,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                   borderLeftColor = 'border-l-slate-300';
                 } else if (vaga.status === 'FECHADA') {
                   borderLeftColor = 'border-l-indigo-500';
-                } else if (diffDays > 20) {
+                } else if (diffDays > SLA_META_DIAS) {
                   borderLeftColor = 'border-l-rose-500';
                 } else if (diffDays > 10) {
                   borderLeftColor = 'border-l-amber-500';

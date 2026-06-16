@@ -36,6 +36,11 @@ export const MONTHS_ABBR = [
   'dez.'
 ];
 
+// Meta de SLA do RH: uma vaga deve fechar em até 15 dias (definido na reunião de
+// mapeamento de RH). Passar disso dispara o alerta de SLA. Centralizado aqui para
+// não espalhar o número mágico pelos componentes.
+export const SLA_META_DIAS = 15;
+
 // Motivos padronizados de desistência de candidato (lista suspensa em vez de texto
 // livre, para indicadores confiáveis — definido na reunião de mapeamento de RH).
 export const MOTIVOS_DESISTENCIA = [

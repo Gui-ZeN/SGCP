@@ -5,6 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Vaga, Treinamento, Experiencia, Entrevista, Turnover } from '../types';
+import { SLA_META_DIAS } from '../constants/hr';
 import { Sede } from '../hooks/useMetadata';
 import { 
   ResponsiveContainer, 
@@ -312,13 +313,13 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
     const list: { type: 'danger' | 'warning' | 'success' | 'info'; text: string; title: string }[] = [];
 
     // Check SLA Bottlenecks
-    if (mediaSla > 35) {
+    if (mediaSla > SLA_META_DIAS) {
       list.push({
         type: 'danger',
         title: 'Tempo de Fechamento Crítico (SLA)',
-        text: `O tempo médio atual de contratação de ${mediaSla} dias está acima da meta operacional recomendada de 30 dias. Considere revisar as etapas de avaliação técnica.`
+        text: `O tempo médio atual de contratação de ${mediaSla} dias está acima da meta de ${SLA_META_DIAS} dias. Considere revisar as etapas de avaliação técnica.`
       });
-    } else if (mediaSla > 0 && mediaSla <= 25) {
+    } else if (mediaSla > 0 && mediaSla <= SLA_META_DIAS) {
       list.push({
         type: 'success',
         title: 'Excelente Eficiência no Recrutamento',
