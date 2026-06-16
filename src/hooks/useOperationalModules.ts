@@ -17,47 +17,15 @@ import {
 import type { ImportableEntrevista, ImportableTreinamento } from '../lib/spreadsheetImport';
 import { stripUndefinedFields } from '../lib/firestoreData';
 import { useFirestoreCollection } from './useFirestoreCollection';
+import { addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from '../utils/date';
+// Re-export para compatibilidade (definições movidas para utils/date, testáveis sem firebase).
+export { addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 };
 
 const TREINAMENTOS_LOCAL_KEY = 'ats_treinamentos_fallback';
 const EXPERIENCIA_LOCAL_KEY = 'ats_experiencia_fallback';
 const ENTREVISTAS_LOCAL_KEY = 'ats_entrevistas_fallback';
 const TURNOVER_LOCAL_KEY = 'ats_turnover_fallback';
 
-// Helper to add days to a DD/MM/YYYY date
-export function addDaysToDate(dateStr: string, days: number): string {
-  try {
-    // Expected format DD/MM/YYYY or YYYY-MM-DD
-    let parts: string[] = [];
-    if (dateStr.includes('/')) {
-      parts = dateStr.split('/');
-    } else if (dateStr.includes('-')) {
-      parts = dateStr.split('-');
-      // Convert YYYY-MM-DD to [DD, MM, YYYY]
-      parts = [parts[2], parts[1], parts[0]];
-    }
-
-    if (parts.length !== 3) return dateStr;
-    const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const year = parseInt(parts[2], 10);
-
-    const date = new Date(year, month, day);
-    date.setDate(date.getDate() + days);
-
-    const d = String(date.getDate()).padStart(2, '0');
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const y = date.getFullYear();
-
-    return `${d}/${m}/${y}`;
-  } catch (e) {
-    return dateStr;
-  }
-}
-
-// Período de experiência com contagem inclusiva (CLT): o dia da admissão é o dia 1.
-// Logo, o 45º dia = admissão + 44 dias; o 90º dia = admissão + 89 dias.
-export const DIAS_EXPERIENCIA_1 = 44; // marca o 45º dia (inclusivo)
-export const DIAS_EXPERIENCIA_2 = 89; // marca o 90º dia (inclusivo)
 
 // ---------------------- PRESETS ----------------------
 const initialTreinamentos: Treinamento[] = [

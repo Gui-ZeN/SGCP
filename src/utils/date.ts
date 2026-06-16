@@ -82,3 +82,37 @@ export function yearFromDate(value: unknown): number {
   const date = dateFromValue(value);
   return date ? date.getFullYear() : new Date().getFullYear();
 }
+
+// Período de experiência com contagem inclusiva (CLT): o dia da admissão é o dia 1.
+// Logo, o 45º dia = admissão + 44 dias; o 90º dia = admissão + 89 dias.
+export const DIAS_EXPERIENCIA_1 = 44; // marca o 45º dia (inclusivo)
+export const DIAS_EXPERIENCIA_2 = 89; // marca o 90º dia (inclusivo)
+
+/** Soma `days` dias a uma data DD/MM/YYYY ou YYYY-MM-DD; devolve DD/MM/YYYY (ou o original se inválida). */
+export function addDaysToDate(dateStr: string, days: number): string {
+  try {
+    let parts: string[] = [];
+    if (dateStr.includes('/')) {
+      parts = dateStr.split('/');
+    } else if (dateStr.includes('-')) {
+      parts = dateStr.split('-');
+      parts = [parts[2], parts[1], parts[0]];
+    }
+
+    if (parts.length !== 3) return dateStr;
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+
+    const date = new Date(year, month, day);
+    date.setDate(date.getDate() + days);
+
+    const d = String(date.getDate()).padStart(2, '0');
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const y = date.getFullYear();
+
+    return `${d}/${m}/${y}`;
+  } catch (e) {
+    return dateStr;
+  }
+}
