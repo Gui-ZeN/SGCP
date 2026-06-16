@@ -194,13 +194,13 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
   // Modal de transição de etapa (Kanban por etapa): ao mover, confirma os números
   // do funil (chamou x veio x aprovou) e o motivo de desistência, se houve.
-  const [etapaMove, setEtapaMove] = useState<{ vaga: Vaga; novaEtapa: string } | null>(null);
+  const [etapaMove, setEtapaMove] = useState<{ vaga: Vaga; novaEtapa: string; tipo: 'funil' | 'desistencia' } | null>(null);
   const [moveChamados, setMoveChamados] = useState(0);
   const [moveCompareceram, setMoveCompareceram] = useState(0);
   const [moveAprovados, setMoveAprovados] = useState(0);
   const [moveMotivo, setMoveMotivo] = useState('');
-  const openEtapaMove = (vaga: Vaga, novaEtapa: string) => {
-    setEtapaMove({ vaga, novaEtapa });
+  const openEtapaMove = (vaga: Vaga, novaEtapa: string, tipo: 'funil' | 'desistencia') => {
+    setEtapaMove({ vaga, novaEtapa, tipo });
     setMoveChamados(vaga.candChamados || 0);
     setMoveCompareceram(vaga.candCompareceram || 0);
     setMoveAprovados(vaga.candAprovados || 0);
@@ -208,16 +208,19 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   };
   const confirmEtapaMove = async () => {
     if (!etapaMove) return;
-    const { vaga, novaEtapa } = etapaMove;
+    const { vaga, novaEtapa, tipo } = etapaMove;
     setEtapaMove(null);
     // updateVaga carimba etapaDesde sozinho quando a etapa muda.
-    await updateVaga(vaga.id, {
-      etapa: novaEtapa,
-      candChamados: Number(moveChamados) || 0,
-      candCompareceram: Number(moveCompareceram) || 0,
-      candAprovados: Number(moveAprovados) || 0,
-      motivoDesistencia: moveMotivo
-    });
+    if (tipo === 'funil') {
+      await updateVaga(vaga.id, {
+        etapa: novaEtapa,
+        candChamados: Number(moveChamados) || 0,
+        candCompareceram: Number(moveCompareceram) || 0,
+        candAprovados: Number(moveAprovados) || 0
+      });
+    } else {
+      await updateVaga(vaga.id, { etapa: novaEtapa, motivoDesistencia: moveMotivo });
+    }
   };
 
   const getLaneIdFromVaga = (v: Vaga): string => {
@@ -373,10 +376,20 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     if (!v) return;
     const atual = normalizeEtapa(v);
     if (atual === etapa) return;
+    const ordem = ETAPAS_FUNIL as readonly string[];
+    const atualIdx = ordem.indexOf(atual);
+    const destinoIdx = ordem.indexOf(etapa);
+    // Avanço-chave Triagem → Entrevista: confirma o funil.
     if (atual === 'Triagem' && etapa === 'Entrevista') {
-      openEtapaMove(v, etapa);
+      openEtapaMove(v, etapa, 'funil');
       return;
     }
+    // Retorno (etapa anterior): registra o motivo de desistência.
+    if (atualIdx >= 0 && destinoIdx >= 0 && destinoIdx < atualIdx) {
+      openEtapaMove(v, etapa, 'desistencia');
+      return;
+    }
+    // Demais avanços: move direto.
     await updateVaga(vagaId, { etapa });
   };
 
@@ -2201,50 +2214,63 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         </div>
       )}
 
-      {/* Modal de transição de etapa: confirma o funil (chamou x veio x aprovou) e o motivo de desistência */}
+      {/* Modal de transição de etapa: avanço Triagem→Entrevista pede o funil;
+          retorno (voltar etapa) pede o motivo de desistência. */}
       {etapaMove && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
             <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
-              <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center">
-                <Workflow className="w-5 h-5" />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${etapaMove.tipo === 'desistencia' ? 'bg-rose-100 text-rose-600' : 'bg-orange-100 text-orange-600'}`}>
+                {etapaMove.tipo === 'desistencia' ? <AlertTriangle className="w-5 h-5" /> : <Workflow className="w-5 h-5" />}
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm font-bold text-slate-800">Mover para "{etapaMove.novaEtapa}"</h3>
+                <h3 className="text-sm font-bold text-slate-800">
+                  {etapaMove.tipo === 'desistencia' ? `Voltar para "${etapaMove.novaEtapa}"` : `Mover para "${etapaMove.novaEtapa}"`}
+                </h3>
                 <p className="text-[11px] text-slate-500 font-semibold truncate">#{etapaMove.vaga.codigo} · {etapaMove.vaga.vaga}</p>
               </div>
             </div>
             <div className="p-6 space-y-4">
-              <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Funil de candidatos</p>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label htmlFor="move-chamados" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Chamados</label>
-                    <input id="move-chamados" type="number" min={0} value={moveChamados} onChange={(e) => setMoveChamados(Number(e.target.value))} className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl" />
-                  </div>
-                  <div>
-                    <label htmlFor="move-compareceram" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Compareceram</label>
-                    <input id="move-compareceram" type="number" min={0} value={moveCompareceram} onChange={(e) => setMoveCompareceram(Number(e.target.value))} className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl" />
-                  </div>
-                  <div>
-                    <label htmlFor="move-aprovados" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Aprovados</label>
-                    <input id="move-aprovados" type="number" min={0} value={moveAprovados} onChange={(e) => setMoveAprovados(Number(e.target.value))} className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl" />
+              {etapaMove.tipo === 'funil' ? (
+                <div>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Funil de candidatos</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label htmlFor="move-chamados" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Chamados</label>
+                      <input id="move-chamados" type="number" min={0} value={moveChamados} onChange={(e) => setMoveChamados(Number(e.target.value))} className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl" />
+                    </div>
+                    <div>
+                      <label htmlFor="move-compareceram" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Compareceram</label>
+                      <input id="move-compareceram" type="number" min={0} value={moveCompareceram} onChange={(e) => setMoveCompareceram(Number(e.target.value))} className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl" />
+                    </div>
+                    <div>
+                      <label htmlFor="move-aprovados" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Aprovados</label>
+                      <input id="move-aprovados" type="number" min={0} value={moveAprovados} onChange={(e) => setMoveAprovados(Number(e.target.value))} className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl" />
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div>
-                <label htmlFor="move-motivo" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Motivo de desistência (se algum candidato caiu)</label>
-                <select id="move-motivo" value={moveMotivo} onChange={(e) => setMoveMotivo(e.target.value)} className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl cursor-pointer">
-                  <option value="">— Nenhum / não se aplica —</option>
-                  {MOTIVOS_DESISTENCIA.map((m, i) => (<option key={i} value={m}>{m}</option>))}
-                </select>
-              </div>
+              ) : (
+                <div>
+                  <label htmlFor="move-motivo" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Por que a vaga voltou de etapa?</label>
+                  <select id="move-motivo" value={moveMotivo} onChange={(e) => setMoveMotivo(e.target.value)} className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 focus:outline-none rounded-xl cursor-pointer">
+                    <option value="">— Não se aplica —</option>
+                    {MOTIVOS_DESISTENCIA.map((m, i) => (<option key={i} value={m}>{m}</option>))}
+                  </select>
+                  <p className="text-[11px] text-slate-400 font-medium mt-2 leading-relaxed">Use quando um candidato desistiu/caiu e o processo precisou retroceder.</p>
+                </div>
+              )}
             </div>
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
               <button type="button" onClick={() => setEtapaMove(null)} className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold rounded-xl text-slate-650 transition cursor-pointer">Cancelar</button>
-              <button type="button" onClick={confirmEtapaMove} className="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-xs font-bold rounded-xl text-white shadow-md transition cursor-pointer flex items-center gap-1.5">
-                <ChevronRight className="w-4 h-4" /> Mover
-              </button>
+              {etapaMove.tipo === 'desistencia' ? (
+                <button type="button" onClick={confirmEtapaMove} className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-xs font-bold rounded-xl text-white shadow-md transition cursor-pointer flex items-center gap-1.5">
+                  <ChevronLeft className="w-4 h-4" /> Voltar etapa
+                </button>
+              ) : (
+                <button type="button" onClick={confirmEtapaMove} className="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-xs font-bold rounded-xl text-white shadow-md transition cursor-pointer flex items-center gap-1.5">
+                  <ChevronRight className="w-4 h-4" /> Mover
+                </button>
+              )}
             </div>
           </div>
         </div>
