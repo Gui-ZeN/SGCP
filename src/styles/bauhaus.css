@@ -16,35 +16,40 @@ html[data-theme="bauhaus"] body {
   font-family: 'Archivo', system-ui, sans-serif;
 }
 
-/* Títulos e rótulos fortes viram display condensada (Big Shoulders) */
+/* Display condensada (Big Shoulders) SÓ nos títulos grandes — não em rótulo/badge. */
 html[data-theme="bauhaus"] h1,
-html[data-theme="bauhaus"] h2,
-html[data-theme="bauhaus"] h3,
-html[data-theme="bauhaus"] h4,
-html[data-theme="bauhaus"] .font-black,
-html[data-theme="bauhaus"] .font-extrabold {
+html[data-theme="bauhaus"] h2 {
   font-family: 'Big Shoulders Display', 'Archivo', sans-serif !important;
-  letter-spacing: .015em;
+  letter-spacing: .01em;
 }
 
-/* ===== Geometria: cantos retos + sem sombra (estrutura por borda) ===== */
-html[data-theme="bauhaus"] [class*="rounded"] { border-radius: 0 !important; }
+/* ===== Geometria: cantos retos (mantém círculos) + sem sombra ===== */
+html[data-theme="bauhaus"] .rounded,
+html[data-theme="bauhaus"] .rounded-md,
+html[data-theme="bauhaus"] .rounded-lg,
+html[data-theme="bauhaus"] .rounded-xl,
+html[data-theme="bauhaus"] .rounded-2xl,
+html[data-theme="bauhaus"] .rounded-3xl { border-radius: 0 !important; }
 html[data-theme="bauhaus"] [class*="shadow"] { box-shadow: none !important; }
 
-/* Cartões (rounded-2xl/3xl) ganham borda preta estrutural */
+/* Cartões: borda fina (1px), não 2px; e NUNCA no menu lateral (evita "caixa na caixa"). */
 html[data-theme="bauhaus"] .rounded-2xl,
 html[data-theme="bauhaus"] .rounded-3xl {
-  border: 2px solid #141414 !important;
+  border: 1px solid #141414 !important;
 }
+html[data-theme="bauhaus"] aside .rounded,
+html[data-theme="bauhaus"] aside .rounded-lg,
+html[data-theme="bauhaus"] aside .rounded-xl,
+html[data-theme="bauhaus"] aside .rounded-2xl { border: none !important; }
 
-/* ===== Superfícies ===== */
-html[data-theme="bauhaus"] .bg-slate-50 { background-color: #ECE7D9 !important; }
-html[data-theme="bauhaus"] .bg-white { background-color: #FBFAF6 !important; }
+/* ===== Superfícies: papel firme + cartão branco puro (contraste vem do fundo) ===== */
+html[data-theme="bauhaus"] .bg-slate-50 { background-color: #E7E0CD !important; }
+html[data-theme="bauhaus"] .bg-white { background-color: #FFFFFF !important; }
 html[data-theme="bauhaus"] aside {
-  background-color: #FBFAF6 !important;
-  border-right: 2px solid #141414 !important;
+  background-color: #FFFFFF !important;
+  border-right: 1px solid #141414 !important;
 }
-html[data-theme="bauhaus"] .bg-slate-100 { background-color: #E2DCCB !important; }
+html[data-theme="bauhaus"] .bg-slate-100 { background-color: #E0D9C6 !important; }
 
 /* Blocos escuros viram preto chapado (botões primários, headers escuros) */
 html[data-theme="bauhaus"] .bg-slate-900,
@@ -93,7 +98,7 @@ html[data-theme="bauhaus"] .text-amber-800 { color: #8A6500 !important; }
 html[data-theme="bauhaus"] input,
 html[data-theme="bauhaus"] select,
 html[data-theme="bauhaus"] textarea {
-  border: 2px solid #141414 !important;
+  border: 1px solid #141414 !important;
   border-radius: 0 !important;
 }
 
