@@ -962,6 +962,7 @@ export default function App() {
               userSede={scopedUserSede}
               userRole={selectedRole}
               focusVaga={vagaFocus}
+              logs={logs}
             />
           )}
 

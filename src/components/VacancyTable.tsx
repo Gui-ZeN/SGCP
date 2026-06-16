@@ -7,6 +7,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Vaga, Experiencia } from '../types';
 import { AddVacancyForm } from './AddVacancyForm';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
+import type { SystemLog } from '../hooks/useLogs';
 import { EditVacancyModal } from './EditVacancyModal';
 import { ConcludeVacancyModal } from './ConcludeVacancyModal';
 import { 
@@ -68,6 +69,8 @@ interface VacancyTableProps {
   userRole?: string;
   // Foco vindo do Home (alerta de SLA): filtra a tabela pela vaga (token muda a cada clique).
   focusVaga?: { codigo: string; token: number } | null;
+  // Logs de auditoria (só carregados para admin) — usados na timeline do painel de detalhes.
+  logs?: SystemLog[];
 }
 
 export const VacancyTable: React.FC<VacancyTableProps> = ({ 
@@ -84,7 +87,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   triggerAddModal,
   userSede,
   userRole,
-  focusVaga
+  focusVaga,
+  logs
 }) => {
   const canManageVagas = isAdmin || userRole === 'Analista' || userRole === 'Administrador';
   const getSedeLabel = (nome: string) => {
@@ -1935,6 +1939,35 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                   </p>
                 </div>
               </div>
+
+              {/* Histórico / timeline a partir dos logs (carregados só para admin) */}
+              {logs && logs.length > 0 && (() => {
+                const marca = `#${selectedDetailsVaga.codigo}`;
+                const vagaLogs = logs
+                  .filter(l => l.modulo === 'Vagas' && l.detalhes.includes(marca))
+                  .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                  .slice(0, 12);
+                return (
+                  <div className="space-y-2">
+                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Histórico da Vaga</h4>
+                    {vagaLogs.length === 0 ? (
+                      <p className="text-[11px] text-slate-400 italic">Nenhum registro de alteração para esta vaga.</p>
+                    ) : (
+                      <ul className="space-y-2.5 pt-1">
+                        {vagaLogs.map(l => (
+                          <li key={l.id} className="flex gap-2.5 text-[11px]">
+                            <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${l.acao === 'EXCLUIU' ? 'bg-rose-500' : l.acao === 'CRIOU' ? 'bg-emerald-500' : 'bg-indigo-500'}`} />
+                            <div className="min-w-0">
+                              <p className="text-slate-700 font-semibold leading-snug">{l.detalhes}</p>
+                              <p className="text-[10px] text-slate-400 font-medium mt-0.5">{new Date(l.timestamp).toLocaleString('pt-BR')} · {l.usuario}</p>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })()}
 
             </div>
 
