@@ -215,11 +215,11 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   // --- Vagas Status Chart Data ---
   const statusData = useMemo(() => {
     return [
-      { name: 'Em andamento', value: filteredVagas.filter(v => ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO'].includes(v.status.toUpperCase())).length, color: '#3b82f6' },
-      { name: 'Fechadas', value: filteredVagas.filter(v => v.status.toUpperCase() === 'FECHADA').length, color: '#10b981' },
-      { name: 'Pausadas/Canc', value: filteredVagas.filter(v => ['PAUSADA', 'SUSPENSA'].includes(v.status.toUpperCase())).length, color: '#94a3b8' },
+      { name: 'Em andamento', value: filteredVagas.filter(v => ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO'].includes(v.status.toUpperCase())).length, color: CHART.primary },
+      { name: 'Fechadas', value: filteredVagas.filter(v => v.status.toUpperCase() === 'FECHADA').length, color: CHART.emerald },
+      { name: 'Pausadas/Canc', value: filteredVagas.filter(v => ['PAUSADA', 'SUSPENSA'].includes(v.status.toUpperCase())).length, color: CHART.slate },
     ];
-  }, [filteredVagas]);
+  }, [filteredVagas, theme]);
 
   // --- Vagas por Sede/Unidade (Top 6) ---
   const sedeChartData = useMemo(() => {

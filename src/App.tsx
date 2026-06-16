@@ -614,7 +614,7 @@ export default function App() {
             <div 
               className="w-2 h-2 rounded-full shrink-0 animate-ping" 
               style={{
-                backgroundColor: toast.type === 'error' ? '#ef4444' : toast.type === 'success' ? '#10b981' : toast.type === 'warning' ? '#f97316' : '#3b82f6'
+                backgroundColor: toast.type === 'error' ? '#ef4444' : toast.type === 'success' ? '#10b981' : toast.type === 'warning' ? '#f59e0b' : '#3b82f6'
               }} 
             />
             <div className="flex-1 text-xs font-semibold text-slate-200 leading-normal">
@@ -1089,7 +1089,7 @@ export default function App() {
           <div 
             className="w-2 h-2 rounded-full shrink-0 animate-ping" 
             style={{
-              backgroundColor: toast.type === 'error' ? '#ef4444' : toast.type === 'success' ? '#10b981' : toast.type === 'warning' ? '#f97316' : '#3b82f6'
+              backgroundColor: toast.type === 'error' ? '#ef4444' : toast.type === 'success' ? '#10b981' : toast.type === 'warning' ? '#f59e0b' : '#3b82f6'
             }} 
           />
           <div className="flex-1 text-xs font-semibold text-slate-700 leading-normal">
