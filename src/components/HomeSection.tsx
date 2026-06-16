@@ -1,6 +1,6 @@
 import React from 'react';
 import { Vaga, Treinamento, Experiencia, Entrevista, Turnover } from '../types';
-import { dateFromValue } from '../utils/date';
+import { getDiasEmAberto } from '../utils/vaga';
 import { SLA_META_DIAS } from '../constants/hr';
 import { Sede } from '../hooks/useMetadata';
 import { 
@@ -74,21 +74,7 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
     return 'Boa noite';
   };
 
-  const parseDateDDMMYYYY = (dateStr: string): Date | null => dateFromValue(dateStr);
-
-  const getDiasEmAberto = (vaga: Vaga): number => {
-    if (vaga.status === 'FECHADA') {
-      return vaga.tempoProcesso || 0;
-    }
-    const dateSol = parseDateDDMMYYYY(vaga.solicitacao);
-    if (!dateSol) return 0;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    dateSol.setHours(0, 0, 0, 0);
-    const diffTime = today.getTime() - dateSol.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays < 0 ? 0 : diffDays;
-  };
+  // getDiasEmAberto agora vem de ../utils/vaga (com congelamento de pausa).
 
   const getSedeSigla = (nome: string) => {
     const matched = sedes?.find(s => s.nome.toLowerCase() === nome.toLowerCase());

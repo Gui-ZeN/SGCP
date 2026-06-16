@@ -50,6 +50,7 @@ import {
 } from 'lucide-react';
 import writeXlsxFile from 'write-excel-file/browser';
 import { SLA_META_DIAS, MOTIVOS_DESISTENCIA } from '../constants/hr';
+import { parseDateDDMMYYYY, isPausedOrSuspended, getDiasEmAberto, getSlaInfo, ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa } from '../utils/vaga';
 
 interface VacancyTableProps {
   vagas: Vaga[];
@@ -289,84 +290,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   // 1A. STATE DEFINITIONS FOR THE NEW REFINED COMPLETION DIALOG (UX INTERACTION)
   const [vagaToConclude, setVagaToConclude] = useState<Vaga | null>(null);
 
-  // 1. DATE PARSING & SLA CALCULATION
-  const parseDateDDMMYYYY = (dateStr: string): Date | null => {
-    if (!dateStr) return null;
-    const parts = dateStr.split('/');
-    if (parts.length === 3) {
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      const year = parseInt(parts[2], 10);
-      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
-        return new Date(year, month, day);
-      }
-    }
-    return null;
-  };
-
-  const getDiasEmAberto = (vaga: Vaga): number => {
-    if (vaga.status === 'FECHADA') {
-      return vaga.tempoProcesso || 0;
-    }
-    const dateSol = parseDateDDMMYYYY(vaga.solicitacao);
-    if (!dateSol) return 0;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    dateSol.setHours(0, 0, 0, 0);
-    let diffDays = Math.floor((today.getTime() - dateSol.getTime()) / 86400000);
-    // Congela o SLA durante pausas: desconta o que já ficou pausado + a pausa atual.
-    diffDays -= (vaga.diasPausados || 0);
-    if (isPausedOrSuspended(vaga.status) && vaga.pausadaDesde) {
-      const ini = new Date(vaga.pausadaDesde);
-      if (!isNaN(ini.getTime())) {
-        ini.setHours(0, 0, 0, 0);
-        diffDays -= Math.max(0, Math.floor((today.getTime() - ini.getTime()) / 86400000));
-      }
-    }
-    return diffDays < 0 ? 0 : diffDays;
-  };
-
-  const isPausedOrSuspended = (status?: string) => ['PAUSADA', 'SUSPENSA'].includes((status || '').toUpperCase());
-
-  // ===== Kanban "Por etapa" (visão alternativa) =====
-  // Funil fixo de etapas (as colunas do board novo).
-  const ETAPAS_FUNIL = ['Triagem', 'Entrevista', 'Testes', 'Documentação', 'Aguardando admissão'] as const;
-
-  // Mapeia a etapa (texto livre nas vagas antigas) para uma etapa do funil,
-  // para que dados existentes caiam na coluna certa sem migração manual.
-  const normalizeEtapa = (vaga: Vaga): string => {
-    if (vaga.status === 'DOCUMENTAÇÃO') return 'Documentação';
-    const e = (vaga.etapa || '').toLowerCase();
-    if (e.includes('admiss')) return 'Aguardando admissão';
-    if (e.includes('doc') || e.includes('exame') || e.includes('contrat') || e.includes('carteira')) return 'Documentação';
-    if (e.includes('teste') || e.includes('psico') || e.includes('avalia')) return 'Testes';
-    if (e.includes('entrevista')) return 'Entrevista';
-    return 'Triagem';
-  };
-
-  // Dias na etapa atual. Usa etapaDesde quando existe; senão, cai no tempo total
-  // em aberto (vagas antigas ainda não têm a data por etapa).
-  const diasNestaEtapa = (vaga: Vaga): number => {
-    if (vaga.etapaDesde) {
-      const d = new Date(vaga.etapaDesde);
-      if (!isNaN(d.getTime())) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        d.setHours(0, 0, 0, 0);
-        let dias = Math.floor((today.getTime() - d.getTime()) / 86400000);
-        // Congela enquanto pausada: desconta a pausa atual.
-        if (isPausedOrSuspended(vaga.status) && vaga.pausadaDesde) {
-          const ini = new Date(vaga.pausadaDesde);
-          if (!isNaN(ini.getTime())) {
-            ini.setHours(0, 0, 0, 0);
-            dias -= Math.max(0, Math.floor((today.getTime() - ini.getTime()) / 86400000));
-          }
-        }
-        return Math.max(0, dias);
-      }
-    }
-    return getDiasEmAberto(vaga);
-  };
+  // parseDateDDMMYYYY, getDiasEmAberto, isPausedOrSuspended, ETAPAS_FUNIL,
+  // normalizeEtapa, diasNestaEtapa e getSlaInfo agora vêm de ../utils/vaga.
 
   // Arrastar entre colunas no board por etapa. Só a transição Triagem → Entrevista
   // abre o modal de funil (chamou x veio x aprovou + motivo de desistência); as
@@ -391,48 +316,6 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     }
     // Demais avanços: move direto.
     await updateVaga(vagaId, { etapa });
-  };
-
-  const getSlaInfo = (days: number, isClosed: boolean, isPaused = false) => {
-    if (isPaused) {
-      return {
-        label: 'SLA Pausado',
-        color: 'text-slate-600 bg-slate-100 border-slate-200',
-        bullet: 'bg-slate-400',
-        progressBar: 'bg-slate-300',
-        percent: Math.min(100, Math.max(8, (days / 30) * 100)),
-        desc: 'Processo temporariamente paralisado; SLA sem alerta ativo.'
-      };
-    }
-
-    if (days <= 10) {
-      return { 
-        label: 'SLA Regular', 
-        color: 'text-emerald-700 bg-emerald-50 border-emerald-200', 
-        bullet: 'bg-emerald-500',
-        progressBar: 'bg-emerald-500', 
-        percent: Math.min(100, (days / 15) * 100),
-        desc: isClosed ? 'Processo rápido' : 'Vaga recente, sem riscos de SLA.'
-      };
-    } else if (days <= SLA_META_DIAS) {
-      return {
-        label: 'SLA Alerta',
-        color: 'text-amber-700 bg-amber-50 border-amber-200',
-        bullet: 'bg-amber-500',
-        progressBar: 'bg-amber-500',
-        percent: Math.min(100, (days / SLA_META_DIAS) * 100),
-        desc: isClosed ? 'Preenchida no limite' : 'Processo correndo no tempo limite.'
-      };
-    } else {
-      return { 
-        label: 'SLA Crítico', 
-        color: 'text-rose-700 bg-rose-50 border-rose-200', 
-        bullet: 'bg-rose-500',
-        progressBar: 'bg-rose-500', 
-        percent: 100,
-        desc: isClosed ? 'Excedeu tempo ideal' : 'Tempo crítico! Esta vaga necessita atenção urgente.'
-      };
-    }
   };
 
   // 1B. DIALOG HANDLERS TO REMOVE BROWSER PROMPTS (UPGRADING RECRUITER EXPERIENCE)
