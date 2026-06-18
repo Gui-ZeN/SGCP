@@ -106,13 +106,22 @@ service cloud.firestore {
     // do usuário corrente (src/hooks/useMetadata.ts). Escrita só de admin.
     match /usuarios/{email} {
       allow read: if isAppUser();
-      allow create, update: if isAdmin() && isValidUsuario();
-      allow delete: if isAdmin();
+      // Coordenador gerencia usuários do Colégio, mas NUNCA mexe em Administrador
+      // (não cria, não promove, não edita/exclui admin) — evita escalonar privilégio.
+      // A restrição por região fica no app (usuario.sede é nome; as regras não
+      // conseguem cruzar nome→região sem query).
+      allow create: if (isAdmin() || (isCoordenador() && incoming().role != 'Administrador')) && isValidUsuario();
+      allow update: if (isAdmin() || (isCoordenador() && incoming().role != 'Administrador' && existing().role != 'Administrador')) && isValidUsuario();
+      allow delete: if isAdmin() || (isCoordenador() && existing().role != 'Administrador');
     }
 
     match /sedes/{sedeId} {
       allow read: if isAppUser();
-      allow write: if isAdmin();
+      // Coordenador gerencia sedes do Colégio (região != Universidade). A região
+      // está no próprio documento, então aqui a trava por unidade é de verdade (servidor).
+      allow create: if isAdmin() || (isCoordenador() && incoming().regiao != 'Universidade');
+      allow update: if isAdmin() || (isCoordenador() && existing().regiao != 'Universidade' && incoming().regiao != 'Universidade');
+      allow delete: if isAdmin() || (isCoordenador() && existing().regiao != 'Universidade');
     }
 
     match /regioes/{regiaoId} {

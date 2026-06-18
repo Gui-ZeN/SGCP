@@ -30,6 +30,7 @@ const ADMIN_EMAIL = "guizen2006@gmail.com";
 const ANALISTA_EMAIL = "analista@empresa.com";
 const ADMIN_DOC_EMAIL = "chefe@empresa.com";
 const VIEWER_EMAIL = "viewer@empresa.com";
+const COORDENADOR_EMAIL = "coord@empresa.com";
 const STRANGER_EMAIL = "fulano@empresa.com"; // verificado, mas sem registro
 
 let testEnv;
@@ -65,10 +66,16 @@ async function seed() {
       role: "Visualizador",
       sede: "",
     });
+    await setDoc(doc(db, "usuarios", COORDENADOR_EMAIL), {
+      email: COORDENADOR_EMAIL,
+      role: "Coordenador",
+      sede: "DT",
+    });
     // dados existentes para testes de leitura/update
     await setDoc(doc(db, "vagas", "v1"), { codigo: 1001, vaga: "Dev", status: "ABERTA" });
     await setDoc(doc(db, "entrevistas", "e1"), { codigo: 301, colaborador: "X", dataEntrevista: "01/01/2026" });
     await setDoc(doc(db, "sedes", "s1"), { nome: "DT", regiao: "Sudeste" });
+    await setDoc(doc(db, "sedes", "sUni"), { nome: "PE", regiao: "Universidade" });
     await setDoc(doc(db, "logs", "l1"), { timestamp: "t", usuario: "x", acao: "CRIOU", modulo: "Vagas", detalhes: "d" });
   });
 }
@@ -140,6 +147,28 @@ test("usuarios: admin pode gravar role Coordenador", () =>
 
 test("usuarios: admin NÃO pode gravar role inválido", () =>
   assertFails(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "novo4@empresa.com"), { email: "novo4@empresa.com", role: "Hacker", sede: "DT" })));
+
+// --- Coordenador (admin regional do Colégio) ---
+test("usuarios: coordenador PODE criar Analista", () =>
+  assertSucceeds(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "usuarios", "novoana@empresa.com"), { email: "novoana@empresa.com", role: "Analista", sede: "DT" })));
+
+test("usuarios: coordenador NÃO pode criar Administrador (sem escalonar)", () =>
+  assertFails(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "usuarios", "novoadm@empresa.com"), { email: "novoadm@empresa.com", role: "Administrador", sede: "DT" })));
+
+test("usuarios: coordenador NÃO pode editar um Administrador", () =>
+  assertFails(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "usuarios", ADMIN_DOC_EMAIL), { email: ADMIN_DOC_EMAIL, role: "Analista", sede: "DT" })));
+
+test("sedes: coordenador PODE criar sede do Colégio", () =>
+  assertSucceeds(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "sedes", "sNova"), { nome: "Nova", regiao: "Sul" })));
+
+test("sedes: coordenador NÃO pode criar sede da Universidade", () =>
+  assertFails(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "sedes", "sUni2"), { nome: "Campus", regiao: "Universidade" })));
+
+test("sedes: coordenador NÃO pode excluir sede da Universidade", () =>
+  assertFails(deleteDoc(doc(ctx.user(COORDENADOR_EMAIL), "sedes", "sUni"))));
+
+test("sedes: coordenador NÃO pode criar/editar Cargos (cadastro global)", () =>
+  assertFails(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "cargos", "c99"), { nome: "X" })));
 
 test("usuarios: leitura por usuário verificado é permitida", () =>
   assertSucceeds(getDoc(doc(ctx.user(ANALISTA_EMAIL), "usuarios", ANALISTA_EMAIL))));
