@@ -167,10 +167,26 @@ function normChave_(s) {
   return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
 }
 
+/**
+ * Apelidos específicos da planilha que NÃO são o nome nem a sigla do sistema.
+ * (descobertos pelos avisos "Sede sem correspondencia" no log). Valor = NOME canônico.
+ */
+var SEDE_APELIDOS = {
+  'PQL': 'PARQUELANDIA 3',   // Parquelândia da Universidade
+  'CESIU': 'ALDEOTA',
+  'CVU': 'ALDEOTA'
+};
+
 /** Retorna o NOME canônico da sede, ou null se não encontrar correspondência. */
 function resolverSede_(valor) {
   const n = normChave_(valor);
   if (!n) return null;
+  // 1) apelidos próprios da planilha
+  const apelidos = Object.keys(SEDE_APELIDOS);
+  for (let a = 0; a < apelidos.length; a++) {
+    if (normChave_(apelidos[a]) === n) return SEDE_APELIDOS[apelidos[a]];
+  }
+  // 2) nome ou sigla do sistema
   for (let i = 0; i < SEDES_SISTEMA.length; i++) {
     const s = SEDES_SISTEMA[i];
     if (normChave_(s.nome) === n || (s.sigla !== '-' && normChave_(s.sigla) === n)) return s.nome;
