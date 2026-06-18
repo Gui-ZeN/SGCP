@@ -14,11 +14,13 @@
  *
  * ───────────────── CONFIGURAÇÃO (faça uma vez) ─────────────────
  * 1) Propriedades do Script (Projeto ▸ Configurações ▸ Propriedades do script):
- *      GCP_PROJECT_ID   = id do projeto Firebase (ex.: project-312a1a63)
- *      SA_CLIENT_EMAIL  = e-mail da conta de serviço (…@….iam.gserviceaccount.com)
- *      SA_PRIVATE_KEY   = a private key da conta de serviço (com as quebras de linha)
- *    A conta de serviço precisa do papel "Cloud Datastore User" (leitura+ESCRITA)
- *    no IAM do projeto. (A de Absenteísmo hoje só tem Viewer = leitura.)
+ *      GCP_PROJECT_ID = id do projeto Firebase (ex.: project-312a1a63-…)
+ *      FIRESTORE_DB   = id do banco Firestore (ex.: ai-studio-… ; omita p/ "(default)")
+ *      SA_EMAIL       = e-mail da conta de serviço (…@….iam.gserviceaccount.com)
+ *      SA_PRIVATE_KEY = a private key DESSA MESMA conta de serviço (com \n)
+ *    IMPORTANTE: SA_EMAIL, SA_PRIVATE_KEY e o papel IAM têm que ser a MESMA conta,
+ *    no MESMO projeto do Firestore (GCP_PROJECT_ID). Ela precisa do papel
+ *    "Usuário do Cloud Datastore" (leitura+ESCRITA) no IAM desse projeto.
  * 2) Ajuste as constantes CONFIG abaixo (ID da planilha, aba, sede).
  * 3) Rode instalarGatilho() uma vez para agendar a sincronização de hora em hora.
  * 4) Rode sincronizarVagasUniversidade() manualmente para o primeiro espelho.
@@ -131,8 +133,10 @@ function hashCodigo_(str) {
 /* ───────────────── Firestore REST ───────────────── */
 
 function baseUrl_() {
-  const pid = PropertiesService.getScriptProperties().getProperty('GCP_PROJECT_ID');
-  return 'https://firestore.googleapis.com/v1/projects/' + pid + '/databases/(default)/documents';
+  const props = PropertiesService.getScriptProperties();
+  const pid = props.getProperty('GCP_PROJECT_ID');
+  const dbId = props.getProperty('FIRESTORE_DB') || '(default)'; // suporta banco nomeado (ex.: ai-studio-...)
+  return 'https://firestore.googleapis.com/v1/projects/' + pid + '/databases/' + dbId + '/documents';
 }
 
 function upsertVaga_(token, vaga) {
@@ -205,7 +209,7 @@ function encodarValor_(v) {
 
 function obterTokenAcesso_() {
   const props = PropertiesService.getScriptProperties();
-  const email = props.getProperty('SA_CLIENT_EMAIL');
+  const email = props.getProperty('SA_EMAIL') || props.getProperty('SA_CLIENT_EMAIL');
   const key = (props.getProperty('SA_PRIVATE_KEY') || '').replace(/\\n/g, '\n');
   const now = Math.floor(Date.now() / 1000);
 
