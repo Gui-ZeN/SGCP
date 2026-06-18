@@ -88,7 +88,12 @@ function lerLinhasDaPlanilha_() {
     const solicitante = limpar_(col(linha, 'Solicitante'));
     if (!cargo || !solicitante) continue;               // ignora linhas sem cargo/solicitante
 
-    const sede = limpar_(col(linha, 'Sede')) || 'Universidade';
+    const sedeRaw = limpar_(col(linha, 'Sede'));
+    let sede = resolverSede_(sedeRaw); // converte o rótulo da planilha → nome do sistema
+    if (sede === null) {
+      Logger.log('Sede sem correspondencia no sistema: "' + sedeRaw + '" (linha ' + (i + 1) + ') — mantida como veio.');
+      sede = sedeRaw || 'Universidade';
+    }
     const solicitacao = col(linha, 'Solicitação');
     const conclusao = col(linha, 'Conclusão');
     const motivo = limpar_(col(linha, 'Motivo'));
@@ -128,6 +133,49 @@ function hashCodigo_(str) {
   let h = 5381;
   for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) & 0x7fffffff;
   return h;
+}
+
+/**
+ * Conversão do rótulo de sede da planilha → NOME canônico da sede no sistema.
+ * A planilha usa rótulos próprios (ex.: "PE", "Dom Luís"); o sistema espera o
+ * nome (ex.: "PARQUE ECOLÓGICO", "DOM LUÍS"). Casa por NOME ou SIGLA, ignorando
+ * maiúsculas/acentos/espaços. Mantenha esta tabela em sincronia com o Painel Admin.
+ */
+var SEDES_SISTEMA = [
+  { nome: 'BENFICA', sigla: 'BN' },
+  { nome: 'PARQUELANDIA 1', sigla: 'PQL 1' },
+  { nome: 'SUL 3', sigla: 'SUL 3' },
+  { nome: 'DOM LUÍS', sigla: 'DL' },
+  { nome: 'EQUIPE D.VALERIA', sigla: 'EDV' },
+  { nome: 'DIONISIO TORRES', sigla: 'DT' },
+  { nome: 'PARQUE ECOLÓGICO', sigla: 'PE' },
+  { nome: 'SUL 2', sigla: 'SUL 2' },
+  { nome: 'SUL', sigla: 'SUL 1' },
+  { nome: 'EUSEBIO', sigla: 'EUS' },
+  { nome: 'PRE NUNES', sigla: 'PN' },
+  { nome: 'BARAO STUADART', sigla: 'BS' },
+  { nome: 'PRE JOVITA', sigla: 'PJV' },
+  { nome: 'ALDEOTA', sigla: 'ALD' },
+  { nome: 'SILVA PAULET', sigla: 'SP' },
+  { nome: 'PARQUELANDIA 2', sigla: 'PQL 2' },
+  { nome: 'PARQUELANDIA 3', sigla: 'PQL 3' },
+  { nome: 'PRE SUL', sigla: 'PSUL' },
+  { nome: 'Construtora', sigla: '-' }
+];
+
+function normChave_(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+/** Retorna o NOME canônico da sede, ou null se não encontrar correspondência. */
+function resolverSede_(valor) {
+  const n = normChave_(valor);
+  if (!n) return null;
+  for (let i = 0; i < SEDES_SISTEMA.length; i++) {
+    const s = SEDES_SISTEMA[i];
+    if (normChave_(s.nome) === n || (s.sigla !== '-' && normChave_(s.sigla) === n)) return s.nome;
+  }
+  return null;
 }
 
 /* ───────────────── Firestore REST ───────────────── */
