@@ -141,9 +141,12 @@ export default function App() {
   // planilha, ou sede em região "Universidade") só aparecem para quem é da Universidade.
   // Como o resto do sistema (dashboard, SLA, Home) consome ESTA lista, ninguém de fora
   // vê — nem entra na conta — as vagas da outra unidade. Administrador vê tudo (gestão).
+  // Isolamento por UNIDADE (Colégio × Universidade) — vale para todos os não-admin,
+  // inclusive o Coordenador. As 5 regiões do Colégio se enxergam entre si; só a
+  // Universidade é separada. (A única coisa "Universidade" são as vagas da planilha;
+  // por isso o corte é só nas vagas — treinos/experiências/entrevistas são todos Colégio.)
   const scopedVagas = useMemo(() => {
     if (selectedRole === 'Administrador') return vagas;
-    if (isCoord) return vagas.filter(v => regiaoDe(v.sede) === userRegiao); // só a região do coordenador (exclui Universidade)
     const isUniSede = (nome?: string) => {
       const s = sedes.find(x => (x.nome || '').toLowerCase() === (nome || '').toLowerCase());
       return (s?.regiao || '').toLowerCase() === 'universidade';
@@ -153,14 +156,6 @@ export default function App() {
       (((v.origem || '').indexOf('planilha-universidade') === 0) || isUniSede(v.sede)) === usuarioEhUni
     );
   }, [vagas, sedes, selectedSede, selectedRole]);
-
-  // Demais módulos escopados à região do Coordenador (turnover é agregado, sem sede → fica global).
-  // Registros sem sede/unidade NÃO são escondidos (evita sumir dado por campo em branco).
-  const naRegiaoCoord = (nome?: string) => !isCoord || !nome || regiaoDe(nome) === userRegiao;
-  const scopedTreinamentos = useMemo(() => treinamentos.filter(t => naRegiaoCoord((t as any).unidade)), [treinamentos, isCoord, userRegiao, sedes]);
-  const scopedExperiencias = useMemo(() => experiencias.filter(e => naRegiaoCoord((e as any).sede)), [experiencias, isCoord, userRegiao, sedes]);
-  const scopedEntrevistas = useMemo(() => entrevistas.filter(e => naRegiaoCoord((e as any).unidade)), [entrevistas, isCoord, userRegiao, sedes]);
-  const scopedLogs = useMemo(() => isCoord ? logs.filter(l => ((l as any).regiao || '') === userRegiao) : logs, [logs, isCoord, userRegiao]);
 
   // Custom global confirmation modal & loading state
   const [globalLoading, setGlobalLoading] = useState<string | null>(null);
@@ -971,9 +966,9 @@ export default function App() {
           {activeTab === 'home' && (
             <HomeSection
               vagas={scopedVagas}
-              treinamentos={scopedTreinamentos}
-              experiencias={scopedExperiencias}
-              entrevistas={scopedEntrevistas}
+              treinamentos={treinamentos}
+              experiencias={experiencias}
+              entrevistas={entrevistas}
               turnover={turnover}
               setActiveTab={setActiveTab}
               onFocusVaga={handleFocusVaga}
@@ -987,9 +982,9 @@ export default function App() {
           {activeTab === 'dashboard' && (
             <RecruitmentDashboard 
               vagas={scopedVagas} 
-              treinamentos={scopedTreinamentos} 
-              experiencias={scopedExperiencias}
-              entrevistas={scopedEntrevistas}
+              treinamentos={treinamentos} 
+              experiencias={experiencias}
+              entrevistas={entrevistas}
               turnover={turnover}
               sedes={sedes}
               userSede={scopedUserSede}
@@ -1012,13 +1007,13 @@ export default function App() {
               userSede={scopedUserSede}
               userRole={selectedRole}
               focusVaga={vagaFocus}
-              logs={scopedLogs}
+              logs={logs}
             />
           )}
 
           {activeTab === 'treinamentos' && (
             <TreinamentosSection 
-              treinamentos={scopedTreinamentos} 
+              treinamentos={treinamentos} 
               addTreinamento={wrappedAddTreinamento} 
               updateTreinamento={wrappedUpdateTreinamento}
               deleteTreinamento={wrappedDeleteTreinamento}
@@ -1032,7 +1027,7 @@ export default function App() {
 
           {activeTab === 'experiencias' && (
             <ExperienciasSection 
-              experiencias={scopedExperiencias} 
+              experiencias={experiencias} 
               addExperiencia={wrappedAddExperiencia} 
               updateExperiencia={wrappedUpdateExperiencia} 
               deleteExperiencia={wrappedDeleteExperiencia}
@@ -1047,7 +1042,7 @@ export default function App() {
 
           {activeTab === 'entrevistas' && (
             <EntrevistasSection 
-              entrevistas={scopedEntrevistas} 
+              entrevistas={entrevistas} 
               addEntrevista={wrappedAddEntrevista} 
               updateEntrevista={wrappedUpdateEntrevista}
               deleteEntrevista={wrappedDeleteEntrevista}
