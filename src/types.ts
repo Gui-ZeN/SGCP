@@ -36,6 +36,7 @@ export interface Vaga {
   candCompareceram?: number;
   candAprovados?: number;
   motivoDesistencia?: string; // Motivo padronizado de desistência (lista fixa)
+  origem?: string; // Fonte do registro. Ex.: 'planilha-universidade' (sincronizado de planilha externa; somente-leitura no SGCP). Vazio/ausente = criado no próprio sistema.
 }
 
 export interface Treinamento {
