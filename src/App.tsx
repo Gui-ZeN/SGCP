@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useVagas } from './hooks/useVagas';
 import { AddVacancyForm } from './components/AddVacancyForm';
 import { HomeSection } from './components/HomeSection';
@@ -131,6 +131,22 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'admin'>('home');
   const scopedUserSede = isViewer ? '' : selectedSede;
   const canManageModules = !isViewer;
+
+  // Isolamento por unidade (Colégio × Universidade): vagas da Universidade (origem da
+  // planilha, ou sede em região "Universidade") só aparecem para quem é da Universidade.
+  // Como o resto do sistema (dashboard, SLA, Home) consome ESTA lista, ninguém de fora
+  // vê — nem entra na conta — as vagas da outra unidade. Administrador vê tudo (gestão).
+  const scopedVagas = useMemo(() => {
+    if (selectedRole === 'Administrador') return vagas;
+    const isUniSede = (nome?: string) => {
+      const s = sedes.find(x => (x.nome || '').toLowerCase() === (nome || '').toLowerCase());
+      return (s?.regiao || '').toLowerCase() === 'universidade';
+    };
+    const usuarioEhUni = isUniSede(selectedSede);
+    return vagas.filter(v =>
+      (((v.origem || '').indexOf('planilha-universidade') === 0) || isUniSede(v.sede)) === usuarioEhUni
+    );
+  }, [vagas, sedes, selectedSede, selectedRole]);
 
   // Custom global confirmation modal & loading state
   const [globalLoading, setGlobalLoading] = useState<string | null>(null);
@@ -940,7 +956,7 @@ export default function App() {
           <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-7 h-7 text-indigo-600 animate-spin" /></div>}>
           {activeTab === 'home' && (
             <HomeSection
-              vagas={vagas}
+              vagas={scopedVagas}
               treinamentos={treinamentos}
               experiencias={experiencias}
               entrevistas={entrevistas}
@@ -956,7 +972,7 @@ export default function App() {
 
           {activeTab === 'dashboard' && (
             <RecruitmentDashboard 
-              vagas={vagas} 
+              vagas={scopedVagas} 
               treinamentos={treinamentos} 
               experiencias={experiencias}
               entrevistas={entrevistas}
@@ -969,7 +985,7 @@ export default function App() {
           
           {activeTab === 'vagas' && (
             <VacancyTable 
-              vagas={vagas} 
+              vagas={scopedVagas} 
               updateVaga={wrappedUpdateVaga} 
               deleteVaga={wrappedDeleteVaga} 
               addVaga={wrappedAddVaga}

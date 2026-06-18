@@ -26,9 +26,8 @@
 
 const CONFIG = {
   PLANILHA_ID: 'COLE_AQUI_O_ID_DA_PLANILHA', // da URL: .../d/<ESTE_ID>/edit
-  ABA: 'Controle de Vagas',                  // mesma aba do import do SGCP
-  SEDE_UNIVERSIDADE: 'Universidade',         // sede que pertence à região "Universidade" (cadastre no Painel Admin)
-  ORIGEM: 'planilha-universidade'            // etiqueta de origem (separa + marca como somente-leitura)
+  ABA: 'Página1',                            // nome da aba (se não achar, usa a primeira)
+  ORIGEM: 'planilha-universidade'            // etiqueta de origem (separa Universidade + marca como somente-leitura)
 };
 
 /** Ponto de entrada — chamado pelo gatilho de hora em hora. */
@@ -70,47 +69,63 @@ function instalarGatilho() {
 /* ───────────────── Leitura da planilha ───────────────── */
 
 function lerLinhasDaPlanilha_() {
-  const aba = SpreadsheetApp.openById(CONFIG.PLANILHA_ID).getSheetByName(CONFIG.ABA);
-  if (!aba) throw new Error('Aba não encontrada: ' + CONFIG.ABA);
+  const planilha = SpreadsheetApp.openById(CONFIG.PLANILHA_ID);
+  const aba = planilha.getSheetByName(CONFIG.ABA) || planilha.getSheets()[0]; // fallback: primeira aba
+  if (!aba) throw new Error('Planilha sem abas.');
   const dados = aba.getDataRange().getValues();
   if (dados.length < 2) return [];
 
+  // normalizar_ colapsa espaços/quebras de linha (o cabeçalho "Tempo \ndo processo" tem \n)
   const cab = dados[0].map(function (h) { return normalizar_(h); });
   const col = function (linha, nome) { const i = cab.indexOf(normalizar_(nome)); return i < 0 ? '' : linha[i]; };
 
   const out = [];
   for (let i = 1; i < dados.length; i++) {
     const linha = dados[i];
-    const vaga = limpar_(col(linha, 'Vaga'));
+    const cargo = limpar_(col(linha, 'Cargo'));         // a planilha usa "Cargo" (não "Vaga")
     const solicitante = limpar_(col(linha, 'Solicitante'));
-    if (!vaga || !solicitante) continue; // ignora linhas sem cargo/solicitante (igual ao import)
+    if (!cargo || !solicitante) continue;               // ignora linhas sem cargo/solicitante
 
+    const sede = limpar_(col(linha, 'Sede')) || 'Universidade';
     const solicitacao = col(linha, 'Solicitação');
     const conclusao = col(linha, 'Conclusão');
     const motivo = limpar_(col(linha, 'Motivo'));
+    const substituido = limpar_(col(linha, 'Funcionário a ser substituído'));
+
+    // Sem coluna "Código" → id estável por hash do conteúdo natural (não embaralha se reordenar).
+    const codigo = hashCodigo_([cargo, sede, dataBR_(solicitacao), solicitante, substituido].join('|'));
 
     out.push({
-      codigo: Math.trunc(numero_(col(linha, 'Código'), 1000 + i)),
-      vaga: vaga,
-      sede: CONFIG.SEDE_UNIVERSIDADE,                 // força a sede da Universidade (garante a separação por região)
+      codigo: codigo,
+      vaga: cargo,
+      sede: sede,                                        // mantém o campus real (PE, Dom Luís, Eusébio…)
       status: normalizarStatus_(col(linha, 'Status')),
       setor: limpar_(col(linha, 'Setor')) || 'Geral',
+      sexo: (function () { const s = normalizar_(col(linha, 'Sexo')); return s.indexOf('femin') >= 0 ? 'FEMININO' : s.indexOf('mascul') >= 0 ? 'MASCULINO' : 'INDIFERENTE'; })(),
       solicitacao: dataBR_(solicitacao) || dataBR_(new Date()),
       solicitante: solicitante,
       motivo: motivo,
-      funcionarioSubstituido: limpar_(col(linha, 'Funcionário a ser substituído')),
+      funcionarioSubstituido: substituido,
+      etapa: limpar_(col(linha, 'Etapa')),
       aprovado: limpar_(col(linha, 'Aprovado')),
-      observacoes: limpar_(col(linha, 'Observações')),
+      observacoes: limpar_(col(linha, 'Observação')),   // singular na planilha
       responsavel: limpar_(col(linha, 'Responsável')) || 'RH Universidade',
       conclusao: dataBR_(conclusao),
       tempoProcesso: numero_(col(linha, 'Tempo do processo'), 0),
       categoria: 'Universidade',
       ano: anoDe_(solicitacao),
-      categoriaMotivo: motivo.toLowerCase().indexOf('aumento') >= 0 ? 'Aumento de Quadro' : 'Substituição',
+      categoriaMotivo: motivo.toLowerCase().indexOf('amplia') >= 0 || motivo.toLowerCase().indexOf('aumento') >= 0 ? 'Aumento de Quadro' : 'Substituição',
       origem: CONFIG.ORIGEM
     });
   }
   return out;
+}
+
+/** Hash estável (DJB2) → inteiro positivo, usado como código/id (uni-<código>). */
+function hashCodigo_(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) & 0x7fffffff;
+  return h;
 }
 
 /* ───────────────── Firestore REST ───────────────── */
@@ -221,7 +236,7 @@ function base64url_(input) {
 
 /* ───────────────── helpers de formatação ───────────────── */
 
-function normalizar_(s) { return String(s || '').trim().toLowerCase(); }
+function normalizar_(s) { return String(s || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
 function limpar_(s) { return String(s == null ? '' : s).trim(); }
 function numero_(v, padrao) { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? (padrao || 0) : n; }
 function anoDe_(v) { const d = (v instanceof Date) ? v : new Date(v); return isNaN(d.getTime()) ? new Date().getFullYear() : d.getFullYear(); }
