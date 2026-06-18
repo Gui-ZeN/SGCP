@@ -59,7 +59,12 @@ service cloud.firestore {
     // (espelha a tela de "não autorizado" do app para contas não cadastradas).
     function isEditor() {
       return isAdmin()
-        || (isRegistered() && roleOf() in ['Administrador', 'Analista']);
+        || (isRegistered() && roleOf() in ['Administrador', 'Coordenador', 'Analista']);
+    }
+
+    // Coordenador: admin regional. Pode ler logs (o escopo por região é aplicado no app).
+    function isCoordenador() {
+      return isRegistered() && roleOf() == "Coordenador";
     }
 
     // Usuário do app: verificado E provisionado (admin bootstrap ou cadastrado
@@ -164,7 +169,8 @@ service cloud.firestore {
     //  preservar a integridade da trilha de auditoria.
     // =====================================================================
     match /logs/{logId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || isCoordenador(); // Coordenador lê logs; o filtro por região é no app
+
       allow create: if isEditor()
         && incoming().usuario is string
         && incoming().acao in ['CRIOU', 'ALTEROU', 'EXCLUIU', 'SINALIZOU'];

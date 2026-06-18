@@ -126,7 +126,12 @@ export default function App() {
     deleteTurnover
   } = useOperationalModules(user);
 
-  const { logs, logAction } = useLogs(user, isAdmin);
+  // Coordenador = admin regional: o escopo dele é a REGIÃO da sede a que está vinculado.
+  const isCoord = selectedRole === 'Coordenador';
+  const regiaoDe = (nome?: string) => (sedes.find(s => (s.nome || '').toLowerCase() === String(nome || '').toLowerCase())?.regiao || '');
+  const userRegiao = regiaoDe(selectedSede);
+
+  const { logs, logAction } = useLogs(user, isAdmin || isCoord, userRegiao);
 
   const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'admin'>('home');
   const scopedUserSede = isViewer ? '' : selectedSede;
@@ -138,6 +143,7 @@ export default function App() {
   // vê — nem entra na conta — as vagas da outra unidade. Administrador vê tudo (gestão).
   const scopedVagas = useMemo(() => {
     if (selectedRole === 'Administrador') return vagas;
+    if (isCoord) return vagas.filter(v => regiaoDe(v.sede) === userRegiao); // só a região do coordenador (exclui Universidade)
     const isUniSede = (nome?: string) => {
       const s = sedes.find(x => (x.nome || '').toLowerCase() === (nome || '').toLowerCase());
       return (s?.regiao || '').toLowerCase() === 'universidade';
@@ -147,6 +153,14 @@ export default function App() {
       (((v.origem || '').indexOf('planilha-universidade') === 0) || isUniSede(v.sede)) === usuarioEhUni
     );
   }, [vagas, sedes, selectedSede, selectedRole]);
+
+  // Demais módulos escopados à região do Coordenador (turnover é agregado, sem sede → fica global).
+  // Registros sem sede/unidade NÃO são escondidos (evita sumir dado por campo em branco).
+  const naRegiaoCoord = (nome?: string) => !isCoord || !nome || regiaoDe(nome) === userRegiao;
+  const scopedTreinamentos = useMemo(() => treinamentos.filter(t => naRegiaoCoord((t as any).unidade)), [treinamentos, isCoord, userRegiao, sedes]);
+  const scopedExperiencias = useMemo(() => experiencias.filter(e => naRegiaoCoord((e as any).sede)), [experiencias, isCoord, userRegiao, sedes]);
+  const scopedEntrevistas = useMemo(() => entrevistas.filter(e => naRegiaoCoord((e as any).unidade)), [entrevistas, isCoord, userRegiao, sedes]);
+  const scopedLogs = useMemo(() => isCoord ? logs.filter(l => ((l as any).regiao || '') === userRegiao) : logs, [logs, isCoord, userRegiao]);
 
   // Custom global confirmation modal & loading state
   const [globalLoading, setGlobalLoading] = useState<string | null>(null);
@@ -957,29 +971,29 @@ export default function App() {
           {activeTab === 'home' && (
             <HomeSection
               vagas={scopedVagas}
-              treinamentos={treinamentos}
-              experiencias={experiencias}
-              entrevistas={entrevistas}
+              treinamentos={scopedTreinamentos}
+              experiencias={scopedExperiencias}
+              entrevistas={scopedEntrevistas}
               turnover={turnover}
               setActiveTab={setActiveTab}
               onFocusVaga={handleFocusVaga}
               userName={user?.displayName}
               sedes={sedes}
               userSede={scopedUserSede}
-              isAdmin={isAdmin}
+              isAdmin={isAdmin || isCoord}
             />
           )}
 
           {activeTab === 'dashboard' && (
             <RecruitmentDashboard 
               vagas={scopedVagas} 
-              treinamentos={treinamentos} 
-              experiencias={experiencias}
-              entrevistas={entrevistas}
+              treinamentos={scopedTreinamentos} 
+              experiencias={scopedExperiencias}
+              entrevistas={scopedEntrevistas}
               turnover={turnover}
               sedes={sedes}
               userSede={scopedUserSede}
-              isAdmin={isAdmin}
+              isAdmin={isAdmin || isCoord}
             />
           )}
           
@@ -992,33 +1006,33 @@ export default function App() {
               addExperiencia={wrappedAddExperiencia}
               sedes={sedes}
               cargos={cargos}
-              isAdmin={isAdmin}
+              isAdmin={isAdmin || isCoord}
               confirmAction={askConfirmation}
               triggerAddModal={triggerAddModal}
               userSede={scopedUserSede}
               userRole={selectedRole}
               focusVaga={vagaFocus}
-              logs={logs}
+              logs={scopedLogs}
             />
           )}
 
           {activeTab === 'treinamentos' && (
             <TreinamentosSection 
-              treinamentos={treinamentos} 
+              treinamentos={scopedTreinamentos} 
               addTreinamento={wrappedAddTreinamento} 
               updateTreinamento={wrappedUpdateTreinamento}
               deleteTreinamento={wrappedDeleteTreinamento}
               sedes={sedes}
               confirmAction={askConfirmation}
               userSede={scopedUserSede}
-              isAdmin={isAdmin}
+              isAdmin={isAdmin || isCoord}
               canManage={canManageModules}
             />
           )}
 
           {activeTab === 'experiencias' && (
             <ExperienciasSection 
-              experiencias={experiencias} 
+              experiencias={scopedExperiencias} 
               addExperiencia={wrappedAddExperiencia} 
               updateExperiencia={wrappedUpdateExperiencia} 
               deleteExperiencia={wrappedDeleteExperiencia}
@@ -1026,20 +1040,20 @@ export default function App() {
               sedes={sedes}
               setores={setores}
               userSede={scopedUserSede}
-              isAdmin={isAdmin}
+              isAdmin={isAdmin || isCoord}
               canManage={canManageModules}
             />
           )}
 
           {activeTab === 'entrevistas' && (
             <EntrevistasSection 
-              entrevistas={entrevistas} 
+              entrevistas={scopedEntrevistas} 
               addEntrevista={wrappedAddEntrevista} 
               updateEntrevista={wrappedUpdateEntrevista}
               deleteEntrevista={wrappedDeleteEntrevista}
               confirmAction={askConfirmation}
               userSede={scopedUserSede}
-              isAdmin={isAdmin}
+              isAdmin={isAdmin || isCoord}
               canManage={canManageModules}
             />
           )}

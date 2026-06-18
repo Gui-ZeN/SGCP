@@ -14,18 +14,19 @@ export interface SystemLog {
   acao: 'CRIOU' | 'ALTEROU' | 'EXCLUIU' | 'SINALIZOU'; 
   modulo: 'Vagas' | 'Sedes' | 'Regiões' | 'Cargos' | 'Setores' | 'Usuários' | 'Treinamentos' | 'Experiências' | 'Entrevistas' | 'Turnover';
   detalhes: string;
+  regiao?: string; // região de quem realizou a ação — usada para escopar o histórico do Coordenador
 }
 
 const LOCAL_STORAGE_KEY = 'ats_system_logs_fallback';
 
-export function useLogs(currentUser: any, isAdmin: boolean = false) {
+export function useLogs(currentUser: any, canSeeLogs: boolean = false, actorRegiao: string = '') {
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingFirebase, setUsingFirebase] = useState(isFirebaseEnabled);
 
   // Synchronize system logs
   useEffect(() => {
-    if (isFirebaseEnabled && db && currentUser && isAdmin) {
+    if (isFirebaseEnabled && db && currentUser && canSeeLogs) {
       setLoading(true);
       const logsCollection = collection(db, 'logs');
       
@@ -50,7 +51,7 @@ export function useLogs(currentUser: any, isAdmin: boolean = false) {
     } else {
       loadLocalFallback();
     }
-  }, [currentUser, isAdmin]);
+  }, [currentUser, canSeeLogs]);
 
   const loadLocalFallback = () => {
     setUsingFirebase(false);
@@ -85,7 +86,8 @@ export function useLogs(currentUser: any, isAdmin: boolean = false) {
       usuario: email,
       acao,
       modulo,
-      detalhes
+      detalhes,
+      regiao: actorRegiao || ''
     };
 
     if (isFirebaseEnabled && db) {

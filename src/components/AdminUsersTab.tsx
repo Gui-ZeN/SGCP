@@ -112,9 +112,15 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                 className="w-full text-xs px-3.5 py-3 border border-slate-200 rounded-xl outline-none bg-white font-medium focus:border-slate-800"
               >
                 <option value="Analista">Analista (visualiza e edita vagas)</option>
+                <option value="Coordenador">Coordenador (admin da região)</option>
                 <option value="Visualizador">Visualizador (somente leitura em tudo)</option>
                 <option value="Administrador">Administrador (controle total)</option>
               </select>
+              {userRole === 'Coordenador' && (
+                <p className="text-[10px] text-slate-400 font-semibold leading-snug mt-1">
+                  O Coordenador vê e gerencia apenas a <b>região</b> da sede escolhida abaixo.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1">

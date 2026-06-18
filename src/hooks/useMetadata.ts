@@ -24,7 +24,7 @@ const REGIOES_LOCAL_KEY = 'ats_regioes_fallback';
 const CARGOS_LOCAL_KEY = 'ats_cargos_fallback';
 const SETORES_LOCAL_KEY = 'ats_setores_fallback';
 
-export type UserRole = 'Administrador' | 'Analista' | 'Visualizador';
+export type UserRole = 'Administrador' | 'Coordenador' | 'Analista' | 'Visualizador';
 
 export interface Usuario {
   id: string; // email or unique id
