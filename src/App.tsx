@@ -164,6 +164,14 @@ export default function App() {
   const adminSedes = useMemo(() => isCoord ? (sedes || []).filter(s => (s.regiao || '').toLowerCase() !== 'universidade') : (sedes || []), [sedes, isCoord]);
   const adminRegioes = useMemo(() => isCoord ? (regioes || []).filter(r => (r.nome || '').toLowerCase() !== 'universidade') : (regioes || []), [regioes, isCoord]);
 
+  // Sedes oferecidas nos filtros/forms das seções: não-admin só vê as sedes da sua
+  // unidade (Colégio NÃO lista sedes da Universidade, e vice-versa). Admin vê todas.
+  const scopedSedes = useMemo(() => {
+    if (selectedRole === 'Administrador') return sedes || [];
+    const usuarioEhUni = regiaoDe(selectedSede).toLowerCase() === 'universidade';
+    return (sedes || []).filter(s => ((s.regiao || '').toLowerCase() === 'universidade') === usuarioEhUni);
+  }, [sedes, selectedSede, selectedRole]);
+
   // Custom global confirmation modal & loading state
   const [globalLoading, setGlobalLoading] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
@@ -980,7 +988,7 @@ export default function App() {
               setActiveTab={setActiveTab}
               onFocusVaga={handleFocusVaga}
               userName={user?.displayName}
-              sedes={sedes}
+              sedes={scopedSedes}
               userSede={scopedUserSede}
               isAdmin={isAdmin || isCoord}
             />
@@ -993,7 +1001,7 @@ export default function App() {
               experiencias={experiencias}
               entrevistas={entrevistas}
               turnover={turnover}
-              sedes={sedes}
+              sedes={scopedSedes}
               userSede={scopedUserSede}
               isAdmin={isAdmin || isCoord}
             />
@@ -1006,7 +1014,7 @@ export default function App() {
               deleteVaga={wrappedDeleteVaga} 
               addVaga={wrappedAddVaga}
               addExperiencia={wrappedAddExperiencia}
-              sedes={sedes}
+              sedes={scopedSedes}
               cargos={cargos}
               isAdmin={isAdmin || isCoord}
               confirmAction={askConfirmation}
@@ -1024,7 +1032,7 @@ export default function App() {
               addTreinamento={wrappedAddTreinamento} 
               updateTreinamento={wrappedUpdateTreinamento}
               deleteTreinamento={wrappedDeleteTreinamento}
-              sedes={sedes}
+              sedes={scopedSedes}
               confirmAction={askConfirmation}
               userSede={scopedUserSede}
               isAdmin={isAdmin || isCoord}
@@ -1039,7 +1047,7 @@ export default function App() {
               updateExperiencia={wrappedUpdateExperiencia} 
               deleteExperiencia={wrappedDeleteExperiencia}
               confirmAction={askConfirmation}
-              sedes={sedes}
+              sedes={scopedSedes}
               setores={setores}
               userSede={scopedUserSede}
               isAdmin={isAdmin || isCoord}
