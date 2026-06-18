@@ -51,6 +51,12 @@ const ctx = {
 async function seed() {
   await testEnv.withSecurityRulesDisabled(async (c) => {
     const db = c.firestore();
+    // Sem bootstrap por e-mail: o admin precisa estar registrado em `usuarios`.
+    await setDoc(doc(db, "usuarios", ADMIN_EMAIL), {
+      email: ADMIN_EMAIL,
+      role: "Administrador",
+      sede: "DT",
+    });
     await setDoc(doc(db, "usuarios", ANALISTA_EMAIL), {
       email: ANALISTA_EMAIL,
       role: "Analista",
@@ -136,7 +142,7 @@ test("entrevistas: visualizador NÃO pode escrever", () =>
 test("usuarios: analista NÃO pode criar usuário", () =>
   assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "usuarios", "novo@empresa.com"), { email: "novo@empresa.com", role: "Analista", sede: "DT" })));
 
-test("usuarios: admin (bootstrap) pode criar usuário", () =>
+test("usuarios: admin (registrado) pode criar usuário", () =>
   assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "novo2@empresa.com"), { email: "novo2@empresa.com", role: "Analista", sede: "DT" })));
 
 test("usuarios: admin (por papel) pode criar usuário", () =>

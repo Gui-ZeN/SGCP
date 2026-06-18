@@ -1102,7 +1102,7 @@ export default function App() {
                 deleteCargo={wrappedDeleteCargo}
                 addSetor={wrappedAddSetor}
                 deleteSetor={wrappedDeleteSetor}
-                currentUserEmail={user?.email || 'guizen2006@gmail.com'}
+                currentUserEmail={user?.email || 'sistema'}
                 confirmAction={askConfirmation}
                 importFile={importFile}
                 setImportFile={setImportFile}

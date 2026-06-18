@@ -78,7 +78,7 @@ export function useLogs(currentUser: any, canSeeLogs: boolean = false, actorRegi
     overrideUser?: string
   ) => {
     // Determine current user performing the action
-    const email = overrideUser || currentUser?.email || 'guizen2006@gmail.com';
+    const email = overrideUser || currentUser?.email || 'sistema';
     const timestamp = new Date().toISOString();
 
     const novoLog: Omit<SystemLog, 'id'> = {

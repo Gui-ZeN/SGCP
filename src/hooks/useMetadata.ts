@@ -313,20 +313,8 @@ export function useMetadata(currentUser: any) {
     }
 
     const email = currentUser.email?.toLowerCase();
-    
-    // Bootstrapped Admin
-    if (email === 'guizen2006@gmail.com') {
-      setSelectedRole('Administrador');
-      localStorage.setItem('ats_simulated_role', 'Administrador');
-      setIsAuthorized(true);
-      const matched = usuarios.find(u => u.email && u.email.toLowerCase() === email);
-      if (matched && matched.sede) {
-        setSelectedSede(matched.sede);
-        localStorage.setItem('ats_simulated_sede', matched.sede);
-      }
-      return;
-    }
 
+    // Sem admin bootstrap hardcoded: o papel vem sempre do cadastro em `usuarios`.
     const matched = usuarios.find(u => u.email && u.email.toLowerCase() === email);
     if (matched) {
       setSelectedRole(matched.role);

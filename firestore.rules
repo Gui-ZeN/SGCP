@@ -44,13 +44,10 @@ service cloud.firestore {
       return get(userPath()).data.role;
     }
 
-    // Administrador: o admin bootstrap (por e-mail) OU papel "Administrador".
+    // Administrador: papel "Administrador" no cadastro `usuarios` (sem admin
+    // bootstrap por e-mail — os admins vêm 100% da coleção `usuarios`).
     function isAdmin() {
-      return isSignedIn()
-        && (
-          request.auth.token.email == "guizen2006@gmail.com"
-          || (isRegistered() && roleOf() == "Administrador")
-        );
+      return isRegistered() && roleOf() == "Administrador";
     }
 
     // Editor: pode criar/editar/excluir dados operacionais.
