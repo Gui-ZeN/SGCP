@@ -135,6 +135,9 @@ test("usuarios: admin (bootstrap) pode criar usuário", () =>
 test("usuarios: admin (por papel) pode criar usuário", () =>
   assertSucceeds(setDoc(doc(ctx.user(ADMIN_DOC_EMAIL), "usuarios", "novo3@empresa.com"), { email: "novo3@empresa.com", role: "Visualizador", sede: "" })));
 
+test("usuarios: admin pode gravar role Coordenador", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "coord@empresa.com"), { email: "coord@empresa.com", role: "Coordenador", sede: "DT" })));
+
 test("usuarios: admin NÃO pode gravar role inválido", () =>
   assertFails(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "novo4@empresa.com"), { email: "novo4@empresa.com", role: "Hacker", sede: "DT" })));
 

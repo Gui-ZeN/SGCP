@@ -80,7 +80,7 @@ service cloud.firestore {
       let d = incoming();
       return d.email is string
         && d.email.size() <= 320
-        && d.role in ['Administrador', 'Analista', 'Visualizador']
+        && d.role in ['Administrador', 'Coordenador', 'Analista', 'Visualizador']
         && (!('sede' in d.keys()) || d.sede is string);
     }
 
