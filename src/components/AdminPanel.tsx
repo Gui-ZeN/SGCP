@@ -20,6 +20,7 @@ import { AdminSetoresTab } from './AdminSetoresTab';
 import { AdminLogsTab } from './AdminLogsTab';
 
 interface AdminPanelProps {
+  isCoordenador?: boolean; // Coordenador: painel restrito ao Colégio (Usuários/Sedes/Logs); sem cadastros globais
   usuarios: Usuario[];
   sedes: Sede[];
   regioes: Regiao[];
@@ -62,6 +63,7 @@ interface AdminPanelProps {
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
+  isCoordenador = false,
   usuarios,
   sedes,
   regioes,
@@ -105,8 +107,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <ShieldAlert className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-800 tracking-tight">Painel Administrativo</h1>
-              <p className="text-xs text-slate-400 font-semibold tracking-wide uppercase mt-0.5">Configurações globais e permissões</p>
+              <h1 className="text-xl font-bold text-slate-800 tracking-tight">Painel Administrativo{isCoordenador && ' · Colégio'}</h1>
+              <p className="text-xs text-slate-400 font-semibold tracking-wide uppercase mt-0.5">{isCoordenador ? 'Usuários, sedes e logs do Colégio' : 'Configurações globais e permissões'}</p>
             </div>
           </div>
           
@@ -133,6 +135,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <Building2 className="w-3.5 h-3.5" />
               Sedes
             </button>
+            {!isCoordenador && (<>
             <button
               onClick={() => setActiveSubTab('regioes')}
               className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
@@ -166,6 +169,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <FolderTree className="w-3.5 h-3.5" />
               Setores
             </button>
+            </>)}
             <button
               onClick={() => setActiveSubTab('logs')}
               className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
@@ -177,6 +181,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <History className="w-3.5 h-3.5" />
               Logs de Auditoria
             </button>
+            {!isCoordenador && (
             <button
               onClick={() => setActiveSubTab('importacao')}
               className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
@@ -188,6 +193,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <Upload className="w-3.5 h-3.5" />
               Importar Excel
             </button>
+            )}
           </div>
         </div>
 
@@ -214,7 +220,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           />
         )}
 
-        {activeSubTab === 'regioes' && (
+        {activeSubTab === 'regioes' && !isCoordenador && (
           <AdminRegioesTab
             regioes={regioes}
             addRegiao={addRegiao}
@@ -224,7 +230,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           />
         )}
 
-        {activeSubTab === 'cargos' && (
+        {activeSubTab === 'cargos' && !isCoordenador && (
           <AdminCargosTab
             cargos={cargos}
             addCargo={addCargo}
@@ -233,7 +239,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           />
         )}
 
-        {activeSubTab === 'setores' && (
+        {activeSubTab === 'setores' && !isCoordenador && (
           <AdminSetoresTab
             setores={setores}
             addSetor={addSetor}
@@ -246,7 +252,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <AdminLogsTab logs={logs} />
         )}
 
-        {activeSubTab === 'importacao' && (
+        {activeSubTab === 'importacao' && !isCoordenador && (
           <div className="space-y-6">
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 border-b border-slate-100 pb-5 mb-6">

@@ -157,6 +157,13 @@ export default function App() {
     );
   }, [vagas, sedes, selectedSede, selectedRole]);
 
+  // Painel admin do Coordenador: vê/gerencia só o Colégio (regiões != Universidade).
+  // Usuário sem sede (ex.: Visualizador) conta como Colégio. Admin vê tudo.
+  const ehUniRegiao = (nome?: string) => regiaoDe(nome).toLowerCase() === 'universidade';
+  const adminUsuarios = useMemo(() => isCoord ? (usuarios || []).filter(u => !ehUniRegiao(u.sede)) : (usuarios || []), [usuarios, isCoord, sedes]);
+  const adminSedes = useMemo(() => isCoord ? (sedes || []).filter(s => (s.regiao || '').toLowerCase() !== 'universidade') : (sedes || []), [sedes, isCoord]);
+  const adminRegioes = useMemo(() => isCoord ? (regioes || []).filter(r => (r.nome || '').toLowerCase() !== 'universidade') : (regioes || []), [regioes, isCoord]);
+
   // Custom global confirmation modal & loading state
   const [globalLoading, setGlobalLoading] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
@@ -852,13 +859,13 @@ export default function App() {
               </button>
             </div>
 
-            {/* Category 4: Sistema / Admin */}
-            {(isAdmin || selectedRole === 'Administrador') && (
+            {/* Category 4: Sistema / Admin (Administrador completo ou Coordenador regional) */}
+            {(isAdmin || isCoord) && (
               <div className="space-y-1 w-full shrink-0 lg:shrink">
                 <div className="hidden lg:block px-3 py-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider mt-1">
                   Sistema
                 </div>
-                {isAdmin && (
+                {(isAdmin || isCoord) && (
                   <button
                     id="tab-admin"
                     onClick={() => setActiveTab('admin')}
@@ -1064,12 +1071,13 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'admin' && isAdmin && (
+          {activeTab === 'admin' && (isAdmin || isCoord) && (
             <ErrorBoundary>
               <AdminPanel
-                usuarios={usuarios || []}
-                sedes={sedes || []}
-                regioes={regioes || []}
+                isCoordenador={isCoord}
+                usuarios={adminUsuarios}
+                sedes={adminSedes}
+                regioes={adminRegioes}
                 cargos={cargos || []}
                 setores={setores || []}
                 logs={logs || []}
