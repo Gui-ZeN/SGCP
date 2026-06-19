@@ -95,6 +95,33 @@ export interface Entrevista {
   entrevistador: string;
 }
 
+// Requisição de abertura de vaga (preenchida pelo gestor num formulário público;
+// o RH/admin aceita -> vira uma Vaga, ou recusa). Espelha o "Modelo - Requisição".
+export interface Requisicao {
+  id: string;
+  criadaEm: string; // ISO
+  cargo: string;
+  sede: string;
+  setor: string;
+  selecao: 'Interna' | 'Externa' | 'Mista';
+  tipoContratacao: string; // origem da vaga (substituição, ampliação, temporária...)
+  justificativa?: string;
+  jornada?: string;
+  idade?: string;
+  experiencia?: string;
+  salarioBeneficios?: string;
+  hardSkills?: string;
+  softSkills?: string;
+  responsabilidades?: string;
+  gestorSolicitante: string;
+  gestorEmail?: string;
+  status: 'pendente' | 'aceita' | 'recusada';
+  motivoRecusa?: string;
+  decididaEm?: string;  // ISO
+  decididaPor?: string; // e-mail do admin que decidiu
+  vagaId?: string;      // vaga criada ao aceitar
+}
+
 export interface Turnover {
   id: string;
   mesAno: string; // e.g. "05/2026"

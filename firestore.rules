@@ -72,6 +72,16 @@ service cloud.firestore {
       return isVerifiedUser() && (isAdmin() || isRegistered());
     }
 
+    // Validação da requisição de vaga (criada pelo formulário público, sem login).
+    function isValidRequisicao() {
+      let d = incoming();
+      return d.cargo is string && d.cargo.size() > 0 && d.cargo.size() <= 200
+        && d.sede is string && d.sede.size() <= 120
+        && d.gestorSolicitante is string && d.gestorSolicitante.size() > 0 && d.gestorSolicitante.size() <= 200
+        && d.status == 'pendente'
+        && d.criadaEm is string;
+    }
+
     // Validação do documento de usuário (escrita sempre grava o objeto completo).
     function isValidUsuario() {
       let d = incoming();
@@ -112,8 +122,15 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isCoordenador() && existing().role != 'Administrador');
     }
 
+    // Requisições de abertura de vaga. Criação PÚBLICA (formulário aberto do gestor,
+    // sem login) com payload validado; leitura/gestão (aceitar/recusar) só do admin.
+    match /requisicoes/{reqId} {
+      allow create: if isValidRequisicao();
+      allow read, update, delete: if isAdmin();
+    }
+
     match /sedes/{sedeId} {
-      allow read: if isAppUser();
+      allow read: if true; // leitura pública: o formulário de requisição (sem login) lista as sedes
       // Coordenador gerencia sedes do Colégio (região != Universidade). A região
       // está no próprio documento, então aqui a trava por unidade é de verdade (servidor).
       allow create: if isAdmin() || (isCoordenador() && incoming().regiao != 'Universidade');
