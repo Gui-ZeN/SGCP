@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Requisicao } from '../types';
-import { Inbox, Check, X, ChevronDown, ChevronUp, Clock, MapPin, User, Briefcase } from 'lucide-react';
+import { Inbox, Check, X, ChevronDown, ChevronUp, Clock, MapPin, User, Briefcase, Link2 } from 'lucide-react';
 
 interface RequisicoesSectionProps {
   requisicoes: Requisicao[];
@@ -99,11 +99,31 @@ export const RequisicoesSection: React.FC<RequisicoesSectionProps> = ({ requisic
   const pendentes = requisicoes.filter(r => r.status === 'pendente');
   const decididas = requisicoes.filter(r => r.status !== 'pendente');
 
+  const [copiado, setCopiado] = useState(false);
+  const linkForm = (typeof window !== 'undefined' ? window.location.origin : '') + '/requisicao';
+  const copiarLink = async () => {
+    try {
+      await navigator.clipboard.writeText(linkForm);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = linkForm; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      ta.remove();
+    }
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div>
-        <h1 className="text-2xl font-black text-slate-800 tracking-tight">Requisições de Vaga</h1>
-        <p className="text-sm text-slate-500 font-medium">Pedidos de abertura enviados pelos gestores. Aceite para criar a vaga.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Requisições de Vaga</h1>
+          <p className="text-sm text-slate-500 font-medium">Pedidos de abertura enviados pelos gestores. Aceite para criar a vaga.</p>
+        </div>
+        <button onClick={copiarLink} title={linkForm} className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition shrink-0 border ${copiado ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
+          {copiado ? <><Check className="w-4 h-4" /> Link copiado!</> : <><Link2 className="w-4 h-4" /> Copiar link do formulário</>}
+        </button>
       </div>
 
       <section className="space-y-3">
