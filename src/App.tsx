@@ -14,18 +14,21 @@ const VacancyTable = lazy(() => import('./components/VacancyTable').then(m => ({
 const AdminPanel = lazy(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
 import { useMetadata, type UserRole } from './hooks/useMetadata';
 import { useLogs } from './hooks/useLogs';
+import { useRequisicoes } from './hooks/useRequisicoes';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useOperationalModules, addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from './hooks/useOperationalModules';
 const TreinamentosSection = lazy(() => import('./components/TreinamentosSection').then(m => ({ default: m.TreinamentosSection })));
 const ExperienciasSection = lazy(() => import('./components/ExperienciasSection').then(m => ({ default: m.ExperienciasSection })));
 const EntrevistasSection = lazy(() => import('./components/EntrevistasSection').then(m => ({ default: m.EntrevistasSection })));
 const TurnoverSection = lazy(() => import('./components/TurnoverSection').then(m => ({ default: m.TurnoverSection })));
+const RequisicoesSection = lazy(() => import('./components/RequisicoesSection').then(m => ({ default: m.RequisicoesSection })));
 import { 
   Briefcase, 
   BarChart3, 
   PlusCircle, 
   Sparkles, 
-  Layers, 
+  Layers,
+  Inbox,
   Loader2,
   Lock,
   ShieldAlert,
@@ -132,8 +135,10 @@ export default function App() {
   const userRegiao = regiaoDe(selectedSede);
 
   const { logs, logAction } = useLogs(user, isAdmin || isCoord, userRegiao);
+  const { requisicoes, updateRequisicao } = useRequisicoes(user, isAdmin);
+  const requisicoesPendentes = requisicoes.filter(r => r.status === 'pendente').length;
 
-  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'admin'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'admin'>('home');
   const scopedUserSede = isViewer ? '' : selectedSede;
   const canManageModules = !isViewer;
 
@@ -222,7 +227,50 @@ export default function App() {
       await logAction('CRIOU', 'Vagas', `Vaga "${vagaInput.vaga}" (Sede: ${vagaInput.sede || selectedSede}) cadastrada.`);
     });
     
-  const wrappedUpdateVaga = (id: string, updatedFields: any) => 
+  // Requisições: aceitar cria a vaga (campos extras vão pras observações); recusar registra o motivo.
+  const handleAceitarRequisicao = (req: any) =>
+    executeWithLoading("Aceitando requisição e criando vaga...", async () => {
+      const obs = [
+        `Origem: requisição (${req.tipoContratacao}).`,
+        req.selecao && `Seleção: ${req.selecao}.`,
+        req.justificativa && `Justificativa: ${req.justificativa}`,
+        req.jornada && `Jornada/Horário: ${req.jornada}`,
+        req.idade && `Idade: ${req.idade}`,
+        req.experiencia && `Experiência: ${req.experiencia}`,
+        req.salarioBeneficios && `Salário/Benefícios: ${req.salarioBeneficios}`,
+        req.hardSkills && `Hard skills: ${req.hardSkills}`,
+        req.softSkills && `Soft skills: ${req.softSkills}`,
+        req.responsabilidades && `Responsabilidades: ${req.responsabilidades}`,
+        req.gestorEmail && `Contato do gestor: ${req.gestorEmail}`,
+      ].filter(Boolean).join('\n');
+      let solic = new Date().toLocaleDateString('pt-BR');
+      try { solic = new Date(req.criadaEm).toLocaleDateString('pt-BR'); } catch (e) {}
+      await addVaga({
+        vaga: req.cargo,
+        sede: req.sede,
+        setor: req.setor || 'Geral',
+        status: 'ABERTA',
+        solicitacao: solic,
+        solicitante: req.gestorSolicitante,
+        motivo: req.tipoContratacao,
+        responsavel: 'RH',
+        etapa: 'Triagem',
+        categoria: 'Requisição',
+        observacoes: obs,
+      } as any);
+      await updateRequisicao(req.id, { status: 'aceita', decididaEm: new Date().toISOString(), decididaPor: user?.email || 'sistema' });
+      await logAction('CRIOU', 'Vagas', `Vaga "${req.cargo}" criada a partir de requisição (gestor: ${req.gestorSolicitante}).`);
+      notify('Requisição aceita — vaga criada!', 'success');
+    });
+
+  const handleRecusarRequisicao = (req: any, motivo: string) =>
+    executeWithLoading("Recusando requisição...", async () => {
+      await updateRequisicao(req.id, { status: 'recusada', motivoRecusa: motivo || '', decididaEm: new Date().toISOString(), decididaPor: user?.email || 'sistema' });
+      await logAction('ALTEROU', 'Vagas', `Requisição de "${req.cargo}" (gestor: ${req.gestorSolicitante}) recusada.`);
+      notify('Requisição recusada.', 'info');
+    });
+
+  const wrappedUpdateVaga = (id: string, updatedFields: any) =>
     executeWithLoading("Sincronizando modificação de vaga...", async () => {
       const v = vagas.find(item => item.id === id);
       await updateVaga(id, updatedFields);
@@ -722,6 +770,7 @@ export default function App() {
               {activeTab === 'experiencias' && 'Acompanhamento de Experiência'}
               {activeTab === 'entrevistas' && 'Entrevistas de Desligamento'}
               {activeTab === 'turnover' && 'Turnover & Headcount'}
+              {activeTab === 'requisicoes' && 'Requisições de Vaga'}
               {activeTab === 'admin' && 'Painel Administrativo'}
             </p>
           </div>
@@ -806,6 +855,24 @@ export default function App() {
                 <Layers className="w-4 h-4 shrink-0" />
                 <span>Quadro de Vagas</span>
               </button>
+
+              {isAdmin && (
+                <button
+                  id="tab-requisicoes"
+                  onClick={() => setActiveTab('requisicoes')}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                    activeTab === 'requisicoes'
+                      ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
+                  }`}
+                >
+                  <Inbox className="w-4 h-4 shrink-0" />
+                  <span className="flex-1 text-left">Requisições</span>
+                  {requisicoesPendentes > 0 && (
+                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-amber-500 text-white leading-none shrink-0">{requisicoesPendentes}</span>
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Category 3: Gestão */}
@@ -1076,6 +1143,15 @@ export default function App() {
               deleteTurnover={wrappedDeleteTurnover}
               confirmAction={askConfirmation}
               canManage={canManageModules}
+            />
+          )}
+
+          {activeTab === 'requisicoes' && isAdmin && (
+            <RequisicoesSection
+              requisicoes={requisicoes}
+              onAceitar={handleAceitarRequisicao}
+              onRecusar={handleRecusarRequisicao}
+              canManage={true}
             />
           )}
 
