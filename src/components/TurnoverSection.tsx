@@ -252,7 +252,7 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
               Turnover Médio Total
             </span>
             <div className="text-2xl font-bold mt-2">{avgStats.total}%</div>
-            <p className="text-[9px] text-slate-400 font-medium mt-1">Fórmula padrão: Admissão + Saída sênior</p>
+            <p className="text-[9px] text-slate-400 font-medium mt-1">Fórmula: (Admissões + Saídas) ÷ 2 ÷ efetivo</p>
           </div>
           <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center">
             <TrendingUp className="w-6 h-6 text-orange-400" />
