@@ -16,6 +16,7 @@ import { useMetadata, type UserRole } from './hooks/useMetadata';
 import { useLogs } from './hooks/useLogs';
 import { useRequisicoes } from './hooks/useRequisicoes';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { Bandeirinhas } from './components/Bandeirinhas';
 import { useOperationalModules, addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from './hooks/useOperationalModules';
 const TreinamentosSection = lazy(() => import('./components/TreinamentosSection').then(m => ({ default: m.TreinamentosSection })));
 const ExperienciasSection = lazy(() => import('./components/ExperienciasSection').then(m => ({ default: m.ExperienciasSection })));
@@ -25,8 +26,7 @@ const RequisicoesSection = lazy(() => import('./components/RequisicoesSection').
 import { 
   Briefcase, 
   BarChart3, 
-  PlusCircle, 
-  Sparkles, 
+  PlusCircle,
   Layers,
   Inbox,
   Loader2,
@@ -46,15 +46,11 @@ export default function App() {
   // authReady: a verificação inicial de autenticação já concluiu (evita piscar a
   // tela de login para quem já está logado e evita travar no "Carregando").
   const [authReady, setAuthReady] = useState(false);
-  // Tema visual: 'swiss' (Suíço — oficial/padrão) ou 'atual' (clássico, opt-in).
-  // Persistido e aplicado via data-theme na raiz; o swiss.css re-skina tudo quando ativo.
-  const [theme, setTheme] = useState<'atual' | 'swiss'>(() => (
-    (typeof localStorage !== 'undefined' && localStorage.getItem('sgcp_theme') === 'atual') ? 'atual' : 'swiss'
-  ));
+  // Tema único: Suíço (International Typographic). Aplicado via data-theme na raiz.
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    try { localStorage.setItem('sgcp_theme', theme); } catch (e) {}
-  }, [theme]);
+    document.documentElement.setAttribute('data-theme', 'swiss');
+    try { localStorage.setItem('sgcp_theme', 'swiss'); } catch (e) {}
+  }, []);
   const { vagas, loading, usingFirebase, errorMessage, addVaga, updateVaga, deleteVaga, importVagas } = useVagas(user);
   const [toast, setToast] = useState<{ message: string, type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
   const [triggerAddModal, setTriggerAddModal] = useState(0);
@@ -751,6 +747,8 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen bg-slate-50 font-sans antialiased text-slate-700 flex flex-col overflow-hidden">
+      {/* Enfeite de São João 🎉 */}
+      <Bandeirinhas />
       {/* Top Main Navigation Header (Glued to top) */}
       <header className="flex items-center justify-between bg-white py-3.5 px-6 border-b border-slate-200 shadow-xs shrink-0 z-10 gap-4">
         {/* Logo and Dynamic Screen Name */}
@@ -1008,18 +1006,6 @@ export default function App() {
                 Modo Offline
               </div>
             )}
-
-            {/* Toggle de tema visual (Suíço oficial / Clássico) */}
-            <button
-              onClick={() => setTheme(theme === 'swiss' ? 'atual' : 'swiss')}
-              className="w-full mb-2.5 px-3 py-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between gap-2 cursor-pointer transition no-print"
-              title="Alternar tema visual (Suíço / Clássico)"
-            >
-              <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-orange-500" /> Tema</span>
-              <span className={`px-2 py-0.5 rounded-full border text-[9px] ${theme === 'swiss' ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                {theme === 'swiss' ? 'Suíço' : 'Clássico'}
-              </span>
-            </button>
 
             {/* Quick System Status Indicators embedded directly in sidebar */}
             <div className="pt-2.5 border-t border-slate-100 space-y-1 text-[9px] text-slate-400 font-extrabold uppercase tracking-wider">

@@ -11,6 +11,11 @@ const path = (typeof window !== 'undefined' ? window.location.pathname : '').rep
 const isRequisicao = path.endsWith('/requisicao') ||
   (typeof window !== 'undefined' && window.location.hash.toLowerCase().includes('requisicao'));
 
+// Tema único (Suíço) aplicado já no boot do app — o formulário público fica neutro.
+if (!isRequisicao && typeof document !== 'undefined') {
+  document.documentElement.setAttribute('data-theme', 'swiss');
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {isRequisicao ? <RequisicaoPublica /> : <App />}
