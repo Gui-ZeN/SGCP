@@ -1,36 +1,53 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 
 /**
- * Bandeirinhas de São João (festa junina) — faixa decorativa em SVG: cordão em
- * arco (drapejado) com bandeirinhas triangulares penduradas seguindo a curva,
- * cores vibrantes e um balanço leve. Puro enfeite (aria-hidden / no-print).
- * Some quando acabar o São João: é só tirar <Bandeirinhas /> do App. 🎉
+ * Bandeirinhas de São João (festa junina) — SVG: cordão em arco (drapejado) com
+ * bandeirolas de FORMAS variadas (rabo-de-andorinha / triângulo / pendão) penduradas,
+ * cada uma FLUTUANDO com atraso escalonado → uma "onda" de vento percorre a faixa.
+ * Puro enfeite (aria-hidden / no-print). Some tirando <Bandeirinhas /> do App. 🎉
  */
 const CORES = ['#E8453C', '#F4B400', '#2E8BC0', '#3DA35D', '#F2711C', '#E0529C', '#9B5DE5'];
-const FLAGS_X = [10, 30, 50, 70, 90, 110, 130];
-// y do cordão (Bézier M0,5 Q70,39 140,5) num dado x → y = 5 + 68·t·(1−t), t = x/140
-const yCordao = (x: number) => { const t = x / 140; return 5 + 68 * t * (1 - t); };
+
+// Três formas, ancoradas no topo-centro (0,0), penduradas para baixo:
+const FORMAS = [
+  '-9,0 9,0 9,20 0,13 -9,20', // rabo-de-andorinha (entalhe no rodapé)
+  '-9,0 9,0 0,22',            // triângulo
+  '-7.5,0 7.5,0 4.5,21 -4.5,21', // pendão (afunilado)
+];
+
+const PERIODO = 156;   // largura de um arco do cordão
+const AMP = 9;         // o quanto o cordão "cava"
+const BASE = 5;        // y do cordão nas pontas do arco
+const TOTAL = 2800;    // largura coberta (sobra recortada em telas menores)
+const ESPACO = 26;     // distância entre bandeirinhas
+const yCordao = (x: number) => BASE + AMP * Math.sin(Math.PI * ((x % PERIODO) / PERIODO));
 
 export const Bandeirinhas: React.FC = () => {
+  const { path, flags } = useMemo(() => {
+    let d = `M0,${yCordao(0).toFixed(1)}`;
+    for (let x = 8; x <= TOTAL; x += 8) d += ` L${x},${yCordao(x).toFixed(1)}`;
+    const fs: { x: number; y: number; i: number }[] = [];
+    for (let x = 16, i = 0; x <= TOTAL; x += ESPACO, i++) fs.push({ x, y: yCordao(x), i });
+    return { path: d, flags: fs };
+  }, []);
+
   return (
     <div aria-hidden className="w-full bg-white shrink-0 select-none pointer-events-none no-print" style={{ lineHeight: 0 }}>
-      <style>{`@keyframes sgpc-sway{0%,100%{transform:translateY(0)}50%{transform:translateY(1.6px)}}`}</style>
-      <svg width="100%" height="40" style={{ display: 'block', animation: 'sgpc-sway 4.5s ease-in-out infinite' }}>
-        <defs>
-          <pattern id="sgpc-bunting" width="140" height="40" patternUnits="userSpaceOnUse">
-            <path d="M0,5 Q70,39 140,5" fill="none" stroke="#6b5a3a" strokeWidth="1.8" strokeLinecap="round" />
-            {FLAGS_X.map((x, i) => {
-              const y = yCordao(x);
-              return (
-                <g key={i}>
-                  <polygon points={`${x - 7.5},${y} ${x + 7.5},${y} ${x},${y + 16}`} fill={CORES[i % CORES.length]} />
-                  <circle cx={x} cy={y} r="1.5" fill="#5b4d35" />
-                </g>
-              );
-            })}
-          </pattern>
-        </defs>
-        <rect width="100%" height="40" fill="url(#sgpc-bunting)" />
+      <style>{`
+        .sgpc-flag{transform-box:fill-box;transform-origin:50% 0;animation:sgpc-flutter 2.6s ease-in-out infinite}
+        @keyframes sgpc-flutter{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}
+        @media (prefers-reduced-motion: reduce){.sgpc-flag{animation:none}}
+      `}</style>
+      <svg width="100%" height="40" style={{ display: 'block' }}>
+        <path d={path} fill="none" stroke="#6b5a3a" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+        {flags.map(({ x, y, i }) => (
+          <g key={i} transform={`translate(${x},${y.toFixed(1)})`}>
+            <g className="sgpc-flag" style={{ animationDelay: `${(i % 22) * -0.1}s` }}>
+              <polygon points={FORMAS[i % FORMAS.length]} fill={CORES[i % CORES.length]} />
+            </g>
+            <circle r="1.4" fill="#5b4d35" />
+          </g>
+        ))}
       </svg>
     </div>
   );
