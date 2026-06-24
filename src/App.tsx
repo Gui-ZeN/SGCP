@@ -746,8 +746,8 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen bg-slate-50 font-sans antialiased text-slate-700 flex flex-col overflow-hidden">
-      {/* Enfeite de São João 🎉 */}
+    <div className="relative h-screen w-screen bg-slate-50 font-sans antialiased text-slate-700 flex flex-col overflow-hidden">
+      {/* Enfeite de São João 🎉 — overlay que drapeja na frente do topo (logo/nome) */}
       <Bandeirinhas />
       {/* Top Main Navigation Header (Glued to top) */}
       <header className="flex items-center justify-between bg-white py-3.5 px-6 border-b border-slate-200 shadow-xs shrink-0 z-10 gap-4">
