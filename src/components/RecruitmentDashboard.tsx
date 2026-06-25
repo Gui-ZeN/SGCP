@@ -501,7 +501,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         
         {/* Card: Vagas Ativas */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition-all hover:shadow-md hover:border-slate-300 group">
+        <div className="bg-white rounded-3xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition hover:shadow-md hover:border-slate-300 group">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">Vagas em Aberto</span>
             <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
@@ -518,7 +518,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
         </div>
 
         {/* Card: Turnover Mês */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition-all hover:shadow-md hover:border-slate-300 group">
+        <div className="bg-white rounded-3xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition hover:shadow-md hover:border-slate-300 group">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">Turnover Médio Geral</span>
             <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
@@ -535,7 +535,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
         </div>
 
         {/* Card: Clima Organizacional */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition-all hover:shadow-md hover:border-slate-300 group">
+        <div className="bg-white rounded-3xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition hover:shadow-md hover:border-slate-300 group">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">Clima Organizacional</span>
             <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
@@ -552,7 +552,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
         </div>
 
         {/* Card: Investimento T&D */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition-all hover:shadow-md hover:border-slate-300 group">
+        <div className="bg-white rounded-3xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition hover:shadow-md hover:border-slate-300 group">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">Investimento T&D</span>
             <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">

@@ -395,7 +395,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
         {canManage && (
           <button
             onClick={openCreateForm}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition"
           >
             <PlusCircle className="w-4 h-4" />
             Novo Acompanhamento
@@ -508,13 +508,13 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                           <>
                             <button
                               onClick={() => handleStatusChange(exp.id, 'PRORROGADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-white hover:bg-slate-50 text-blue-700 border border-blue-200 rounded-lg cursor-pointer transition-all"
+                              className="px-2 py-1 text-[9px] uppercase font-black bg-white hover:bg-slate-50 text-blue-700 border border-blue-200 rounded-lg cursor-pointer transition"
                             >
                               Prorrogar
                             </button>
                             <button
                               onClick={() => handleStatusChange(exp.id, 'EFETIVADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition-all"
+                              className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition"
                             >
                               Efetivar
                             </button>
@@ -523,13 +523,13 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                           <>
                             <button
                               onClick={() => handleStatusChange(exp.id, 'EFETIVADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition-all"
+                              className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition"
                             >
                               Efetivar
                             </button>
                             <button
                               onClick={() => handleStatusChange(exp.id, 'ENCERRADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-lg cursor-pointer transition-all"
+                              className="px-2 py-1 text-[9px] uppercase font-black bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-lg cursor-pointer transition"
                             >
                               Encerrar
                             </button>
@@ -561,13 +561,13 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                           <>
                             <button
                               onClick={() => handleStatusChange(exp.id, 'PRORROGADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-white hover:bg-slate-50 text-blue-700 border border-blue-200 rounded-lg cursor-pointer transition-all"
+                              className="px-2 py-1 text-[9px] uppercase font-black bg-white hover:bg-slate-50 text-blue-700 border border-blue-200 rounded-lg cursor-pointer transition"
                             >
                               Prorrogar
                             </button>
                             <button
                               onClick={() => handleStatusChange(exp.id, 'EFETIVADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition-all"
+                              className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition"
                             >
                               Efetivar
                             </button>
@@ -576,13 +576,13 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                           <>
                             <button
                               onClick={() => handleStatusChange(exp.id, 'EFETIVADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition-all"
+                              className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition"
                             >
                               Efetivar
                             </button>
                             <button
                               onClick={() => handleStatusChange(exp.id, 'ENCERRADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-lg cursor-pointer transition-all"
+                              className="px-2 py-1 text-[9px] uppercase font-black bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-lg cursor-pointer transition"
                             >
                               Encerrar
                             </button>
@@ -602,7 +602,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
       <div className="flex border-b border-slate-200 overflow-x-auto scrollbar-none gap-1.5 md:gap-6 mt-2 select-none">
         <button
           onClick={() => setActiveTableTab('ativos')}
-          className={`pb-3 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+          className={`pb-3 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
             activeTableTab === 'ativos'
               ? 'border-orange-500 text-orange-600'
               : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -617,7 +617,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
 
         <button
           onClick={() => setActiveTableTab('efetivados')}
-          className={`pb-3 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+          className={`pb-3 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
             activeTableTab === 'efetivados'
               ? 'border-emerald-500 text-emerald-600'
               : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -632,7 +632,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
 
         <button
           onClick={() => setActiveTableTab('encerrados')}
-          className={`pb-3 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+          className={`pb-3 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
             activeTableTab === 'encerrados'
               ? 'border-slate-500 text-slate-705'
               : 'border-transparent text-slate-400 hover:text-slate-600'

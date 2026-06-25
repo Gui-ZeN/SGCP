@@ -127,7 +127,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         
         {/* Upper Brand Badge */}
         <div className="flex items-center gap-3.5 z-10 shrink-0">
-          <img src="/logo.svg" alt="SGPC" className="w-11 h-11 rounded-2xl object-contain shadow-lg shadow-slate-900/5" />
+          <img src="/logo.svg" alt="SGPC" width={44} height={44} className="w-11 h-11 rounded-2xl object-contain shadow-lg shadow-slate-900/5" />
           <div>
             <h2 className="text-sm font-black text-slate-800 tracking-tight leading-none uppercase">
               SGPC <span className="text-[9px] bg-orange-500/10 text-orange-600 px-1.5 py-0.5 rounded-md border border-orange-500/20 ml-1 font-extrabold uppercase">RH</span>
@@ -207,7 +207,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     setActiveIdx(i);
                     setIsOrbitHovered(true);
                   }}
-                  className={`absolute w-11 h-11 rounded-full border flex items-center justify-center cursor-pointer transition-all duration-300 shadow-sm ${
+                  className={`absolute w-11 h-11 rounded-full border flex items-center justify-center cursor-pointer transition duration-300 shadow-sm ${
                     isActive 
                       ? 'bg-indigo-600 border-indigo-700 text-white scale-115 ring-4 ring-indigo-50 z-20' 
                       : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-600 z-10 hover:scale-105'
@@ -280,7 +280,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <button
                 onClick={handleGoogleClick}
                 disabled={isConnecting}
-                className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-50 active:scale-[0.98] text-slate-700 text-xs font-black uppercase tracking-wider py-4 px-6 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer border border-slate-200/80 disabled:opacity-75 disabled:pointer-events-none"
+                className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-50 active:scale-[0.98] text-slate-700 text-xs font-black uppercase tracking-wider py-4 px-6 rounded-2xl shadow-sm hover:shadow-md transition cursor-pointer border border-slate-200/80 disabled:opacity-75 disabled:pointer-events-none"
               >
                 {isConnecting ? (
                   <div className="w-4.5 h-4.5 rounded-full border-2 border-slate-800 border-t-transparent animate-spin shrink-0" />

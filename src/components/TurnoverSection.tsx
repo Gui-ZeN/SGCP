@@ -233,7 +233,7 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
           {canManage && (
           <button
             onClick={openCreateForm}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition"
           >
             <PlusCircle className="w-4 h-4" />
             Logar Mês Operacional

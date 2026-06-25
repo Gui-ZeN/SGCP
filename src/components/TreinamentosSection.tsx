@@ -332,7 +332,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
             <button
               id="btn-show-add-treinamento"
               onClick={openCreateForm}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition"
             >
               <PlusCircle className="w-4 h-4" />
               Registrar Treinamento
@@ -432,7 +432,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
           filteredList.map((t) => {
             const presencaPct = t.qtdPrevista > 0 ? Math.round((t.qtdRealizada / t.qtdPrevista) * 100) : 100;
             return (
-              <div key={t.id} className="bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col overflow-hidden relative group">
+              <div key={t.id} className="bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition flex flex-col overflow-hidden relative group">
                 <div className={`h-2 w-full ${
                   t.tipo === 'Liderança' ? 'bg-orange-500' :
                   t.tipo === 'Integração' ? 'bg-emerald-500' :
@@ -526,7 +526,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                   <>
                 <button
                   onClick={() => openEditForm(t)}
-                  className="absolute top-4 right-14 p-1.5 bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 rounded-xl cursor-pointer transition-all shadow-sm z-10"
+                  className="absolute top-4 right-14 p-1.5 bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 rounded-xl cursor-pointer transition shadow-sm z-10"
                   title="Editar"
                 >
                   <Pencil className="w-4 h-4" />
@@ -547,7 +547,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                       }
                     }
                   }}
-                  className="absolute top-4 right-4 p-1.5 bg-white border border-rose-200 text-rose-500 hover:bg-rose-50 rounded-xl cursor-pointer transition-all shadow-sm z-10"
+                  className="absolute top-4 right-4 p-1.5 bg-white border border-rose-200 text-rose-500 hover:bg-rose-50 rounded-xl cursor-pointer transition shadow-sm z-10"
                   title="Excluir"
                 >
                   <Trash2 className="w-4 h-4" />

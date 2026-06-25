@@ -363,7 +363,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
               id="submit-vaga-btn"
               type="submit"
               disabled={busy}
-              className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-55 text-white text-sm font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-orange-500/25 cursor-pointer transition-all active:scale-[0.98]"
+              className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-55 text-white text-sm font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-orange-500/25 cursor-pointer transition active:scale-[0.98]"
             >
               <PlusCircle className="w-4.5 h-4.5" />
               {busy ? "Salvando..." : "Abrir Vaga"}

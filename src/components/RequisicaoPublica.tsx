@@ -114,22 +114,22 @@ export const RequisicaoPublica: React.FC = () => {
           <section className="space-y-4">
             <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">Identificação</h2>
             <div className="grid sm:grid-cols-2 gap-4">
-              <div><label className={labelCls}>Cargo *</label><input className={inputCls} value={form.cargo} onChange={e => set('cargo', e.target.value)} placeholder="Ex.: Auxiliar Administrativo" /></div>
+              <div><label htmlFor="cargo" className={labelCls}>Cargo *</label><input id="cargo" name="cargo" autoComplete="off" className={inputCls} value={form.cargo} onChange={e => set('cargo', e.target.value)} placeholder="Ex.: Auxiliar Administrativo…" /></div>
               <div>
-                <label className={labelCls}>Sede *</label>
+                <label htmlFor="sede" className={labelCls}>Sede *</label>
                 {sedes.length > 0 ? (
-                  <select className={inputCls} value={form.sede} onChange={e => set('sede', e.target.value)}>
+                  <select id="sede" name="sede" className={inputCls} value={form.sede} onChange={e => set('sede', e.target.value)}>
                     <option value="">Selecione…</option>
                     {sedes.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 ) : (
-                  <input className={inputCls} value={form.sede} onChange={e => set('sede', e.target.value)} placeholder="Nome da sede/unidade" />
+                  <input id="sede" name="sede" autoComplete="off" className={inputCls} value={form.sede} onChange={e => set('sede', e.target.value)} placeholder="Nome da sede/unidade…" />
                 )}
               </div>
-              <div><label className={labelCls}>Setor</label><input className={inputCls} value={form.setor} onChange={e => set('setor', e.target.value)} placeholder="Ex.: Financeiro" /></div>
+              <div><label htmlFor="setor" className={labelCls}>Setor</label><input id="setor" name="setor" autoComplete="off" className={inputCls} value={form.setor} onChange={e => set('setor', e.target.value)} placeholder="Ex.: Financeiro…" /></div>
               <div>
-                <label className={labelCls}>Tipo de seleção</label>
-                <select className={inputCls} value={form.selecao} onChange={e => set('selecao', e.target.value)}>
+                <label htmlFor="selecao" className={labelCls}>Tipo de seleção</label>
+                <select id="selecao" name="selecao" className={inputCls} value={form.selecao} onChange={e => set('selecao', e.target.value)}>
                   <option value="Interna">Interna</option>
                   <option value="Externa">Externa</option>
                   <option value="Mista">Mista</option>
@@ -141,34 +141,34 @@ export const RequisicaoPublica: React.FC = () => {
           {/* Origem / Tipo */}
           <section className="space-y-4">
             <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">Origem da vaga</h2>
-            <div><label className={labelCls}>Tipo da contratação</label>
-              <select className={inputCls} value={form.tipoContratacao} onChange={e => set('tipoContratacao', e.target.value)}>
+            <div><label htmlFor="tipoContratacao" className={labelCls}>Tipo da contratação</label>
+              <select id="tipoContratacao" name="tipoContratacao" className={inputCls} value={form.tipoContratacao} onChange={e => set('tipoContratacao', e.target.value)}>
                 {TIPOS_CONTRATACAO.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-            <div><label className={labelCls}>Justifique o motivo da contratação</label><textarea className={inputCls} rows={3} value={form.justificativa} onChange={e => set('justificativa', e.target.value)} /></div>
+            <div><label htmlFor="justificativa" className={labelCls}>Justifique o motivo da contratação</label><textarea id="justificativa" name="justificativa" className={inputCls} rows={3} value={form.justificativa} onChange={e => set('justificativa', e.target.value)} placeholder="Descreva o motivo da abertura…" /></div>
           </section>
 
           {/* Requisitos */}
           <section className="space-y-4">
             <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">Requisitos da vaga</h2>
             <div className="grid sm:grid-cols-2 gap-4">
-              <div><label className={labelCls}>Jornada / Horário</label><input className={inputCls} value={form.jornada} onChange={e => set('jornada', e.target.value)} placeholder="Ex.: 8h–18h, seg–sex" /></div>
-              <div><label className={labelCls}>Idade (faixa)</label><input className={inputCls} value={form.idade} onChange={e => set('idade', e.target.value)} /></div>
-              <div><label className={labelCls}>Experiência / Tempo</label><input className={inputCls} value={form.experiencia} onChange={e => set('experiencia', e.target.value)} /></div>
-              <div><label className={labelCls}>Salário e benefícios</label><input className={inputCls} value={form.salarioBeneficios} onChange={e => set('salarioBeneficios', e.target.value)} /></div>
+              <div><label htmlFor="jornada" className={labelCls}>Jornada / Horário</label><input id="jornada" name="jornada" autoComplete="off" className={inputCls} value={form.jornada} onChange={e => set('jornada', e.target.value)} placeholder="Ex.: 8h–18h, seg–sex…" /></div>
+              <div><label htmlFor="idade" className={labelCls}>Idade (faixa)</label><input id="idade" name="idade" autoComplete="off" className={inputCls} value={form.idade} onChange={e => set('idade', e.target.value)} placeholder="Ex.: 18 a 30 anos…" /></div>
+              <div><label htmlFor="experiencia" className={labelCls}>Experiência / Tempo</label><input id="experiencia" name="experiencia" autoComplete="off" className={inputCls} value={form.experiencia} onChange={e => set('experiencia', e.target.value)} placeholder="Ex.: 6 meses na função…" /></div>
+              <div><label htmlFor="salarioBeneficios" className={labelCls}>Salário e benefícios</label><input id="salarioBeneficios" name="salarioBeneficios" autoComplete="off" className={inputCls} value={form.salarioBeneficios} onChange={e => set('salarioBeneficios', e.target.value)} placeholder="Ex.: R$ 1.800 + VT + VR…" /></div>
             </div>
-            <div><label className={labelCls}>Hard Skills (técnicas / formação)</label><textarea className={inputCls} rows={2} value={form.hardSkills} onChange={e => set('hardSkills', e.target.value)} /></div>
-            <div><label className={labelCls}>Soft Skills (comportamentais)</label><textarea className={inputCls} rows={2} value={form.softSkills} onChange={e => set('softSkills', e.target.value)} /></div>
-            <div><label className={labelCls}>Principais responsabilidades</label><textarea className={inputCls} rows={3} value={form.responsabilidades} onChange={e => set('responsabilidades', e.target.value)} /></div>
+            <div><label htmlFor="hardSkills" className={labelCls}>Hard Skills (técnicas / formação)</label><textarea id="hardSkills" name="hardSkills" className={inputCls} rows={2} value={form.hardSkills} onChange={e => set('hardSkills', e.target.value)} placeholder="Formação, sistemas, conhecimentos…" /></div>
+            <div><label htmlFor="softSkills" className={labelCls}>Soft Skills (comportamentais)</label><textarea id="softSkills" name="softSkills" className={inputCls} rows={2} value={form.softSkills} onChange={e => set('softSkills', e.target.value)} placeholder="Atitudes e comportamentos esperados…" /></div>
+            <div><label htmlFor="responsabilidades" className={labelCls}>Principais responsabilidades</label><textarea id="responsabilidades" name="responsabilidades" className={inputCls} rows={3} value={form.responsabilidades} onChange={e => set('responsabilidades', e.target.value)} placeholder="Liste as principais atividades do cargo…" /></div>
           </section>
 
           {/* Gestor */}
           <section className="space-y-4">
             <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">Gestor solicitante</h2>
             <div className="grid sm:grid-cols-2 gap-4">
-              <div><label className={labelCls}>Nome *</label><input className={inputCls} value={form.gestorSolicitante} onChange={e => set('gestorSolicitante', e.target.value)} /></div>
-              <div><label className={labelCls}>E-mail (para retorno)</label><input className={inputCls} type="email" value={form.gestorEmail} onChange={e => set('gestorEmail', e.target.value)} /></div>
+              <div><label htmlFor="gestorSolicitante" className={labelCls}>Nome *</label><input id="gestorSolicitante" name="name" autoComplete="name" className={inputCls} value={form.gestorSolicitante} onChange={e => set('gestorSolicitante', e.target.value)} placeholder="Seu nome…" /></div>
+              <div><label htmlFor="gestorEmail" className={labelCls}>E-mail (para retorno)</label><input id="gestorEmail" name="email" type="email" autoComplete="email" spellCheck={false} className={inputCls} value={form.gestorEmail} onChange={e => set('gestorEmail', e.target.value)} placeholder="voce@christus.com.br…" /></div>
             </div>
           </section>
 

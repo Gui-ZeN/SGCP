@@ -28,7 +28,7 @@ const StarRatingInput = ({ value, onChange, label }: { value: number, onChange: 
   const displayValue = hoverValue !== null ? hoverValue : value;
 
   return (
-    <div className="flex flex-col bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm transition-all hover:border-slate-200">
+    <div className="flex flex-col bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm transition hover:border-slate-200">
       <label className="block text-[10px] text-slate-500 font-bold uppercase mb-2 tracking-wider">{label}</label>
       <div 
         className="flex items-center gap-1.5"
@@ -381,7 +381,7 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
           {canManage && (
             <button
               onClick={openCreateForm}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition-all"
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition"
             >
               <PlusCircle className="w-4 h-4" />
               Registrar Entrevista

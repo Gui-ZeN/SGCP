@@ -127,7 +127,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
 
   return (
     <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl max-w-2xl w-full transform transition-all duration-250 border border-slate-200 shadow-2xl flex flex-col scale-100 relative max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-3xl max-w-2xl w-full transform transition duration-250 border border-slate-200 shadow-2xl flex flex-col scale-100 relative max-h-[90vh] overflow-hidden">
         
         {/* Modal Header */}
         <div className="p-6 border-b border-slate-200 flex items-center bg-slate-50 justify-between">

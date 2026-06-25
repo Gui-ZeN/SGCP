@@ -692,7 +692,9 @@ export default function App() {
         />
         {toast && (
           <div 
-            id="toast-notification" 
+            id="toast-notification"
+            role="status"
+            aria-live="polite"
             className="fixed top-5 left-1/2 -translate-x-1/2 z-[150] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border animate-in fade-in slide-in-from-top-4 duration-300 max-w-md w-[90%] bg-slate-900 border-slate-800"
           >
             <div 
@@ -735,7 +737,7 @@ export default function App() {
           <div className="pt-2">
             <button
               onClick={handleLogout}
-              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold uppercase rounded-xl cursor-pointer shadow-md transition-all border border-slate-950"
+              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold uppercase rounded-xl cursor-pointer shadow-md transition border border-slate-950"
             >
               Fazer logout e trocar de conta
             </button>
@@ -753,7 +755,7 @@ export default function App() {
       <header className="flex items-center justify-between bg-white py-3.5 px-6 border-b border-slate-200 shadow-xs shrink-0 z-10 gap-4">
         {/* Logo and Dynamic Screen Name */}
         <div className="flex items-center gap-3">
-          <img src="/logo.svg" alt="SGPC" className="w-9 h-9 rounded-xl object-contain shrink-0" />
+          <img src="/logo.svg" alt="SGPC" width={36} height={36} className="w-9 h-9 rounded-xl object-contain shrink-0" />
           <div>
             <h1 className="text-sm font-extrabold text-slate-800 tracking-tight leading-none flex items-center gap-1">
               <span>SGPC</span>
@@ -961,7 +963,7 @@ export default function App() {
             {user ? (
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center gap-3">
                 {user.photoURL ? (
-                  <img src={user.photoURL} alt={user.displayName} className="w-8 h-8 rounded-full border border-slate-350 shadow-xs shrink-0" />
+                  <img src={user.photoURL} alt={user.displayName} width={32} height={32} loading="lazy" className="w-8 h-8 rounded-full border border-slate-350 shadow-xs shrink-0" />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-slate-900 text-slate-50 text-[10px] font-black flex items-center justify-center uppercase border border-slate-850 shrink-0">
                     {user.displayName?.charAt(0) || 'U'}
@@ -996,7 +998,7 @@ export default function App() {
             ) : isFirebaseEnabled ? (
               <button
                 onClick={handleLogin}
-                className="w-full px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md border border-slate-950 hover:scale-[1.01] transition-all"
+                className="w-full px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md border border-slate-950 hover:scale-[1.01] transition"
               >
                 <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <span>Entrar no SGPC</span>
@@ -1209,7 +1211,7 @@ export default function App() {
 
       {/* Dynamic Global Loading Overlay */}
       {globalLoading && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[110] flex flex-col items-center justify-center p-4 transition-all duration-300 animate-in fade-in">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[110] flex flex-col items-center justify-center p-4 transition duration-300 animate-in fade-in">
           <div className="bg-white/95 border border-slate-205 p-6 rounded-3xl shadow-2xl flex flex-col items-center gap-4 text-center max-w-sm animate-in zoom-in-95">
             <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
             <div className="space-y-1">
@@ -1222,7 +1224,7 @@ export default function App() {
 
       {/* Dynamic Custom Confirm Dialog Modal */}
       {confirmModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[100] flex items-center justify-center p-4 transition-all duration-300 animate-in fade-in">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[100] flex items-center justify-center p-4 transition duration-300 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95">
             <div className="p-6 space-y-5">
               <div className="flex items-start gap-4">

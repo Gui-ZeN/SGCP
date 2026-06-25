@@ -91,6 +91,10 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   logs
 }) => {
   const canManageVagas = isAdmin || userRole === 'Analista' || userRole === 'Administrador';
+  // Abrir detalhes via teclado (Enter/Espaço) onde a área é clicável (acessibilidade).
+  const teclaDetalhe = (vaga: Vaga) => (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDetailsVaga(vaga); }
+  };
   const getSedeLabel = (nome: string) => {
     const matched = sedes?.find(s => s.nome.toLowerCase() === nome.toLowerCase());
     return matched && matched.sigla ? `${matched.nome} (${matched.sigla})` : nome;
@@ -683,7 +687,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
             }
             setShowAddVagaModal(true);
           }}
-          className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold rounded-xl flex items-center gap-2 cursor-pointer shadow-sm hover:shadow transition-all"
+          className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold rounded-xl flex items-center gap-2 cursor-pointer shadow-sm hover:shadow transition"
         >
           <PlusCircle className="w-5 h-5 shrink-0" />
           <span>Nova Vaga</span>
@@ -695,7 +699,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         {/* Total Metric Card */}
         <div 
           onClick={() => { setStatusGroupFilter('TODAS'); setCurrentPage(1); }}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group ${
+          className={`p-4 rounded-2xl border transition cursor-pointer relative overflow-hidden group ${
             statusGroupFilter === 'TODAS' 
               ? 'bg-slate-900 border-slate-900 text-white shadow-md shadow-slate-900/10' 
               : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:shadow-xs'
@@ -713,7 +717,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         {/* Active Metric Card */}
         <div 
           onClick={() => { setStatusGroupFilter('ATIVAS'); setCurrentPage(1); }}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group ${
+          className={`p-4 rounded-2xl border transition cursor-pointer relative overflow-hidden group ${
             statusGroupFilter === 'ATIVAS' 
               ? 'bg-amber-600 border-amber-600 text-white shadow-md shadow-amber-600/10' 
               : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:shadow-xs'
@@ -731,7 +735,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         {/* Closed Metric Card */}
         <div 
           onClick={() => { setStatusGroupFilter('CONCLUIDAS'); setCurrentPage(1); }}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group ${
+          className={`p-4 rounded-2xl border transition cursor-pointer relative overflow-hidden group ${
             statusGroupFilter === 'CONCLUIDAS' 
               ? 'bg-emerald-700 border-emerald-700 text-white shadow-md shadow-emerald-700/10' 
               : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:shadow-xs'
@@ -747,7 +751,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         </div>
 
         {/* Medium SLA Card */}
-        <div className="p-4 rounded-2xl border bg-white border-slate-200 text-slate-700 hover:shadow-xs transition-all col-span-1">
+        <div className="p-4 rounded-2xl border bg-white border-slate-200 text-slate-700 hover:shadow-xs transition col-span-1">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tempo Médio SLA</span>
             <Clock className="w-4 h-4 text-orange-500" />
@@ -759,7 +763,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         {/* SLA Breaches Card */}
         <div 
           onClick={() => { setStatusGroupFilter('ALERTA_SLA'); setCurrentPage(1); }}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group col-span-2 lg:col-span-1 ${
+          className={`p-4 rounded-2xl border transition cursor-pointer relative overflow-hidden group col-span-2 lg:col-span-1 ${
             statusGroupFilter === 'ALERTA_SLA' 
               ? 'bg-rose-600 border-rose-600 text-white shadow-md shadow-rose-600/10' 
               : 'bg-white border-slate-200 text-slate-705 hover:border-slate-300 hover:shadow-xs'
@@ -792,7 +796,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl self-start lg:self-center">
             <button
               onClick={() => setViewMode('kanban')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase cursor-pointer transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase cursor-pointer transition ${
                 viewMode === 'kanban' 
                   ? 'bg-white text-slate-900 shadow-sm' 
                   : 'text-slate-500 hover:text-slate-800'
@@ -804,7 +808,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
             </button>
             <button
               onClick={() => setViewMode('tabela')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase cursor-pointer transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase cursor-pointer transition ${
                 viewMode === 'tabela' 
                   ? 'bg-white text-slate-900 shadow-sm' 
                   : 'text-slate-500 hover:text-slate-800'
@@ -816,7 +820,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
             </button>
             <button
               onClick={() => setViewMode('grade')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase cursor-pointer transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase cursor-pointer transition ${
                 viewMode === 'grade' 
                   ? 'bg-white text-slate-900 shadow-sm' 
                   : 'text-slate-500 hover:text-slate-800'
@@ -984,7 +988,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                   alert("Acesso restrito: Apenas Administradores e Analistas podem cadastrar novas vagas! Selecione um perfil adequado no topo para habilitar.");
                 }
               }}
-              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-all ${
+              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition ${
                 canManageVagas 
                   ? 'bg-slate-900 hover:bg-slate-800 text-white shadow-md' 
                   : 'bg-slate-100 text-slate-400 border border-slate-205 cursor-not-allowed'
@@ -1006,7 +1010,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
             <button
               onClick={() => setKanbanGroupBy('status')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase cursor-pointer transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase cursor-pointer transition ${
                 kanbanGroupBy === 'status' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
               }`}
               title="Colunas por status da vaga (visão atual)"
@@ -1016,7 +1020,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
             </button>
             <button
               onClick={() => setKanbanGroupBy('etapa')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase cursor-pointer transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase cursor-pointer transition ${
                 kanbanGroupBy === 'etapa' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
               }`}
               title="Colunas por etapa do processo (funil): mostra onde a vaga está travando"
@@ -1101,7 +1105,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                   handleDragDrop(vagaId, lane.id);
                   setDraggedOverLaneId(null);
                 }}
-                className={`bg-slate-50 border p-3 rounded-2xl flex flex-col space-y-3 min-h-[480px] transition-all duration-200 ${
+                className={`bg-slate-50 border p-3 rounded-2xl flex flex-col space-y-3 min-h-[480px] transition duration-200 ${
                   isDraggedOver 
                     ? 'border-dashed border-orange-500 bg-orange-50/20 shadow-md ring-4 ring-orange-500/5' 
                     : 'border-slate-200/80'
@@ -1155,7 +1159,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                           onDragEnd={() => {
                             setDraggingVagaId(null);
                           }}
-                          className={`bg-white p-4 border border-slate-200 border-l-4 ${borderLeftColor} rounded-2xl shadow-xs hover:shadow-md hover:border-slate-300 transition-all duration-150 flex flex-col space-y-3 relative group cursor-grab active:cursor-grabbing ${
+                          className={`bg-white p-4 border border-slate-200 border-l-4 ${borderLeftColor} rounded-2xl shadow-xs hover:shadow-md hover:border-slate-300 transition duration-150 flex flex-col space-y-3 relative group cursor-grab active:cursor-grabbing ${
                             isCurrentlyDragging ? 'opacity-30 scale-95 border-dashed border-orange-200' : ''
                           }`}
                         >
@@ -1235,6 +1239,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                             <div className="flex items-center gap-1">
                               <button
                                 onClick={() => setSelectedDetailsVaga(vaga)}
+                                aria-label="Ver detalhes da vaga"
                                 className="p-1 px-2 border border-slate-200 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-50 transition-colors"
                                 title="Visualização Rápida Lateral"
                               >
@@ -1243,6 +1248,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                               {canManageVagas && (
                                 <button
                                   onClick={() => startEditing(vaga)}
+                                  aria-label="Editar vaga"
                                   className="p-1 px-2 border border-slate-200 text-orange-600 hover:text-white rounded-lg hover:bg-orange-500 hover:border-orange-500 transition-colors"
                                   title="Editar Vaga"
                                 >
@@ -1316,7 +1322,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                     handleEtapaDrop(vagaId, etapa);
                     setDraggedOverLaneId(null);
                   }}
-                  className={`bg-slate-50 border border-t-4 ${topAccent} p-3 rounded-2xl flex flex-col space-y-3 min-h-[480px] transition-all duration-200 ${
+                  className={`bg-slate-50 border border-t-4 ${topAccent} p-3 rounded-2xl flex flex-col space-y-3 min-h-[480px] transition duration-200 ${
                     isDraggedOver ? 'border-dashed border-orange-500 bg-orange-50/20 ring-4 ring-orange-500/5' : 'border-slate-200/80'
                   }`}
                 >
@@ -1347,7 +1353,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                             draggable={canManageVagas}
                             onDragStart={(e) => { if (!canManageVagas) return; e.dataTransfer.setData('text/plain', vaga.id); setDraggingVagaId(vaga.id); }}
                             onDragEnd={() => setDraggingVagaId(null)}
-                            className={`bg-white p-4 border border-slate-200 border-l-4 ${borderLeftColor} rounded-2xl shadow-xs hover:shadow-md hover:border-slate-300 transition-all duration-150 flex flex-col space-y-2.5 relative cursor-grab active:cursor-grabbing ${
+                            className={`bg-white p-4 border border-slate-200 border-l-4 ${borderLeftColor} rounded-2xl shadow-xs hover:shadow-md hover:border-slate-300 transition duration-150 flex flex-col space-y-2.5 relative cursor-grab active:cursor-grabbing ${
                               isCurrentlyDragging ? 'opacity-30 scale-95' : ''
                             } ${paused ? 'bg-slate-50/60' : ''}`}
                           >
@@ -1363,7 +1369,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                               )}
                             </div>
 
-                            <div className="cursor-pointer" onClick={() => setSelectedDetailsVaga(vaga)} title="Ver detalhes">
+                            <div className="cursor-pointer" role="button" tabIndex={0} onClick={() => setSelectedDetailsVaga(vaga)} onKeyDown={teclaDetalhe(vaga)} title="Ver detalhes">
                               <h4 className="font-bold text-slate-800 text-xs hover:text-orange-500 transition line-clamp-2 leading-tight">{vaga.vaga}</h4>
                             </div>
 
@@ -1416,7 +1422,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                     {concluidas.map(vaga => (
-                      <div key={vaga.id} onClick={() => setSelectedDetailsVaga(vaga)} className="border border-slate-200 border-l-4 border-l-emerald-500 rounded-xl p-2.5 cursor-pointer hover:bg-slate-50 transition-colors">
+                      <div key={vaga.id} role="button" tabIndex={0} onClick={() => setSelectedDetailsVaga(vaga)} onKeyDown={teclaDetalhe(vaga)} title="Ver detalhes" className="border border-slate-200 border-l-4 border-l-emerald-500 rounded-xl p-2.5 cursor-pointer hover:bg-slate-50 transition-colors">
                         <div className="flex items-center justify-between gap-1">
                           <span className="text-[10px] font-mono text-slate-400 font-bold">#{vaga.codigo}</span>
                           <span className="text-[9px] text-emerald-700 font-bold uppercase">{vaga.tempoProcesso ? `${vaga.tempoProcesso}d` : ''}</span>
@@ -1477,7 +1483,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                       <tr key={vaga.id} className="hover:bg-slate-50/60 transition-colors odd:bg-white even:bg-slate-50/15">
                         <td className="py-3.5 px-4 font-mono text-xs text-slate-400 font-bold">#{vaga.codigo}</td>
                         <td className="py-3.5 px-4">
-                          <div className="font-bold text-slate-800 hover:text-orange-500 transition cursor-pointer leading-tight mb-0.5" onClick={() => setSelectedDetailsVaga(vaga)}>
+                          <div className="font-bold text-slate-800 hover:text-orange-500 transition cursor-pointer leading-tight mb-0.5" role="button" tabIndex={0} onClick={() => setSelectedDetailsVaga(vaga)} onKeyDown={teclaDetalhe(vaga)} title="Ver detalhes">
                             {vaga.vaga}
                           </div>
                           <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{vaga.responsavel || 'Equipe RH'}</div>
@@ -1638,7 +1644,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                     </div>
 
                     {/* Vaga Info */}
-                    <div className="space-y-1 cursor-pointer" onClick={() => setSelectedDetailsVaga(vaga)}>
+                    <div className="space-y-1 cursor-pointer" role="button" tabIndex={0} onClick={() => setSelectedDetailsVaga(vaga)} onKeyDown={teclaDetalhe(vaga)} title="Ver detalhes">
                       <h4 className="font-bold text-slate-850 hover:text-orange-500 transition line-clamp-1 text-sm">{vaga.vaga}</h4>
                       <div className="flex flex-wrap gap-1.5">
                         <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-150 rounded-lg px-2 py-0.5 text-[10px] font-semibold text-slate-600">
@@ -2041,11 +2047,11 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       {/* 5B: CREATE NEW VACANCY DIALOG */}
       {showAddVagaModal && (
         <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150 block">
-          <div className="w-full max-w-3xl transform transition-all duration-200 scale-100 flex flex-col relative">
+          <div className="w-full max-w-3xl transform transition duration-200 scale-100 flex flex-col relative">
             <button 
               onClick={() => setShowAddVagaModal(false)}
               className="absolute right-5 top-5 bg-slate-50 border border-slate-200 hover:bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center text-slate-550 hover:text-slate-800 text-xl font-semibold leading-none cursor-pointer z-10 shadow-sm"
-              aria-label="Fecar formulário"
+              aria-label="Fechar formulário"
             >
               &times;
             </button>
