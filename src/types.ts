@@ -122,6 +122,20 @@ export interface Requisicao {
   vagaId?: string;      // vaga criada ao aceitar
 }
 
+// Cadastro de colaboradores (roster). Base p/ aniversariantes (avisar o RH) e
+// futuras features. Datas em DD/MM/YYYY (o ano do nascimento é opcional).
+export interface Funcionario {
+  id: string;
+  nome: string;
+  dataNascimento: string; // DD/MM/YYYY ou DD/MM
+  sede: string;
+  setor?: string;
+  cargo?: string;
+  admissao?: string;      // DD/MM/YYYY
+  ativo?: boolean;        // false = desligado (mantém histórico sem aparecer nos avisos)
+  observacoes?: string;
+}
+
 export interface Turnover {
   id: string;
   mesAno: string; // e.g. "05/2026"

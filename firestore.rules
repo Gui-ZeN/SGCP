@@ -185,6 +185,13 @@ service cloud.firestore {
       allow write: if isEditor();
     }
 
+    // Cadastro de colaboradores (roster) — base dos aniversários. Contém dado
+    // pessoal (data de nascimento), por isso leitura exige usuário do app.
+    match /funcionarios/{funcionarioId} {
+      allow read: if isAppUser();
+      allow write: if isEditor();
+    }
+
     // =====================================================================
     //  LOGS DE AUDITORIA  (append-only)
     //  Leitura só de Administrador (o app só assina os logs quando admin).

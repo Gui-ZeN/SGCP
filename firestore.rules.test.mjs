@@ -83,6 +83,7 @@ async function seed() {
     await setDoc(doc(db, "sedes", "s1"), { nome: "DT", regiao: "Sudeste" });
     await setDoc(doc(db, "sedes", "sUni"), { nome: "PE", regiao: "Universidade" });
     await setDoc(doc(db, "logs", "l1"), { timestamp: "t", usuario: "x", acao: "CRIOU", modulo: "Vagas", detalhes: "d" });
+    await setDoc(doc(db, "funcionarios", "fn1"), { nome: "Ana", dataNascimento: "24/06/1990", sede: "DT" });
   });
 }
 
@@ -135,6 +136,21 @@ test("entrevistas: analista pode escrever", () =>
 
 test("entrevistas: visualizador NÃO pode escrever", () =>
   assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "entrevistas", "e3"), { codigo: 303, colaborador: "Z", dataEntrevista: "03/03/2026" })));
+
+// ---------------------------------------------------------------------------
+//  FUNCIONÁRIOS (roster / aniversários) — leitura app user; escrita editor
+// ---------------------------------------------------------------------------
+test("funcionarios: leitura SEM auth é negada (dado pessoal)", () =>
+  assertFails(getDoc(doc(ctx.unauth(), "funcionarios", "fn1"))));
+
+test("funcionarios: leitura por usuário do app é permitida", () =>
+  assertSucceeds(getDoc(doc(ctx.user(VIEWER_EMAIL), "funcionarios", "fn1"))));
+
+test("funcionarios: analista (editor) pode escrever", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "funcionarios", "fn2"), { nome: "Bia", dataNascimento: "01/01/1991", sede: "DT" })));
+
+test("funcionarios: visualizador NÃO pode escrever", () =>
+  assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "funcionarios", "fn3"), { nome: "Caio", dataNascimento: "02/02/1992", sede: "DT" })));
 
 // ---------------------------------------------------------------------------
 //  USUÁRIOS — escrita só admin (+validação)
