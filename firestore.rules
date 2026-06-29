@@ -159,6 +159,13 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Config GLOBAL da UI (ex.: enfeites de época). Todos os usuários LEEM (pra
+    // renderizar o enfeite); só Administrador escreve (liga/desliga no painel).
+    match /config/{docId} {
+      allow read: if isAppUser();
+      allow write: if isAdmin();
+    }
+
     // =====================================================================
     //  COLEÇÕES OPERACIONAIS  (leitura: usuário do app; escrita: editor)
     //  Contêm dados pessoais de colaboradores (entrevistas de desligamento,

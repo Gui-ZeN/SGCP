@@ -8,7 +8,8 @@ import {
   History,
   FolderTree,
   Upload,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Sparkles
 } from 'lucide-react';
 import { Usuario, Sede, Regiao, Cargo, Setor, type UserRole } from '../hooks/useMetadata';
 import { SystemLog } from '../hooks/useLogs';
@@ -21,6 +22,8 @@ import { AdminLogsTab } from './AdminLogsTab';
 
 interface AdminPanelProps {
   isCoordenador?: boolean; // Coordenador: painel restrito ao Colégio (Usuários/Sedes/Logs); sem cadastros globais
+  enfeites?: { id: string; nome: string; ativo: boolean }[]; // enfeites de época (liga/desliga global)
+  onToggleEnfeite?: (id: string, ativo: boolean) => void;
   usuarios: Usuario[];
   sedes: Sede[];
   regioes: Regiao[];
@@ -64,6 +67,8 @@ interface AdminPanelProps {
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
   isCoordenador = false,
+  enfeites = [],
+  onToggleEnfeite,
   usuarios,
   sedes,
   regioes,
@@ -96,7 +101,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onRecalcExperiencias,
   onBackfillPausas
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'usuarios' | 'sedes' | 'regioes' | 'cargos' | 'setores' | 'logs' | 'importacao'>('usuarios');
+  const [activeSubTab, setActiveSubTab] = useState<'usuarios' | 'sedes' | 'regioes' | 'cargos' | 'setores' | 'logs' | 'importacao' | 'enfeites'>('usuarios');
   
   return (
     <div className="bg-transparent space-y-6">
@@ -194,6 +199,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               Importar Excel
             </button>
             )}
+            {!isCoordenador && (
+            <button
+              onClick={() => setActiveSubTab('enfeites')}
+              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
+                activeSubTab === 'enfeites'
+                  ? 'bg-slate-900 text-white shadow-md'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Enfeites
+            </button>
+            )}
           </div>
         </div>
 
@@ -250,6 +268,43 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         {activeSubTab === 'logs' && (
           <AdminLogsTab logs={logs} />
+        )}
+
+        {activeSubTab === 'enfeites' && !isCoordenador && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-800 tracking-tight">Enfeites de época</h3>
+                <p className="text-xs text-slate-500 font-semibold mt-0.5">Ligue ou desligue os enfeites sazonais. Vale para todos os usuários.</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {enfeites.length === 0 ? (
+                <p className="text-sm text-slate-400 font-semibold py-6 text-center">Nenhum enfeite disponível.</p>
+              ) : (
+                enfeites.map(en => (
+                  <div key={en.id} className="flex items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-bold text-slate-700 truncate">{en.nome}</span>
+                      <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${en.ativo ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>{en.ativo ? 'Ativo' : 'Desligado'}</span>
+                    </div>
+                    <button
+                      role="switch"
+                      aria-checked={en.ativo}
+                      aria-label={`${en.ativo ? 'Desligar' : 'Ligar'} ${en.nome}`}
+                      onClick={() => onToggleEnfeite && onToggleEnfeite(en.id, !en.ativo)}
+                      className={`relative w-12 h-6 rounded-full transition-colors cursor-pointer shrink-0 ${en.ativo ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                    >
+                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${en.ativo ? 'left-[26px]' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         )}
 
         {activeSubTab === 'importacao' && !isCoordenador && (

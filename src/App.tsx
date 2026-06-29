@@ -17,6 +17,13 @@ import { useLogs } from './hooks/useLogs';
 import { useRequisicoes } from './hooks/useRequisicoes';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Bandeirinhas } from './components/Bandeirinhas';
+import { useAppConfig } from './hooks/useAppConfig';
+
+// Enfeites de época (sazonais). Para adicionar um novo: importe o componente e
+// acrescente { id, nome, Comp, padrao } aqui — o admin liga/desliga no painel.
+const ENFEITES = [
+  { id: 'sao-joao', nome: 'São João — bandeirinhas no topo', Comp: Bandeirinhas, padrao: true },
+];
 import { useOperationalModules, addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from './hooks/useOperationalModules';
 const TreinamentosSection = lazy(() => import('./components/TreinamentosSection').then(m => ({ default: m.TreinamentosSection })));
 const ExperienciasSection = lazy(() => import('./components/ExperienciasSection').then(m => ({ default: m.ExperienciasSection })));
@@ -133,6 +140,8 @@ export default function App() {
   const { logs, logAction } = useLogs(user, isAdmin || isCoord, userRegiao);
   const { requisicoes, updateRequisicao } = useRequisicoes(user, isAdmin);
   const requisicoesPendentes = requisicoes.filter(r => r.status === 'pendente').length;
+  const { enfeites, setEnfeite } = useAppConfig(user);
+  const enfeiteAtivo = (e: { id: string; padrao: boolean }) => enfeites[e.id] ?? e.padrao;
 
   const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'admin'>('home');
   const scopedUserSede = isViewer ? '' : selectedSede;
@@ -749,8 +758,8 @@ export default function App() {
 
   return (
     <div className="relative h-screen w-screen bg-slate-50 font-sans antialiased text-slate-700 flex flex-col overflow-hidden">
-      {/* Enfeite de São João 🎉 — overlay que drapeja na frente do topo (logo/nome) */}
-      <Bandeirinhas />
+      {/* Enfeites de época (ligados/desligados pelo admin no painel) 🎉 */}
+      {ENFEITES.filter(enfeiteAtivo).map(e => { const Comp = e.Comp; return <Comp key={e.id} />; })}
       {/* Top Main Navigation Header (Glued to top) */}
       <header className="flex items-center justify-between bg-white py-3.5 px-6 border-b border-slate-200 shadow-xs shrink-0 z-10 gap-4">
         {/* Logo and Dynamic Screen Name */}
@@ -1147,6 +1156,8 @@ export default function App() {
             <ErrorBoundary>
               <AdminPanel
                 isCoordenador={isCoord}
+                enfeites={ENFEITES.map(e => ({ id: e.id, nome: e.nome, ativo: enfeiteAtivo(e) }))}
+                onToggleEnfeite={setEnfeite}
                 usuarios={adminUsuarios}
                 sedes={adminSedes}
                 regioes={adminRegioes}
