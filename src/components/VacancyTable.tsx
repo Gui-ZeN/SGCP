@@ -10,6 +10,8 @@ import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import type { SystemLog } from '../hooks/useLogs';
 import { EditVacancyModal } from './EditVacancyModal';
 import { ConcludeVacancyModal } from './ConcludeVacancyModal';
+import { VagaDetailsDrawer } from './vagas/VagaDetailsDrawer';
+import { PauseVagaModal, EtapaMoveModal, DragMoveConfirmModal } from './vagas/VagaModals';
 import { 
   Search, 
   MapPin, 
@@ -38,7 +40,6 @@ import {
   Play,
   Clock,
   AlertTriangle,
-  History,
   UserCheck,
   SlidersHorizontal,
   X,
@@ -46,11 +47,10 @@ import {
   Workflow,
   Building,
   CheckCircle2,
-  FileText,
   GripVertical
 } from 'lucide-react';
 import { exportToXlsx } from '../utils/xlsxExporter';
-import { SLA_META_DIAS, MOTIVOS_DESISTENCIA } from '../constants/hr';
+import { SLA_META_DIAS } from '../constants/hr';
 import { parseDateDDMMYYYY, isPausedOrSuspended, getDiasEmAberto, getSlaInfo, ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa, statusForEtapa } from '../utils/vaga';
 
 interface VacancyTableProps {
@@ -1758,276 +1758,33 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
       {/* SECTION 4: SLIDING RIGHT DETAILS DRAWER (THE MAGICAL UX PIECE) */}
       {selectedDetailsVaga && (
-        <div className="fixed inset-0 z-[120] flex justify-end animate-fade-in">
-          {/* Backdrop Overlay */}
-          <div 
-            onClick={() => setSelectedDetailsVaga(null)}
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300"
-          ></div>
-
-          {/* Drawer Panel */}
-          <div className="w-full max-w-lg bg-white h-full relative shadow-2xl z-[130] flex flex-col justify-between animate-in slide-in-from-right duration-300 transform">
-            
-            {/* Header Area */}
-            <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-orange-100 rounded-2xl text-orange-600">
-                  <Workflow className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-slate-400 font-mono text-xs font-bold">VAGA #{selectedDetailsVaga.codigo}</span>
-                    {getStatusBadge(selectedDetailsVaga.status)}
-                  </div>
-                  <h3 className="text-base font-bold text-slate-800 leading-snug mt-0.5">{selectedDetailsVaga.vaga}</h3>
-                </div>
-              </div>
-              <button 
-                onClick={() => setSelectedDetailsVaga(null)}
-                className="w-8 h-8 rounded-full bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-850 cursor-pointer shadow-sm transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Scrollable Attributes Body */}
-            <div className="flex-1 p-6 overflow-y-auto space-y-6 scrollbar-thin">
-              
-              {/* Thermometer block of SLA */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                <div className="flex justify-between items-center text-xs font-bold uppercase tracking-wider">
-                  <div className="flex items-center gap-1.5 text-slate-700">
-                    <History className="w-4 h-4 text-orange-500" />
-                    <span>Cronômetro de SLA</span>
-                  </div>
-                  <span className={`px-2 py-0.5 font-bold rounded-lg text-[9px] uppercase border font-sans ${
-                    getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA', isPausedOrSuspended(selectedDetailsVaga.status)).color
-                  }`}>
-                    {getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA', isPausedOrSuspended(selectedDetailsVaga.status)).label}
-                  </span>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full ${getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA', isPausedOrSuspended(selectedDetailsVaga.status)).progressBar}`} 
-                      style={{ width: `${getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA', isPausedOrSuspended(selectedDetailsVaga.status)).percent}%` }}
-                    ></div>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-500">
-                    <span>Abertura: {selectedDetailsVaga.solicitacao}</span>
-                    <span className="font-bold text-slate-800">{getDiasEmAberto(selectedDetailsVaga)} dias decorridos</span>
-                    {selectedDetailsVaga.conclusao && <span>Fechada: {selectedDetailsVaga.conclusao}</span>}
-                  </div>
-                </div>
-
-                <p className="text-xs text-slate-500 font-medium italic">
-                  {getSlaInfo(getDiasEmAberto(selectedDetailsVaga), selectedDetailsVaga.status === 'FECHADA', isPausedOrSuspended(selectedDetailsVaga.status)).desc}
-                </p>
-              </div>
-
-              {/* General details grid (Bento Section 1) */}
-              <div className="space-y-3">
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Origem & Identidade</h4>
-                <div className="grid grid-cols-2 gap-3 text-xs leading-relaxed">
-                  <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                    <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Sede Organizacional</span>
-                    <span className="text-slate-700 font-bold">{getSedeLabel(selectedDetailsVaga.sede)}</span>
-                  </div>
-                  <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                    <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Setor / Departamento</span>
-                    <span className="text-slate-700 font-bold">{selectedDetailsVaga.setor}</span>
-                  </div>
-                  <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                    <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Sexo Preferencial</span>
-                    <span className={`font-bold inline-flex ${selectedDetailsVaga.sexo === 'FEMININO' ? 'text-pink-700' : selectedDetailsVaga.sexo === 'MASCULINO' ? 'text-indigo-700' : 'text-slate-700'}`}>
-                      {selectedDetailsVaga.sexo || 'Indiferente'}
-                    </span>
-                  </div>
-                  <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                    <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Recruiter Responsável</span>
-                    <span className="text-slate-700 font-bold">{selectedDetailsVaga.responsavel || 'Equipe RH'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Requester details grid (Bento Section 2) */}
-              <div className="space-y-3">
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Detalhes da Requisição</h4>
-                <div className="grid grid-cols-2 gap-3 text-xs leading-relaxed">
-                  <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100 col-span-2">
-                    <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Gestor Solicitante</span>
-                    <span className="text-slate-750 font-bold">{selectedDetailsVaga.solicitante}</span>
-                  </div>
-                  <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                    <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Motivo de Abertura</span>
-                    <span className="text-slate-750 font-semibold">{selectedDetailsVaga.motivo || 'Substituição'}</span>
-                  </div>
-                  <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                    <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Funcional Substituído</span>
-                    <span className="text-slate-750 font-semibold italic">{selectedDetailsVaga.funcionarioSubstituido || '-'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Dynamic workflow attributes (Bento Section 3) */}
-              <div className="space-y-3">
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Status & Contratação</h4>
-                <div className="grid grid-cols-2 gap-3 text-xs leading-relaxed">
-                  <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                    <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Etapa Atual no SGPC</span>
-                    <span className="text-orange-700 font-bold bg-orange-50 px-2 py-0.5 rounded border border-orange-150 uppercase text-[9px] inline-block mt-0.5">
-                      {selectedDetailsVaga.etapa || 'Triagem'}
-                    </span>
-                  </div>
-                  <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                    <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Candidato Selecionado</span>
-                    <span className={`font-bold flex items-center gap-1.5 ${selectedDetailsVaga.status === 'FECHADA' ? 'text-emerald-850' : 'text-slate-700'}`}>
-                      {selectedDetailsVaga.aprovado ? (
-                        <>
-                          <UserCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                          <span>{selectedDetailsVaga.aprovado}</span>
-                        </>
-                      ) : selectedDetailsVaga.status === 'FECHADA' ? (
-                        <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 text-[10px] uppercase font-extrabold flex items-center gap-1">
-                          ⚠️ Não informado
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 font-medium italic">Ainda em aberto</span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Funil de candidatos (indicadores do processo) */}
-              {(!!selectedDetailsVaga.candChamados || !!selectedDetailsVaga.candCompareceram || !!selectedDetailsVaga.candAprovados || !!selectedDetailsVaga.motivoDesistencia) && (
-                <div className="space-y-3">
-                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Funil de Candidatos</h4>
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                      <span className="block text-lg font-extrabold text-slate-800">{selectedDetailsVaga.candChamados || 0}</span>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Chamados</span>
-                    </div>
-                    <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                      <span className="block text-lg font-extrabold text-blue-700">{selectedDetailsVaga.candCompareceram || 0}</span>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Compareceram</span>
-                    </div>
-                    <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                      <span className="block text-lg font-extrabold text-emerald-700">{selectedDetailsVaga.candAprovados || 0}</span>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Aprovados</span>
-                    </div>
-                  </div>
-                  {selectedDetailsVaga.motivoDesistencia && (
-                    <div className="flex items-center gap-2 text-[11px] bg-rose-50/50 border border-rose-100 rounded-xl px-3 py-2">
-                      <span className="font-bold text-rose-700 uppercase text-[9px]">Desistência:</span>
-                      <span className="text-slate-700 font-semibold">{selectedDetailsVaga.motivoDesistencia}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Notes block */}
-              <div className="space-y-2">
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Informações Complementares</h4>
-                <div className="bg-orange-50/15 border border-orange-100/70 rounded-2xl p-4 text-xs text-slate-700 font-medium relative italic leading-relaxed">
-                  <FileText className="absolute right-4 top-4 text-slate-205 w-5 h-5 shrink-0 opacity-40" />
-                  <p className="whitespace-pre-line">
-                    {selectedDetailsVaga.observacoes || "Nenhuma anotação adicional registrada para o processo seletivo deste cargo."}
-                  </p>
-                </div>
-              </div>
-
-              {/* Histórico / timeline a partir dos logs (carregados só para admin) */}
-              {logs && logs.length > 0 && (() => {
-                const marca = `#${selectedDetailsVaga.codigo}`;
-                const vagaLogs = logs
-                  .filter(l => l.modulo === 'Vagas' && l.detalhes.includes(marca))
-                  .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                  .slice(0, 12);
-                return (
-                  <div className="space-y-2">
-                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Histórico da Vaga</h4>
-                    {vagaLogs.length === 0 ? (
-                      <p className="text-[11px] text-slate-400 italic">Nenhum registro de alteração para esta vaga.</p>
-                    ) : (
-                      <ul className="space-y-2.5 pt-1">
-                        {vagaLogs.map(l => (
-                          <li key={l.id} className="flex gap-2.5 text-[11px]">
-                            <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${l.acao === 'EXCLUIU' ? 'bg-rose-500' : l.acao === 'CRIOU' ? 'bg-emerald-500' : 'bg-indigo-500'}`} />
-                            <div className="min-w-0">
-                              <p className="text-slate-700 font-semibold leading-snug">{l.detalhes}</p>
-                              <p className="text-[10px] text-slate-400 font-medium mt-0.5">{new Date(l.timestamp).toLocaleString('pt-BR')} · {l.usuario}</p>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                );
-              })()}
-
-            </div>
-
-            {/* Quick Actions Footer inside Drawer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
-              <button
-                onClick={() => setSelectedDetailsVaga(null)}
-                className="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-xs font-bold rounded-xl text-slate-650 cursor-pointer transition"
-              >
-                Fechar Detalhes
-              </button>
-
-              {canManageVagas && (
-                <div className="flex items-center gap-2">
-                  {selectedDetailsVaga.status !== 'FECHADA' && (
-                    <button
-                      onClick={() => handleOpenConcludeModal(selectedDetailsVaga)}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 font-bold text-white text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Concluir Vaga
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      startEditing(selectedDetailsVaga);
-                    }}
-                    className="px-4 py-2 bg-orange-500 hover:bg-orange-600 font-bold text-white text-xs rounded-xl flex items-center gap-1 cursor-pointer transition shadow-none"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                    Editar Registro
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (confirmAction) {
-                        confirmAction(
-                          "Deletar Vaga",
-                          `Confirmar remoção permanente da vaga de "${selectedDetailsVaga.vaga}"?`,
-                          async () => {
-                            await deleteVaga(selectedDetailsVaga.id);
-                            setSelectedDetailsVaga(null);
-                          }
-                        );
-                      } else {
-                        if(confirm(`Excluir permanentemente?`)) {
-                          deleteVaga(selectedDetailsVaga.id);
-                          setSelectedDetailsVaga(null);
-                        }
-                      }
-                    }}
-                    className="px-4 py-2 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer transition"
-                    title="Excluir Vaga"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Excluir Vaga
-                  </button>
-                </div>
-              )}
-            </div>
-
-          </div>
-        </div>
+        <VagaDetailsDrawer
+          vaga={selectedDetailsVaga}
+          logs={logs}
+          canManage={canManageVagas}
+          getSedeLabel={getSedeLabel}
+          renderStatusBadge={getStatusBadge}
+          onClose={() => setSelectedDetailsVaga(null)}
+          onConcluir={handleOpenConcludeModal}
+          onEditar={startEditing}
+          onExcluir={(v) => {
+            if (confirmAction) {
+              confirmAction(
+                "Deletar Vaga",
+                `Confirmar remoção permanente da vaga de "${v.vaga}"?`,
+                async () => {
+                  await deleteVaga(v.id);
+                  setSelectedDetailsVaga(null);
+                }
+              );
+            } else {
+              if (confirm(`Excluir permanentemente?`)) {
+                deleteVaga(v.id);
+                setSelectedDetailsVaga(null);
+              }
+            }
+          }}
+        />
       )}
 
       {/* SECTION 5: MODALS (ORIGINAL COMPATIBILITY BACKUP) */}
@@ -2080,198 +1837,49 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
       {/* Modal: confirmar a data da pausa (congela o SLA a partir dela) */}
       {vagaToPause && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
-            <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
-              <div className="w-10 h-10 bg-slate-200 text-slate-600 rounded-xl flex items-center justify-center">
-                <Pause className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-sm font-bold text-slate-800">Pausar vaga</h3>
-                <p className="text-[11px] text-slate-500 font-semibold truncate">#{vagaToPause.codigo} · {vagaToPause.vaga}</p>
-              </div>
-            </div>
-            <div className="p-6 space-y-2">
-              <label htmlFor="pause-date" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide">Pausada desde</label>
-              <input
-                id="pause-date"
-                type="date"
-                max={new Date().toISOString().slice(0, 10)}
-                value={pauseDateISO}
-                onChange={(e) => setPauseDateISO(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-slate-500/10 focus:border-slate-500 focus:outline-none rounded-xl cursor-pointer"
-              />
-              <p className="text-[11px] text-slate-400 font-medium leading-relaxed">A partir desta data o SLA fica congelado. Ajuste se a vaga foi pausada num dia anterior.</p>
-            </div>
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setVagaToPause(null)}
-                className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold rounded-xl text-slate-650 transition cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const alvo = vagaToPause;
-                  const data = pauseDateISO || new Date().toISOString().slice(0, 10);
-                  setVagaToPause(null);
-                  await updateVaga(alvo.id, { status: 'PAUSADA', pausadaDesde: data });
-                }}
-                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-xs font-bold rounded-xl text-white shadow-md transition cursor-pointer flex items-center gap-1.5"
-              >
-                <Pause className="w-4 h-4" /> Pausar
-              </button>
-            </div>
-          </div>
-        </div>
+        <PauseVagaModal
+          vaga={vagaToPause}
+          dateISO={pauseDateISO}
+          onDateChange={setPauseDateISO}
+          onCancel={() => setVagaToPause(null)}
+          onConfirm={async () => {
+            const alvo = vagaToPause;
+            const data = pauseDateISO || new Date().toISOString().slice(0, 10);
+            setVagaToPause(null);
+            await updateVaga(alvo.id, { status: 'PAUSADA', pausadaDesde: data });
+          }}
+        />
       )}
 
       {/* Modal de transição de etapa: avanço Triagem→Entrevista pede o funil;
           retorno (voltar etapa) pede o motivo de desistência. */}
       {etapaMove && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
-            <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${etapaMove.tipo === 'desistencia' ? 'bg-rose-100 text-rose-600' : 'bg-orange-100 text-orange-600'}`}>
-                {etapaMove.tipo === 'desistencia' ? <AlertTriangle className="w-5 h-5" /> : <Workflow className="w-5 h-5" />}
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-sm font-bold text-slate-800">
-                  {etapaMove.tipo === 'desistencia' ? `Voltar para "${etapaMove.novaEtapa}"` : `Mover para "${etapaMove.novaEtapa}"`}
-                </h3>
-                <p className="text-[11px] text-slate-500 font-semibold truncate">#{etapaMove.vaga.codigo} · {etapaMove.vaga.vaga}</p>
-              </div>
-            </div>
-            <div className="p-6 space-y-4">
-              {etapaMove.tipo === 'funil' ? (
-                <div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Funil de candidatos</p>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label htmlFor="move-chamados" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Chamados</label>
-                      <input id="move-chamados" type="number" min={0} value={moveChamados} onChange={(e) => setMoveChamados(Number(e.target.value))} className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl" />
-                    </div>
-                    <div>
-                      <label htmlFor="move-compareceram" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Compareceram</label>
-                      <input id="move-compareceram" type="number" min={0} value={moveCompareceram} onChange={(e) => setMoveCompareceram(Number(e.target.value))} className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl" />
-                    </div>
-                    <div>
-                      <label htmlFor="move-aprovados" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Aprovados</label>
-                      <input id="move-aprovados" type="number" min={0} value={moveAprovados} onChange={(e) => setMoveAprovados(Number(e.target.value))} className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl" />
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <label htmlFor="move-motivo" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Por que a vaga voltou de etapa?</label>
-                  <select id="move-motivo" value={moveMotivo} onChange={(e) => setMoveMotivo(e.target.value)} className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 focus:outline-none rounded-xl cursor-pointer">
-                    <option value="">— Não se aplica —</option>
-                    {MOTIVOS_DESISTENCIA.map((m, i) => (<option key={i} value={m}>{m}</option>))}
-                  </select>
-                  <p className="text-[11px] text-slate-400 font-medium mt-2 leading-relaxed">Use quando um candidato desistiu/caiu e o processo precisou retroceder.</p>
-                </div>
-              )}
-            </div>
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
-              <button type="button" onClick={() => setEtapaMove(null)} className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold rounded-xl text-slate-650 transition cursor-pointer">Cancelar</button>
-              {etapaMove.tipo === 'desistencia' ? (
-                <button type="button" onClick={confirmEtapaMove} className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-xs font-bold rounded-xl text-white shadow-md transition cursor-pointer flex items-center gap-1.5">
-                  <ChevronLeft className="w-4 h-4" /> Voltar etapa
-                </button>
-              ) : (
-                <button type="button" onClick={confirmEtapaMove} className="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-xs font-bold rounded-xl text-white shadow-md transition cursor-pointer flex items-center gap-1.5">
-                  <ChevronRight className="w-4 h-4" /> Mover
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        <EtapaMoveModal
+          move={etapaMove}
+          chamados={moveChamados}
+          compareceram={moveCompareceram}
+          aprovados={moveAprovados}
+          motivo={moveMotivo}
+          onChamados={setMoveChamados}
+          onCompareceram={setMoveCompareceram}
+          onAprovados={setMoveAprovados}
+          onMotivo={setMoveMotivo}
+          onCancel={() => setEtapaMove(null)}
+          onConfirm={confirmEtapaMove}
+        />
       )}
 
       {/* 5D: KANBAN ACCIDENTAL DRAG PREVENTION CONFIRMATION MODAL */}
       {dragMoveConfirm && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
-            {/* Header */}
-            <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center">
-                  <Workflow className="w-5 h-5 animate-pulse" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-800">Confirmar Mudança de Fase</h3>
-                  <p className="text-[11px] text-slate-500 font-semibold">Evite movimentações acidentais</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setDragMoveConfirm(null)}
-                className="w-7 h-7 rounded-full bg-white border border-slate-205 hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* Content Body */}
-            <div className="p-6 space-y-5">
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col gap-1.5 text-center">
-                <span className="text-[10px] font-mono text-slate-400 font-bold tracking-widest">VAGA #{dragMoveConfirm.vagaCodigo}</span>
-                <span className="text-xs font-extrabold text-slate-800 leading-tight">{dragMoveConfirm.vagaTitle}</span>
-              </div>
-
-              <div className="space-y-2">
-                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide text-center">Transição do Processo</span>
-                
-                <div className="grid grid-cols-7 items-center gap-2 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
-                  {/* Origin */}
-                  <div className="col-span-3 text-center p-2.5 bg-white border border-slate-200/80 rounded-xl flex flex-col justify-center items-center gap-1 min-h-[64px]">
-                    <span className="text-[9px] text-slate-400 uppercase font-bold">Origem</span>
-                    <span className="text-xs font-bold text-slate-600 line-clamp-2 leading-tight">{dragMoveConfirm.oldLaneTitle}</span>
-                  </div>
-
-                  {/* Arrow Indicator */}
-                  <div className="col-span-1 flex flex-col items-center justify-center text-slate-350">
-                    <ChevronRight className="w-5 h-5 text-orange-500" />
-                  </div>
-
-                  {/* Destination */}
-                  <div className="col-span-3 text-center p-2.5 bg-orange-50/30 border border-orange-200 rounded-xl flex flex-col justify-center items-center gap-1 min-h-[64px]">
-                    <span className="text-[9px] text-orange-600 uppercase font-bold">Destino</span>
-                    <span className="text-xs font-extrabold text-orange-700 line-clamp-2 leading-tight">{dragMoveConfirm.newLaneTitle}</span>
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-xs font-semibold text-slate-500 leading-relaxed text-center px-2">
-                Tem certeza que deseja mover esta vaga para a coluna <span className="font-extrabold text-slate-700">{dragMoveConfirm.newLaneTitle}</span>?
-              </p>
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setDragMoveConfirm(null)}
-                className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold rounded-xl text-slate-650 transition cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const { vagaId, laneId } = dragMoveConfirm;
-                  setDragMoveConfirm(null);
-                  await executeDragDrop(vagaId, laneId);
-                }}
-                className="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-xs font-bold rounded-xl text-white shadow-md shadow-orange-600/10 transition cursor-pointer flex items-center gap-1.5"
-              >
-                <Check className="w-4 h-4 text-white" />
-                <span>Confirmar Transição</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <DragMoveConfirmModal
+          info={dragMoveConfirm}
+          onCancel={() => setDragMoveConfirm(null)}
+          onConfirm={async () => {
+            const { vagaId, laneId } = dragMoveConfirm;
+            setDragMoveConfirm(null);
+            await executeDragDrop(vagaId, laneId);
+          }}
+        />
       )}
     </div>
   );
