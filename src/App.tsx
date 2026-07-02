@@ -18,6 +18,8 @@ import { useRequisicoes } from './hooks/useRequisicoes';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Bandeirinhas } from './components/Bandeirinhas';
 import { useAppConfig } from './hooks/useAppConfig';
+import { regiaoDaSede, sedeEhUniversidade, escoparVagasPorUnidade, escoparSedesPorUnidade, REGIAO_UNIVERSIDADE } from './utils/unidade';
+import { requisicaoParaVaga } from './utils/requisicao';
 
 // Enfeites de época (sazonais). Para adicionar um novo: importe o componente e
 // acrescente { id, nome, Comp, padrao } aqui — o admin liga/desliga no painel.
@@ -134,8 +136,7 @@ export default function App() {
 
   // Coordenador = admin regional: o escopo dele é a REGIÃO da sede a que está vinculado.
   const isCoord = selectedRole === 'Coordenador';
-  const regiaoDe = (nome?: string) => (sedes.find(s => (s.nome || '').toLowerCase() === String(nome || '').toLowerCase())?.regiao || '');
-  const userRegiao = regiaoDe(selectedSede);
+  const userRegiao = regiaoDaSede(sedes, selectedSede);
 
   const { logs, logAction } = useLogs(user, isAdmin || isCoord, userRegiao);
   const { requisicoes, updateRequisicao } = useRequisicoes(user, isAdmin);
@@ -147,40 +148,26 @@ export default function App() {
   const scopedUserSede = isViewer ? '' : selectedSede;
   const canManageModules = !isViewer;
 
-  // Isolamento por unidade (Colégio × Universidade): vagas da Universidade (origem da
-  // planilha, ou sede em região "Universidade") só aparecem para quem é da Universidade.
-  // Como o resto do sistema (dashboard, SLA, Home) consome ESTA lista, ninguém de fora
-  // vê — nem entra na conta — as vagas da outra unidade. Administrador vê tudo (gestão).
-  // Isolamento por UNIDADE (Colégio × Universidade) — vale para todos os não-admin,
-  // inclusive o Coordenador. As 5 regiões do Colégio se enxergam entre si; só a
-  // Universidade é separada. (A única coisa "Universidade" são as vagas da planilha;
-  // por isso o corte é só nas vagas — treinos/experiências/entrevistas são todos Colégio.)
-  const scopedVagas = useMemo(() => {
-    if (selectedRole === 'Administrador') return vagas;
-    const isUniSede = (nome?: string) => {
-      const s = sedes.find(x => (x.nome || '').toLowerCase() === (nome || '').toLowerCase());
-      return (s?.regiao || '').toLowerCase() === 'universidade';
-    };
-    const usuarioEhUni = isUniSede(selectedSede);
-    return vagas.filter(v =>
-      (((v.origem || '').indexOf('planilha-universidade') === 0) || isUniSede(v.sede)) === usuarioEhUni
-    );
-  }, [vagas, sedes, selectedSede, selectedRole]);
+  // Isolamento por UNIDADE (Colégio × Universidade) — lógica centralizada e testada
+  // em utils/unidade.ts. Todo o sistema (Home, Dashboard, Quadro) consome ESTA lista,
+  // então ninguém de fora vê — nem soma no SLA — as vagas da outra unidade.
+  const ehAdminPleno = selectedRole === 'Administrador';
+  const scopedVagas = useMemo(
+    () => escoparVagasPorUnidade(vagas, sedes, selectedSede, ehAdminPleno),
+    [vagas, sedes, selectedSede, ehAdminPleno]
+  );
+
+  // Sedes oferecidas nos filtros/forms das seções (Colégio não lista Universidade e vice-versa).
+  const scopedSedes = useMemo(
+    () => escoparSedesPorUnidade(sedes || [], selectedSede, ehAdminPleno),
+    [sedes, selectedSede, ehAdminPleno]
+  );
 
   // Painel admin do Coordenador: vê/gerencia só o Colégio (regiões != Universidade).
   // Usuário sem sede (ex.: Visualizador) conta como Colégio. Admin vê tudo.
-  const ehUniRegiao = (nome?: string) => regiaoDe(nome).toLowerCase() === 'universidade';
-  const adminUsuarios = useMemo(() => isCoord ? (usuarios || []).filter(u => !ehUniRegiao(u.sede)) : (usuarios || []), [usuarios, isCoord, sedes]);
-  const adminSedes = useMemo(() => isCoord ? (sedes || []).filter(s => (s.regiao || '').toLowerCase() !== 'universidade') : (sedes || []), [sedes, isCoord]);
-  const adminRegioes = useMemo(() => isCoord ? (regioes || []).filter(r => (r.nome || '').toLowerCase() !== 'universidade') : (regioes || []), [regioes, isCoord]);
-
-  // Sedes oferecidas nos filtros/forms das seções: não-admin só vê as sedes da sua
-  // unidade (Colégio NÃO lista sedes da Universidade, e vice-versa). Admin vê todas.
-  const scopedSedes = useMemo(() => {
-    if (selectedRole === 'Administrador') return sedes || [];
-    const usuarioEhUni = regiaoDe(selectedSede).toLowerCase() === 'universidade';
-    return (sedes || []).filter(s => ((s.regiao || '').toLowerCase() === 'universidade') === usuarioEhUni);
-  }, [sedes, selectedSede, selectedRole]);
+  const adminUsuarios = useMemo(() => isCoord ? (usuarios || []).filter(u => !sedeEhUniversidade(sedes, u.sede)) : (usuarios || []), [usuarios, isCoord, sedes]);
+  const adminSedes = useMemo(() => isCoord ? (sedes || []).filter(s => (s.regiao || '').toLowerCase() !== REGIAO_UNIVERSIDADE) : (sedes || []), [sedes, isCoord]);
+  const adminRegioes = useMemo(() => isCoord ? (regioes || []).filter(r => (r.nome || '').toLowerCase() !== REGIAO_UNIVERSIDADE) : (regioes || []), [regioes, isCoord]);
 
   // Custom global confirmation modal & loading state
   const [globalLoading, setGlobalLoading] = useState<string | null>(null);
@@ -235,34 +222,7 @@ export default function App() {
   // Requisições: aceitar cria a vaga (campos extras vão pras observações); recusar registra o motivo.
   const handleAceitarRequisicao = (req: any) =>
     executeWithLoading("Aceitando requisição e criando vaga...", async () => {
-      const obs = [
-        `Origem: requisição (${req.tipoContratacao}).`,
-        req.selecao && `Seleção: ${req.selecao}.`,
-        req.justificativa && `Justificativa: ${req.justificativa}`,
-        req.jornada && `Jornada/Horário: ${req.jornada}`,
-        req.idade && `Idade: ${req.idade}`,
-        req.experiencia && `Experiência: ${req.experiencia}`,
-        req.salarioBeneficios && `Salário/Benefícios: ${req.salarioBeneficios}`,
-        req.hardSkills && `Hard skills: ${req.hardSkills}`,
-        req.softSkills && `Soft skills: ${req.softSkills}`,
-        req.responsabilidades && `Responsabilidades: ${req.responsabilidades}`,
-        req.gestorEmail && `Contato do gestor: ${req.gestorEmail}`,
-      ].filter(Boolean).join('\n');
-      let solic = new Date().toLocaleDateString('pt-BR');
-      try { solic = new Date(req.criadaEm).toLocaleDateString('pt-BR'); } catch (e) {}
-      await addVaga({
-        vaga: req.cargo,
-        sede: req.sede,
-        setor: req.setor || 'Geral',
-        status: 'ABERTA',
-        solicitacao: solic,
-        solicitante: req.gestorSolicitante,
-        motivo: req.tipoContratacao,
-        responsavel: 'RH',
-        etapa: 'Triagem',
-        categoria: 'Requisição',
-        observacoes: obs,
-      } as any);
+      await addVaga(requisicaoParaVaga(req) as any); // conversão pura e testada (utils/requisicao)
       await updateRequisicao(req.id, { status: 'aceita', decididaEm: new Date().toISOString(), decididaPor: user?.email || 'sistema' });
       await logAction('CRIOU', 'Vagas', `Vaga "${req.cargo}" criada a partir de requisição (gestor: ${req.gestorSolicitante}).`);
       notify('Requisição aceita — vaga criada!', 'success');

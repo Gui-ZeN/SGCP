@@ -28,6 +28,9 @@ export const RequisicaoPublica: React.FC = () => {
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [erro, setErro] = useState('');
+  // Honeypot anti-spam: campo invisível que humanos não veem/preenchem.
+  // Se vier preenchido (bot), fingimos sucesso sem gravar nada.
+  const [website, setWebsite] = useState('');
 
   const [form, setForm] = useState({
     cargo: '', sede: '', setor: '', selecao: 'Externa' as 'Interna' | 'Externa' | 'Mista',
@@ -54,6 +57,7 @@ export const RequisicaoPublica: React.FC = () => {
 
   const enviar = async () => {
     setErro('');
+    if (website.trim()) { setEnviado(true); return; } // honeypot: bot preencheu → sucesso falso, nada é gravado
     if (!form.cargo.trim() || !form.sede.trim() || !form.gestorSolicitante.trim()) {
       setErro('Preencha pelo menos Cargo, Sede e Gestor solicitante.');
       return;
@@ -110,6 +114,11 @@ export const RequisicaoPublica: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+          {/* Honeypot anti-spam (invisível; humanos não preenchem) */}
+          <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}>
+            <label htmlFor="website">Não preencha este campo</label>
+            <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" value={website} onChange={e => setWebsite(e.target.value)} />
+          </div>
           {/* Identificação */}
           <section className="space-y-4">
             <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">Identificação</h2>

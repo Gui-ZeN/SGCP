@@ -5,7 +5,6 @@
 
 import { useState, useEffect } from 'react';
 import { Vaga } from '../types';
-import { initialVagas } from '../data/initial_vagas';
 import { 
   db, 
   isFirebaseEnabled, 
@@ -82,19 +81,29 @@ export function useVagas(user?: any) {
       } catch (err) {
         setVagas([]);
       }
-    } else {
-      const isCleanMode = localStorage.getItem('ats_db_clean_mode') === 'true';
-      const initial = isCleanMode ? [] : initialVagas.map((v, index) => ({
-        id: `local_vaga_${index + 1}`,
-        ...v
-      } as Vaga));
-      
-      const seeded = [...initial];
-      seeded.sort((a, b) => b.codigo - a.codigo);
-      setVagas(seeded);
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(seeded));
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    const isCleanMode = localStorage.getItem('ats_db_clean_mode') === 'true';
+    if (isCleanMode) {
+      setVagas([]);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([]));
+      setLoading(false);
+      return;
+    }
+
+    // Seed do modo demo carregado SOB DEMANDA (dynamic import): são ~1.500 linhas
+    // de dados que não devem pesar no bundle principal de quem usa Firebase.
+    import('../data/initial_vagas')
+      .then(({ initialVagas }) => {
+        const seeded = initialVagas.map((v, index) => ({ id: `local_vaga_${index + 1}`, ...v } as Vaga));
+        seeded.sort((a, b) => b.codigo - a.codigo);
+        setVagas(seeded);
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(seeded));
+      })
+      .catch(() => setVagas([]))
+      .finally(() => setLoading(false));
   };
 
   // Add a new vacancy (Full-Stack CRUD supporting both online Firestore and Local Fallback)
