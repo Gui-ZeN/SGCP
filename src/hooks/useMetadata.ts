@@ -31,6 +31,7 @@ export interface Usuario {
   email: string;
   role: UserRole;
   sede?: string;
+  unidade?: 'colegio' | 'universidade'; // denormalizada da região da sede (usada pelas rules p/ escopar o Coordenador)
 }
 
 export interface Sede {
@@ -339,6 +340,15 @@ export function useMetadata(currentUser: any) {
   }, [currentUser, usuarios, loading]);
 
   // Operations: Users
+  // Unidade denormalizada no doc do usuário (Colégio × Universidade, pela região
+  // da sede). As Firestore Rules usam isto p/ escopar o Coordenador no servidor
+  // (regras não conseguem cruzar nome-de-sede → região).
+  const unidadeDaSede = (nomeSede?: string): 'colegio' | 'universidade' => {
+    const alvo = String(nomeSede || '').toLowerCase();
+    const s = sedes.find(x => (x.nome || '').toLowerCase() === alvo);
+    return (s?.regiao || '').toLowerCase() === 'universidade' ? 'universidade' : 'colegio';
+  };
+
   const addUsuario = async (email: string, role: UserRole, sede?: string) => {
     const cleanEmail = email.trim();
     if (!cleanEmail) return;
@@ -348,7 +358,8 @@ export function useMetadata(currentUser: any) {
         await setDoc(doc(db, 'usuarios', cleanEmail), {
           email: cleanEmail,
           role,
-          sede: sede || ''
+          sede: sede || '',
+          unidade: unidadeDaSede(sede)
         });
       } catch (error) {
         handleFirestoreError(error, OperationType.CREATE, `usuarios/${cleanEmail}`);
@@ -358,7 +369,8 @@ export function useMetadata(currentUser: any) {
         id: `local_user_${Date.now()}`,
         email: cleanEmail,
         role,
-        sede: sede || ''
+        sede: sede || '',
+        unidade: unidadeDaSede(sede)
       };
       const updated = [...usuarios.filter(u => (u.email || '').toLowerCase() !== cleanEmail.toLowerCase()), newUser];
       setUsuarios(updated);
@@ -391,13 +403,15 @@ export function useMetadata(currentUser: any) {
           await setDoc(doc(db, 'usuarios', cleanEmail), {
             email: cleanEmail,
             role,
-            sede: sede || ''
+            sede: sede || '',
+            unidade: unidadeDaSede(sede)
           });
         } else {
           await setDoc(doc(db, 'usuarios', id), {
             email: cleanEmail,
             role,
-            sede: sede || ''
+            sede: sede || '',
+            unidade: unidadeDaSede(sede)
           });
         }
       } catch (error) {
@@ -406,7 +420,7 @@ export function useMetadata(currentUser: any) {
     } else {
       const updated = usuarios.map(u => {
         if (u.id === id || u.email === id) {
-          return { ...u, email: cleanEmail, role, sede: sede || '' };
+          return { ...u, email: cleanEmail, role, sede: sede || '', unidade: unidadeDaSede(sede) };
         }
         return u;
       });

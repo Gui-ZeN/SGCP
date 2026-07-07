@@ -1,5 +1,5 @@
-import { Vaga } from '../types';
-import { Sede } from '../hooks/useMetadata';
+import type { Vaga } from '../types';
+import type { Sede } from '../hooks/useMetadata';
 
 /**
  * Isolamento por UNIDADE (Colégio × Universidade) — regra de negócio central.

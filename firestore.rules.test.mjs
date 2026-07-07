@@ -31,6 +31,7 @@ const ANALISTA_EMAIL = "analista@empresa.com";
 const ADMIN_DOC_EMAIL = "chefe@empresa.com";
 const VIEWER_EMAIL = "viewer@empresa.com";
 const COORDENADOR_EMAIL = "coord@empresa.com";
+const COORD_UNI_EMAIL = "coorduni@empresa.com";
 const STRANGER_EMAIL = "fulano@empresa.com"; // verificado, mas sem registro
 
 let testEnv;
@@ -76,6 +77,13 @@ async function seed() {
       email: COORDENADOR_EMAIL,
       role: "Coordenador",
       sede: "DT",
+      // sem `unidade` de propósito: docs antigos devem contar como Colégio
+    });
+    await setDoc(doc(db, "usuarios", COORD_UNI_EMAIL), {
+      email: COORD_UNI_EMAIL,
+      role: "Coordenador",
+      sede: "PE",
+      unidade: "universidade",
     });
     // dados existentes para testes de leitura/update
     await setDoc(doc(db, "vagas", "v1"), { codigo: 1001, vaga: "Dev", status: "ABERTA" });
@@ -217,6 +225,19 @@ test("sedes: coordenador NÃO pode excluir sede da Universidade", () =>
 
 test("sedes: coordenador NÃO pode criar/editar Cargos (cadastro global)", () =>
   assertFails(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "cargos", "c99"), { nome: "X" })));
+
+// --- Coordenador da UNIVERSIDADE (unidade denormalizada no doc do usuário) ---
+test("sedes: coordenador da UNIVERSIDADE pode criar sede da Universidade", () =>
+  assertSucceeds(setDoc(doc(ctx.user(COORD_UNI_EMAIL), "sedes", "sUniNova"), { nome: "Campus Novo", regiao: "Universidade" })));
+
+test("sedes: coordenador da UNIVERSIDADE NÃO pode criar sede do Colégio", () =>
+  assertFails(setDoc(doc(ctx.user(COORD_UNI_EMAIL), "sedes", "sColNova"), { nome: "Filial", regiao: "Sul" })));
+
+test("sedes: coordenador da UNIVERSIDADE NÃO pode excluir sede do Colégio", () =>
+  assertFails(deleteDoc(doc(ctx.user(COORD_UNI_EMAIL), "sedes", "s1"))));
+
+test("usuarios: coordenador da UNIVERSIDADE segue sem poder criar Administrador", () =>
+  assertFails(setDoc(doc(ctx.user(COORD_UNI_EMAIL), "usuarios", "novoadm2@empresa.com"), { email: "novoadm2@empresa.com", role: "Administrador", sede: "PE", unidade: "universidade" })));
 
 test("usuarios: leitura por usuário verificado é permitida", () =>
   assertSucceeds(getDoc(doc(ctx.user(ANALISTA_EMAIL), "usuarios", ANALISTA_EMAIL))));

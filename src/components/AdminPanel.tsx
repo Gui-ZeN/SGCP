@@ -21,7 +21,8 @@ import { AdminSetoresTab } from './AdminSetoresTab';
 import { AdminLogsTab } from './AdminLogsTab';
 
 interface AdminPanelProps {
-  isCoordenador?: boolean; // Coordenador: painel restrito ao Colégio (Usuários/Sedes/Logs); sem cadastros globais
+  isCoordenador?: boolean; // Coordenador: painel restrito à UNIDADE dele (Usuários/Sedes/Logs); sem cadastros globais
+  coordUnidadeNome?: string; // rótulo da unidade do coordenador ('Colégio' | 'Universidade')
   enfeites?: { id: string; nome: string; ativo: boolean }[]; // enfeites de época (liga/desliga global)
   onToggleEnfeite?: (id: string, ativo: boolean) => void;
   usuarios: Usuario[];
@@ -67,6 +68,7 @@ interface AdminPanelProps {
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
   isCoordenador = false,
+  coordUnidadeNome = 'Colégio',
   enfeites = [],
   onToggleEnfeite,
   usuarios,
@@ -112,8 +114,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <ShieldAlert className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-800 tracking-tight">Painel Administrativo{isCoordenador && ' · Colégio'}</h1>
-              <p className="text-xs text-slate-400 font-semibold tracking-wide uppercase mt-0.5">{isCoordenador ? 'Usuários, sedes e logs do Colégio' : 'Configurações globais e permissões'}</p>
+              <h1 className="text-xl font-bold text-slate-800 tracking-tight">Painel Administrativo{isCoordenador && ` · ${coordUnidadeNome}`}</h1>
+              <p className="text-xs text-slate-400 font-semibold tracking-wide uppercase mt-0.5">{isCoordenador ? `Usuários, sedes e logs — ${coordUnidadeNome}` : 'Configurações globais e permissões'}</p>
             </div>
           </div>
           

@@ -190,11 +190,14 @@ export default function App() {
     return experiencias.filter(e => sedeEhUniversidade(sedes, e.sede) === usuarioUni);
   }, [experiencias, sedes, selectedSede, ehAdminPleno]);
 
-  // Painel admin do Coordenador: vê/gerencia só o Colégio (regiões != Universidade).
-  // Usuário sem sede (ex.: Visualizador) conta como Colégio. Admin vê tudo.
-  const adminUsuarios = useMemo(() => isCoord ? (usuarios || []).filter(u => !sedeEhUniversidade(sedes, u.sede)) : (usuarios || []), [usuarios, isCoord, sedes]);
-  const adminSedes = useMemo(() => isCoord ? (sedes || []).filter(s => (s.regiao || '').toLowerCase() !== REGIAO_UNIVERSIDADE) : (sedes || []), [sedes, isCoord]);
-  const adminRegioes = useMemo(() => isCoord ? (regioes || []).filter(r => (r.nome || '').toLowerCase() !== REGIAO_UNIVERSIDADE) : (regioes || []), [regioes, isCoord]);
+  // Painel admin do Coordenador: vê/gerencia só a UNIDADE dele (Colégio OU
+  // Universidade, conforme a região da sede do usuário). Usuário sem sede conta
+  // como Colégio. Admin vê tudo.
+  const adminUsuarios = useMemo(() => isCoord ? (usuarios || []).filter(u => sedeEhUniversidade(sedes, u.sede) === usuarioEhUni) : (usuarios || []), [usuarios, isCoord, sedes, usuarioEhUni]);
+  const adminSedes = useMemo(() => isCoord ? (sedes || []).filter(s => ((s.regiao || '').toLowerCase() === REGIAO_UNIVERSIDADE) === usuarioEhUni) : (sedes || []), [sedes, isCoord, usuarioEhUni]);
+  const adminRegioes = useMemo(() => isCoord ? (regioes || []).filter(r => ((r.nome || '').toLowerCase() === REGIAO_UNIVERSIDADE) === usuarioEhUni) : (regioes || []), [regioes, isCoord, usuarioEhUni]);
+  // Logs do painel idem (log carimba a região do autor; sem região = Colégio antigo).
+  const adminLogs = useMemo(() => isCoord ? (logs || []).filter(l => (((l as any).regiao || '').toLowerCase() === REGIAO_UNIVERSIDADE) === usuarioEhUni) : (logs || []), [logs, isCoord, usuarioEhUni]);
 
   // Custom global confirmation modal & loading state
   const [globalLoading, setGlobalLoading] = useState<string | null>(null);
@@ -1220,12 +1223,13 @@ export default function App() {
                 isCoordenador={isCoord}
                 enfeites={ENFEITES.map(e => ({ id: e.id, nome: e.nome, ativo: enfeiteAtivo(e) }))}
                 onToggleEnfeite={setEnfeite}
+                coordUnidadeNome={usuarioEhUni ? 'Universidade' : 'Colégio'}
                 usuarios={adminUsuarios}
                 sedes={adminSedes}
                 regioes={adminRegioes}
                 cargos={cargos || []}
                 setores={setores || []}
-                logs={logs || []}
+                logs={adminLogs}
                 addUsuario={wrappedAddUsuario}
                 updateUsuario={wrappedUpdateUsuario}
                 deleteUsuario={wrappedDeleteUsuario}

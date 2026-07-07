@@ -64,6 +64,18 @@ service cloud.firestore {
       return isRegistered() && roleOf() == "Coordenador";
     }
 
+    // Unidade do coordenador ('colegio' | 'universidade'), denormalizada no doc
+    // do usuário pelo app ao salvar (rules não cruzam nome-de-sede → região).
+    // Docs antigos sem o campo contam como Colégio.
+    function unidadeDoCoordenador() {
+      return get(userPath()).data.get('unidade', 'colegio');
+    }
+
+    // A sede (pela região gravada no doc) pertence à unidade do coordenador?
+    function sedeNaUnidadeDoCoordenador(regiao) {
+      return (regiao == 'Universidade') == (unidadeDoCoordenador() == 'universidade');
+    }
+
     // Usuário do app: verificado E provisionado (admin bootstrap ou cadastrado
     // em `usuarios`). Mais restrito que isVerifiedUser(), pois o login Google
     // não tem restrição de domínio — sem isto, qualquer conta Google poderia
@@ -88,7 +100,8 @@ service cloud.firestore {
       return d.email is string
         && d.email.size() <= 320
         && d.role in ['Administrador', 'Coordenador', 'Analista', 'Visualizador']
-        && (!('sede' in d.keys()) || d.sede is string);
+        && (!('sede' in d.keys()) || d.sede is string)
+        && (!('unidade' in d.keys()) || d.unidade in ['colegio', 'universidade']);
     }
 
     // =====================================================================
@@ -143,11 +156,12 @@ service cloud.firestore {
 
     match /sedes/{sedeId} {
       allow read: if true; // leitura pública: o formulário de requisição (sem login) lista as sedes
-      // Coordenador gerencia sedes do Colégio (região != Universidade). A região
-      // está no próprio documento, então aqui a trava por unidade é de verdade (servidor).
-      allow create: if isAdmin() || (isCoordenador() && incoming().regiao != 'Universidade');
-      allow update: if isAdmin() || (isCoordenador() && existing().regiao != 'Universidade' && incoming().regiao != 'Universidade');
-      allow delete: if isAdmin() || (isCoordenador() && existing().regiao != 'Universidade');
+      // Coordenador gerencia apenas sedes da UNIDADE dele (Colégio ou Universidade,
+      // via unidade denormalizada no doc do usuário). A região está no próprio
+      // documento da sede, então a trava por unidade é real (servidor).
+      allow create: if isAdmin() || (isCoordenador() && sedeNaUnidadeDoCoordenador(incoming().regiao));
+      allow update: if isAdmin() || (isCoordenador() && sedeNaUnidadeDoCoordenador(existing().regiao) && sedeNaUnidadeDoCoordenador(incoming().regiao));
+      allow delete: if isAdmin() || (isCoordenador() && sedeNaUnidadeDoCoordenador(existing().regiao));
     }
 
     match /regioes/{regiaoId} {
