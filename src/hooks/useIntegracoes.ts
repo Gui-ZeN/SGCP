@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   db, isFirebaseEnabled, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
   handleFirestoreError, OperationType
@@ -7,6 +7,11 @@ import { Integracao } from '../types';
 import type { ImportableIntegracao } from '../lib/integracaoImport';
 
 const LOCAL_KEY = 'sgcp_integracoes_fallback';
+
+// Migração única: o primeiro import gravou a aba Benfica com a sede
+// "BENFICA UNIVERSIDADE" (nome antigo); a sede real do cadastro é UNIBENFICA.
+// Registros legados são renomeados ao carregar. Removível depois de rodar em produção.
+const LEGACY_SEDES: Record<string, string> = { 'BENFICA UNIVERSIDADE': 'UNIBENFICA' };
 
 /**
  * Treinamentos de Integração (onboarding) — módulo exclusivo da Universidade.
@@ -17,6 +22,7 @@ export function useIntegracoes(currentUser: any, enabled: boolean = true) {
   const [integracoes, setIntegracoes] = useState<Integracao[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingFirebase, setUsingFirebase] = useState(isFirebaseEnabled);
+  const migrouSedesLegadas = useRef(false);
 
   useEffect(() => {
     if (!enabled) { setIntegracoes([]); setLoading(false); return; }
@@ -26,6 +32,20 @@ export function useIntegracoes(currentUser: any, enabled: boolean = true) {
       const unsub = onSnapshot(col, (snap: any) => {
         const list: Integracao[] = [];
         snap.forEach((d: any) => list.push({ ...d.data(), id: d.id } as Integracao));
+
+        // Auto-correção de sedes legadas (uma vez por sessão). O update dispara um
+        // novo snapshot já corrigido — na 2ª passada nada casa e o loop encerra.
+        if (!migrouSedesLegadas.current) {
+          const legadas = list.filter(x => LEGACY_SEDES[x.sede]);
+          if (legadas.length) {
+            migrouSedesLegadas.current = true;
+            legadas.forEach(x => {
+              updateDoc(doc(db, 'integracoes', x.id), { sede: LEGACY_SEDES[x.sede] })
+                .catch((e: any) => console.warn('Migração de sede legada falhou:', x.id, e));
+            });
+          }
+        }
+
         // Mais recentes primeiro (admissão DD/MM/YYYY → compara invertido AAAA/MM/DD)
         const key = (s?: string) => (s || '').split('/').reverse().join('');
         list.sort((a, b) => key(b.admissao).localeCompare(key(a.admissao)));
