@@ -124,9 +124,10 @@ export function useFirestoreCollection<T extends { id: string }>(
       loadLocalFallback();
     } else {
       // Firebase ativo mas sem usuário autenticado: não assina (evita
-      // permission-denied) e libera o loading para o app exibir a tela de login.
+      // permission-denied). Loading fica TRUE: a tela de login usa authReady, e
+      // manter true evita 1 frame de shell vazio quando o login resolve (piscada).
       setItems([]);
-      setLoading(false);
+      setLoading(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);

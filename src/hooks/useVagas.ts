@@ -62,9 +62,11 @@ export function useVagas(user?: any) {
       loadLocalFallback();
     } else {
       // Firebase ativo, mas sem usuário autenticado: não assina (evita
-      // permission-denied) e libera o loading para o app exibir a tela de login.
+      // permission-denied). O loading fica TRUE de propósito: a tela de login não
+      // depende dele (gate usa authReady) e, no instante em que o login resolve,
+      // isso evita 1 frame com o shell vazio antes dos efeitos re-assinarem (piscada).
       setVagas([]);
-      setLoading(false);
+      setLoading(true);
     }
   }, [user]);
 
