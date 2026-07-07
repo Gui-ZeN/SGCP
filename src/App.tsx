@@ -18,6 +18,7 @@ import { useRequisicoes } from './hooks/useRequisicoes';
 import { useIntegracoes } from './hooks/useIntegracoes';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Bandeirinhas } from './components/Bandeirinhas';
+import { BootLoader } from './components/BootLoader';
 import { useAppConfig } from './hooks/useAppConfig';
 import { regiaoDaSede, sedeEhUniversidade, escoparVagasPorUnidade, escoparSedesPorUnidade, REGIAO_UNIVERSIDADE } from './utils/unidade';
 import { requisicaoParaVaga } from './utils/requisicao';
@@ -671,16 +672,7 @@ export default function App() {
   // mostra o spinner. Sem usuário (após authReady), cai direto na tela de login —
   // sem ficar preso no "Carregando" quando o Firestore nega leitura ao anônimo.
   if (!authReady || (user && (loading || loadingMetadata || loadingOps))) {
-    return (
-      <div className="min-h-screen bg-slate-50/50 flex flex-col items-center justify-center space-y-4">
-        <div className="w-12 h-12 rounded-2xl bg-indigo-600/10 flex items-center justify-center text-indigo-600">
-          <Loader2 className="w-6 h-6 animate-spin" />
-        </div>
-        <div className="text-sm font-semibold text-slate-500 font-sans tracking-wide">
-          Carregando dados das vagas e analíticas...
-        </div>
-      </div>
-    );
+    return <BootLoader />;
   }
 
   if (!user) {
