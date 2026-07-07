@@ -793,7 +793,7 @@ export default function App() {
       {/* Enfeites de época (ligados/desligados pelo admin no painel) 🎉 */}
       {ENFEITES.filter(enfeiteAtivo).map(e => { const Comp = e.Comp; return <Comp key={e.id} />; })}
       {/* Top Main Navigation Header (Glued to top) */}
-      <header className="flex items-center justify-between bg-white py-3.5 px-6 border-b border-slate-200 shadow-xs shrink-0 z-10 gap-4">
+      <header className="no-print flex items-center justify-between bg-white py-3.5 px-6 border-b border-slate-200 shadow-xs shrink-0 z-10 gap-4">
         {/* Logo and Dynamic Screen Name */}
         <div className="flex items-center gap-3">
           <img src="/logo.svg" alt="SGPC" width={36} height={36} className="w-9 h-9 rounded-xl object-contain shrink-0" />
@@ -842,7 +842,7 @@ export default function App() {
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
         
         {/* Navigation Sidebar Drawer */}
-        <aside className="w-full lg:w-64 bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-5 flex flex-row lg:flex-col gap-4 overflow-x-auto lg:overflow-y-auto scrollbar-none shrink-0 justify-between">
+        <aside className="no-print w-full lg:w-64 bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-5 flex flex-row lg:flex-col gap-4 overflow-x-auto lg:overflow-y-auto scrollbar-none shrink-0 justify-between">
           
           <div className="flex flex-row lg:flex-col gap-4 w-full">
             
@@ -1108,12 +1108,14 @@ export default function App() {
           )}
 
           {activeTab === 'dashboard' && (
-            <RecruitmentDashboard 
-              vagas={scopedVagas} 
-              treinamentos={scopedTreinamentos} 
+            <RecruitmentDashboard
+              vagas={scopedVagas}
+              treinamentos={scopedTreinamentos}
               experiencias={scopedExperiencias}
               entrevistas={entrevistas}
               turnover={turnover}
+              integracoes={integracoes}
+              mostrarIntegracao={podeVerIntegracao}
               sedes={scopedSedes}
               userSede={scopedUserSede}
               isAdmin={isAdmin || isCoord}

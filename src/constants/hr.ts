@@ -44,11 +44,15 @@ export const SLA_META_DIAS = 15;
 // Motivos padronizados de desistência de candidato (lista suspensa em vez de texto
 // livre, para indicadores confiáveis — definido na reunião de mapeamento de RH).
 export const MOTIVOS_DESISTENCIA = [
-  'Salário abaixo do esperado',
+  'Já estava trabalhando',
+  'Conseguiu outra oportunidade',
   'Benefícios',
-  'Encontrou outro emprego',
-  'Distância / transporte',
-  'Incompatibilidade de horário',
-  'Não compareceu',
+  'Salário',
+  'Local / distância',
+  'Horário',
+  'Desistiu na admissão',
+  'Não compareceu à entrevista com o gestor',
+  'Motivos pessoais',
+  'Sem motivo informado',
   'Outros'
 ];

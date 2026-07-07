@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Vaga, Treinamento, Experiencia, Entrevista, Turnover } from '../types';
+import { Vaga, Treinamento, Experiencia, Entrevista, Turnover, Integracao } from '../types';
 import { SLA_META_DIAS } from '../constants/hr';
 import { ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa } from '../utils/vaga';
+import { RelatorioIndicadores } from './RelatorioSection';
 import { useTheme } from '../hooks/useTheme';
 import { Sede } from '../hooks/useMetadata';
 import { 
@@ -47,7 +48,8 @@ import {
   UserCheck,
   AlertCircle,
   HelpCircle,
-  DollarSign
+  DollarSign,
+  Printer
 } from 'lucide-react';
 
 // --- Tema de gráficos: paleta coesa + tooltip estilizado reutilizável ---
@@ -93,17 +95,21 @@ interface RecruitmentDashboardProps {
   experiencias?: Experiencia[];
   entrevistas?: Entrevista[];
   turnover?: Turnover[];
+  integracoes?: Integracao[];
+  mostrarIntegracao?: boolean;
   sedes?: Sede[];
   userSede?: string;
   isAdmin?: boolean;
 }
 
-export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({ 
-  vagas, 
-  treinamentos = [], 
-  experiencias = [], 
-  entrevistas = [], 
+export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
+  vagas,
+  treinamentos = [],
+  experiencias = [],
+  entrevistas = [],
   turnover = [],
+  integracoes = [],
+  mostrarIntegracao = false,
   sedes = [],
   userSede,
   isAdmin = false
@@ -493,6 +499,35 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
                 <option key={idx} value={a}>{a}</option>
               ))}
             </select>
+          </div>
+
+          {/* Exportar o relatório visual (impressão → salvar como PDF) */}
+          <div className="flex flex-col justify-end">
+            <button
+              onClick={() => window.print()}
+              className="no-print flex items-center gap-1.5 text-xs bg-slate-900 hover:bg-slate-800 text-white py-2 px-3.5 rounded-xl font-bold uppercase tracking-wider shadow-sm cursor-pointer transition"
+              title="Gerar PDF do relatório (via impressão do navegador)"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Exportar PDF
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Capa do relatório — só aparece na impressão/PDF */}
+      <div className="print-only mb-6">
+        <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3">
+          <div>
+            <div className="text-2xl font-black text-slate-900 tracking-tight">Relatório de Indicadores · RH</div>
+            <div className="text-sm text-slate-500 font-semibold">
+              {selectedSede === 'TODAS' ? 'Todas as sedes' : getSedeSigla(selectedSede)}
+              {selectedAno !== 'TODOS' ? ` · ${selectedAno}` : ''}
+            </div>
+          </div>
+          <div className="text-right text-xs text-slate-500 font-semibold">
+            <div className="text-lg font-black text-[#1B4DD8]">SGPC</div>
+            Gerado em {new Date().toLocaleDateString('pt-BR')}
           </div>
         </div>
       </div>
@@ -1024,6 +1059,14 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
         </div>
 
       </div>
+
+      {/* Cumprimento por sede (Integração/Experiência/Treinamentos) — sai no Exportar PDF */}
+      <RelatorioIndicadores
+        integracoes={integracoes}
+        treinamentos={treinamentos}
+        experiencias={experiencias}
+        mostrarIntegracao={mostrarIntegracao}
+      />
 
     </div>
   );

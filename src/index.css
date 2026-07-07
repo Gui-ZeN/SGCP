@@ -15,15 +15,31 @@
   --color-orange-700: #c2410c;
 }
 
+/* Só aparece na impressão/PDF (capa do relatório). Escondido na tela. */
+.print-only { display: none; }
+
 @media print {
   body {
     background: white !important;
     color: black !important;
     font-size: 12pt;
   }
-  
+
   .no-print {
     display: none !important;
+  }
+
+  .print-only { display: block !important; }
+
+  /* Preserva as cores dos anéis de %, badges e gráficos no PDF. */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Não cortar cartões/painéis no meio entre páginas. */
+  section, .bg-white {
+    break-inside: avoid;
   }
   
   main {
