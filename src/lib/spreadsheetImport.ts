@@ -98,7 +98,7 @@ function rating(value: unknown): number {
   return Math.max(1, Math.min(5, Math.round(numberValue(value, 3))));
 }
 
-async function worksheetRows(file: File, sheetName: string): Promise<Record<string, unknown>[]> {
+export async function worksheetRows(file: File, sheetName: string): Promise<Record<string, unknown>[]> {
   let matrix: unknown[][];
   try {
     matrix = await readSheet(file, sheetName);

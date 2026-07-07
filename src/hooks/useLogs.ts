@@ -12,7 +12,7 @@ export interface SystemLog {
   timestamp: string; // ISO String
   usuario: string; // Email of the user who performed the log
   acao: 'CRIOU' | 'ALTEROU' | 'EXCLUIU' | 'SINALIZOU'; 
-  modulo: 'Vagas' | 'Sedes' | 'Regiões' | 'Cargos' | 'Setores' | 'Usuários' | 'Treinamentos' | 'Experiências' | 'Entrevistas' | 'Turnover';
+  modulo: 'Vagas' | 'Sedes' | 'Regiões' | 'Cargos' | 'Setores' | 'Usuários' | 'Treinamentos' | 'Experiências' | 'Entrevistas' | 'Turnover' | 'Integrações';
   detalhes: string;
   regiao?: string; // região de quem realizou a ação — usada para escopar o histórico do Coordenador
 }

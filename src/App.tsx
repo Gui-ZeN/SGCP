@@ -15,6 +15,7 @@ const AdminPanel = lazy(() => import('./components/AdminPanel').then(m => ({ def
 import { useMetadata, type UserRole } from './hooks/useMetadata';
 import { useLogs } from './hooks/useLogs';
 import { useRequisicoes } from './hooks/useRequisicoes';
+import { useIntegracoes } from './hooks/useIntegracoes';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Bandeirinhas } from './components/Bandeirinhas';
 import { useAppConfig } from './hooks/useAppConfig';
@@ -32,6 +33,7 @@ const ExperienciasSection = lazy(() => import('./components/ExperienciasSection'
 const EntrevistasSection = lazy(() => import('./components/EntrevistasSection').then(m => ({ default: m.EntrevistasSection })));
 const TurnoverSection = lazy(() => import('./components/TurnoverSection').then(m => ({ default: m.TurnoverSection })));
 const RequisicoesSection = lazy(() => import('./components/RequisicoesSection').then(m => ({ default: m.RequisicoesSection })));
+const IntegracoesSection = lazy(() => import('./components/IntegracoesSection').then(m => ({ default: m.IntegracoesSection })));
 import { 
   Briefcase, 
   BarChart3, 
@@ -144,7 +146,14 @@ export default function App() {
   const { enfeites, setEnfeite } = useAppConfig(user);
   const enfeiteAtivo = (e: { id: string; padrao: boolean }) => enfeites[e.id] ?? e.padrao;
 
-  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'admin'>('home');
+  // Módulo "Integração": exclusivo da Universidade (usuário de sede na região
+  // Universidade) e do Administrador. Só assina a coleção pra quem pode ver.
+  const usuarioEhUni = sedeEhUniversidade(sedes, selectedSede);
+  const podeVerIntegracao = isAdmin || usuarioEhUni;
+  const { integracoes, addIntegracao, updateIntegracao, deleteIntegracao, importIntegracoes } = useIntegracoes(user, podeVerIntegracao);
+  const sedesUniversidade = useMemo(() => (sedes || []).filter(s => (s.regiao || '').toLowerCase() === REGIAO_UNIVERSIDADE), [sedes]);
+
+  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'integracao' | 'admin'>('home');
   const scopedUserSede = isViewer ? '' : selectedSede;
   const canManageModules = !isViewer;
 
@@ -227,6 +236,29 @@ export default function App() {
       await logAction('CRIOU', 'Vagas', `Vaga "${req.cargo}" criada a partir de requisição (gestor: ${req.gestorSolicitante}).`);
       notify('Requisição aceita — vaga criada!', 'success');
     });
+
+  // Integração (Universidade): operações com loading + auditoria.
+  const wrappedAddIntegracao = (i: any) =>
+    executeWithLoading("Registrando integração...", async () => {
+      await addIntegracao(i);
+      await logAction('CRIOU', 'Integrações', `Integração de "${i.nome}" (${i.sede}) registrada.`);
+    });
+  const wrappedUpdateIntegracao = (id: string, f: any) =>
+    executeWithLoading("Atualizando integração...", async () => {
+      await updateIntegracao(id, f);
+      await logAction('ALTEROU', 'Integrações', `Integração de "${f.nome || id}" alterada.`);
+    });
+  const wrappedDeleteIntegracao = (id: string) =>
+    executeWithLoading("Excluindo integração...", async () => {
+      const alvo = integracoes.find(x => x.id === id);
+      await deleteIntegracao(id);
+      await logAction('EXCLUIU', 'Integrações', `Integração de "${alvo?.nome || id}" removida.`);
+    });
+  const handleImportIntegracoes = async (list: any[]) => {
+    const res = await importIntegracoes(list);
+    await logAction('CRIOU', 'Integrações', `Import da planilha de integração: ${res.adicionadas} adicionada(s), ${res.puladas} pulada(s).`);
+    return res;
+  };
 
   const handleRecusarRequisicao = (req: any, motivo: string) =>
     executeWithLoading("Recusando requisição...", async () => {
@@ -740,6 +772,7 @@ export default function App() {
               {activeTab === 'entrevistas' && 'Entrevistas de Desligamento'}
               {activeTab === 'turnover' && 'Turnover & Headcount'}
               {activeTab === 'requisicoes' && 'Requisições de Vaga'}
+              {activeTab === 'integracao' && 'Treinamento de Integração · Universidade'}
               {activeTab === 'admin' && 'Painel Administrativo'}
             </p>
           </div>
@@ -901,6 +934,22 @@ export default function App() {
                 <Percent className="w-4 h-4 shrink-0 text-blue-500" />
                 <span>Turn Over</span>
               </button>
+
+              {podeVerIntegracao && (
+                <button
+                  id="tab-integracao"
+                  onClick={() => setActiveTab('integracao')}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                    activeTab === 'integracao'
+                      ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
+                  }`}
+                >
+                  <GraduationCap className="w-4 h-4 shrink-0" />
+                  <span className="flex-1 text-left">Integração</span>
+                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 leading-none shrink-0">UNI</span>
+                </button>
+              )}
             </div>
 
             {/* Category 4: Sistema / Admin (Administrador completo ou Coordenador regional) */}
@@ -1099,6 +1148,20 @@ export default function App() {
               updateTurnover={wrappedUpdateTurnover}
               deleteTurnover={wrappedDeleteTurnover}
               confirmAction={askConfirmation}
+              canManage={canManageModules}
+            />
+          )}
+
+          {activeTab === 'integracao' && podeVerIntegracao && (
+            <IntegracoesSection
+              integracoes={integracoes}
+              sedes={sedesUniversidade}
+              addIntegracao={wrappedAddIntegracao}
+              updateIntegracao={wrappedUpdateIntegracao}
+              deleteIntegracao={wrappedDeleteIntegracao}
+              importIntegracoes={handleImportIntegracoes}
+              confirmAction={askConfirmation}
+              notify={notify}
               canManage={canManageModules}
             />
           )}

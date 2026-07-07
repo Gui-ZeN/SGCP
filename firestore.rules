@@ -211,6 +211,14 @@ service cloud.firestore {
       allow write: if isEditor();
     }
 
+    // Treinamento de Integração (onboarding) — módulo da Universidade. A
+    // visibilidade "só Universidade" é aplicada na UI/nav (mesma limitação de
+    // unidade das vagas); aqui vale o padrão operacional.
+    match /integracoes/{integracaoId} {
+      allow read: if isAppUser();
+      allow write: if isEditor();
+    }
+
     // =====================================================================
     //  LOGS DE AUDITORIA  (append-only)
     //  Leitura só de Administrador (o app só assina os logs quando admin).

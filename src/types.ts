@@ -122,6 +122,23 @@ export interface Requisicao {
   vagaId?: string;      // vaga criada ao aceitar
 }
 
+// Treinamento de Integração (onboarding) — módulo EXCLUSIVO da Universidade.
+// Espelha a planilha "Treinamento de integração" (uma aba por campus).
+export interface Integracao {
+  id: string;
+  nome: string;            // colaborador
+  funcao?: string;
+  setor?: string;
+  sede: string;            // campus (nome canônico da sede no sistema)
+  admissao?: string;       // DD/MM/YYYY
+  supervisor?: string;
+  status: 'Realizado' | 'Não realizado' | 'Desligado';
+  dataIntegracao?: string; // texto livre (ex.: "19/08 às 14h")
+  responsavel?: string;    // quem aplicou a integração
+  contato?: string;
+  observacao?: string;
+}
+
 // Cadastro de colaboradores (roster). Base p/ aniversariantes (avisar o RH) e
 // futuras features. Datas em DD/MM/YYYY (o ano do nascimento é opcional).
 export interface Funcionario {

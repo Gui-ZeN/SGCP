@@ -169,6 +169,15 @@ test("funcionarios: analista (editor) pode escrever", () =>
 test("funcionarios: visualizador NÃO pode escrever", () =>
   assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "funcionarios", "fn3"), { nome: "Caio", dataNascimento: "02/02/1992", sede: "DT" })));
 
+test("integracoes: leitura SEM auth é negada", () =>
+  assertFails(getDoc(doc(ctx.unauth(), "integracoes", "i1"))));
+
+test("integracoes: analista (editor) pode escrever", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "integracoes", "i1"), { nome: "Ana", sede: "PARQUE ECOLÓGICO", status: "Realizado" })));
+
+test("integracoes: visualizador NÃO pode escrever", () =>
+  assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "integracoes", "i2"), { nome: "Bia", sede: "ALDEOTA", status: "Não realizado" })));
+
 // ---------------------------------------------------------------------------
 //  USUÁRIOS — escrita só admin (+validação)
 // ---------------------------------------------------------------------------
