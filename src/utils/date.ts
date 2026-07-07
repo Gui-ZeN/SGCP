@@ -59,6 +59,18 @@ export function formatDateBR(value: unknown): string {
   return `${day}/${month}/${date.getFullYear()}`;
 }
 
+/**
+ * Máscara progressiva de data BR para inputs de texto: mantém só dígitos (máx 8)
+ * e insere as barras sozinho enquanto digita. Ex.: "01042024" → "01/04/2024",
+ * "0104" → "01/04". Não valida a data — só formata (o backspace funciona normal).
+ */
+export function maskDataBR(value: string): string {
+  const d = String(value).replace(/\D/g, '').slice(0, 8); // DDMMYYYY
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+}
+
 /** YYYY-MM-DD para usar em <input type="date">. '' se inválida. */
 export function toISOInput(value: unknown): string {
   const date = dateFromValue(value);

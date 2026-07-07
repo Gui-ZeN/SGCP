@@ -3,6 +3,7 @@ import {
   cleanText,
   dateFromValue,
   formatDateBR,
+  maskDataBR,
   toISOInput,
   monthAbbrFromDate,
   yearFromDate,
@@ -41,6 +42,20 @@ describe('dateFromValue', () => {
     expect(dateFromValue('')).toBeNull();
     expect(dateFromValue('-')).toBeNull();
     expect(dateFromValue(null)).toBeNull();
+  });
+});
+
+describe('maskDataBR', () => {
+  it('insere as barras progressivamente', () => {
+    expect(maskDataBR('0')).toBe('0');
+    expect(maskDataBR('01')).toBe('01');
+    expect(maskDataBR('0104')).toBe('01/04');
+    expect(maskDataBR('01042024')).toBe('01/04/2024');
+  });
+  it('ignora não-dígitos e corta em 8', () => {
+    expect(maskDataBR('01/04/2024')).toBe('01/04/2024'); // re-digitar já formatado
+    expect(maskDataBR('0104202499')).toBe('01/04/2024');
+    expect(maskDataBR('ab01cd04')).toBe('01/04');
   });
 });
 
