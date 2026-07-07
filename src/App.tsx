@@ -303,6 +303,15 @@ export default function App() {
       if (warnings.length) console.warn('Avisos do import de treinamentos (Universidade):', warnings);
     });
 
+  // Mudança rápida de status pela tabela (sem overlay de loading): grava direto,
+  // loga e dá um retorno discreto. A UI atualiza sozinha pelo onSnapshot.
+  const handleStatusIntegracao = async (id: string, status: any) => {
+    const alvo = integracoes.find(x => x.id === id);
+    await updateIntegracao(id, { status });
+    await logAction('ALTEROU', 'Integrações', `Integração de "${alvo?.nome || id}" → status "${status}".`);
+    notify(`Status atualizado: ${status}.`, 'success');
+  };
+
   const handleImportIntegracoes = async (list: any[]) => {
     const res = await importIntegracoes(list);
     await logAction('CRIOU', 'Integrações', `Import da planilha de integração: ${res.adicionadas} adicionada(s), ${res.puladas} pulada(s).`);
@@ -1204,6 +1213,7 @@ export default function App() {
               updateIntegracao={wrappedUpdateIntegracao}
               deleteIntegracao={wrappedDeleteIntegracao}
               importIntegracoes={handleImportIntegracoes}
+              onChangeStatus={handleStatusIntegracao}
               confirmAction={askConfirmation}
               notify={notify}
               canManage={canManageModules}

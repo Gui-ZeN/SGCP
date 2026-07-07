@@ -4,7 +4,7 @@ import { Sede } from '../hooks/useMetadata';
 import { parseIntegracoes, ImportableIntegracao } from '../lib/integracaoImport';
 import { exportToXlsx } from '../utils/xlsxExporter';
 import {
-  GraduationCap, Search, PlusCircle, Pencil, Trash2, Upload, Download,
+  GraduationCap, Search, PlusCircle, Pencil, Trash2, Upload, Download, ChevronDown,
   CheckCircle2, Clock, UserMinus, X, Loader2
 } from 'lucide-react';
 
@@ -22,6 +22,8 @@ interface IntegracoesSectionProps {
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
   notify?: (msg: string, type?: 'error' | 'success' | 'info' | 'warning') => void;
   canManage?: boolean;
+  // Mudança rápida de status pela tabela (sem abrir o modal). Se ausente, usa updateIntegracao.
+  onChangeStatus?: (id: string, status: Integracao['status']) => void;
 }
 
 const STATUS_BADGE: Record<Integracao['status'], string> = {
@@ -30,14 +32,22 @@ const STATUS_BADGE: Record<Integracao['status'], string> = {
   'Desligado': 'bg-slate-100 text-slate-500 border-slate-200',
 };
 
+const STATUS_OPCOES: Integracao['status'][] = ['Realizado', 'Não realizado', 'Desligado'];
+
 const FORM_VAZIO = { nome: '', funcao: '', setor: '', sede: '', admissao: '', supervisor: '', status: 'Não realizado' as Integracao['status'], dataIntegracao: '', responsavel: '', contato: '', observacao: '' };
 const inputCls = 'w-full text-xs px-3 py-2.5 border border-slate-200 rounded-xl outline-none bg-white font-medium focus:border-slate-800';
 const labelCls = 'block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1';
 
 export const IntegracoesSection: React.FC<IntegracoesSectionProps> = ({
   integracoes, sedes, addIntegracao, updateIntegracao, deleteIntegracao, importIntegracoes,
-  confirmAction, notify, canManage = true
+  confirmAction, notify, canManage = true, onChangeStatus
 }) => {
+  // Mudança inline de status (leve): usa o handler dedicado se houver, senão o update comum.
+  const mudarStatus = (i: Integracao, novo: Integracao['status']) => {
+    if (novo === i.status) return;
+    if (onChangeStatus) onChangeStatus(i.id, novo);
+    else updateIntegracao(i.id, { status: novo });
+  };
   const [busca, setBusca] = useState('');
   const [filtroSede, setFiltroSede] = useState('TODAS');
   const [filtroStatus, setFiltroStatus] = useState('TODOS');
@@ -214,9 +224,23 @@ export const IntegracoesSection: React.FC<IntegracoesSectionProps> = ({
                   <td className="py-3 px-4 font-semibold whitespace-nowrap">{i.sede}</td>
                   <td className="py-3 px-4 whitespace-nowrap">{i.admissao || '—'}</td>
                   <td className="py-3 px-4">
-                    <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border whitespace-nowrap ${STATUS_BADGE[i.status]}`}>
-                      {i.status === 'Desligado' && <UserMinus className="w-3 h-3 inline mr-1 -mt-0.5" />}{i.status}
-                    </span>
+                    {canManage ? (
+                      <div className="relative inline-block">
+                        <select
+                          value={i.status}
+                          onChange={e => mudarStatus(i, e.target.value as Integracao['status'])}
+                          aria-label={`Status da integração de ${i.nome}`}
+                          className={`appearance-none cursor-pointer text-[9px] font-bold uppercase tracking-wider pl-2.5 pr-6 py-1 rounded-full border outline-none focus:ring-2 focus:ring-slate-800/10 ${STATUS_BADGE[i.status]}`}
+                        >
+                          {STATUS_OPCOES.map(s => <option key={s} value={s} className="bg-white text-slate-700 normal-case">{s}</option>)}
+                        </select>
+                        <ChevronDown className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
+                      </div>
+                    ) : (
+                      <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border whitespace-nowrap ${STATUS_BADGE[i.status]}`}>
+                        {i.status === 'Desligado' && <UserMinus className="w-3 h-3 inline mr-1 -mt-0.5" />}{i.status}
+                      </span>
+                    )}
                   </td>
                   <td className="py-3 px-4">
                     <div>{i.dataIntegracao || '—'}</div>
