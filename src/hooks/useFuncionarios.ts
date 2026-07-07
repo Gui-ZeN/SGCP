@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import {
-  db, isFirebaseEnabled, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
-  handleFirestoreError, OperationType
+  db, isFirebaseEnabled, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc
 } from '../lib/firebase';
 import { Funcionario } from '../types';
+import { stripUndefinedFields } from '../lib/firestoreData';
 
 const LOCAL_KEY = 'sgcp_funcionarios_fallback';
 
@@ -50,28 +50,28 @@ export function useFuncionarios(currentUser: any) {
     try { localStorage.setItem(LOCAL_KEY, JSON.stringify(list)); } catch (e) {}
   };
 
+  // Gravações gateiam por isFirebaseEnabled (constante), não pelo estado
+  // `usingFirebase` (que vira false quando uma leitura falha) — senão as escritas
+  // iam parar no localStorage e a coleção nunca era criada no servidor. Erros propagam.
   const addFuncionario = async (input: Omit<Funcionario, 'id'>) => {
-    if (usingFirebase && db) {
-      try { await addDoc(collection(db, 'funcionarios'), input as any); }
-      catch (e) { handleFirestoreError(e, OperationType.CREATE, 'funcionarios'); }
+    if (isFirebaseEnabled && db) {
+      await addDoc(collection(db, 'funcionarios'), stripUndefinedFields(input as any));
     } else {
       persistLocal([{ ...input, id: `local_${Date.now()}` } as Funcionario, ...funcionarios]);
     }
   };
 
   const updateFuncionario = async (id: string, fields: Partial<Funcionario>) => {
-    if (usingFirebase && db) {
-      try { await updateDoc(doc(db, 'funcionarios', id), fields as any); }
-      catch (e) { handleFirestoreError(e, OperationType.UPDATE, `funcionarios/${id}`); }
+    if (isFirebaseEnabled && db) {
+      await updateDoc(doc(db, 'funcionarios', id), stripUndefinedFields(fields as any));
     } else {
       persistLocal(funcionarios.map(f => (f.id === id ? { ...f, ...fields } : f)));
     }
   };
 
   const deleteFuncionario = async (id: string) => {
-    if (usingFirebase && db) {
-      try { await deleteDoc(doc(db, 'funcionarios', id)); }
-      catch (e) { handleFirestoreError(e, OperationType.DELETE, `funcionarios/${id}`); }
+    if (isFirebaseEnabled && db) {
+      await deleteDoc(doc(db, 'funcionarios', id));
     } else {
       persistLocal(funcionarios.filter(f => f.id !== id));
     }

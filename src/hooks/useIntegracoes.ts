@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  db, isFirebaseEnabled, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
-  writeBatch, handleFirestoreError, OperationType
+  db, isFirebaseEnabled, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, writeBatch
 } from '../lib/firebase';
 import { Integracao } from '../types';
+import { stripUndefinedFields } from '../lib/firestoreData';
 import type { ImportableIntegracao } from '../lib/integracaoImport';
 
 const LOCAL_KEY = 'sgcp_integracoes_fallback';
@@ -74,28 +74,29 @@ export function useIntegracoes(currentUser: any, enabled: boolean = true) {
     try { localStorage.setItem(LOCAL_KEY, JSON.stringify(list)); } catch (e) {}
   };
 
+  // IMPORTANTE: as GRAVAÇÕES gateiam por isFirebaseEnabled (constante), NÃO por
+  // `usingFirebase` (estado que vira false quando uma LEITURA falha). Antes, uma
+  // leitura negada jogava todas as escritas pro localStorage — a coleção nunca
+  // era criada no servidor e sumia no F5. Erros propagam (o chamador mostra).
   const addIntegracao = async (input: ImportableIntegracao) => {
-    if (usingFirebase && db) {
-      try { await addDoc(collection(db, 'integracoes'), input as any); }
-      catch (e) { handleFirestoreError(e, OperationType.CREATE, 'integracoes'); }
+    if (isFirebaseEnabled && db) {
+      await addDoc(collection(db, 'integracoes'), stripUndefinedFields(input as any));
     } else {
       persistLocal([{ ...input, id: `local_${Date.now()}` } as Integracao, ...integracoes]);
     }
   };
 
   const updateIntegracao = async (id: string, fields: Partial<Integracao>) => {
-    if (usingFirebase && db) {
-      try { await updateDoc(doc(db, 'integracoes', id), fields as any); }
-      catch (e) { handleFirestoreError(e, OperationType.UPDATE, `integracoes/${id}`); }
+    if (isFirebaseEnabled && db) {
+      await updateDoc(doc(db, 'integracoes', id), stripUndefinedFields(fields as any));
     } else {
       persistLocal(integracoes.map(x => (x.id === id ? { ...x, ...fields } : x)));
     }
   };
 
   const deleteIntegracao = async (id: string) => {
-    if (usingFirebase && db) {
-      try { await deleteDoc(doc(db, 'integracoes', id)); }
-      catch (e) { handleFirestoreError(e, OperationType.DELETE, `integracoes/${id}`); }
+    if (isFirebaseEnabled && db) {
+      await deleteDoc(doc(db, 'integracoes', id));
     } else {
       persistLocal(integracoes.filter(x => x.id !== id));
     }
@@ -113,19 +114,17 @@ export function useIntegracoes(currentUser: any, enabled: boolean = true) {
       aceitos.push(item);
     }
     // writeBatch (lotes de ≤450): centenas de registros em segundos, em vez de
-    // uma ida ao servidor por doc (que deixava a UI presa no "importando").
-    if (usingFirebase && db && aceitos.length) {
-      try {
-        for (let i = 0; i < aceitos.length; i += 450) {
-          const batch = writeBatch(db);
-          aceitos.slice(i, i + 450).forEach(item => batch.set(doc(collection(db, 'integracoes')), item as any));
-          await batch.commit();
-        }
-      } catch (e) {
-        handleFirestoreError(e, OperationType.CREATE, 'integracoes/import');
+    // uma ida ao servidor por doc. IMPORTANTE: strip de undefined (o Firestore
+    // rejeita) e SEM engolir o erro — se o commit falhar, propaga p/ o chamador
+    // mostrar a mensagem real (antes o catch silencioso escondia o motivo).
+    if (isFirebaseEnabled && db && aceitos.length) {
+      for (let i = 0; i < aceitos.length; i += 450) {
+        const batch = writeBatch(db);
+        aceitos.slice(i, i + 450).forEach(item => batch.set(doc(collection(db, 'integracoes')), stripUndefinedFields(item as any)));
+        await batch.commit();
       }
     }
-    if (!usingFirebase && aceitos.length) {
+    if (!isFirebaseEnabled && aceitos.length) {
       const novos = aceitos.map((i, idx) => ({ ...i, id: `local_imp_${Date.now()}_${idx}` } as Integracao));
       persistLocal([...novos, ...integracoes]);
     }
