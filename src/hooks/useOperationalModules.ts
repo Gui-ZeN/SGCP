@@ -257,6 +257,23 @@ export function useOperationalModules(user?: any) {
     );
   const deleteExperiencia = (id: string) => exp.remove(id);
 
+  // Import em lote de experiências (planilha da Universidade): grava termino1/2
+  // COMO VIERAM da planilha (lá o 2º período é 75 dias, não os 90 do Colégio).
+  // Dedupe por colaborador+admissão+sede contra o que já existe.
+  const importExperiencias = async (imported: Omit<Experiencia, 'id'>[]): Promise<{ adicionadas: number; puladas: number }> => {
+    const chave = (e: { colaborador: string; dataAdmissao: string; sede?: string }) =>
+      `${e.colaborador.toLowerCase().trim()}|${e.dataAdmissao}|${(e.sede || '').toLowerCase()}`;
+    const existentes = new Set(exp.items.map(chave));
+    const aceitos = imported.filter(e => {
+      const k = chave(e);
+      if (existentes.has(k)) return false;
+      existentes.add(k);
+      return true;
+    });
+    for (const item of aceitos) await exp.create(item as any);
+    return { adicionadas: aceitos.length, puladas: imported.length - aceitos.length };
+  };
+
   // ==================== CRUD ENTREVISTAS ====================
   const addEntrevista = (input: Omit<Entrevista, 'id' | 'codigo'>) => {
     const nextCodigo = ent.items.length > 0 ? Math.max(...ent.items.map(e => e.codigo)) + 1 : 301;
@@ -339,6 +356,7 @@ export function useOperationalModules(user?: any) {
     addExperiencia,
     updateExperiencia,
     deleteExperiencia,
+    importExperiencias,
     addEntrevista,
     updateEntrevista,
     deleteEntrevista,

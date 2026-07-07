@@ -36,6 +36,9 @@ interface ExperienciasSectionProps {
   userSede?: string;
   isAdmin?: boolean;
   canManage?: boolean;
+  // Import da planilha "Acompanhamento do período de experiência" da Universidade
+  // (botão só aparece quando o App passa o handler — Universidade ou admin).
+  onImportUniversidade?: (file: File) => Promise<void>;
 }
 
 interface ReviewAlert {
@@ -156,9 +159,12 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
   setores = [],
   userSede,
   isAdmin = false,
-  canManage = true
+  canManage = true,
+  onImportUniversidade
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [importandoUni, setImportandoUni] = useState(false);
+  const uniFileRef = React.useRef<HTMLInputElement>(null);
   const [activeTableTab, setActiveTableTab] = useState<'ativos' | 'efetivados' | 'encerrados'>('ativos');
   const [selectedSede, setSelectedSede] = useState(() => {
     return !isAdmin && userSede ? userSede : '';
@@ -392,15 +398,43 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
           </h2>
           <p className="text-slate-500 text-sm font-medium">Monitore datas limites de vencimento de períodos de teste de novos colaboradores.</p>
         </div>
-        {canManage && (
-          <button
-            onClick={openCreateForm}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition"
-          >
-            <PlusCircle className="w-4 h-4" />
-            Novo Acompanhamento
-          </button>
-        )}
+        <div className="flex items-center gap-2 self-start">
+          {canManage && onImportUniversidade && (
+            <>
+              <input
+                ref={uniFileRef}
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                aria-label="Planilha de acompanhamento de experiência (Universidade)"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  setImportandoUni(true);
+                  try { await onImportUniversidade(f); }
+                  finally { setImportandoUni(false); if (uniFileRef.current) uniFileRef.current.value = ''; }
+                }}
+              />
+              <button
+                onClick={() => uniFileRef.current?.click()}
+                disabled={importandoUni}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded-xl text-xs font-bold uppercase tracking-wider border border-slate-250 flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-60"
+                title="Importar a planilha de acompanhamento (abas por campus)"
+              >
+                Importar (Universidade)
+              </button>
+            </>
+          )}
+          {canManage && (
+            <button
+              onClick={openCreateForm}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition"
+            >
+              <PlusCircle className="w-4 h-4" />
+              Novo Acompanhamento
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats Grid */}

@@ -128,6 +128,7 @@ export default function App() {
     addExperiencia,
     updateExperiencia,
     deleteExperiencia,
+    importExperiencias,
     addEntrevista,
     updateEntrevista,
     deleteEntrevista,
@@ -181,6 +182,13 @@ export default function App() {
     const usuarioUni = sedeEhUniversidade(sedes, selectedSede);
     return treinamentos.filter(t => sedeEhUniversidade(sedes, t.unidade) === usuarioUni);
   }, [treinamentos, sedes, selectedSede, ehAdminPleno]);
+
+  // Experiências idem (a Universidade tem o acompanhamento próprio, por campus).
+  const scopedExperiencias = useMemo(() => {
+    if (ehAdminPleno) return experiencias;
+    const usuarioUni = sedeEhUniversidade(sedes, selectedSede);
+    return experiencias.filter(e => sedeEhUniversidade(sedes, e.sede) === usuarioUni);
+  }, [experiencias, sedes, selectedSede, ehAdminPleno]);
 
   // Painel admin do Coordenador: vê/gerencia só o Colégio (regiões != Universidade).
   // Usuário sem sede (ex.: Visualizador) conta como Colégio. Admin vê tudo.
@@ -264,6 +272,19 @@ export default function App() {
       await deleteIntegracao(id);
       await logAction('EXCLUIU', 'Integrações', `Integração de "${alvo?.nome || id}" removida.`);
     });
+  // Import da planilha "Acompanhamento do período de experiência" da Universidade
+  // (abas por campus). Dedupe por colaborador+admissão+sede no hook.
+  const handleImportExpUni = (file: File) =>
+    executeWithLoading("Importando experiências da Universidade...", async () => {
+      const { parseExperienciasUniversidade } = await import('./lib/experienciaUniImport');
+      const { experiencias: lidas, warnings } = await parseExperienciasUniversidade(file);
+      if (!lidas.length) { notify('Nenhum registro reconhecido na planilha.', 'warning'); return; }
+      const res = await importExperiencias(lidas);
+      await logAction('CRIOU', 'Experiências', `Import da planilha da Universidade: ${res.adicionadas} adicionada(s), ${res.puladas} pulada(s).`);
+      notify(`Importação concluída: ${res.adicionadas} adicionada(s), ${res.puladas} já existiam.${warnings.length ? ` (${warnings.length} aviso(s) no console)` : ''}`, 'success');
+      if (warnings.length) console.warn('Avisos do import de experiências (Universidade):', warnings);
+    });
+
   // Import da planilha "Monitoramento Treinamentos" da Universidade (abas por ano).
   // Dedupe pelo codigo-hash estável (re-importar não duplica).
   const handleImportTreinosUni = (file: File) =>
@@ -1071,7 +1092,7 @@ export default function App() {
             <HomeSection
               vagas={scopedVagas}
               treinamentos={scopedTreinamentos}
-              experiencias={experiencias}
+              experiencias={scopedExperiencias}
               entrevistas={entrevistas}
               turnover={turnover}
               setActiveTab={setActiveTab}
@@ -1087,7 +1108,7 @@ export default function App() {
             <RecruitmentDashboard 
               vagas={scopedVagas} 
               treinamentos={scopedTreinamentos} 
-              experiencias={experiencias}
+              experiencias={scopedExperiencias}
               entrevistas={entrevistas}
               turnover={turnover}
               sedes={scopedSedes}
@@ -1131,11 +1152,12 @@ export default function App() {
           )}
 
           {activeTab === 'experiencias' && (
-            <ExperienciasSection 
-              experiencias={experiencias} 
-              addExperiencia={wrappedAddExperiencia} 
-              updateExperiencia={wrappedUpdateExperiencia} 
+            <ExperienciasSection
+              experiencias={scopedExperiencias}
+              addExperiencia={wrappedAddExperiencia}
+              updateExperiencia={wrappedUpdateExperiencia}
               deleteExperiencia={wrappedDeleteExperiencia}
+              onImportUniversidade={podeVerIntegracao ? handleImportExpUni : undefined}
               confirmAction={askConfirmation}
               sedes={scopedSedes}
               setores={setores}
