@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Integracao } from '../types';
 import { Sede } from '../hooks/useMetadata';
 import { parseIntegracoes, ImportableIntegracao } from '../lib/integracaoImport';
-import { maskDataBR } from '../utils/date';
+import { toISOInput, formatDateBR } from '../utils/date';
 import { exportToXlsx } from '../utils/xlsxExporter';
 import {
   GraduationCap, Search, PlusCircle, Pencil, Trash2, Upload, Download, ChevronDown, Check,
@@ -308,7 +308,7 @@ export const IntegracoesSection: React.FC<IntegracoesSectionProps> = ({
                   {sedes.map(s => <option key={s.id} value={s.nome}>{s.nome}</option>)}
                 </select>
               </div>
-              <div><label htmlFor="int-admissao" className={labelCls}>Admissão (DD/MM/AAAA)</label><input id="int-admissao" className={inputCls} value={form.admissao} onChange={e => set('admissao', maskDataBR(e.target.value))} inputMode="numeric" maxLength={10} placeholder="Ex.: 03/04/2026…" /></div>
+              <div><label htmlFor="int-admissao" className={labelCls}>Admissão</label><input id="int-admissao" type="date" className={`${inputCls} cursor-pointer`} value={toISOInput(form.admissao)} onChange={e => set('admissao', e.target.value ? formatDateBR(e.target.value) : '')} /></div>
               <div><label htmlFor="int-supervisor" className={labelCls}>Supervisor</label><input id="int-supervisor" className={inputCls} value={form.supervisor} onChange={e => set('supervisor', e.target.value)} /></div>
               <div><label htmlFor="int-status" className={labelCls}>Status</label>
                 <select id="int-status" className={inputCls} value={form.status} onChange={e => set('status', e.target.value)}>
