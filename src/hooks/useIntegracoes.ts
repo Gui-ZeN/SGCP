@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   db, isFirebaseEnabled, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
-  handleFirestoreError, OperationType
+  writeBatch, handleFirestoreError, OperationType
 } from '../lib/firebase';
 import { Integracao } from '../types';
 import type { ImportableIntegracao } from '../lib/integracaoImport';
@@ -111,9 +111,18 @@ export function useIntegracoes(currentUser: any, enabled: boolean = true) {
       if (existentes.has(chave(item))) { puladas++; continue; }
       existentes.add(chave(item));
       aceitos.push(item);
-      if (usingFirebase && db) {
-        try { await addDoc(collection(db, 'integracoes'), item as any); }
-        catch (e) { handleFirestoreError(e, OperationType.CREATE, 'integracoes'); }
+    }
+    // writeBatch (lotes de ≤450): centenas de registros em segundos, em vez de
+    // uma ida ao servidor por doc (que deixava a UI presa no "importando").
+    if (usingFirebase && db && aceitos.length) {
+      try {
+        for (let i = 0; i < aceitos.length; i += 450) {
+          const batch = writeBatch(db);
+          aceitos.slice(i, i + 450).forEach(item => batch.set(doc(collection(db, 'integracoes')), item as any));
+          await batch.commit();
+        }
+      } catch (e) {
+        handleFirestoreError(e, OperationType.CREATE, 'integracoes/import');
       }
     }
     if (!usingFirebase && aceitos.length) {

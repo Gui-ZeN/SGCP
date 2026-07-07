@@ -18,7 +18,8 @@ import {
   query,
   where,
   getDoc,
-  setDoc
+  setDoc,
+  writeBatch
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -108,7 +109,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 }
 
 // Fluent helper functions for CRUD operations (supports local database fallback seamlessly!)
-export { 
+export {
   collection,
   getDocs,
   addDoc,
@@ -119,5 +120,6 @@ export {
   where,
   getDoc,
   doc,
-  setDoc
+  setDoc,
+  writeBatch
 };

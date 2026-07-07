@@ -11,6 +11,7 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  writeBatch,
   handleFirestoreError,
   OperationType
 } from '../lib/firebase';
@@ -260,6 +261,8 @@ export function useOperationalModules(user?: any) {
   // Import em lote de experiências (planilha da Universidade): grava termino1/2
   // COMO VIERAM da planilha (lá o 2º período é 75 dias, não os 90 do Colégio).
   // Dedupe por colaborador+admissão+sede contra o que já existe.
+  // Escrita em writeBatch (lotes de ≤450): 500+ registros gravados em segundos —
+  // addDoc sequencial (1 ida ao servidor por doc) travava a UI por minutos.
   const importExperiencias = async (imported: Omit<Experiencia, 'id'>[]): Promise<{ adicionadas: number; puladas: number }> => {
     const chave = (e: { colaborador: string; dataAdmissao: string; sede?: string }) =>
       `${e.colaborador.toLowerCase().trim()}|${e.dataAdmissao}|${(e.sede || '').toLowerCase()}`;
@@ -270,7 +273,21 @@ export function useOperationalModules(user?: any) {
       existentes.add(k);
       return true;
     });
-    for (const item of aceitos) await exp.create(item as any);
+    if (exp.usingFirebase && db) {
+      try {
+        for (let i = 0; i < aceitos.length; i += 450) {
+          const batch = writeBatch(db);
+          aceitos.slice(i, i + 450).forEach(item => {
+            batch.set(doc(collection(db, 'experiencia')), stripUndefinedFields(item as any));
+          });
+          await batch.commit();
+        }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, 'experiencia/import');
+      }
+    } else {
+      for (const item of aceitos) await exp.create(item as any);
+    }
     return { adicionadas: aceitos.length, puladas: imported.length - aceitos.length };
   };
 
