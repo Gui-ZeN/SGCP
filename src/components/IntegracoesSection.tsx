@@ -4,7 +4,7 @@ import { Sede } from '../hooks/useMetadata';
 import { parseIntegracoes, ImportableIntegracao } from '../lib/integracaoImport';
 import { exportToXlsx } from '../utils/xlsxExporter';
 import {
-  GraduationCap, Search, PlusCircle, Pencil, Trash2, Upload, Download, ChevronDown,
+  GraduationCap, Search, PlusCircle, Pencil, Trash2, Upload, Download, ChevronDown, Check,
   CheckCircle2, Clock, UserMinus, X, Loader2
 } from 'lucide-react';
 
@@ -55,6 +55,8 @@ export const IntegracoesSection: React.FC<IntegracoesSectionProps> = ({
   const [editing, setEditing] = useState<Integracao | null>(null);
   const [form, setForm] = useState({ ...FORM_VAZIO });
   const [importando, setImportando] = useState(false);
+  // Menu flutuante de status (posição fixa p/ não ser cortado pelo overflow da tabela).
+  const [statusMenu, setStatusMenu] = useState<{ i: Integracao; x: number; y: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const set = (k: keyof typeof FORM_VAZIO, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -225,17 +227,20 @@ export const IntegracoesSection: React.FC<IntegracoesSectionProps> = ({
                   <td className="py-3 px-4 whitespace-nowrap">{i.admissao || '—'}</td>
                   <td className="py-3 px-4">
                     {canManage ? (
-                      <div className="relative inline-block">
-                        <select
-                          value={i.status}
-                          onChange={e => mudarStatus(i, e.target.value as Integracao['status'])}
-                          aria-label={`Status da integração de ${i.nome}`}
-                          className={`appearance-none cursor-pointer text-[9px] font-bold uppercase tracking-wider pl-2.5 pr-6 py-1 rounded-full border outline-none focus:ring-2 focus:ring-slate-800/10 ${STATUS_BADGE[i.status]}`}
-                        >
-                          {STATUS_OPCOES.map(s => <option key={s} value={s} className="bg-white text-slate-700 normal-case">{s}</option>)}
-                        </select>
-                        <ChevronDown className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={e => {
+                          const r = e.currentTarget.getBoundingClientRect();
+                          setStatusMenu(statusMenu?.i.id === i.id ? null : { i, x: r.left, y: r.bottom + 6 });
+                        }}
+                        aria-haspopup="listbox"
+                        aria-label={`Mudar status da integração de ${i.nome} (atual: ${i.status})`}
+                        className={`inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider pl-2.5 pr-1.5 py-1 rounded-full border cursor-pointer hover:brightness-95 transition ${STATUS_BADGE[i.status]}`}
+                      >
+                        {i.status === 'Desligado' && <UserMinus className="w-3 h-3 -mt-0.5" />}
+                        {i.status}
+                        <ChevronDown className="w-3 h-3 opacity-60" />
+                      </button>
                     ) : (
                       <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border whitespace-nowrap ${STATUS_BADGE[i.status]}`}>
                         {i.status === 'Desligado' && <UserMinus className="w-3 h-3 inline mr-1 -mt-0.5" />}{i.status}
@@ -260,6 +265,29 @@ export const IntegracoesSection: React.FC<IntegracoesSectionProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Menu flutuante de mudança rápida de status */}
+      {statusMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setStatusMenu(null)} aria-hidden />
+          <div role="listbox" className="fixed z-50 bg-white border border-slate-200 rounded-xl shadow-xl p-1 w-44 animate-in fade-in zoom-in-95 duration-100" style={{ left: statusMenu.x, top: statusMenu.y }}>
+            {STATUS_OPCOES.map(s => (
+              <button
+                key={s}
+                type="button"
+                role="option"
+                aria-selected={s === statusMenu.i.status}
+                onClick={() => { const alvo = statusMenu.i; setStatusMenu(null); mudarStatus(alvo, s); }}
+                className={`flex items-center gap-2 w-full text-left text-[12px] font-semibold px-2.5 py-2 rounded-lg hover:bg-slate-50 cursor-pointer ${s === statusMenu.i.status ? 'text-slate-900' : 'text-slate-600'}`}
+              >
+                <span className={`w-2 h-2 rounded-full shrink-0 ${s === 'Realizado' ? 'bg-emerald-500' : s === 'Não realizado' ? 'bg-amber-500' : 'bg-slate-400'}`} />
+                {s}
+                {s === statusMenu.i.status && <Check className="w-4 h-4 ml-auto text-slate-700" />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Modal de cadastro/edição */}
       {showForm && (
