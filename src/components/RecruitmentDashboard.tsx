@@ -8,6 +8,7 @@ import { Vaga, Treinamento, Experiencia, Entrevista, Turnover, Integracao } from
 import { SLA_META_DIAS } from '../constants/hr';
 import { ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa } from '../utils/vaga';
 import { RelatorioIndicadores } from './RelatorioSection';
+import { taxaPresencaPorCargo } from '../utils/indicadores';
 import { useTheme } from '../hooks/useTheme';
 import { Sede } from '../hooks/useMetadata';
 import { 
@@ -276,6 +277,12 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
 
   const taxaComparecimento = funilData.chamados > 0 ? Math.round((funilData.compareceram / funilData.chamados) * 100) : 0;
   const taxaAprovacao = funilData.compareceram > 0 ? Math.round((funilData.aprovados / funilData.compareceram) * 100) : 0;
+
+  // --- Taxa de Presença por cargo (deck pág. 7–8): convocados x presentes ---
+  const presencaCargoData = useMemo(
+    () => taxaPresencaPorCargo(filteredVagas).slice(0, 10),
+    [filteredVagas]
+  );
 
   // --- Tempo médio por etapa (gargalos) — apenas vagas ativas (não fechadas) ---
   const tempoEtapaData = useMemo(() => {
@@ -868,6 +875,44 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
         </div>
 
       </div>
+
+      {/* --- Taxa de Presença por Cargo (quem comparece ao chamado) --- */}
+      {presencaCargoData.length > 0 && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
+          <h4 className="font-black text-slate-800 text-base mb-1.5 flex items-center gap-1.5">
+            <UserCheck className="w-5 h-5 text-emerald-600" />
+            <span>Taxa de Presença por Cargo</span>
+          </h4>
+          <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-4">Convocados × presentes — quem comparece ao chamado (top 10)</p>
+          <div style={{ height: presencaCargoData.length * 34 + 24 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <BarChart data={presencaCargoData} layout="vertical" margin={{ top: 4, right: 46, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                <XAxis type="number" domain={[0, 100]} fontSize={10} stroke="#64748b" tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} />
+                <YAxis dataKey="cargo" type="category" fontSize={10} stroke="#475569" tickLine={false} axisLine={false} width={150} />
+                <Tooltip
+                  cursor={BAR_CURSOR}
+                  content={(p: any) => {
+                    if (!p?.active || !p.payload?.length) return null;
+                    const d = p.payload[0].payload;
+                    return (
+                      <div className="bg-white border border-slate-200 rounded-xl shadow-lg px-3 py-2 text-[11px]">
+                        <div className="font-bold text-slate-800 mb-0.5">{d.cargo}</div>
+                        <div className="text-slate-600">Convocados: <b>{d.convocados}</b></div>
+                        <div className="text-slate-600">Presentes: <b className="text-emerald-600">{d.presentes}</b> · Ausentes: <b className="text-amber-600">{d.ausentes}</b></div>
+                        <div className="text-slate-600">Presença: <b>{d.taxa}%</b></div>
+                      </div>
+                    );
+                  }}
+                />
+                <Bar dataKey="taxa" name="Presença" fill={CHART.primary} radius={[0, 4, 4, 0]} barSize={16}>
+                  <LabelList dataKey="taxa" position="right" fontSize={10} fill="#475569" formatter={(v: number) => `${v}%`} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       {/* --- SEÇÃO GRAFICOS: RECURSOS HUMANOS GERAL --- */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">

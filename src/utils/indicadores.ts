@@ -73,6 +73,71 @@ export function experienciaPorSede(list: Experiencia[]): CumprimentoSede[] {
   return ordenar([...map.values()].map(l => ({ ...l, pct: pct(l.ok, l.total) })));
 }
 
+/* ─────────────── Filtro por período (mês/ano) ─────────────── */
+
+function mesAnoDe(dataBR?: string): { mes: number; ano: number } | null {
+  if (!dataBR) return null;
+  const p = String(dataBR).trim().split(/[\/\-.]/);
+  if (p.length < 3) return null;
+  const m = parseInt(p[1], 10), a = parseInt(p[2], 10);
+  if (!m || !a || m < 1 || m > 12) return null;
+  return { mes: m, ano: a };
+}
+
+/** Filtra por mês (1–12) e/ou ano; null = "todos". Registro sem data válida sai quando há filtro. */
+export function filtrarPorMes<T>(list: T[], getData: (x: T) => string | undefined, mes: number | null, ano: number | null): T[] {
+  if (!mes && !ano) return list;
+  return list.filter(x => {
+    const ma = mesAnoDe(getData(x));
+    if (!ma) return false;
+    if (ano && ma.ano !== ano) return false;
+    if (mes && ma.mes !== mes) return false;
+    return true;
+  });
+}
+
+/** Anos distintos presentes numa lista de datas DD/MM/YYYY, desc. */
+export function coletarAnos(datas: (string | undefined)[]): number[] {
+  const set = new Set<number>();
+  for (const d of datas) { const ma = mesAnoDe(d); if (ma) set.add(ma.ano); }
+  return [...set].sort((a, b) => b - a);
+}
+
+/* ─────────── Funil de presença por cargo (deck pág. 7–8) ─────────── */
+
+export interface PresencaCargo {
+  cargo: string;
+  convocados: number;  // Σ candChamados
+  presentes: number;   // Σ candCompareceram
+  ausentes: number;    // convocados − presentes
+  taxa: number;        // presentes/convocados × 100
+}
+
+/** Convocados/Presentes/Ausentes + Taxa de Presença por cargo (ordenado por convocados desc). */
+export function taxaPresencaPorCargo(
+  vagas: { vaga?: string; candChamados?: number; candCompareceram?: number }[]
+): PresencaCargo[] {
+  const map = new Map<string, { convocados: number; presentes: number }>();
+  for (const v of vagas) {
+    const conv = Number(v.candChamados) || 0;
+    const pres = Number(v.candCompareceram) || 0;
+    if (!conv && !pres) continue; // só cargos que tiveram funil registrado
+    const cargo = (v.vaga || '—').trim() || '—';
+    const l = map.get(cargo) || { convocados: 0, presentes: 0 };
+    l.convocados += conv; l.presentes += pres;
+    map.set(cargo, l);
+  }
+  return [...map.entries()]
+    .map(([cargo, l]) => ({
+      cargo,
+      convocados: l.convocados,
+      presentes: l.presentes,
+      ausentes: Math.max(0, l.convocados - l.presentes),
+      taxa: l.convocados > 0 ? Math.round((l.presentes / l.convocados) * 100) : 0,
+    }))
+    .sort((a, b) => b.convocados - a.convocados);
+}
+
 /** Soma uma coluna "GERAL" (todas as sedes) a partir das linhas por sede. */
 export function totalGeral(linhas: CumprimentoSede[]): CumprimentoSede {
   const total = linhas.reduce((s, l) => s + l.total, 0);

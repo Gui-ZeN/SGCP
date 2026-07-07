@@ -1,12 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Integracao, Treinamento, Experiencia } from '../types';
-import { integracaoPorSede, treinamentoPorSede, experienciaPorSede, totalGeral, CumprimentoSede } from '../utils/indicadores';
+import { integracaoPorSede, treinamentoPorSede, experienciaPorSede, totalGeral, filtrarPorMes, coletarAnos, CumprimentoSede } from '../utils/indicadores';
 import { GraduationCap, ShieldCheck, BookOpen, ClipboardList } from 'lucide-react';
+
+const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 /**
  * Bloco "Cumprimento por Sede" embutido na aba Indicadores (Dashboard) — no
  * formato do relatório mensal do RH (Integração, Experiência e Treinamentos por
- * campus). Sai junto no Exportar PDF. v1: acumulado (filtro por mês virá depois).
+ * campus). Sai junto no Exportar PDF. Filtro por mês/ano: Integração e Experiência
+ * pela ADMISSÃO; Treinamentos pela DATA da ação.
  */
 interface RelatorioIndicadoresProps {
   integracoes: Integracao[];
@@ -93,17 +96,46 @@ const Painel: React.FC<{
 };
 
 export const RelatorioIndicadores: React.FC<RelatorioIndicadoresProps> = ({ integracoes, treinamentos, experiencias, mostrarIntegracao = true }) => {
-  const integ = useMemo(() => integracaoPorSede(integracoes), [integracoes]);
-  const trein = useMemo(() => treinamentoPorSede(treinamentos), [treinamentos]);
-  const expp = useMemo(() => experienciaPorSede(experiencias), [experiencias]);
+  const [mes, setMes] = useState<number | null>(null);
+  const [ano, setAno] = useState<number | null>(null);
+
+  const anos = useMemo(
+    () => coletarAnos([
+      ...integracoes.map(i => i.admissao),
+      ...treinamentos.map(t => t.dataInicio),
+      ...experiencias.map(e => e.dataAdmissao),
+    ]),
+    [integracoes, treinamentos, experiencias]
+  );
+
+  const integ = useMemo(() => integracaoPorSede(filtrarPorMes(integracoes, i => i.admissao, mes, ano)), [integracoes, mes, ano]);
+  const trein = useMemo(() => treinamentoPorSede(filtrarPorMes(treinamentos, t => t.dataInicio, mes, ano)), [treinamentos, mes, ano]);
+  const expp = useMemo(() => experienciaPorSede(filtrarPorMes(experiencias, e => e.dataAdmissao, mes, ano)), [experiencias, mes, ano]);
+
+  const periodoLabel = mes || ano
+    ? `${mes ? MESES[mes - 1] : 'Todos os meses'}${ano ? ` / ${ano}` : ''}`
+    : 'Acumulado (todos os registros)';
+  const selCls = 'text-xs bg-white border border-slate-250 py-1.5 px-2.5 rounded-xl font-bold text-slate-700 focus:border-slate-800 focus:outline-none shadow-sm cursor-pointer';
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 pt-2">
-        <ClipboardList className="w-5 h-5 text-orange-500 shrink-0" />
-        <div>
-          <h3 className="text-base font-bold text-slate-800 leading-tight">Cumprimento por Sede</h3>
-          <p className="text-xs text-slate-500 font-medium">Acumulado de todos os registros. <span className="text-slate-400 no-print">(filtro por mês em breve)</span></p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+        <div className="flex items-center gap-2">
+          <ClipboardList className="w-5 h-5 text-orange-500 shrink-0" />
+          <div>
+            <h3 className="text-base font-bold text-slate-800 leading-tight">Cumprimento por Sede</h3>
+            <p className="text-xs text-slate-500 font-medium">Período: <span className="font-bold text-slate-700">{periodoLabel}</span></p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 no-print">
+          <select value={mes ?? ''} onChange={e => setMes(e.target.value ? Number(e.target.value) : null)} className={selCls} aria-label="Filtrar por mês">
+            <option value="">Mês: todos</option>
+            {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+          </select>
+          <select value={ano ?? ''} onChange={e => setAno(e.target.value ? Number(e.target.value) : null)} className={selCls} aria-label="Filtrar por ano">
+            <option value="">Ano: todos</option>
+            {anos.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
         </div>
       </div>
 

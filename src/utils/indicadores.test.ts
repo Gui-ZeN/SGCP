@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { integracaoPorSede, treinamentoPorSede, experienciaPorSede, totalGeral } from './indicadores';
+import { integracaoPorSede, treinamentoPorSede, experienciaPorSede, totalGeral, filtrarPorMes, coletarAnos, taxaPresencaPorCargo } from './indicadores';
 import type { Integracao, Treinamento, Experiencia } from '../types';
 
 const integ = (sede: string, status: Integracao['status']): Integracao =>
@@ -67,5 +67,38 @@ describe('totalGeral', () => {
   });
   it('total 0 → 0% (sem divisão por zero)', () => {
     expect(totalGeral([]).pct).toBe(0);
+  });
+});
+
+describe('filtrarPorMes', () => {
+  const itens = [
+    { d: '10/05/2026' }, { d: '22/05/2026' }, { d: '03/06/2026' }, { d: '15/05/2025' }, { d: '' },
+  ];
+  const g = (x: { d: string }) => x.d;
+  it('sem filtro → tudo', () => expect(filtrarPorMes(itens, g, null, null)).toHaveLength(5));
+  it('mês+ano específicos', () => expect(filtrarPorMes(itens, g, 5, 2026)).toHaveLength(2));
+  it('só ano', () => expect(filtrarPorMes(itens, g, null, 2026)).toHaveLength(3));
+  it('só mês (qualquer ano)', () => expect(filtrarPorMes(itens, g, 5, null)).toHaveLength(3));
+  it('data inválida sai quando há filtro', () => expect(filtrarPorMes(itens, g, 6, 2026)).toHaveLength(1));
+});
+
+describe('coletarAnos', () => {
+  it('anos distintos em ordem desc, ignora inválidos', () => {
+    expect(coletarAnos(['10/05/2026', '01/01/2024', '22/05/2026', 'lixo', undefined])).toEqual([2026, 2024]);
+  });
+});
+
+describe('taxaPresencaPorCargo', () => {
+  const vagas = [
+    { vaga: 'ASG', candChamados: 40, candCompareceram: 10 },
+    { vaga: 'ASG', candChamados: 33, candCompareceram: 5 },
+    { vaga: 'Recepcionista', candChamados: 19, candCompareceram: 5 },
+    { vaga: 'Sem funil', candChamados: 0, candCompareceram: 0 }, // ignorado
+  ];
+  it('agrega por cargo, calcula ausentes e taxa, ordena por convocados', () => {
+    const r = taxaPresencaPorCargo(vagas);
+    expect(r.map(x => x.cargo)).toEqual(['ASG', 'Recepcionista']); // "Sem funil" fora
+    expect(r[0]).toMatchObject({ convocados: 73, presentes: 15, ausentes: 58, taxa: 21 }); // 15/73 → 20.5 → 21
+    expect(r[1]).toMatchObject({ convocados: 19, presentes: 5, taxa: 26 });
   });
 });
