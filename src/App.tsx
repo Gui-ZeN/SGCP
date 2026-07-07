@@ -173,6 +173,15 @@ export default function App() {
     [sedes, selectedSede, ehAdminPleno]
   );
 
+  // Treinamentos também são escopados por unidade (a Universidade agora tem os
+  // seus): compara a REGIÃO da unidade do treino com a do usuário. Unidade
+  // desconhecida/vazia conta como Colégio (não some registro antigo).
+  const scopedTreinamentos = useMemo(() => {
+    if (ehAdminPleno) return treinamentos;
+    const usuarioUni = sedeEhUniversidade(sedes, selectedSede);
+    return treinamentos.filter(t => sedeEhUniversidade(sedes, t.unidade) === usuarioUni);
+  }, [treinamentos, sedes, selectedSede, ehAdminPleno]);
+
   // Painel admin do Coordenador: vê/gerencia só o Colégio (regiões != Universidade).
   // Usuário sem sede (ex.: Visualizador) conta como Colégio. Admin vê tudo.
   const adminUsuarios = useMemo(() => isCoord ? (usuarios || []).filter(u => !sedeEhUniversidade(sedes, u.sede)) : (usuarios || []), [usuarios, isCoord, sedes]);
@@ -255,6 +264,21 @@ export default function App() {
       await deleteIntegracao(id);
       await logAction('EXCLUIU', 'Integrações', `Integração de "${alvo?.nome || id}" removida.`);
     });
+  // Import da planilha "Monitoramento Treinamentos" da Universidade (abas por ano).
+  // Dedupe pelo codigo-hash estável (re-importar não duplica).
+  const handleImportTreinosUni = (file: File) =>
+    executeWithLoading("Importando treinamentos da Universidade...", async () => {
+      const { parseTreinamentosUniversidade } = await import('./lib/treinamentoUniImport');
+      const { treinamentos: lidos, warnings } = await parseTreinamentosUniversidade(file);
+      if (!lidos.length) { notify('Nenhum treinamento reconhecido na planilha.', 'warning'); return; }
+      const antes = new Set(treinamentos.map(t => t.codigo));
+      const novos = lidos.filter(t => !antes.has(t.codigo)).length;
+      await importTreinamentos(lidos, false);
+      await logAction('CRIOU', 'Treinamentos', `Import da planilha da Universidade: ${novos} novo(s) de ${lidos.length} lido(s).`);
+      notify(`Importação concluída: ${novos} novo(s), ${lidos.length - novos} já existiam.${warnings.length ? ` (${warnings.length} aviso(s) no console)` : ''}`, 'success');
+      if (warnings.length) console.warn('Avisos do import de treinamentos (Universidade):', warnings);
+    });
+
   const handleImportIntegracoes = async (list: any[]) => {
     const res = await importIntegracoes(list);
     await logAction('CRIOU', 'Integrações', `Import da planilha de integração: ${res.adicionadas} adicionada(s), ${res.puladas} pulada(s).`);
@@ -1046,7 +1070,7 @@ export default function App() {
           {activeTab === 'home' && (
             <HomeSection
               vagas={scopedVagas}
-              treinamentos={treinamentos}
+              treinamentos={scopedTreinamentos}
               experiencias={experiencias}
               entrevistas={entrevistas}
               turnover={turnover}
@@ -1062,7 +1086,7 @@ export default function App() {
           {activeTab === 'dashboard' && (
             <RecruitmentDashboard 
               vagas={scopedVagas} 
-              treinamentos={treinamentos} 
+              treinamentos={scopedTreinamentos} 
               experiencias={experiencias}
               entrevistas={entrevistas}
               turnover={turnover}
@@ -1092,9 +1116,9 @@ export default function App() {
           )}
 
           {activeTab === 'treinamentos' && (
-            <TreinamentosSection 
-              treinamentos={treinamentos} 
-              addTreinamento={wrappedAddTreinamento} 
+            <TreinamentosSection
+              treinamentos={scopedTreinamentos}
+              addTreinamento={wrappedAddTreinamento}
               updateTreinamento={wrappedUpdateTreinamento}
               deleteTreinamento={wrappedDeleteTreinamento}
               sedes={scopedSedes}
@@ -1102,6 +1126,7 @@ export default function App() {
               userSede={scopedUserSede}
               isAdmin={isAdmin || isCoord}
               canManage={canManageModules}
+              onImportUniversidade={podeVerIntegracao ? handleImportTreinosUni : undefined}
             />
           )}
 

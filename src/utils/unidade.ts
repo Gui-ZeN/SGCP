@@ -12,10 +12,14 @@ import { Sede } from '../hooks/useMetadata';
 export const REGIAO_UNIVERSIDADE = 'universidade';
 export const ORIGEM_PLANILHA_UNI = 'planilha-universidade';
 
-/** Região (nome) de uma sede pelo NOME da sede; '' se não encontrada. */
+/** Região de uma sede pelo NOME ou pela SIGLA; '' se não encontrada.
+ *  (Treinamentos usam sigla no campo unidade — ex.: "DT", "PQL 1".) */
 export function regiaoDaSede(sedes: Sede[], nomeSede?: string): string {
-  const alvo = String(nomeSede || '').toLowerCase();
-  return sedes.find(s => (s.nome || '').toLowerCase() === alvo)?.regiao || '';
+  const alvo = String(nomeSede || '').toLowerCase().trim();
+  if (!alvo) return '';
+  return sedes.find(s =>
+    (s.nome || '').toLowerCase() === alvo || (s.sigla || '').toLowerCase() === alvo
+  )?.regiao || '';
 }
 
 /** A sede (por nome) pertence à região Universidade? */

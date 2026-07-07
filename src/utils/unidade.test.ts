@@ -33,6 +33,11 @@ describe('regiaoDaSede / sedeEhUniversidade', () => {
     expect(sedeEhUniversidade(SEDES, 'NAO EXISTE')).toBe(false);
     expect(sedeEhUniversidade(SEDES, undefined)).toBe(false);
   });
+  it('resolve também pela SIGLA (treinamentos usam sigla na unidade)', () => {
+    expect(regiaoDaSede(SEDES, 'DT')).toBe('Dionísio Torres');
+    expect(sedeEhUniversidade(SEDES, 'PE')).toBe(true);   // sigla da PARQUE ECOLÓGICO
+    expect(sedeEhUniversidade(SEDES, 'SUL 1')).toBe(false);
+  });
 });
 
 describe('vagaEhUniversidade', () => {

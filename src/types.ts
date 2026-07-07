@@ -50,6 +50,7 @@ export interface Treinamento {
   facilitador: string;
   publico: string;
   unidade: string;
+  hora?: string; // horário da turma (a Universidade roda o mesmo tema em sessões: 13h, 14h…)
   cargaHoraria: number;
   qtdPrevista: number;
   qtdRealizada: number;

@@ -20,7 +20,7 @@ export interface SpreadsheetImportResult {
   warnings: string[];
 }
 
-function normalizeKey(value: unknown): string {
+export function normalizeKey(value: unknown): string {
   return String(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -36,14 +36,16 @@ function numberValue(value: unknown, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function durationHours(value: unknown): number {
+export function durationHours(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value > 0 && value < 1 ? Number((value * 24).toFixed(2)) : value;
   }
 
+  // Horas "excel-time" (época 1899/1900) vêm da lib com o horário de parede
+  // ancorado em UTC — ler com getHours() local desloca pelo fuso (-3h). UTC é o correto.
   const date = dateFromValue(value);
-  if (date && date.getFullYear() <= 1901) {
-    return Number((date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600).toFixed(2));
+  if (date && date.getUTCFullYear() <= 1901) {
+    return Number((date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600).toFixed(2));
   }
 
   const text = cleanText(value);
@@ -71,7 +73,7 @@ function normalizeSexo(value: unknown): Vaga['sexo'] {
   return 'INDIFERENTE';
 }
 
-function normalizeTrainingType(value: unknown): Treinamento['tipo'] {
+export function normalizeTrainingType(value: unknown): Treinamento['tipo'] {
   const raw = normalizeKey(value);
   if (raw.includes('lider')) return 'Liderança';
   if (raw.includes('integr')) return 'Integração';

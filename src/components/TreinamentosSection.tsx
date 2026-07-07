@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Treinamento } from '../types';
 import { toISOInput } from '../utils/date';
 import { exportToXlsx } from '../utils/xlsxExporter';
@@ -19,7 +19,9 @@ import {
   X,
   FileSpreadsheet,
   Trash2,
-  Pencil
+  Pencil,
+  Upload,
+  Loader2
 } from 'lucide-react';
 import { Sede } from '../hooks/useMetadata';
 
@@ -33,6 +35,9 @@ interface TreinamentosSectionProps {
   userSede?: string;
   isAdmin?: boolean;
   canManage?: boolean;
+  // Import da planilha "Monitoramento Treinamentos" da Universidade (botão só
+  // aparece quando o App passa o handler — usuário da Universidade ou admin).
+  onImportUniversidade?: (file: File) => Promise<void>;
 }
 
 export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({ 
@@ -44,9 +49,12 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
   confirmAction,
   userSede,
   isAdmin = false,
-  canManage = true
+  canManage = true,
+  onImportUniversidade
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [importandoUni, setImportandoUni] = useState(false);
+  const uniFileRef = useRef<HTMLInputElement>(null);
   const [selectedUnidade, setSelectedUnidade] = useState(() => {
     return !isAdmin && userSede ? userSede : '';
   });
@@ -328,6 +336,33 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
             Exportar Excel
           </button>
+          {canManage && onImportUniversidade && (
+            <>
+              <input
+                ref={uniFileRef}
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                aria-label="Planilha Monitoramento Treinamentos (Universidade)"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  setImportandoUni(true);
+                  try { await onImportUniversidade(f); }
+                  finally { setImportandoUni(false); if (uniFileRef.current) uniFileRef.current.value = ''; }
+                }}
+              />
+              <button
+                onClick={() => uniFileRef.current?.click()}
+                disabled={importandoUni}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded-xl text-xs font-bold uppercase tracking-wider border border-slate-250 flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-60"
+                title="Importar a planilha Monitoramento Treinamentos (abas por ano)"
+              >
+                {importandoUni ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 text-indigo-600" />}
+                Importar (Universidade)
+              </button>
+            </>
+          )}
           {canManage && (
             <button
               id="btn-show-add-treinamento"
