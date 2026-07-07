@@ -174,7 +174,12 @@ function normChave_(s) {
 var SEDE_APELIDOS = {
   'PQL': 'PARQUELANDIA 3',   // Parquelândia da Universidade
   'CESIU': 'ALDEOTA',
-  'CVU': 'ALDEOTA'
+  'CVU': 'ALDEOTA',
+  // A planilha é 100% Universidade: "Benfica" lá é o campus universitário
+  // (sede híbrida UNIBENFICA), NÃO a sede BENFICA do Colégio — sem este
+  // apelido a vaga casaria com o Colégio e vazaria pro lado errado.
+  'BENFICA': 'UNIBENFICA',
+  'BN': 'UNIBENFICA'
 };
 
 /** Retorna o NOME canônico da sede, ou null se não encontrar correspondência. */

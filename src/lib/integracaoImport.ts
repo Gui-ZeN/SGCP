@@ -11,12 +11,12 @@ import { cleanText, formatDateBR } from '../utils/date';
 export type ImportableIntegracao = Omit<Integracao, 'id'>;
 
 // Aba da planilha → nome canônico da sede no sistema (Painel Admin).
-// "Benfica" da Universidade aponta para a sede híbrida BENFICA UNIVERSIDADE.
+// "Benfica" da Universidade aponta para a sede híbrida UNIBENFICA.
 const ABA_PARA_SEDE: Record<string, string> = {
   'Parquelândia': 'PARQUELANDIA 3',
   'Parque Ecológico': 'PARQUE ECOLÓGICO',
   'Aldeota': 'ALDEOTA',
-  'Benfica': 'BENFICA UNIVERSIDADE',
+  'Benfica': 'UNIBENFICA',
   'Dom Luis': 'DOM LUÍS',
   'Eusébio': 'EUSEBIO',
 };
