@@ -4,6 +4,7 @@ import { getDiasEmAberto } from '../utils/vaga';
 import { SLA_META_DIAS } from '../constants/hr';
 import { useTheme } from '../hooks/useTheme';
 import { Sede } from '../hooks/useMetadata';
+import { ProximasDatasCard } from './ProximasDatasCard';
 import { 
   Building2, 
   ArrowRight,
@@ -274,6 +275,9 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
           )}
         </div>
       </div>
+
+      {/* Próximas datas (API de Calendários — some se não configurada) */}
+      <ProximasDatasCard />
 
       {/* Shortcuts List */}
       <div>
