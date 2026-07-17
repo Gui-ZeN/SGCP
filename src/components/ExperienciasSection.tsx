@@ -805,63 +805,41 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                     <td className="py-3.5 px-4 text-right">
                       {canManage ? (
                       <>
-                        {/* Action trigger menu shortcuts */}
-                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                        {e.status === 'EM_ANALISE' && (
-                          <>
-                            <button
-                              onClick={() => handleStatusChange(e.id, 'PRORROGADO')}
-                              className="px-2 py-1 text-[10px] uppercase font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg cursor-pointer"
-                              title="Prorrogar contrato"
-                            >
-                              Prorrogar
-                            </button>
+                        {/* Ações de status em grade 2×2 (não estica a coluna) + editar/excluir ao lado */}
+                        <div className="flex items-center justify-end gap-1.5">
+                        {(e.status === 'EM_ANALISE' || e.status === 'PRORROGADO') && (
+                          <div className="grid grid-cols-2 gap-1 w-[170px] shrink-0">
+                            {e.status === 'EM_ANALISE' && (
+                              <button
+                                onClick={() => handleStatusChange(e.id, 'PRORROGADO')}
+                                className="w-full px-2 py-1 text-[10px] uppercase font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg cursor-pointer"
+                                title="Prorrogar contrato"
+                              >
+                                Prorrogar
+                              </button>
+                            )}
                             <button
                               onClick={() => handleStatusChange(e.id, 'EFETIVADO')}
-                              className="px-2 py-1 text-[10px] uppercase font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg cursor-pointer icon-flex gap-0.5"
+                              className="w-full px-2 py-1 text-[10px] uppercase font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg cursor-pointer"
                               title="Efetivar contratação"
                             >
                               Efetivar
                             </button>
                             <button
                               onClick={() => abrirRescisao(e)}
-                              className="px-2 py-1 text-[10px] uppercase font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg cursor-pointer"
+                              className="w-full px-2 py-1 text-[10px] uppercase font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg cursor-pointer"
                               title="Rescisão a pedido do colaborador (pediu demissão)"
                             >
                               A pedido
                             </button>
                             <button
                               onClick={() => handleStatusChange(e.id, 'ENCERRADO')}
-                              className="px-2 py-1 text-[10px] uppercase font-bold bg-rose-50 hover:bg-rose-150 text-rose-700 border border-rose-200 rounded-lg cursor-pointer"
+                              className="w-full px-2 py-1 text-[10px] uppercase font-bold bg-rose-50 hover:bg-rose-150 text-rose-700 border border-rose-200 rounded-lg cursor-pointer"
                               title="Encerrar/Desligar colaborador (iniciativa da empresa)"
                             >
                               Encerrar
                             </button>
-                          </>
-                        )}
-                        {e.status === 'PRORROGADO' && (
-                          <>
-                            <button
-                              onClick={() => handleStatusChange(e.id, 'EFETIVADO')}
-                              className="px-2 py-1 text-[10px] uppercase font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg cursor-pointer"
-                            >
-                              Efetivar
-                            </button>
-                            <button
-                              onClick={() => abrirRescisao(e)}
-                              className="px-2 py-1 text-[10px] uppercase font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg cursor-pointer"
-                              title="Rescisão a pedido do colaborador (pediu demissão)"
-                            >
-                              A pedido
-                            </button>
-                            <button
-                              onClick={() => handleStatusChange(e.id, 'ENCERRADO')}
-                              className="px-2 py-1 text-[10px] uppercase font-bold bg-rose-50 hover:bg-rose-150 text-rose-700 border border-rose-200 rounded-lg cursor-pointer"
-                              title="Encerrar/Desligar colaborador (iniciativa da empresa)"
-                            >
-                              Encerrar
-                            </button>
-                          </>
+                          </div>
                         )}
                         <button
                           onClick={() => openEditForm(e)}
