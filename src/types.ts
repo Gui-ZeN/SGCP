@@ -68,6 +68,11 @@ export interface Experiencia {
   supervisor: string;
   observacoes?: string;
   status: 'EM_ANALISE' | 'PRORROGADO' | 'EFETIVADO' | 'ENCERRADO';
+  // Quem tomou a iniciativa do encerramento (só faz sentido em ENCERRADO).
+  // 'a_pedido' = o colaborador pediu demissão antes de fechar 45/90 dias.
+  // Ausente = encerramentos antigos/importados (iniciativa desconhecida).
+  tipoEncerramento?: 'a_pedido' | 'empresa';
+  dataPedidoRescisao?: string; // DD/MM/YYYY — data em que o colaborador pediu
   termino1: string; // Calc: +45 days
   termino2: string; // Calc: +90 days
 }

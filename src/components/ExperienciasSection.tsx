@@ -22,7 +22,8 @@ import {
   ChevronRight,
   Sparkles,
   Pencil,
-  Trash2
+  Trash2,
+  UserMinus
 } from 'lucide-react';
 
 interface ExperienciasSectionProps {
@@ -165,6 +166,10 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [importandoUni, setImportandoUni] = useState(false);
   const uniFileRef = React.useRef<HTMLInputElement>(null);
+  // Modal de rescisão a pedido (colaborador pediu demissão na experiência)
+  const [rescisao, setRescisao] = useState<Experiencia | null>(null);
+  const [rescisaoData, setRescisaoData] = useState('');
+  const [rescisaoObs, setRescisaoObs] = useState('');
   const [activeTableTab, setActiveTableTab] = useState<'ativos' | 'efetivados' | 'encerrados'>('ativos');
   const [selectedSede, setSelectedSede] = useState(() => {
     return !isAdmin && userSede ? userSede : '';
@@ -382,9 +387,33 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
     }
   };
 
-  // Change status helper with action click
+  // Change status helper with action click. "Encerrar" pelo botão = iniciativa da
+  // EMPRESA; a rescisão a pedido do colaborador passa pelo modal (com data/motivo).
   const handleStatusChange = async (id: string, newStatus: Experiencia['status']) => {
-    await updateExperiencia(id, { status: newStatus });
+    const extra = newStatus === 'ENCERRADO' ? { tipoEncerramento: 'empresa' as const } : {};
+    await updateExperiencia(id, { status: newStatus, ...extra });
+  };
+
+  // Rescisão a pedido: colaborador pediu demissão antes de fechar 45/90 dias.
+  const abrirRescisao = (e: Experiencia) => {
+    setRescisao(e);
+    setRescisaoData(toISOInput(new Date().toISOString()));
+    setRescisaoObs('');
+  };
+
+  const confirmarRescisao = async () => {
+    if (!rescisao) return;
+    const alvo = rescisao;
+    const dataPedido = rescisaoData ? formatDateBR(rescisaoData) : '';
+    const nota = `Rescisão a pedido do colaborador${dataPedido ? ` em ${dataPedido}` : ''}.${rescisaoObs.trim() ? ` ${rescisaoObs.trim()}` : ''}`;
+    setRescisao(null);
+    await updateExperiencia(alvo.id, {
+      status: 'ENCERRADO',
+      tipoEncerramento: 'a_pedido',
+      dataPedidoRescisao: dataPedido,
+      // preserva o histórico já existente nas observações
+      observacoes: [alvo.observacoes?.trim(), nota].filter(Boolean).join('\n'),
+    });
   };
 
   return (
@@ -759,9 +788,18 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                         </span>
                       )}
                       {e.status === 'ENCERRADO' && (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] uppercase font-bold bg-rose-50 text-rose-800 border border-rose-200">
-                          Desligado
-                        </span>
+                        e.tipoEncerramento === 'a_pedido' ? (
+                          <span
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] uppercase font-bold bg-amber-50 text-amber-800 border border-amber-200"
+                            title={e.dataPedidoRescisao ? `Pediu demissão em ${e.dataPedidoRescisao}` : 'Rescisão a pedido do colaborador'}
+                          >
+                            Saiu a pedido
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] uppercase font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                            Desligado
+                          </span>
+                        )
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-right">
@@ -786,9 +824,16 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                               Efetivar
                             </button>
                             <button
+                              onClick={() => abrirRescisao(e)}
+                              className="px-2 py-1 text-[10px] uppercase font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg cursor-pointer"
+                              title="Rescisão a pedido do colaborador (pediu demissão)"
+                            >
+                              A pedido
+                            </button>
+                            <button
                               onClick={() => handleStatusChange(e.id, 'ENCERRADO')}
                               className="px-2 py-1 text-[10px] uppercase font-bold bg-rose-50 hover:bg-rose-150 text-rose-700 border border-rose-200 rounded-lg cursor-pointer"
-                              title="Encerrar/Desligar colaborador"
+                              title="Encerrar/Desligar colaborador (iniciativa da empresa)"
                             >
                               Encerrar
                             </button>
@@ -803,9 +848,16 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                               Efetivar
                             </button>
                             <button
+                              onClick={() => abrirRescisao(e)}
+                              className="px-2 py-1 text-[10px] uppercase font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg cursor-pointer"
+                              title="Rescisão a pedido do colaborador (pediu demissão)"
+                            >
+                              A pedido
+                            </button>
+                            <button
                               onClick={() => handleStatusChange(e.id, 'ENCERRADO')}
                               className="px-2 py-1 text-[10px] uppercase font-bold bg-rose-50 hover:bg-rose-150 text-rose-700 border border-rose-200 rounded-lg cursor-pointer"
-                              title="Encerrar/Desligar colaborador"
+                              title="Encerrar/Desligar colaborador (iniciativa da empresa)"
                             >
                               Encerrar
                             </button>
@@ -983,6 +1035,66 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: rescisão a pedido do colaborador (pediu demissão na experiência) */}
+      {rescisao && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
+            <div className="p-5 bg-amber-50/60 border-b border-slate-100 flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-100 text-amber-700 rounded-xl flex items-center justify-center shrink-0">
+                <UserMinus className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-slate-800">Rescisão a pedido</h3>
+                <p className="text-[11px] text-slate-500 font-semibold truncate">{rescisao.colaborador} · {rescisao.funcao}</p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label htmlFor="resc-data" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Data do pedido *</label>
+                <input
+                  id="resc-data"
+                  type="date"
+                  value={rescisaoData}
+                  onChange={(e) => setRescisaoData(e.target.value)}
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:outline-none rounded-xl cursor-pointer"
+                />
+                <p className="text-[11px] text-slate-400 font-medium mt-1 leading-relaxed">Quando o colaborador comunicou o pedido de demissão.</p>
+              </div>
+              <div>
+                <label htmlFor="resc-obs" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Observação</label>
+                <textarea
+                  id="resc-obs"
+                  rows={3}
+                  value={rescisaoObs}
+                  onChange={(e) => setRescisaoObs(e.target.value)}
+                  placeholder="Motivo relatado, detalhes do desligamento…"
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:outline-none rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRescisao(null)}
+                className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold rounded-xl text-slate-650 transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarRescisao}
+                disabled={!rescisaoData}
+                className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-xs font-bold rounded-xl text-white shadow-md transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <UserMinus className="w-4 h-4" /> Registrar rescisão
+              </button>
+            </div>
           </div>
         </div>
       )}
