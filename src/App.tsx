@@ -3,15 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
+import { lazyComRetry } from './lib/lazyComRetry';
 import { useVagas } from './hooks/useVagas';
 import { AddVacancyForm } from './components/AddVacancyForm';
 import { HomeSection } from './components/HomeSection';
 import { LoginPage } from './components/LoginPage';
 // Seções pesadas carregadas sob demanda (code-splitting). Export nomeado → default.
-const RecruitmentDashboard = lazy(() => import('./components/RecruitmentDashboard').then(m => ({ default: m.RecruitmentDashboard })));
-const VacancyTable = lazy(() => import('./components/VacancyTable').then(m => ({ default: m.VacancyTable })));
-const AdminPanel = lazy(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
+const RecruitmentDashboard = lazyComRetry(() => import('./components/RecruitmentDashboard').then(m => ({ default: m.RecruitmentDashboard })));
+const VacancyTable = lazyComRetry(() => import('./components/VacancyTable').then(m => ({ default: m.VacancyTable })));
+const AdminPanel = lazyComRetry(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
 import { useMetadata, type UserRole } from './hooks/useMetadata';
 import { useLogs } from './hooks/useLogs';
 import { useRequisicoes } from './hooks/useRequisicoes';
@@ -29,12 +30,12 @@ const ENFEITES = [
   { id: 'sao-joao', nome: 'São João — bandeirinhas no topo', Comp: Bandeirinhas, padrao: true },
 ];
 import { useOperationalModules, addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from './hooks/useOperationalModules';
-const TreinamentosSection = lazy(() => import('./components/TreinamentosSection').then(m => ({ default: m.TreinamentosSection })));
-const ExperienciasSection = lazy(() => import('./components/ExperienciasSection').then(m => ({ default: m.ExperienciasSection })));
-const EntrevistasSection = lazy(() => import('./components/EntrevistasSection').then(m => ({ default: m.EntrevistasSection })));
-const TurnoverSection = lazy(() => import('./components/TurnoverSection').then(m => ({ default: m.TurnoverSection })));
-const RequisicoesSection = lazy(() => import('./components/RequisicoesSection').then(m => ({ default: m.RequisicoesSection })));
-const IntegracoesSection = lazy(() => import('./components/IntegracoesSection').then(m => ({ default: m.IntegracoesSection })));
+const TreinamentosSection = lazyComRetry(() => import('./components/TreinamentosSection').then(m => ({ default: m.TreinamentosSection })));
+const ExperienciasSection = lazyComRetry(() => import('./components/ExperienciasSection').then(m => ({ default: m.ExperienciasSection })));
+const EntrevistasSection = lazyComRetry(() => import('./components/EntrevistasSection').then(m => ({ default: m.EntrevistasSection })));
+const TurnoverSection = lazyComRetry(() => import('./components/TurnoverSection').then(m => ({ default: m.TurnoverSection })));
+const RequisicoesSection = lazyComRetry(() => import('./components/RequisicoesSection').then(m => ({ default: m.RequisicoesSection })));
+const IntegracoesSection = lazyComRetry(() => import('./components/IntegracoesSection').then(m => ({ default: m.IntegracoesSection })));
 import { 
   Briefcase, 
   BarChart3, 
@@ -1099,6 +1100,9 @@ export default function App() {
             </div>
           )}
 
+          {/* ErrorBoundary por FORA do Suspense: sem isso, um chunk que sumiu
+              (deploy novo) derrubava a árvore inteira = tela branca. */}
+          <ErrorBoundary>
           <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-7 h-7 text-indigo-600 animate-spin" /></div>}>
           {activeTab === 'home' && (
             <HomeSection
@@ -1271,6 +1275,7 @@ export default function App() {
             </ErrorBoundary>
           )}
           </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
 
