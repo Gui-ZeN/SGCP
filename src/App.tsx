@@ -21,7 +21,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Bandeirinhas } from './components/Bandeirinhas';
 import { BootLoader } from './components/BootLoader';
 import { useAppConfig } from './hooks/useAppConfig';
-import { regiaoDaSede, sedeEhUniversidade, escoparVagasPorUnidade, escoparSedesPorUnidade, REGIAO_UNIVERSIDADE } from './utils/unidade';
+import { regiaoDaSede, sedeEhUniversidade, escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade, REGIAO_UNIVERSIDADE } from './utils/unidade';
 import { requisicaoParaVaga } from './utils/requisicao';
 
 // Enfeites de época (sazonais). Para adicionar um novo: importe o componente e
@@ -178,18 +178,24 @@ export default function App() {
   // Treinamentos também são escopados por unidade (a Universidade agora tem os
   // seus): compara a REGIÃO da unidade do treino com a do usuário. Unidade
   // desconhecida/vazia conta como Colégio (não some registro antigo).
-  const scopedTreinamentos = useMemo(() => {
-    if (ehAdminPleno) return treinamentos;
-    const usuarioUni = sedeEhUniversidade(sedes, selectedSede);
-    return treinamentos.filter(t => sedeEhUniversidade(sedes, t.unidade) === usuarioUni);
-  }, [treinamentos, sedes, selectedSede, ehAdminPleno]);
+  const scopedTreinamentos = useMemo(
+    () => escoparListaPorUnidade(treinamentos, t => t.unidade, sedes, selectedSede, ehAdminPleno),
+    [treinamentos, sedes, selectedSede, ehAdminPleno]
+  );
 
   // Experiências idem (a Universidade tem o acompanhamento próprio, por campus).
-  const scopedExperiencias = useMemo(() => {
-    if (ehAdminPleno) return experiencias;
-    const usuarioUni = sedeEhUniversidade(sedes, selectedSede);
-    return experiencias.filter(e => sedeEhUniversidade(sedes, e.sede) === usuarioUni);
-  }, [experiencias, sedes, selectedSede, ehAdminPleno]);
+  const scopedExperiencias = useMemo(
+    () => escoparListaPorUnidade(experiencias, e => e.sede, sedes, selectedSede, ehAdminPleno),
+    [experiencias, sedes, selectedSede, ehAdminPleno]
+  );
+
+  // Entrevistas de desligamento idem — contêm dado pessoal e alimentam o "clima
+  // organizacional" da Home e do Dashboard. Sem isto, o usuário via as saídas da
+  // outra unidade ao escolher "Todas as sedes" (e o Coordenador via por padrão).
+  const scopedEntrevistas = useMemo(
+    () => escoparListaPorUnidade(entrevistas, e => e.unidade, sedes, selectedSede, ehAdminPleno),
+    [entrevistas, sedes, selectedSede, ehAdminPleno]
+  );
 
   // Painel admin do Coordenador: vê/gerencia só a UNIDADE dele (Colégio OU
   // Universidade, conforme a região da sede do usuário). Usuário sem sede conta
@@ -1109,7 +1115,7 @@ export default function App() {
               vagas={scopedVagas}
               treinamentos={scopedTreinamentos}
               experiencias={scopedExperiencias}
-              entrevistas={entrevistas}
+              entrevistas={scopedEntrevistas}
               turnover={turnover}
               setActiveTab={setActiveTab}
               onFocusVaga={handleFocusVaga}
@@ -1125,7 +1131,7 @@ export default function App() {
               vagas={scopedVagas}
               treinamentos={scopedTreinamentos}
               experiencias={scopedExperiencias}
-              entrevistas={entrevistas}
+              entrevistas={scopedEntrevistas}
               turnover={turnover}
               integracoes={integracoes}
               mostrarIntegracao={podeVerIntegracao}
@@ -1187,7 +1193,7 @@ export default function App() {
 
           {activeTab === 'entrevistas' && (
             <EntrevistasSection 
-              entrevistas={entrevistas} 
+              entrevistas={scopedEntrevistas} 
               addEntrevista={wrappedAddEntrevista} 
               updateEntrevista={wrappedUpdateEntrevista}
               deleteEntrevista={wrappedDeleteEntrevista}

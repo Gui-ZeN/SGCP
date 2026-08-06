@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   regiaoDaSede, sedeEhUniversidade, vagaEhUniversidade,
-  escoparVagasPorUnidade, escoparSedesPorUnidade
+  escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade
 } from './unidade';
 import type { Vaga } from '../types';
 import type { Sede } from '../hooks/useMetadata';
@@ -62,6 +62,30 @@ describe('escoparVagasPorUnidade (o isolamento)', () => {
   it('usuário sem sede (ex.: Visualizador) conta como Colégio', () => {
     expect(escoparVagasPorUnidade(VAGAS, SEDES, undefined, false).map(v => v.id))
       .toEqual(['c1', 'c2', 'x1']);
+  });
+});
+
+describe('escoparListaPorUnidade (treinamentos/experiências/entrevistas)', () => {
+  // Entrevistas de desligamento: contêm dado pessoal e alimentam o "clima" da Home.
+  const entrevistas = [
+    { id: 'e1', unidade: 'DIONISIO TORRES' },   // Colégio (nome)
+    { id: 'e2', unidade: 'BS' },                // Colégio (sigla)
+    { id: 'e3', unidade: 'PARQUE ECOLÓGICO' },  // Universidade
+    { id: 'e4', unidade: 'ALD' },               // Universidade (sigla)
+    { id: 'e5', unidade: '' },                  // sem sede → Colégio
+  ];
+  const ids = (l: { id: string }[]) => l.map(x => x.id);
+
+  it('usuário da Universidade NÃO vê as saídas do Colégio', () => {
+    expect(ids(escoparListaPorUnidade(entrevistas, e => e.unidade, SEDES, 'ALDEOTA', false)))
+      .toEqual(['e3', 'e4']);
+  });
+  it('usuário do Colégio NÃO vê as saídas da Universidade', () => {
+    expect(ids(escoparListaPorUnidade(entrevistas, e => e.unidade, SEDES, 'SUL', false)))
+      .toEqual(['e1', 'e2', 'e5']);
+  });
+  it('admin vê tudo', () => {
+    expect(escoparListaPorUnidade(entrevistas, e => e.unidade, SEDES, 'SUL', true)).toHaveLength(5);
   });
 });
 

@@ -48,6 +48,23 @@ export function escoparVagasPorUnidade(
   return vagas.filter(v => vagaEhUniversidade(v, sedes) === usuarioEhUni);
 }
 
+/**
+ * Escopo por unidade para qualquer lista que carregue uma sede/unidade num campo
+ * (treinamentos→unidade, experiências→sede, entrevistas→unidade). Item sem sede
+ * ou com sede desconhecida conta como Colégio (não some registro antigo).
+ */
+export function escoparListaPorUnidade<T>(
+  itens: T[],
+  sedeDoItem: (item: T) => string | undefined,
+  sedes: Sede[],
+  sedeDoUsuario: string | undefined,
+  isAdminOuEquivalente: boolean
+): T[] {
+  if (isAdminOuEquivalente) return itens;
+  const usuarioEhUni = sedeEhUniversidade(sedes, sedeDoUsuario);
+  return itens.filter(i => sedeEhUniversidade(sedes, sedeDoItem(i)) === usuarioEhUni);
+}
+
 /** Sedes oferecidas nos filtros/forms: só as da unidade do usuário (admin vê todas). */
 export function escoparSedesPorUnidade(
   sedes: Sede[],
