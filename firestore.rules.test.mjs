@@ -93,6 +93,7 @@ async function seed() {
     await setDoc(doc(db, "logs", "l1"), { timestamp: "t", usuario: "x", acao: "CRIOU", modulo: "Vagas", detalhes: "d" });
     await setDoc(doc(db, "funcionarios", "fn1"), { nome: "Ana", dataNascimento: "24/06/1990", sede: "DT" });
     await setDoc(doc(db, "vagas", "uni-1"), { codigo: 9001, vaga: "NPJ", status: "ABERTA", origem: "planilha-universidade" });
+    await setDoc(doc(db, "vagas", "uni-del"), { codigo: 9009, vaga: "Del", status: "ABERTA", origem: "planilha-universidade" });
   });
 }
 
@@ -125,15 +126,18 @@ test("vagas: visualizador NÃO pode escrever", () =>
 test("vagas: usuário verificado sem registro NÃO pode escrever", () =>
   assertFails(setDoc(doc(ctx.user(STRANGER_EMAIL), "vagas", "v5"), { codigo: 5, vaga: "Q", status: "ABERTA" })));
 
-// --- Vagas de planilha (origem planilha-*) são somente-leitura p/ não-admin ---
-test("vagas planilha: analista NÃO pode editar", () =>
-  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "uni-1"), { codigo: 9001, vaga: "NPJ 2", status: "ABERTA", origem: "planilha-universidade" })));
+// --- Vagas de planilha: SISTEMA é o dono (editor gerencia; origem não pode ser forjada) ---
+test("vagas planilha: analista PODE editar status (origem inalterada)", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "uni-1"), { codigo: 9001, vaga: "NPJ", status: "PAUSADA", origem: "planilha-universidade" })));
 
-test("vagas planilha: analista NÃO pode excluir", () =>
-  assertFails(deleteDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "uni-1"))));
+test("vagas planilha: analista PODE excluir (delete = editor)", () =>
+  assertSucceeds(deleteDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "uni-del"))));
 
 test("vagas planilha: analista NÃO pode forjar origem na criação", () =>
   assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "uni-fake"), { codigo: 9002, vaga: "Fake", status: "ABERTA", origem: "planilha-universidade" })));
+
+test("vagas: analista NÃO pode MUDAR a origem de uma vaga (anti-forja no update)", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "v1"), { codigo: 1001, vaga: "Dev", status: "ABERTA", origem: "planilha-universidade" })));
 
 test("vagas planilha: admin PODE editar", () =>
   assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "vagas", "uni-1"), { codigo: 9001, vaga: "NPJ ajustada", status: "ABERTA", origem: "planilha-universidade" })));

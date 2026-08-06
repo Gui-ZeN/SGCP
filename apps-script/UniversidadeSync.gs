@@ -43,20 +43,31 @@ function sincronizarVagasUniversidade() {
 
   const token = obterTokenAcesso_();
   const codigosNaPlanilha = {};
+  linhas.forEach(function (vaga) { codigosNaPlanilha[vaga.codigo] = true; });
 
-  linhas.forEach(function (vaga) {
-    codigosNaPlanilha[vaga.codigo] = true;
-    upsertVaga_(token, vaga);
-  });
-
-  // Espelho fiel: remove do SGCP as vagas de origem=planilha que sumiram da planilha.
+  // O SISTEMA é o dono do ciclo de vida das vagas (status/etapa/pausa são geridos
+  // no SGCP pelo RH da Universidade). Por isso a sync NÃO reescreve vagas que já
+  // existem — só CRIA as novas e REMOVE as que sumiram da planilha. Assim a
+  // mudança de status feita no sistema não é revertida na próxima rodada.
   const existentes = listarCodigosExistentes_(token); // [{codigo, docId}]
-  existentes.forEach(function (e) {
-    if (!codigosNaPlanilha[e.codigo]) excluirDoc_(token, e.docId);
+  const jaExiste = {};
+  existentes.forEach(function (e) { jaExiste[e.codigo] = e.docId; });
+
+  var criadas = 0;
+  linhas.forEach(function (vaga) {
+    if (jaExiste[vaga.codigo]) return;   // já existe → deixa o sistema gerenciar (não toca)
+    upsertVaga_(token, vaga);            // nova → cria com todos os campos (status inicial da planilha)
+    criadas++;
   });
 
-  Logger.log('Sincronizado: ' + linhas.length + ' vaga(s) da planilha; ' +
-             existentes.filter(function (e) { return !codigosNaPlanilha[e.codigo]; }).length + ' removida(s).');
+  // Espelho: remove do SGCP as vagas de origem=planilha que sumiram da planilha.
+  var removidas = 0;
+  existentes.forEach(function (e) {
+    if (!codigosNaPlanilha[e.codigo]) { excluirDoc_(token, e.docId); removidas++; }
+  });
+
+  Logger.log('Sync Universidade: ' + criadas + ' nova(s) criada(s); ' + removidas +
+             ' removida(s); ' + (linhas.length - criadas) + ' existente(s) preservada(s) — geridas no sistema.');
 }
 
 /** Agenda a sincronização de hora em hora (rode UMA vez). */

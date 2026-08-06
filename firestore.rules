@@ -114,19 +114,16 @@ service cloud.firestore {
     //  Escrita: apenas editores (Admin/Analista).
     match /vagas/{vagaId} {
       allow read: if isAppUser();
-      // Vagas sincronizadas de planilha (origem "planilha-…") são SOMENTE-LEITURA
-      // no SGCP para não-admin — a planilha é a fonte da verdade (a próxima sync
-      // sobrescreveria a edição). O robô grava via service account (IAM, fora das
-      // rules), então a sync não é afetada. Também bloqueia forjar a origem.
+      // O SISTEMA é o dono do ciclo de vida (status/etapa/pausa) — inclusive das
+      // vagas vindas da planilha. A sync do RH da Universidade só CRIA novas e
+      // REMOVE as que sumiram (via service account, fora das rules), então não
+      // reescreve o que o RH editou aqui. Editores gerenciam tudo; não-admin
+      // apenas não pode FORJAR a origem (criar/mudar 'planilha-*').
       allow create: if isEditor()
         && (isAdmin() || !incoming().get('origem', '').matches('planilha-.*'));
       allow update: if isEditor()
-        && (isAdmin() || (
-          !existing().get('origem', '').matches('planilha-.*')
-          && !incoming().get('origem', '').matches('planilha-.*')
-        ));
-      allow delete: if isAdmin()
-        || (isEditor() && !existing().get('origem', '').matches('planilha-.*'));
+        && (isAdmin() || incoming().get('origem', '') == existing().get('origem', ''));
+      allow delete: if isEditor();
     }
 
     // =====================================================================
