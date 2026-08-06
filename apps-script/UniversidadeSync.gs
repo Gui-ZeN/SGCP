@@ -42,32 +42,25 @@ function sincronizarVagasUniversidade() {
   }
 
   const token = obterTokenAcesso_();
-  const codigosNaPlanilha = {};
-  linhas.forEach(function (vaga) { codigosNaPlanilha[vaga.codigo] = true; });
 
-  // O SISTEMA é o dono do ciclo de vida das vagas (status/etapa/pausa são geridos
-  // no SGCP pelo RH da Universidade). Por isso a sync NÃO reescreve vagas que já
-  // existem — só CRIA as novas e REMOVE as que sumiram da planilha. Assim a
-  // mudança de status feita no sistema não é revertida na próxima rodada.
+  // O SISTEMA é o dono TOTAL das vagas: existência + ciclo de vida (status/etapa/
+  // pausa) ficam 100% no SGCP. A sync usa a planilha APENAS como ENTRADA de vagas
+  // NOVAS — ela NÃO reescreve e NÃO remove nada que já existe. Remover uma linha
+  // da planilha não apaga mais a vaga do sistema.
   const existentes = listarCodigosExistentes_(token); // [{codigo, docId}]
   const jaExiste = {};
   existentes.forEach(function (e) { jaExiste[e.codigo] = e.docId; });
 
   var criadas = 0;
   linhas.forEach(function (vaga) {
-    if (jaExiste[vaga.codigo]) return;   // já existe → deixa o sistema gerenciar (não toca)
+    if (jaExiste[vaga.codigo]) return;   // já existe → o sistema gerencia (não toca)
     upsertVaga_(token, vaga);            // nova → cria com todos os campos (status inicial da planilha)
     criadas++;
   });
 
-  // Espelho: remove do SGCP as vagas de origem=planilha que sumiram da planilha.
-  var removidas = 0;
-  existentes.forEach(function (e) {
-    if (!codigosNaPlanilha[e.codigo]) { excluirDoc_(token, e.docId); removidas++; }
-  });
-
-  Logger.log('Sync Universidade: ' + criadas + ' nova(s) criada(s); ' + removidas +
-             ' removida(s); ' + (linhas.length - criadas) + ' existente(s) preservada(s) — geridas no sistema.');
+  Logger.log('Sync Universidade: ' + criadas + ' nova(s) criada(s); ' +
+             (linhas.length - criadas) + ' existente(s) preservada(s). ' +
+             'Remoção automática DESLIGADA — planilha só adiciona novas.');
 }
 
 /** Agenda a sincronização de hora em hora (rode UMA vez). */
