@@ -1150,6 +1150,7 @@ export default function App() {
               addExperiencia={wrappedAddExperiencia}
               sedes={scopedSedes}
               cargos={cargos}
+              setores={setores}
               isAdmin={isAdmin || isCoord}
               confirmAction={askConfirmation}
               triggerAddModal={triggerAddModal}
