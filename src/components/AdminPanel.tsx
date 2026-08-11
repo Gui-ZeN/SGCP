@@ -12,6 +12,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { Usuario, Sede, Regiao, Cargo, Setor, type UserRole } from '../hooks/useMetadata';
+import type { Vaga } from '../types';
 import { SystemLog } from '../hooks/useLogs';
 import { AdminUsersTab } from './AdminUsersTab';
 import { AdminSedesTab } from './AdminSedesTab';
@@ -31,6 +32,8 @@ interface AdminPanelProps {
   cargos: Cargo[];
   setores: Setor[];
   logs: SystemLog[];
+  vagas?: Vaga[];                            // diagnóstico de setores (aba Setores)
+  onPadronizarSetores?: () => Promise<void>; // padroniza o setor das vagas p/ o cadastro
   addUsuario: (email: string, role: UserRole, sede?: string) => Promise<void>;
   updateUsuario: (id: string, email: string, role: UserRole, sede?: string) => Promise<void>;
   deleteUsuario: (id: string) => Promise<void>;
@@ -77,6 +80,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   cargos,
   setores,
   logs,
+  vagas = [],
+  onPadronizarSetores,
   addUsuario,
   updateUsuario,
   deleteUsuario,
@@ -265,6 +270,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             addSetor={addSetor}
             deleteSetor={deleteSetor}
             confirmAction={confirmAction}
+            vagas={vagas}
+            onPadronizarSetores={onPadronizarSetores}
           />
         )}
 

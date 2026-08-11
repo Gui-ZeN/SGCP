@@ -64,7 +64,7 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', 'swiss');
     try { localStorage.setItem('sgcp_theme', 'swiss'); } catch (e) {}
   }, []);
-  const { vagas, loading, usingFirebase, errorMessage, addVaga, updateVaga, deleteVaga, importVagas } = useVagas(user);
+  const { vagas, loading, usingFirebase, errorMessage, addVaga, updateVaga, deleteVaga, importVagas, padronizarSetores } = useVagas(user);
   const [toast, setToast] = useState<{ message: string, type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
   const [triggerAddModal, setTriggerAddModal] = useState(0);
   // Vaga focada a partir do Home (alerta de SLA) → filtra o Quadro de Vagas por ela.
@@ -318,6 +318,16 @@ export default function App() {
     await logAction('ALTEROU', 'Integrações', `Integração de "${alvo?.nome || id}" → status "${status}".`);
     notify(`Status atualizado: ${status}.`, 'success');
   };
+
+  // Padroniza o setor das vagas para os nomes do cadastro (Painel Admin → Setores).
+  const handlePadronizarSetores = () =>
+    executeWithLoading("Padronizando setores das vagas...", async () => {
+      const { atualizadas } = await padronizarSetores((setores || []).map(s => s.nome));
+      if (atualizadas > 0) {
+        await logAction('ALTEROU', 'Setores', `Padronização de setores: ${atualizadas} vaga(s) ajustada(s) para o cadastro.`);
+      }
+      notify(atualizadas > 0 ? `${atualizadas} vaga(s) padronizada(s).` : 'Nada a padronizar.', 'success');
+    });
 
   const handleImportIntegracoes = async (list: any[]) => {
     const res = await importIntegracoes(list);
@@ -1253,6 +1263,8 @@ export default function App() {
                 cargos={cargos || []}
                 setores={setores || []}
                 logs={adminLogs}
+                vagas={vagas}
+                onPadronizarSetores={handlePadronizarSetores}
                 addUsuario={wrappedAddUsuario}
                 updateUsuario={wrappedUpdateUsuario}
                 deleteUsuario={wrappedDeleteUsuario}

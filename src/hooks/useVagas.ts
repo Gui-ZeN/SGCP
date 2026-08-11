@@ -13,12 +13,14 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
-  doc, 
+  doc,
   onSnapshot,
+  writeBatch,
   handleFirestoreError,
   OperationType
 } from '../lib/firebase';
 import type { ImportableVaga } from '../lib/spreadsheetImport';
+import { resolverSetor } from '../utils/setor';
 import { stripUndefinedFields } from '../lib/firestoreData';
 
 const LOCAL_STORAGE_KEY = 'ats_vagas_fallback';
@@ -251,6 +253,38 @@ export function useVagas(user?: any) {
     }
   };
 
+  /**
+   * Padroniza o campo `setor` das vagas para os nomes do cadastro (Admin →
+   * Setores). Só toca no que TEM correspondência — valores órfãos ficam como
+   * estão, de propósito (o admin decide cadastrar ou renomear). writeBatch p/
+   * não fazer uma ida ao servidor por vaga.
+   */
+  const padronizarSetores = async (
+    setoresCadastrados: string[]
+  ): Promise<{ atualizadas: number }> => {
+    const alvos = vagas
+      .map(v => ({ v, novo: resolverSetor(v.setor, setoresCadastrados) }))
+      .filter(x => x.novo && x.novo !== x.v.setor) as { v: Vaga; novo: string }[];
+
+    if (!alvos.length) return { atualizadas: 0 };
+
+    if (isFirebaseEnabled && db) {
+      for (let i = 0; i < alvos.length; i += 450) {
+        const batch = writeBatch(db);
+        alvos.slice(i, i + 450).forEach(({ v, novo }) => {
+          batch.update(doc(db, 'vagas', v.id), { setor: novo });
+        });
+        await batch.commit();
+      }
+    } else {
+      const mapa = new Map(alvos.map(({ v, novo }) => [v.id, novo]));
+      const atualizadas = vagas.map(v => (mapa.has(v.id) ? { ...v, setor: mapa.get(v.id)! } : v));
+      setVagas(atualizadas);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(atualizadas));
+    }
+    return { atualizadas: alvos.length };
+  };
+
   return {
     vagas,
     loading,
@@ -259,6 +293,7 @@ export function useVagas(user?: any) {
     addVaga,
     updateVaga,
     deleteVaga,
-    importVagas
+    importVagas,
+    padronizarSetores
   };
 }
