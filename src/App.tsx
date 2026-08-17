@@ -707,7 +707,22 @@ export default function App() {
     notify(`Entrou como ${name} (Demonstração)`, "success");
   };
 
-  const handleLogin = async () => {
+  // Mensagens de login em português — o usuário final não deve ver código do Firebase.
+  const MENSAGEM_ERRO_LOGIN: Record<string, { texto: string; tipo: 'error' | 'warning' | 'info' }> = {
+    'auth/popup-closed-by-user': { texto: 'O login foi cancelado — a janela do Google foi fechada antes de concluir.', tipo: 'warning' },
+    'auth/cancelled-popup-request': { texto: 'Havia outra janela de login aberta. Clique em Entrar novamente.', tipo: 'info' },
+    'auth/popup-blocked': { texto: 'O navegador bloqueou a janela de login. Libere os pop-ups para este site e tente de novo.', tipo: 'warning' },
+    'auth/network-request-failed': { texto: 'Sem conexão com o servidor de login. Verifique a internet e tente novamente.', tipo: 'error' },
+    'auth/unauthorized-domain': { texto: 'Este endereço não está autorizado no Firebase. Avise o time de BI.', tipo: 'error' },
+  };
+
+  /**
+   * Login com Google. `auth/provider-already-linked` (e afins) acontece quando o
+   * navegador ficou com uma sessão antiga/corrompida presa — o Firebase tenta
+   * VINCULAR em vez de entrar. O app nunca vincula provedor, então nesse caso
+   * limpamos a sessão local e tentamos UMA vez antes de mostrar erro.
+   */
+  const autenticarComGoogle = async (jaLimpou = false): Promise<void> => {
     if (!isFirebaseEnabled || !auth) {
       handleSimulatedLogin("guizen2006@gmail.com", "Guilherme Zen");
       return;
@@ -717,21 +732,28 @@ export default function App() {
       notify("Login efetuado com sucesso!", "success");
     } catch (err: any) {
       console.warn("Erro ao fazer login via popup:", err);
-      if (err.code === 'auth/popup-closed-by-user' || err.message?.includes('popup-closed-by-user')) {
-        notify(
-          "O login foi cancelado porque a janela de autenticação do Google foi fechada antes da conclusão.",
-          "warning"
-        );
-      } else if (err.code === 'auth/cancelled-popup-request' || err.message?.includes('cancelled-popup-request')) {
-        notify(
-          "Solicitação de autenticação anterior cancelada. Por favor, tente clicar novamente.",
-          "info"
-        );
-      } else {
-        notify(`Erro ao tentar autenticar: ${err.message || err}`, "error");
+      const code = err?.code || '';
+
+      const sessaoPresa = code === 'auth/provider-already-linked' || code === 'auth/credential-already-in-use';
+      if (sessaoPresa && !jaLimpou) {
+        try { await signOut(auth); } catch (e) { /* já estava deslogado */ }
+        return autenticarComGoogle(true); // segunda tentativa, sessão limpa
       }
+      if (sessaoPresa) {
+        notify(
+          'Não foi possível entrar: este navegador está com uma sessão antiga presa. Saia de todas as abas do sistema, ou entre em uma janela anônima.',
+          'error'
+        );
+        return;
+      }
+
+      const conhecido = MENSAGEM_ERRO_LOGIN[code];
+      if (conhecido) notify(conhecido.texto, conhecido.tipo);
+      else notify(`Não foi possível entrar (${code || 'erro desconhecido'}). Tente novamente ou avise o time de BI.`, 'error');
     }
   };
+
+  const handleLogin = async () => { await autenticarComGoogle(); };
 
   const handleLogout = async () => {
     if (auth && isFirebaseEnabled) {
