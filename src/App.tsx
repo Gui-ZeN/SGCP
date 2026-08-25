@@ -153,6 +153,14 @@ export default function App() {
   const { enfeites, setEnfeite } = useAppConfig(user);
   const enfeiteAtivo = (e: { id: string; padrao: boolean }) => enfeites[e.id] ?? e.padrao;
   const enfeiteLigado = (id: string) => { const e = ENFEITES.find(x => x.id === id); return e ? enfeiteAtivo(e) : false; };
+  // Campanha ativa reskina o ACENTO do sistema inteiro (ver swiss.css):
+  // Setembro Amarelo → dourado no lugar do cobalto.
+  const campanhaSetembro = enfeiteLigado('setembro-amarelo');
+  useEffect(() => {
+    const raiz = document.documentElement;
+    if (campanhaSetembro) raiz.setAttribute('data-campanha', 'setembro-amarelo');
+    else raiz.removeAttribute('data-campanha');
+  }, [campanhaSetembro]);
 
   // Módulo "Integração": exclusivo da Universidade (usuário de sede na região
   // Universidade) e do Administrador. Só assina a coleção pra quem pode ver.
@@ -1149,7 +1157,7 @@ export default function App() {
           <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-7 h-7 text-indigo-600 animate-spin" /></div>}>
           {activeTab === 'home' && (
             <HomeSection
-              mostrarSetembroAmarelo={enfeiteLigado('setembro-amarelo')}
+              mostrarSetembroAmarelo={campanhaSetembro}
               vagas={scopedVagas}
               treinamentos={scopedTreinamentos}
               experiencias={scopedExperiencias}

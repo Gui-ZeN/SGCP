@@ -9,7 +9,22 @@
  */
 
 /* ===== Base: grotesca + números tabulares (alinham em tabelas/dashboards) ===== */
-html[data-theme="swiss"] { --font-sans: 'Hanken Grotesk', system-ui, sans-serif; }
+html[data-theme="swiss"] {
+  --font-sans: 'Hanken Grotesk', system-ui, sans-serif;
+  /* Acento único do tema. Trocando estas duas variáveis, o sistema inteiro muda
+     de cor — é assim que as campanhas (ex.: Setembro Amarelo) reskinam tudo. */
+  --sgpc-acento: #1B4DD8;       /* cobalto — usado em texto, fundo (com texto branco), borda, ring */
+  --sgpc-acento-tint: #EAEFFC;  /* fundo suave do acento */
+}
+
+/* ===== Campanha: Setembro Amarelo (ligada pelo enfeite no Painel Admin) =====
+   Só troca o ACENTO — verde/âmbar/rosa semânticos (sucesso, alerta, erro)
+   continuam iguais. O tom é escurecido de propósito: o amarelo puro não tem
+   contraste suficiente com o texto branco dos botões/menu selecionado. */
+html[data-theme="swiss"][data-campanha="setembro-amarelo"] {
+  --sgpc-acento: #A16207;       /* dourado/mostarda — passa no contraste com branco */
+  --sgpc-acento-tint: #FEF3C7;  /* amarelo claro */
+}
 html[data-theme="swiss"] body {
   background-color: #ECEDF0 !important;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
@@ -37,8 +52,8 @@ html[data-theme="swiss"] [class*="bg-gradient-"] { background-image: none !impor
 /* Texto com gradiente recortado (bg-clip-text + text-transparent) ficaria invisível
    sem o gradiente — devolve o preenchimento em cobalto (vira um acento da marca). */
 html[data-theme="swiss"] .bg-clip-text {
-  -webkit-text-fill-color: #1B4DD8 !important;
-  color: #1B4DD8 !important;
+  -webkit-text-fill-color: var(--sgpc-acento) !important;
+  color: var(--sgpc-acento) !important;
 }
 
 /* ===== Superfícies: sistema de papel COESO (mesma temperatura, sem branco puro).
@@ -69,7 +84,7 @@ html[data-theme="swiss"] .border-slate-950,
 html[data-theme="swiss"] .border-slate-900 { border-color: #1A1B1F !important; }
 /* No menu lateral, o item selecionado usa o acento cobalto (não preto) — fica mais
    "você está aqui" e menos pesado. Vale também pro chip de tema. */
-html[data-theme="swiss"] aside .bg-slate-900 { background-color: #1B4DD8 !important; }
+html[data-theme="swiss"] aside .bg-slate-900 { background-color: var(--sgpc-acento) !important; }
 
 /* ===== Acento único: laranja (marca) + índigo (dados) → cobalto ===== */
 /* Disciplina suíça de UM acento: tudo que era laranja ou índigo vira cobalto.
@@ -92,23 +107,23 @@ html[data-theme="swiss"] .text-indigo-500,
 html[data-theme="swiss"] .text-indigo-600,
 html[data-theme="swiss"] .text-indigo-650,
 html[data-theme="swiss"] .text-indigo-700,
-html[data-theme="swiss"] .text-indigo-800 { color: #1B4DD8 !important; }
+html[data-theme="swiss"] .text-indigo-800 { color: var(--sgpc-acento) !important; }
 
 /* Preenchimentos sólidos fortes → cobalto */
 html[data-theme="swiss"] .bg-orange-400,
 html[data-theme="swiss"] .bg-orange-500,
 html[data-theme="swiss"] .bg-orange-600,
 html[data-theme="swiss"] .bg-indigo-500,
-html[data-theme="swiss"] .bg-indigo-600 { background-color: #1B4DD8 !important; }
+html[data-theme="swiss"] .bg-indigo-600 { background-color: var(--sgpc-acento) !important; }
 html[data-theme="swiss"] .bg-orange-700,
 html[data-theme="swiss"] .bg-indigo-700 { background-color: #1740B0 !important; }
 html[data-theme="swiss"] .bg-indigo-300,
-html[data-theme="swiss"] .bg-indigo-400 { background-color: #1B4DD8 !important; }
+html[data-theme="swiss"] .bg-indigo-400 { background-color: var(--sgpc-acento) !important; }
 
 /* Tints claros → wash cobalto */
 html[data-theme="swiss"] .bg-orange-50,
 html[data-theme="swiss"] .bg-orange-55,
-html[data-theme="swiss"] .bg-indigo-50 { background-color: #EAEFFC !important; }
+html[data-theme="swiss"] .bg-indigo-50 { background-color: var(--sgpc-acento-tint) !important; }
 html[data-theme="swiss"] .bg-orange-100 { background-color: #DCE5FA !important; }
 /* Washes com opacidade (tokens com /) → wash cobalto sutil */
 html[data-theme="swiss"] [class~="bg-orange-50/15"],
@@ -135,14 +150,14 @@ html[data-theme="swiss"] [class~="border-orange-500/20"] { border-color: #C9D6F6
 html[data-theme="swiss"] .border-orange-500,
 html[data-theme="swiss"] .border-orange-600,
 html[data-theme="swiss"] .border-indigo-500,
-html[data-theme="swiss"] .border-indigo-700 { border-color: #1B4DD8 !important; }
+html[data-theme="swiss"] .border-indigo-700 { border-color: var(--sgpc-acento) !important; }
 
 /* Anéis (ring-*) → cobalto via --tw-ring-color */
 html[data-theme="swiss"] .ring-orange-400,
 html[data-theme="swiss"] .ring-orange-500,
 html[data-theme="swiss"] [class~="ring-orange-500/5"],
 html[data-theme="swiss"] [class~="ring-orange-500/10"],
-html[data-theme="swiss"] [class~="ring-orange-500/20"] { --tw-ring-color: #1B4DD8 !important; }
+html[data-theme="swiss"] [class~="ring-orange-500/20"] { --tw-ring-color: var(--sgpc-acento) !important; }
 html[data-theme="swiss"] .ring-indigo-50 { --tw-ring-color: #C9D6F6 !important; }
 
 /* Hover de acento → cobalto mais escuro */
@@ -169,18 +184,18 @@ html[data-theme="swiss"] .text-purple-700, html[data-theme="swiss"] .text-violet
 html[data-theme="swiss"] .text-violet-600, html[data-theme="swiss"] .text-pink-500,
 html[data-theme="swiss"] .text-pink-600, html[data-theme="swiss"] .text-pink-700,
 html[data-theme="swiss"] .text-teal-500, html[data-theme="swiss"] .text-teal-600,
-html[data-theme="swiss"] .text-fuchsia-600 { color: #1B4DD8 !important; }
+html[data-theme="swiss"] .text-fuchsia-600 { color: var(--sgpc-acento) !important; }
 
 html[data-theme="swiss"] .bg-blue-400, html[data-theme="swiss"] .bg-blue-500,
 html[data-theme="swiss"] .bg-blue-600, html[data-theme="swiss"] .bg-sky-500,
 html[data-theme="swiss"] .bg-cyan-500, html[data-theme="swiss"] .bg-purple-500,
 html[data-theme="swiss"] .bg-purple-600, html[data-theme="swiss"] .bg-violet-500,
-html[data-theme="swiss"] .bg-pink-500, html[data-theme="swiss"] .bg-teal-500 { background-color: #1B4DD8 !important; }
+html[data-theme="swiss"] .bg-pink-500, html[data-theme="swiss"] .bg-teal-500 { background-color: var(--sgpc-acento) !important; }
 
 html[data-theme="swiss"] .bg-blue-50, html[data-theme="swiss"] .bg-sky-50,
 html[data-theme="swiss"] .bg-cyan-50, html[data-theme="swiss"] .bg-purple-50,
 html[data-theme="swiss"] .bg-violet-50, html[data-theme="swiss"] .bg-pink-50,
-html[data-theme="swiss"] .bg-blue-100, html[data-theme="swiss"] .bg-teal-50 { background-color: #EAEFFC !important; }
+html[data-theme="swiss"] .bg-blue-100, html[data-theme="swiss"] .bg-teal-50 { background-color: var(--sgpc-acento-tint) !important; }
 
 html[data-theme="swiss"] .border-blue-100, html[data-theme="swiss"] .border-blue-200,
 html[data-theme="swiss"] .border-blue-300, html[data-theme="swiss"] .border-sky-200,
@@ -192,7 +207,7 @@ html[data-theme="swiss"] [class~="border-blue-200/95"] { border-color: #C9D6F6 !
    O ponto/dot de cada coluna continua semântico (verde/âmbar/cinza). */
 html[data-theme="swiss"] .border-t-amber-500, html[data-theme="swiss"] .border-t-indigo-500,
 html[data-theme="swiss"] .border-t-blue-500, html[data-theme="swiss"] .border-t-emerald-500,
-html[data-theme="swiss"] .border-t-slate-400, html[data-theme="swiss"] .border-t-rose-500 { border-top-color: #1B4DD8 !important; }
+html[data-theme="swiss"] .border-t-slate-400, html[data-theme="swiss"] .border-t-rose-500 { border-top-color: var(--sgpc-acento) !important; }
 
 /* Ícones das abas do menu: monocromáticos (herdam a cor do botão) — acaba com o
    "arco-íris" da lateral. Só no Suíço; o tema Clássico segue colorido. */
@@ -208,12 +223,12 @@ html[data-theme="swiss"] textarea {
 
 /* ===== Foco: anel cobalto nítido em vez de halo difuso ===== */
 html[data-theme="swiss"] *:focus-visible {
-  outline: 2px solid #1B4DD8 !important;
+  outline: 2px solid var(--sgpc-acento) !important;
   outline-offset: 1px;
 }
 
 /* ===== Detalhes finos: seleção, scrollbar, e orbs do login removidos ===== */
-html[data-theme="swiss"] ::selection { background: #1B4DD8; color: #fff; }
+html[data-theme="swiss"] ::selection { background: var(--sgpc-acento); color: #fff; }
 html[data-theme="swiss"] *::-webkit-scrollbar { width: 9px; height: 9px; }
 html[data-theme="swiss"] *::-webkit-scrollbar-thumb { background: #CFCEC7; border-radius: 0; }
 html[data-theme="swiss"] *::-webkit-scrollbar-track { background: transparent; }
