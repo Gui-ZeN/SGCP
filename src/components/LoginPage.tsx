@@ -1,3 +1,4 @@
+import { LogoSGPC } from './LogoSGPC';
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
@@ -127,7 +128,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         
         {/* Upper Brand Badge */}
         <div className="flex items-center gap-3.5 z-10 shrink-0">
-          <img src="/logo.svg" alt="SGPC" width={44} height={44} className="w-11 h-11 rounded-2xl object-contain shadow-lg shadow-slate-900/5" />
+          <LogoSGPC className="w-11 h-11 rounded-2xl" />
           <div>
             <h2 className="text-sm font-black text-slate-800 tracking-tight leading-none uppercase">
               SGPC <span className="text-[9px] bg-orange-500/10 text-orange-600 px-1.5 py-0.5 rounded-md border border-orange-500/20 ml-1 font-extrabold uppercase">RH</span>

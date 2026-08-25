@@ -20,6 +20,7 @@ import { useIntegracoes } from './hooks/useIntegracoes';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Bandeirinhas } from './components/Bandeirinhas';
 import { BootLoader } from './components/BootLoader';
+import { LogoSGPC } from './components/LogoSGPC';
 import { useAppConfig } from './hooks/useAppConfig';
 import { regiaoDaSede, sedeEhUniversidade, escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade, REGIAO_UNIVERSIDADE } from './utils/unidade';
 import { requisicaoParaVaga } from './utils/requisicao';
@@ -160,6 +161,10 @@ export default function App() {
     const raiz = document.documentElement;
     if (campanhaSetembro) raiz.setAttribute('data-campanha', 'setembro-amarelo');
     else raiz.removeAttribute('data-campanha');
+    // O favicon não enxerga o CSS da página (é um arquivo à parte), então
+    // trocamos o arquivo pela variante dourada durante a campanha.
+    const icone = document.querySelector('link[rel="icon"]');
+    if (icone) icone.setAttribute('href', campanhaSetembro ? '/logo-setembro.svg' : '/logo.svg');
   }, [campanhaSetembro]);
 
   // Módulo "Integração": exclusivo da Universidade (usuário de sede na região
@@ -857,7 +862,7 @@ export default function App() {
       <header className="no-print flex items-center justify-between bg-white py-3.5 px-6 border-b border-slate-200 shadow-xs shrink-0 z-10 gap-4">
         {/* Logo and Dynamic Screen Name */}
         <div className="flex items-center gap-3">
-          <img src="/logo.svg" alt="SGPC" width={36} height={36} className="w-9 h-9 rounded-xl object-contain shrink-0" />
+          <LogoSGPC className="w-9 h-9 rounded-xl shrink-0" />
           <div>
             <h1 className="text-sm font-extrabold text-slate-800 tracking-tight leading-none flex items-center gap-1">
               <span>SGPC</span>

@@ -31,7 +31,7 @@ export const BootLoader: React.FC = () => {
       {/* Monograma 2×2 (grade da logo); a célula do C é cobalto, como na marca */}
       <div aria-hidden className="grid grid-cols-2 gap-[2px] bg-slate-900 p-[2px] rounded-lg shadow-sm" style={{ width: 76, height: 76 }}>
         {(['S', 'G', 'P', 'C'] as const).map((letra, i) => (
-          <div key={letra} className={`flex items-center justify-center text-xl font-black ${letra === 'C' ? 'bg-[#1B4DD8] text-white' : 'bg-white text-slate-900'}`}>
+          <div key={letra} className={`flex items-center justify-center text-xl font-black ${letra === 'C' ? 'bg-[var(--sgpc-acento,#1B4DD8)] text-white' : 'bg-white text-slate-900'}`}>
             <span className="sgpc-boot-letra" style={{ animationDelay: `${i * 0.22}s` }}>{letra}</span>
           </div>
         ))}
