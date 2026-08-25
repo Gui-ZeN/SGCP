@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, Suspense } from 'react';
+import { useState, useEffect, useMemo, Suspense, type ComponentType } from 'react';
 import { lazyComRetry } from './lib/lazyComRetry';
 import { useVagas } from './hooks/useVagas';
 import { AddVacancyForm } from './components/AddVacancyForm';
@@ -26,8 +26,12 @@ import { requisicaoParaVaga } from './utils/requisicao';
 
 // Enfeites de época (sazonais). Para adicionar um novo: importe o componente e
 // acrescente { id, nome, Comp, padrao } aqui — o admin liga/desliga no painel.
-const ENFEITES = [
-  { id: 'sao-joao', nome: 'São João — bandeirinhas no topo', Comp: Bandeirinhas, padrao: true },
+// `padrao` é SAZONAL: o enfeite liga sozinho no mês dele e some depois (o toggle
+// do admin sempre vence). Comp = null → não é overlay; a seção o renderiza inline.
+const mesAtual = new Date().getMonth(); // 0=jan … 5=jun, 8=set
+const ENFEITES: { id: string; nome: string; Comp: ComponentType | null; padrao: boolean }[] = [
+  { id: 'sao-joao', nome: 'São João — bandeirinhas no topo', Comp: Bandeirinhas, padrao: mesAtual === 5 },
+  { id: 'setembro-amarelo', nome: 'Setembro Amarelo — frase de acolhimento no Início', Comp: null, padrao: mesAtual === 8 },
 ];
 import { useOperationalModules, addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from './hooks/useOperationalModules';
 const TreinamentosSection = lazyComRetry(() => import('./components/TreinamentosSection').then(m => ({ default: m.TreinamentosSection })));
@@ -148,6 +152,7 @@ export default function App() {
   const requisicoesPendentes = requisicoes.filter(r => r.status === 'pendente').length;
   const { enfeites, setEnfeite } = useAppConfig(user);
   const enfeiteAtivo = (e: { id: string; padrao: boolean }) => enfeites[e.id] ?? e.padrao;
+  const enfeiteLigado = (id: string) => { const e = ENFEITES.find(x => x.id === id); return e ? enfeiteAtivo(e) : false; };
 
   // Módulo "Integração": exclusivo da Universidade (usuário de sede na região
   // Universidade) e do Administrador. Só assina a coleção pra quem pode ver.
@@ -839,7 +844,7 @@ export default function App() {
   return (
     <div className="relative h-screen w-screen bg-slate-50 font-sans antialiased text-slate-700 flex flex-col overflow-hidden">
       {/* Enfeites de época (ligados/desligados pelo admin no painel) 🎉 */}
-      {ENFEITES.filter(enfeiteAtivo).map(e => { const Comp = e.Comp; return <Comp key={e.id} />; })}
+      {ENFEITES.filter(e => e.Comp && enfeiteAtivo(e)).map(e => { const Comp = e.Comp!; return <Comp key={e.id} />; })}
       {/* Top Main Navigation Header (Glued to top) */}
       <header className="no-print flex items-center justify-between bg-white py-3.5 px-6 border-b border-slate-200 shadow-xs shrink-0 z-10 gap-4">
         {/* Logo and Dynamic Screen Name */}
@@ -1144,6 +1149,7 @@ export default function App() {
           <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-7 h-7 text-indigo-600 animate-spin" /></div>}>
           {activeTab === 'home' && (
             <HomeSection
+              mostrarSetembroAmarelo={enfeiteLigado('setembro-amarelo')}
               vagas={scopedVagas}
               treinamentos={scopedTreinamentos}
               experiencias={scopedExperiencias}

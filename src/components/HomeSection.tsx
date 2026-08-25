@@ -5,6 +5,7 @@ import { SLA_META_DIAS } from '../constants/hr';
 import { useTheme } from '../hooks/useTheme';
 import { Sede } from '../hooks/useMetadata';
 import { ProximasDatasCard } from './ProximasDatasCard';
+import { SetembroAmarelo } from './SetembroAmarelo';
 import { 
   Building2, 
   ArrowRight,
@@ -27,6 +28,7 @@ interface HomeSectionProps {
   experiencias: Experiencia[];
   entrevistas: Entrevista[];
   turnover: Turnover[];
+  mostrarSetembroAmarelo?: boolean; // enfeite sazonal (Painel Admin → Enfeites)
   setActiveTab: (tab: any) => void;
   onFocusVaga?: (vaga: any) => void;
   userName?: string;
@@ -40,6 +42,7 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
   treinamentos, 
   experiencias, 
   entrevistas,
+  mostrarSetembroAmarelo = false,
   setActiveTab,
   onFocusVaga,
   userName,
@@ -122,7 +125,10 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
 
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      
+
+      {/* Setembro Amarelo — frase sorteada a cada abertura (enfeite sazonal) */}
+      {mostrarSetembroAmarelo && <SetembroAmarelo />}
+
       {/* Hero Section */}
       <div className="relative overflow-hidden bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm">
         <div className="absolute top-0 right-0 -m-20 w-96 h-96 bg-gradient-to-br from-orange-100 to-rose-100 rounded-full blur-[80px] opacity-60"></div>
@@ -143,7 +149,6 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
           
           <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight leading-tight mb-3">
             {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-rose-500">{userName || 'Gestor'}</span>.
-            <br /> O que vamos analisar?
           </h1>
           
           <p className="text-sm md:text-base text-slate-500 font-medium max-w-2xl leading-relaxed mb-6">
