@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FRASES_SETEMBRO_AMARELO, sortearFrase, ehSetembro, CVV } from './setembroAmarelo';
+import { FRASES_SETEMBRO_AMARELO, sortearFrase, ehSetembro } from './setembroAmarelo';
 
 describe('FRASES_SETEMBRO_AMARELO', () => {
   it('tem variedade e nenhuma frase vazia/duplicada', () => {
@@ -7,9 +7,8 @@ describe('FRASES_SETEMBRO_AMARELO', () => {
     expect(FRASES_SETEMBRO_AMARELO.every(f => f.trim().length > 0)).toBe(true);
     expect(new Set(FRASES_SETEMBRO_AMARELO).size).toBe(FRASES_SETEMBRO_AMARELO.length);
   });
-  it('cita o canal de apoio (CVV 188)', () => {
-    expect(FRASES_SETEMBRO_AMARELO.some(f => f.includes('188'))).toBe(true);
-    expect(CVV.telefone).toBe('188');
+  it('frases curtas o suficiente para caber na faixa', () => {
+    expect(FRASES_SETEMBRO_AMARELO.every(f => f.length <= 90)).toBe(true);
   });
 });
 

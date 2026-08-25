@@ -1,19 +1,13 @@
 /**
- * Setembro Amarelo — campanha de prevenção ao suicídio e valorização da vida.
+ * Setembro Amarelo — frases de enfeite para o Início do SGPC.
  *
- * Curadoria com cuidado: o tom é de ACOLHIMENTO e ESCUTA (o que cabe a um RH),
- * nunca de conselho fácil ou romantização. O CVV (188, gratuito, 24h) acompanha
- * a campanha porque é o canal oficial de apoio emocional no Brasil.
+ * Sistema interno do RH: o tom é leve e acolhedor, sem peso institucional.
+ * Uma frase é sorteada a cada abertura do sistema.
  */
-
-export const CVV = {
-  telefone: '188',
-  descricao: 'ligação gratuita, 24h',
-  site: 'https://www.cvv.org.br',
-};
 
 export const FRASES_SETEMBRO_AMARELO: string[] = [
   'Perguntar “você está bem?” e esperar a resposta pode mudar o dia de alguém.',
+  'Conversar pode mudar vidas.',
   'Falar é a melhor solução. Ouvir também.',
   'Ninguém precisa dar conta de tudo sozinho.',
   'Escutar sem julgar é um cuidado que cabe em qualquer agenda.',
@@ -25,9 +19,13 @@ export const FRASES_SETEMBRO_AMARELO: string[] = [
   'Presença acolhe mais do que conselho.',
   'Um ambiente que escuta é um ambiente que cuida.',
   'Você não precisa ter a resposta certa — basta estar por perto.',
-  'Falar sobre o que dói é o primeiro passo para aliviar o peso.',
   'Cuidar de quem cuida também é trabalho do RH.',
-  'Se a dor parecer grande demais para carregar sozinho, o CVV atende 24h no 188.',
+  'Reservar um tempo para o que te faz bem também é cuidado.',
+  'Notar a mudança em alguém e perguntar já é ajudar.',
+  'Gentileza no corredor também é política de bem-estar.',
+  'Toda vida importa. Inclusive a sua.',
+  'Se precisar, peça ajuda.',
+  'O melhor da equipe não aparece em relatório: é o cuidado entre as pessoas.',
 ];
 
 /** Sorteia uma frase. `aleatorio` injetável para testes determinísticos. */
@@ -36,7 +34,7 @@ export function sortearFrase(aleatorio: () => number = Math.random): string {
   return FRASES_SETEMBRO_AMARELO[Math.min(Math.max(i, 0), FRASES_SETEMBRO_AMARELO.length - 1)];
 }
 
-/** Setembro (mês 9) → a campanha liga sozinha; fora dele, só se o admin ligar. */
+/** Setembro (mês 9) → o enfeite liga sozinho; fora dele, só se o admin ligar. */
 export function ehSetembro(hoje: Date = new Date()): boolean {
   return hoje.getMonth() === 8;
 }
