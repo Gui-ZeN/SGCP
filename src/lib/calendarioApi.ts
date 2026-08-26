@@ -48,10 +48,3 @@ export async function fetchProximasDatas(dias = 45): Promise<DataCalendario[]> {
   return Array.isArray(data) ? (data as DataCalendario[]) : [];
 }
 
-/** Todas as datas de um ano (para uma futura visão de calendário completo). */
-export async function fetchDatasDoAno(ano: number): Promise<DataCalendario[]> {
-  if (!calendarioConfigurado()) return [];
-  const qs = new URLSearchParams({ ano: String(ano), uf: UF, municipio_ibge: MUNICIPIO_IBGE });
-  const data = await getJson(`/v1/datas?${qs.toString()}`);
-  return Array.isArray(data) ? (data as DataCalendario[]) : [];
-}

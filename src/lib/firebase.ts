@@ -54,7 +54,10 @@ if (finalFirebaseConfig.projectId && finalFirebaseConfig.apiKey) {
     // Validate the connection safely without blocking boot
     const testConnection = async () => {
       try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
+        // 'sedes' tem leitura pública nas regras; ler um doc inexistente ali
+        // só testa a conectividade. (Antes era 'test/connection' — coleção sem
+        // regra nenhuma, então TODO boot disparava um permission-denied inútil.)
+        await getDocFromServer(doc(db, 'sedes', '__ping__'));
       } catch (error: any) {
         if (error instanceof Error && error.message.includes('the client is offline')) {
           console.warn("Firebase client appears to be offline.");

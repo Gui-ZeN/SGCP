@@ -533,7 +533,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             </div>
           </div>
           <div className="text-right text-xs text-slate-500 font-semibold">
-            <div className="text-lg font-black text-[#1B4DD8]">SGPC</div>
+            <div className="text-lg font-black text-[var(--sgpc-acento,#1B4DD8)]">SGPC</div>
             Gerado em {new Date().toLocaleDateString('pt-BR')}
           </div>
         </div>

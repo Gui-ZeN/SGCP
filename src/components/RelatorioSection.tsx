@@ -19,9 +19,9 @@ interface RelatorioIndicadoresProps {
 }
 
 const corPct = (pct: number) =>
-  pct >= 90 ? { anel: '#059669', txt: 'text-emerald-700' }
-  : pct >= 70 ? { anel: '#1B4DD8', txt: 'text-[#1B4DD8]' }
-  : { anel: '#D97706', txt: 'text-amber-700' };
+  pct >= 90 ? { anel: 'var(--sgpc-sucesso, #059669)', txt: 'text-emerald-700' }
+  : pct >= 70 ? { anel: 'var(--sgpc-acento, #1B4DD8)', txt: 'text-[var(--sgpc-acento,#1B4DD8)]' }
+  : { anel: 'var(--sgpc-alerta, #D97706)', txt: 'text-amber-700' };
 
 const RingPct: React.FC<{ pct: number; size?: number }> = ({ pct, size = 52 }) => {
   const r = (size - 6) / 2;

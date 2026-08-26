@@ -21,6 +21,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Bandeirinhas } from './components/Bandeirinhas';
 import { BootLoader } from './components/BootLoader';
 import { LogoSGPC } from './components/LogoSGPC';
+import { ehSetembro } from './data/setembroAmarelo';
 import { useAppConfig } from './hooks/useAppConfig';
 import { regiaoDaSede, sedeEhUniversidade, escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade, REGIAO_UNIVERSIDADE } from './utils/unidade';
 import { requisicaoParaVaga } from './utils/requisicao';
@@ -29,10 +30,19 @@ import { requisicaoParaVaga } from './utils/requisicao';
 // acrescente { id, nome, Comp, padrao } aqui — o admin liga/desliga no painel.
 // `padrao` é SAZONAL: o enfeite liga sozinho no mês dele e some depois (o toggle
 // do admin sempre vence). Comp = null → não é overlay; a seção o renderiza inline.
-const mesAtual = new Date().getMonth(); // 0=jan … 5=jun, 8=set
+const mesAtual = new Date().getMonth(); // 0=jan … 5=jun (São João)
+
+// Cor do ponto do toast por tipo. Vive aqui (e não repetida em cada render do
+// toast) e aponta para os tokens semânticos — mesma fonte do resto do sistema.
+const COR_TOAST: Record<string, string> = {
+  error: 'var(--sgpc-erro, #ef4444)',
+  success: 'var(--sgpc-sucesso, #10b981)',
+  warning: 'var(--sgpc-alerta, #f59e0b)',
+  info: 'var(--sgpc-info, #3b82f6)',
+};
 const ENFEITES: { id: string; nome: string; Comp: ComponentType | null; padrao: boolean }[] = [
   { id: 'sao-joao', nome: 'São João — bandeirinhas no topo', Comp: Bandeirinhas, padrao: mesAtual === 5 },
-  { id: 'setembro-amarelo', nome: 'Setembro Amarelo — frase de acolhimento no Início', Comp: null, padrao: mesAtual === 8 },
+  { id: 'setembro-amarelo', nome: 'Setembro Amarelo — frase de acolhimento no Início', Comp: null, padrao: ehSetembro() },
 ];
 import { useOperationalModules, addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from './hooks/useOperationalModules';
 const TreinamentosSection = lazyComRetry(() => import('./components/TreinamentosSection').then(m => ({ default: m.TreinamentosSection })));
@@ -807,7 +817,7 @@ export default function App() {
             <div 
               className="w-2 h-2 rounded-full shrink-0 animate-ping" 
               style={{
-                backgroundColor: toast.type === 'error' ? '#ef4444' : toast.type === 'success' ? '#10b981' : toast.type === 'warning' ? '#f59e0b' : '#3b82f6'
+                backgroundColor: COR_TOAST[toast.type] || COR_TOAST.info
               }} 
             />
             <div className="flex-1 text-xs font-semibold text-slate-200 leading-normal">
@@ -1348,7 +1358,7 @@ export default function App() {
           <div 
             className="w-2 h-2 rounded-full shrink-0 animate-ping" 
             style={{
-              backgroundColor: toast.type === 'error' ? '#ef4444' : toast.type === 'success' ? '#10b981' : toast.type === 'warning' ? '#f59e0b' : '#3b82f6'
+              backgroundColor: COR_TOAST[toast.type] || COR_TOAST.info
             }} 
           />
           <div className="flex-1 text-xs font-semibold text-slate-700 leading-normal">
