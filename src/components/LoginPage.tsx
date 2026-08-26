@@ -1,6 +1,5 @@
 import { LogoSGPC } from './LogoSGPC';
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
 import { 
   Briefcase, 
   Sparkles, 
@@ -168,12 +167,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             </svg>
 
             {/* Central Info Card */}
-            <motion.div 
+            {/* Anima com as mesmas utilidades CSS do resto do app (a lib `motion`
+                era carregada inteira só por este elemento). O key={activeIdx}
+                remonta o nó a cada troca, então a animação re-dispara. */}
+            <div
               key={activeIdx}
-              initial={{ scale: 0.94, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.3 }}
-              className="absolute w-[215px] h-[215px] rounded-full bg-white border border-slate-200 p-5 shadow-xl shadow-slate-200/30 flex flex-col items-center justify-center text-center z-10"
+              className="animate-in fade-in zoom-in-95 duration-300 absolute w-[215px] h-[215px] rounded-full bg-white border border-slate-200 p-5 shadow-xl shadow-slate-200/30 flex flex-col items-center justify-center text-center z-10"
             >
               {/* Active Item Icon */}
               <div className={`p-3 rounded-2xl border shrink-0 mb-2.5 shadow-sm ${modulesList[activeIdx].bg}`}>
@@ -190,7 +189,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   Assistente Ativo
                 </div>
               )}
-            </motion.div>
+            </div>
 
             {/* Radial Orbit items */}
             {modulesList.map((mod, i) => {
