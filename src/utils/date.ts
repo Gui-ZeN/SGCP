@@ -34,7 +34,18 @@ function validDate(year: number, monthIndex: number, day: number): Date | null {
 
 export function dateFromValue(value: unknown): Date | null {
   if (!value) return null;
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    // Planilhas entregam DIA DE CALENDÁRIO como meia-noite UTC (ex.: 03/04/2024
+    // chega como 2024-04-03T00:00:00Z). Ler isso com getDate() local devolve o
+    // DIA ANTERIOR em fuso negativo — em Fortaleza (UTC−3) toda data importada
+    // ficava um dia atrasada. Reancoramos no mesmo dia, em hora local.
+    const meiaNoiteUTC =
+      value.getUTCHours() === 0 && value.getUTCMinutes() === 0 &&
+      value.getUTCSeconds() === 0 && value.getUTCMilliseconds() === 0;
+    return meiaNoiteUTC
+      ? new Date(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate())
+      : value;
+  }
   if (typeof value === 'number') return excelSerialToDate(value);
 
   const text = cleanText(value);
