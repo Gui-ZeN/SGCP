@@ -127,9 +127,16 @@ service cloud.firestore {
 
     function isValidEntrevistaPublica() {
       let d = incoming();
+      // Anonima: o nome TEM de ser exatamente 'Anonimo' (o servidor nao aceita um
+      // nome de verdade marcado como anonimo) e a funcao vira opcional - numa
+      // sede pequena, cargo + sede ja identificam quem respondeu.
+      let anon = d.get('anonima', false);
       return d.get('origem', '') == 'form-publico'
-        && d.colaborador is string && d.colaborador.size() > 0 && d.colaborador.size() <= 200
-        && d.funcao is string && d.funcao.size() > 0 && d.funcao.size() <= 200
+        && anon is bool
+        && d.colaborador is string && d.colaborador.size() <= 200
+        && (anon ? d.colaborador == 'Anônimo' : d.colaborador.size() > 0)
+        && d.funcao is string && d.funcao.size() <= 200
+        && (anon || d.funcao.size() > 0)
         && d.unidade is string && d.unidade.size() <= 120
         && d.codigo is int
         && d.entrevistador == ''
@@ -149,7 +156,7 @@ service cloud.firestore {
         && notaValida(d.notaRelacionamentoChefia)
         && notaValida(d.notaClimaOrg)
         // teto de chaves + honeypot, iguais aos da requisição pública
-        && d.keys().size() <= 22
+        && d.keys().size() <= 23
         && !('website' in d.keys());
     }
 

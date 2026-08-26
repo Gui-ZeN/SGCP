@@ -503,7 +503,11 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
               </div>
 
               <div className="pt-3.5 border-t border-slate-100 flex items-center justify-between">
-                {e.origem === 'form-publico' ? (
+                {e.anonima ? (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5">
+                    Resposta anônima
+                  </span>
+                ) : e.origem === 'form-publico' ? (
                   <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
                     Respondida pelo colaborador
                   </span>

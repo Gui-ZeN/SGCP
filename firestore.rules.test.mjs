@@ -413,3 +413,30 @@ test("entrevistas: anonimo NAO pode editar registro existente", () =>
 
 test("entrevistas: anonimo NAO pode apagar registro", () =>
   assertFails(deleteDoc(doc(ctx.unauth(), "entrevistas", "e1"))));
+
+
+// --- entrevista anonima (checkbox "quero responder anonimamente") ---
+const entrevistaAnon = Object.assign({}, entrevistaBase, {
+  anonima: true,
+  colaborador: "Anônimo",
+  funcao: "",
+});
+
+test("entrevistas: anonima passa sem nome e sem funcao", () =>
+  assertSucceeds(setDoc(doc(ctx.unauth(), "entrevistas", "eAnon"), entrevistaAnon)));
+
+test("entrevistas: anonima com nome de verdade e' recusada", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eAnonNome"),
+    Object.assign({}, entrevistaAnon, { colaborador: "Fulano de Tal" }))));
+
+test("entrevistas: identificada segue exigindo nome e funcao", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eSemNome"),
+    Object.assign({}, entrevistaBase, { colaborador: "" }))));
+
+test("entrevistas: identificada sem funcao e' recusada", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eSemFuncao"),
+    Object.assign({}, entrevistaBase, { funcao: "" }))));
+
+test("entrevistas: anonima nao-booleana e' recusada", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eAnonStr"),
+    Object.assign({}, entrevistaAnon, { anonima: "sim" }))));

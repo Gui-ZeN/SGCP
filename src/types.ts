@@ -102,6 +102,8 @@ export interface Entrevista {
   // 'form-publico' = respondida pelo próprio ex-colaborador no formulário aberto
   // (/entrevista), sem passar pelo RH. Ausente = registrada por alguém do RH.
   origem?: string;
+  // Respondida sem se identificar: `colaborador` vem como 'Anônimo'.
+  anonima?: boolean;
 }
 
 // Requisição de abertura de vaga (preenchida pelo gestor num formulário público;

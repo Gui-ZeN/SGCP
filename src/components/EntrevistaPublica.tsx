@@ -14,8 +14,10 @@ import { Star, CheckCircle2, Loader2, LogOut } from 'lucide-react';
  *   e ordena do mais novo para o mais antigo, como o resto da lista.
  * - `entrevistador` fica vazio de propósito: aqui é autoatendimento; o RH
  *   preenche depois, se quiser.
- * - Não é anônimo (o nome é obrigatório) e o formulário DIZ isso — a pessoa
- *   precisa saber que o RH vai ler as respostas com o nome dela.
+ * - A pessoa escolhe entre identificar-se ou responder ANÔNIMO. Identificada, o
+ *   formulário deixa claro que o RH lê as respostas com o nome dela. Anônima,
+ *   grava `colaborador: 'Anônimo'` e nada mais é pedido — nem função, que numa
+ *   sede pequena já entrega quem respondeu.
  */
 
 const NOTAS = [
@@ -58,6 +60,7 @@ export const EntrevistaPublica: React.FC = () => {
   const [enviado, setEnviado] = useState(false);
   const [erro, setErro] = useState('');
   const [website, setWebsite] = useState(''); // honeypot
+  const [anonima, setAnonima] = useState(false);
 
   const [form, setForm] = useState({
     colaborador: '', funcao: '', unidade: '', admissao: '', desligamento: '',
@@ -89,8 +92,8 @@ export const EntrevistaPublica: React.FC = () => {
   const enviar = async () => {
     setErro('');
     if (website.trim()) { setEnviado(true); return; } // bot: sucesso falso, nada gravado
-    if (!form.colaborador.trim() || !form.funcao.trim()) {
-      setErro('Preencha ao menos seu nome e a função que exercia.');
+    if (!anonima && (!form.colaborador.trim() || !form.funcao.trim())) {
+      setErro('Preencha seu nome e a função que exercia — ou marque a opção de responder anonimamente.');
       return;
     }
     if (!isFirebaseEnabled || !db) { setErro('Serviço indisponível no momento.'); return; }
@@ -103,7 +106,10 @@ export const EntrevistaPublica: React.FC = () => {
       );
       await addDoc(collection(db, 'entrevistas'), {
         ...form,
-        colaborador: form.colaborador.trim(),
+        // Anônima: o nome nunca sai do navegador, e a função vai junto só se a
+        // pessoa tiver escolhido preenchê-la.
+        anonima,
+        colaborador: anonima ? 'Anônimo' : form.colaborador.trim(),
         funcao: form.funcao.trim(),
         unidade: form.unidade.trim(),
         admissao: form.admissao ? formatDateBR(form.admissao) : '',
@@ -152,10 +158,17 @@ export const EntrevistaPublica: React.FC = () => {
           </div>
         </header>
 
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-[12px] text-amber-900 font-semibold">
-          Este formulário <strong>não é anônimo</strong>: o RH verá suas respostas junto com o seu nome.
-          Responda apenas o que se sentir à vontade — só o nome e a função são obrigatórios.
-        </div>
+        {anonima ? (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 text-[12px] text-emerald-900 font-semibold">
+            Modo <strong>anônimo</strong>: seu nome não é enviado. Lembre que função, sede e datas
+            podem identificar você numa equipe pequena — preencha só o que quiser.
+          </div>
+        ) : (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-[12px] text-amber-900 font-semibold">
+            Este formulário <strong>não é anônimo</strong>: o RH verá suas respostas junto com o seu nome.
+            Responda apenas o que se sentir à vontade — só o nome e a função são obrigatórios.
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
           {/* Honeypot anti-spam (invisível; humanos não preenchem) */}
@@ -166,14 +179,32 @@ export const EntrevistaPublica: React.FC = () => {
 
           <section className="space-y-4">
             <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">Sobre você</h2>
+
+            <label className="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={anonima}
+                onChange={e => setAnonima(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-slate-900 cursor-pointer shrink-0"
+              />
+              <span>
+                <span className="block text-[13px] font-bold text-slate-800">Quero responder anonimamente</span>
+                <span className="block text-[11px] text-slate-500 font-medium">
+                  Seu nome não será enviado nem gravado. Todo o resto passa a ser opcional.
+                </span>
+              </span>
+            </label>
+
             <div className="grid sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2">
-                <label htmlFor="colaborador" className={labelCls}>Nome completo *</label>
-                <input id="colaborador" name="name" autoComplete="name" className={inputCls} value={form.colaborador} onChange={e => set('colaborador', e.target.value)} placeholder="Seu nome…" />
-              </div>
+              {!anonima && (
+                <div className="sm:col-span-2">
+                  <label htmlFor="colaborador" className={labelCls}>Nome completo *</label>
+                  <input id="colaborador" name="name" autoComplete="name" className={inputCls} value={form.colaborador} onChange={e => set('colaborador', e.target.value)} placeholder="Seu nome…" />
+                </div>
+              )}
               <div>
-                <label htmlFor="funcao" className={labelCls}>Função que exercia *</label>
-                <input id="funcao" autoComplete="off" className={inputCls} value={form.funcao} onChange={e => set('funcao', e.target.value)} placeholder="Ex.: Auxiliar Administrativo…" />
+                <label htmlFor="funcao" className={labelCls}>Função que exercia {anonima ? '' : '*'}</label>
+                <input id="funcao" autoComplete="off" className={inputCls} value={form.funcao} onChange={e => set('funcao', e.target.value)} placeholder={anonima ? 'Opcional…' : 'Ex.: Auxiliar Administrativo…'} />
               </div>
               <div>
                 <label htmlFor="unidade" className={labelCls}>Unidade / Sede</label>
