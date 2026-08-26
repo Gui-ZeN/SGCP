@@ -19,7 +19,7 @@ import {
   Download
 } from 'lucide-react';
 import { exportToXlsx } from '../utils/xlsxExporter';
-import { useTheme } from '../hooks/useTheme';
+import { useCoresGrafico } from '../hooks/useCoresGrafico';
 import { 
   AreaChart, 
   Area, 
@@ -50,11 +50,11 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
   confirmAction,
   canManage = true
 }) => {
-  // Acento dos gráficos reativo ao tema: cobalto no Suíço (secundário em cinza
-  // neutro pra não competir com o cobalto), laranja/azul no tema Atual.
-  const theme = useTheme();
-  const accent = theme === 'swiss' ? '#1B4DD8' : '#f97316';
-  const accent2 = theme === 'swiss' ? '#9AA3B2' : '#3b82f6';
+  // Acento vindo dos tokens (segue tema e campanha); o secundário fica em cinza
+  // neutro de propósito, pra não competir com o acento.
+  const cores = useCoresGrafico();
+  const accent = cores.primary;
+  const accent2 = cores.slate;
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTurnover, setEditingTurnover] = useState<Turnover | null>(null);

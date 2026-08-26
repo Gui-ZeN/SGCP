@@ -9,7 +9,7 @@ import { SLA_META_DIAS } from '../constants/hr';
 import { ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa } from '../utils/vaga';
 import { RelatorioIndicadores } from './RelatorioSection';
 import { taxaPresencaPorCargo } from '../utils/indicadores';
-import { useTheme } from '../hooks/useTheme';
+import { useCoresGrafico } from '../hooks/useCoresGrafico';
 import { Sede } from '../hooks/useMetadata';
 import { 
   ResponsiveContainer, 
@@ -53,24 +53,11 @@ import {
   Printer
 } from 'lucide-react';
 
-// --- Tema de gráficos: paleta coesa + tooltip estilizado reutilizável ---
-// Duas paletas; a ativa é escolhida em runtime conforme o tema (ver useTheme abaixo).
-const CHART_DEFAULT = {
-  primary: '#6366f1', // indigo (marca)
-  emerald: '#10b981',
-  amber: '#f59e0b',
-  rose: '#f43f5e',
-  slate: '#94a3b8'
-};
-
-// Suíço: cobalto único + semânticos levemente dessaturados pra assentar no papel neutro.
-const CHART_SWISS = {
-  primary: '#1B4DD8', // cobalto (acento único)
-  emerald: '#1F9D6B',
-  amber: '#D99500',
-  rose: '#DC4448',
-  slate: '#9CA0A8'
-};
+// --- Tema de gráficos: a paleta vem dos DESIGN TOKENS (useCoresGrafico), então
+// os gráficos acompanham o tema e as campanhas junto com o resto do sistema.
+// (Antes havia duas paletas fixas; a "atual" ficou inalcançável quando o tema
+// passou a ser só o Suíço, e a suíça chumbava o cobalto — gráficos continuavam
+// azuis durante a campanha.)
 
 const ChartTooltip: React.FC<any> = ({ active, payload, label, suffix = '' }) => {
   if (!active || !payload || !payload.length) return null;
@@ -115,9 +102,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   userSede,
   isAdmin = false
 }) => {
-  // Paleta de gráficos reativa ao tema (cobalto no Suíço; índigo no Atual).
-  const theme = useTheme();
-  const CHART = theme === 'swiss' ? CHART_SWISS : CHART_DEFAULT;
+  const CHART = useCoresGrafico();
   const BAR_CURSOR = { fill: CHART.primary, fillOpacity: 0.06 } as const;
 
   const getSedeLabel = (nome: string) => {
@@ -226,7 +211,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
       { name: 'Fechadas', value: filteredVagas.filter(v => v.status.toUpperCase() === 'FECHADA').length, color: CHART.emerald },
       { name: 'Pausadas/Canc', value: filteredVagas.filter(v => ['PAUSADA', 'SUSPENSA'].includes(v.status.toUpperCase())).length, color: CHART.slate },
     ];
-  }, [filteredVagas, theme]);
+  }, [filteredVagas, CHART]);
 
   // --- Vagas por Sede/Unidade (Top 6) ---
   const sedeChartData = useMemo(() => {
