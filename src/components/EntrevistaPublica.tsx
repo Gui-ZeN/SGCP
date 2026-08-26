@@ -158,18 +158,6 @@ export const EntrevistaPublica: React.FC = () => {
           </div>
         </header>
 
-        {anonima ? (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 text-[12px] text-emerald-900 font-semibold">
-            Modo <strong>anônimo</strong>: seu nome não é enviado. Lembre que função, sede e datas
-            podem identificar você numa equipe pequena — preencha só o que quiser.
-          </div>
-        ) : (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-[12px] text-amber-900 font-semibold">
-            Este formulário <strong>não é anônimo</strong>: o RH verá suas respostas junto com o seu nome.
-            Responda apenas o que se sentir à vontade — só o nome e a função são obrigatórios.
-          </div>
-        )}
-
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
           {/* Honeypot anti-spam (invisível; humanos não preenchem) */}
           <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}>
