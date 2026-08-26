@@ -118,9 +118,12 @@ service cloud.firestore {
     // Validação do documento de usuário (escrita sempre grava o objeto completo).
     function isValidUsuario() {
       let d = incoming();
-      return d.email is string
-        && d.email.size() <= 320
-        && d.role in ['Administrador', 'Coordenador', 'Analista', 'Visualizador']
+      return d.get('email', '') is string
+        && d.get('email', '').size() > 0
+        && d.get('email', '').size() <= 320
+        // .get() em vez de d.role: campo ausente ESTOURAVA a regra (deny com erro
+        // críptico) em vez de reprovar de forma limpa.
+        && d.get('role', '') in ['Administrador', 'Coordenador', 'Analista', 'Visualizador']
         && (!('sede' in d.keys()) || d.sede is string)
         && (!('unidade' in d.keys()) || d.unidade in ['colegio', 'universidade']);
     }
@@ -160,9 +163,9 @@ service cloud.firestore {
       // (não cria, não promove, não edita/exclui admin) — evita escalonar privilégio.
       // A restrição por região fica no app (usuario.sede é nome; as regras não
       // conseguem cruzar nome→região sem query).
-      allow create: if (isAdmin() || (isCoordenador() && incoming().role != 'Administrador')) && isValidUsuario();
-      allow update: if (isAdmin() || (isCoordenador() && incoming().role != 'Administrador' && existing().role != 'Administrador')) && isValidUsuario();
-      allow delete: if isAdmin() || (isCoordenador() && existing().role != 'Administrador');
+      allow create: if (isAdmin() || (isCoordenador() && incoming().get('role', '') != 'Administrador')) && isValidUsuario();
+      allow update: if (isAdmin() || (isCoordenador() && incoming().get('role', '') != 'Administrador' && existing().get('role', '') != 'Administrador')) && isValidUsuario();
+      allow delete: if isAdmin() || (isCoordenador() && existing().get('role', '') != 'Administrador');
     }
 
     // Requisições de abertura de vaga. Criação PÚBLICA (formulário aberto do gestor,
@@ -177,9 +180,9 @@ service cloud.firestore {
       // Coordenador gerencia apenas sedes da UNIDADE dele (Colégio ou Universidade,
       // via unidade denormalizada no doc do usuário). A região está no próprio
       // documento da sede, então a trava por unidade é real (servidor).
-      allow create: if isAdmin() || (isCoordenador() && sedeNaUnidadeDoCoordenador(incoming().regiao));
-      allow update: if isAdmin() || (isCoordenador() && sedeNaUnidadeDoCoordenador(existing().regiao) && sedeNaUnidadeDoCoordenador(incoming().regiao));
-      allow delete: if isAdmin() || (isCoordenador() && sedeNaUnidadeDoCoordenador(existing().regiao));
+      allow create: if isAdmin() || (isCoordenador() && sedeNaUnidadeDoCoordenador(incoming().get('regiao', '')));
+      allow update: if isAdmin() || (isCoordenador() && sedeNaUnidadeDoCoordenador(existing().get('regiao', '')) && sedeNaUnidadeDoCoordenador(incoming().get('regiao', '')));
+      allow delete: if isAdmin() || (isCoordenador() && sedeNaUnidadeDoCoordenador(existing().get('regiao', '')));
     }
 
     match /regioes/{regiaoId} {

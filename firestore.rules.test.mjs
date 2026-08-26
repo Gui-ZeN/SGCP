@@ -90,6 +90,8 @@ async function seed() {
     await setDoc(doc(db, "entrevistas", "e1"), { codigo: 301, colaborador: "X", dataEntrevista: "01/01/2026" });
     await setDoc(doc(db, "sedes", "s1"), { nome: "DT", regiao: "Sudeste" });
     await setDoc(doc(db, "sedes", "sUni"), { nome: "PE", regiao: "Universidade" });
+    // sede legada sem o campo `regiao`: a regra nao pode ESTOURAR por causa disso
+    await setDoc(doc(db, "sedes", "sLegada"), { nome: "ANTIGA" });
     await setDoc(doc(db, "logs", "l1"), { timestamp: "t", usuario: "x", acao: "CRIOU", modulo: "Vagas", detalhes: "d" });
     await setDoc(doc(db, "funcionarios", "fn1"), { nome: "Ana", dataNascimento: "24/06/1990", sede: "DT" });
     await setDoc(doc(db, "vagas", "uni-1"), { codigo: 9001, vaga: "NPJ", status: "ABERTA", origem: "planilha-universidade" });
@@ -231,6 +233,12 @@ test("sedes: coordenador NÃO pode criar/editar Cargos (cadastro global)", () =>
   assertFails(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "cargos", "c99"), { nome: "X" })));
 
 // --- Coordenador da UNIVERSIDADE (unidade denormalizada no doc do usuário) ---
+test("sedes: coordenador do Colegio edita sede legada (sem campo regiao) sem estourar a regra", () =>
+  assertSucceeds(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "sedes", "sLegada"), { nome: "ANTIGA 2" })));
+
+test("usuarios: payload SEM role e' recusado de forma limpa (nao estoura)", () =>
+  assertFails(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "semrole@empresa.com"), { email: "semrole@empresa.com", sede: "DT" })));
+
 test("sedes: coordenador da UNIVERSIDADE pode criar sede da Universidade", () =>
   assertSucceeds(setDoc(doc(ctx.user(COORD_UNI_EMAIL), "sedes", "sUniNova"), { nome: "Campus Novo", regiao: "Universidade" })));
 
