@@ -5,6 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Entrevista } from '../types';
+import { MOTIVOS_SAIDA } from '../constants/hr';
 import { toISOInput, formatDateBR } from '../utils/date';
 import { exportToXlsx } from '../utils/xlsxExporter';
 import {
@@ -20,7 +21,9 @@ import {
   ThumbsUp,
   ThumbsDown,
   MessageSquare,
-  Download
+  Download,
+  Link2,
+  Check
 } from 'lucide-react';
 
 const StarRatingInput = ({ value, onChange, label }: { value: number, onChange: (val: number) => void, label: string }) => {
@@ -129,39 +132,27 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
 
   // Stats
   const stats = useMemo(() => {
-    let sumClima = 0;
-    let sumSalario = 0;
-    let sumCrescimento = 0;
-    let totalSimVoltaria = 0;
-
-    relevantEntrevistas.forEach(e => {
-      sumClima += (e.notaClimaOrg || 0);
-      sumSalario += (e.notaSalario || 0);
-      sumCrescimento += (e.notaCrescimento || 0);
-      if (e.voltaria === 'Sim') totalSimVoltaria++;
-    });
-
+    // A média considera apenas QUEM RESPONDEU aquela nota. Dividir pelo total de
+    // fichas contaria "não respondeu" (0) como avaliação péssima e derrubava o
+    // indicador — visível desde que o formulário público permite pular notas.
+    const media = (pegar: (e: Entrevista) => number) => {
+      const notas = relevantEntrevistas.map(pegar).filter(n => n > 0);
+      return notas.length ? (notas.reduce((a, b) => a + b, 0) / notas.length).toFixed(1) : '—';
+    };
+    const totalSimVoltaria = relevantEntrevistas.filter(e => e.voltaria === 'Sim').length;
     const count = relevantEntrevistas.length || 1;
+
     return {
-      climaMedio: (sumClima / count).toFixed(1),
-      salarioMedio: (sumSalario / count).toFixed(1),
-      crescimentoMedio: (sumCrescimento / count).toFixed(1),
+      climaMedio: media(e => e.notaClimaOrg || 0),
+      salarioMedio: media(e => e.notaSalario || 0),
+      crescimentoMedio: media(e => e.notaCrescimento || 0),
       retornoPct: Math.round((totalSimVoltaria / count) * 100),
       totalEntrevistadas: relevantEntrevistas.length
     };
   }, [relevantEntrevistas]);
 
   // Options
-  const motivoOptions = [
-    "Melhor proposta salarial no mercado",
-    "Falta de oportunidade de crescimento",
-    "Relacionamento com a chefia",
-    "Relacionamento com os colegas",
-    "Mudança de cidade/residência",
-    "Estudos / Faculdade",
-    "Problemas familiares",
-    "Outros"
-  ].sort((a,b) => a.localeCompare(b));
+  const motivoOptions = MOTIVOS_SAIDA;
 
   const dateToInput = (value?: string) => toISOInput(value);
 
@@ -358,6 +349,23 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
     }
   };
 
+  // Link do formulário público — o RH manda para quem está saindo responder
+  // sozinho, sem login. Cai direto nesta lista (origem: 'form-publico').
+  const [linkCopiado, setLinkCopiado] = useState(false);
+  const linkForm = (typeof window !== 'undefined' ? window.location.origin : '') + '/entrevista';
+  const copiarLinkForm = async () => {
+    try {
+      await navigator.clipboard.writeText(linkForm);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = linkForm; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      ta.remove();
+    }
+    setLinkCopiado(true);
+    setTimeout(() => setLinkCopiado(false), 2000);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -378,6 +386,15 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
             <Download className="w-3.5 h-3.5 text-emerald-600" />
             Exportar Excel
           </button>
+          {canManage && (
+            <button
+              onClick={copiarLinkForm}
+              title={linkForm}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border flex items-center gap-1.5 cursor-pointer transition-colors ${linkCopiado ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 hover:bg-slate-200 text-slate-750 border-slate-250'}`}
+            >
+              {linkCopiado ? <><Check className="w-3.5 h-3.5" /> Copiado!</> : <><Link2 className="w-3.5 h-3.5" /> Link do formulário</>}
+            </button>
+          )}
           {canManage && (
             <button
               onClick={openCreateForm}
@@ -486,9 +503,15 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
               </div>
 
               <div className="pt-3.5 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Entrevistador: <strong>{e.entrevistador || 'RH'}</strong>
-                </span>
+                {e.origem === 'form-publico' ? (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
+                    Respondida pelo colaborador
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Entrevistador: <strong>{e.entrevistador || 'RH'}</strong>
+                  </span>
+                )}
 
                 <div className="flex items-center gap-2">
                   {canManage && (

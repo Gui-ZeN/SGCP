@@ -99,6 +99,9 @@ export interface Entrevista {
   voltaria: 'Sim' | 'Não' | 'Talvez';
   sugestoes?: string;
   entrevistador: string;
+  // 'form-publico' = respondida pelo próprio ex-colaborador no formulário aberto
+  // (/entrevista), sem passar pelo RH. Ausente = registrada por alguém do RH.
+  origem?: string;
 }
 
 // Requisição de abertura de vaga (preenchida pelo gestor num formulário público;

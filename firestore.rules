@@ -115,6 +115,44 @@ service cloud.firestore {
         && !('website' in d.keys());
     }
 
+    // Validação da entrevista de desligamento enviada pelo FORMULÁRIO PÚBLICO
+    // (o próprio ex-colaborador responde, sem login). Só passa com
+    // origem == 'form-publico': assim esta porta não serve para forjar um
+    // registro que pareça ter sido criado pelo RH. Mesmos tetos por campo da
+    // requisição, e escrito campo a campo pelo mesmo motivo (indexação
+    // dinâmica pode não compilar e reprovaria o deploy inteiro).
+    function notaValida(n) {
+      return n is int && n >= 0 && n <= 5;
+    }
+
+    function isValidEntrevistaPublica() {
+      let d = incoming();
+      return d.get('origem', '') == 'form-publico'
+        && d.colaborador is string && d.colaborador.size() > 0 && d.colaborador.size() <= 200
+        && d.funcao is string && d.funcao.size() > 0 && d.funcao.size() <= 200
+        && d.unidade is string && d.unidade.size() <= 120
+        && d.codigo is int
+        && d.entrevistador == ''
+        && d.dataEntrevista is string && d.dataEntrevista.size() <= 20
+        && d.admissao is string && d.admissao.size() <= 20
+        && d.desligamento is string && d.desligamento.size() <= 20
+        && d.motivoSaida is string && d.motivoSaida.size() <= 200
+        && d.gostavaTrabalho in ['', 'Sim', 'Não', 'Parcialmente']
+        && d.voltaria in ['', 'Sim', 'Não', 'Talvez']
+        && d.oqMaisGostava is string && d.oqMaisGostava.size() <= 2000
+        && d.oqMenosGostava is string && d.oqMenosGostava.size() <= 2000
+        && d.sugestoes is string && d.sugestoes.size() <= 2000
+        && notaValida(d.notaSalario)
+        && notaValida(d.notaTreinamento)
+        && notaValida(d.notaCrescimento)
+        && notaValida(d.notaRelacionamentoColegas)
+        && notaValida(d.notaRelacionamentoChefia)
+        && notaValida(d.notaClimaOrg)
+        // teto de chaves + honeypot, iguais aos da requisição pública
+        && d.keys().size() <= 22
+        && !('website' in d.keys());
+    }
+
     // Validação do documento de usuário (escrita sempre grava o objeto completo).
     function isValidUsuario() {
       let d = incoming();
@@ -231,7 +269,9 @@ service cloud.firestore {
 
     match /entrevistas/{entrevistaId} {
       allow read: if isAppUser();
-      allow write: if isEditor();
+      // create também pelo formulário público (sem login), validado campo a campo.
+      allow create: if isEditor() || isValidEntrevistaPublica();
+      allow update, delete: if isEditor();
     }
 
     match /turnover/{turnoverId} {

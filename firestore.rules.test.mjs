@@ -351,3 +351,65 @@ test("requisicoes: payload com chaves demais e' recusado", () =>
   ))));
 
 
+
+
+// --- entrevista de desligamento pelo formulario publico (/entrevista) ---
+const entrevistaBase = {
+  origem: "form-publico",
+  colaborador: "Fulano de Tal",
+  funcao: "Auxiliar",
+  unidade: "Dunas",
+  codigo: 2608261530,
+  entrevistador: "",
+  dataEntrevista: "26/08/2026",
+  admissao: "01/02/2024",
+  desligamento: "20/08/2026",
+  motivoSaida: "Outros",
+  gostavaTrabalho: "Sim",
+  voltaria: "Talvez",
+  oqMaisGostava: "equipe",
+  oqMenosGostava: "horario",
+  sugestoes: "mais treino",
+  notaSalario: 3,
+  notaTreinamento: 4,
+  notaCrescimento: 2,
+  notaRelacionamentoColegas: 5,
+  notaRelacionamentoChefia: 4,
+  notaClimaOrg: 3,
+};
+
+test("entrevistas: form publico consegue criar", () =>
+  assertSucceeds(setDoc(doc(ctx.unauth(), "entrevistas", "ePub"), entrevistaBase)));
+
+test("entrevistas: form publico NAO consegue ler as respostas de outros", () =>
+  assertFails(getDoc(doc(ctx.unauth(), "entrevistas", "ePub"))));
+
+test("entrevistas: anonimo sem origem 'form-publico' e' recusado", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eSemOrigem"),
+    Object.assign({}, entrevistaBase, { origem: "rh" }))));
+
+test("entrevistas: anonimo nao pode se passar por entrevistador do RH", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eFake"),
+    Object.assign({}, entrevistaBase, { entrevistador: "Coordenadora RH" }))));
+
+test("entrevistas: nota fora da escala 1-5 e' recusada", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eNota"),
+    Object.assign({}, entrevistaBase, { notaClimaOrg: 9 }))));
+
+test("entrevistas: enum invalido em voltaria e' recusado", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eEnum"),
+    Object.assign({}, entrevistaBase, { voltaria: "Quem sabe" }))));
+
+test("entrevistas: texto gigante e' recusado (anti-abuso)", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eGrande"),
+    Object.assign({}, entrevistaBase, { sugestoes: "a".repeat(2001) }))));
+
+test("entrevistas: honeypot preenchido e' recusado no servidor", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eBot"),
+    Object.assign({}, entrevistaBase, { website: "http://spam" }))));
+
+test("entrevistas: anonimo NAO pode editar registro existente", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "e1"), entrevistaBase)));
+
+test("entrevistas: anonimo NAO pode apagar registro", () =>
+  assertFails(deleteDoc(doc(ctx.unauth(), "entrevistas", "e1"))));

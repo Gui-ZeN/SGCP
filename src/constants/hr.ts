@@ -56,3 +56,17 @@ export const MOTIVOS_DESISTENCIA = [
   'Sem motivo informado',
   'Outros'
 ];
+
+// Motivos de saída da entrevista de desligamento. Compartilhado entre o modal do
+// RH e o formulário público — precisam oferecer exatamente as mesmas opções,
+// senão o indicador de motivos fica inconsistente.
+export const MOTIVOS_SAIDA = [
+  'Melhor proposta salarial no mercado',
+  'Falta de oportunidade de crescimento',
+  'Relacionamento com a chefia',
+  'Relacionamento com os colegas',
+  'Mudança de cidade/residência',
+  'Estudos / Faculdade',
+  'Problemas familiares',
+  'Outros',
+].sort((a, b) => a.localeCompare(b, 'pt-BR'));

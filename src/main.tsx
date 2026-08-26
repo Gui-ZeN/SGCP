@@ -2,6 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { RequisicaoPublica } from './components/RequisicaoPublica';
+import { EntrevistaPublica } from './components/EntrevistaPublica';
 import { recarregarUmaVez } from './lib/lazyComRetry';
 import './index.css';
 import './styles/swiss.css';
@@ -16,19 +17,22 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// Rota pública do formulário de requisição (fora do app, sem login).
-// Aceita /requisicao (rewrite no vercel.json) ou #requisicao (fallback sem config).
+// Rotas públicas (fora do app, sem login). Cada uma aceita o caminho
+// (/requisicao, /entrevista — rewrites no vercel.json) ou o hash equivalente,
+// que é o fallback quando o host não tem os rewrites configurados.
 const path = (typeof window !== 'undefined' ? window.location.pathname : '').replace(/\/+$/, '');
-const isRequisicao = path.endsWith('/requisicao') ||
-  (typeof window !== 'undefined' && window.location.hash.toLowerCase().includes('requisicao'));
+const hash = typeof window !== 'undefined' ? window.location.hash.toLowerCase() : '';
+const isRequisicao = path.endsWith('/requisicao') || hash.includes('requisicao');
+const isEntrevista = path.endsWith('/entrevista') || hash.includes('entrevista');
+const isPublica = isRequisicao || isEntrevista;
 
-// Tema único (Suíço) aplicado já no boot do app — o formulário público fica neutro.
-if (!isRequisicao && typeof document !== 'undefined') {
+// Tema único (Suíço) aplicado já no boot do app — os formulários públicos ficam neutros.
+if (!isPublica && typeof document !== 'undefined') {
   document.documentElement.setAttribute('data-theme', 'swiss');
 }
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {isRequisicao ? <RequisicaoPublica /> : <App />}
+    {isRequisicao ? <RequisicaoPublica /> : isEntrevista ? <EntrevistaPublica /> : <App />}
   </StrictMode>,
 );

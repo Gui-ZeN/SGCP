@@ -1,5 +1,6 @@
 {
   "rewrites": [
-    { "source": "/requisicao", "destination": "/index.html" }
+    { "source": "/requisicao", "destination": "/index.html" },
+    { "source": "/entrevista", "destination": "/index.html" }
   ]
 }
