@@ -453,8 +453,8 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                 </div>
               )}
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mês de Referência (Mês/Ano) *</label>
-                <input
+                <label htmlFor="trn-mes-de-referencia-mes-ano" className="block text-xs font-bold text-slate-500 uppercase mb-1">Mês de Referência (Mês/Ano) *</label>
+                <input id="trn-mes-de-referencia-mes-ano"
                   type="month"
                   required
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
@@ -464,8 +464,8 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Total Ativo de Funcionários (Último dia do Mês)</label>
-                <input
+                <label htmlFor="trn-total-ativo-de-funcionarios-ultimo-dia-d" className="block text-xs font-bold text-slate-500 uppercase mb-1">Total Ativo de Funcionários (Último dia do Mês)</label>
+                <input id="trn-total-ativo-de-funcionarios-ultimo-dia-d"
                   type="number"
                   placeholder="Ex: 154"
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl font-mono text-slate-800"
@@ -476,8 +476,8 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
 
               <div className="grid grid-cols-3 gap-3 p-3.5 bg-slate-50 border rounded-2xl">
                 <div>
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase mb-1">Admissões</label>
-                  <input
+                  <label htmlFor="trn-admissoes" className="block text-[9px] font-bold text-slate-500 uppercase mb-1">Admissões</label>
+                  <input id="trn-admissoes"
                     type="number"
                     className="w-full px-2 py-1.5 text-xs bg-white border rounded font-mono"
                     value={totalAdmissao}
@@ -486,8 +486,8 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase mb-1">Espontâneas</label>
-                  <input
+                  <label htmlFor="trn-espontaneas" className="block text-[9px] font-bold text-slate-500 uppercase mb-1">Espontâneas</label>
+                  <input id="trn-espontaneas"
                     type="number"
                     className="w-full px-2 py-1.5 text-xs bg-white border rounded font-mono"
                     value={pediramSair}
@@ -497,8 +497,8 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[9px] font-bold text-slate-500 uppercase mb-1">Demissões</label>
-                  <input
+                  <label htmlFor="trn-demissoes" className="block text-[9px] font-bold text-slate-500 uppercase mb-1">Demissões</label>
+                  <input id="trn-demissoes"
                     type="number"
                     className="w-full px-2 py-1.5 text-xs bg-white border rounded font-mono"
                     value={foramDesligados}

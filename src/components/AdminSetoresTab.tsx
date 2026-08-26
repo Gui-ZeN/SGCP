@@ -152,8 +152,8 @@ export const AdminSetoresTab: React.FC<AdminSetoresTabProps> = ({
           
           <form onSubmit={handleAddSetor} className="space-y-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase">Nome do Setor</label>
-              <input
+              <label htmlFor="set-nome-do-setor" className="text-xs font-bold text-slate-500 uppercase">Nome do Setor</label>
+              <input id="set-nome-do-setor"
                 type="text"
                 value={setorNome}
                 onChange={(e) => setSetorNome(e.target.value)}

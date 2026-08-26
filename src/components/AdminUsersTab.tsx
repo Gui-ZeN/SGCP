@@ -93,8 +93,8 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase">E-mail Corporativo</label>
-              <input
+              <label htmlFor="usr-e-mail-corporativo" className="text-xs font-bold text-slate-500 uppercase">E-mail Corporativo</label>
+              <input id="usr-e-mail-corporativo"
                 type="email"
                 value={userEmail}
                 onChange={(e) => setUserEmail(e.target.value)}
@@ -105,8 +105,8 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
             </div>
             
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase">Papel / Acesso</label>
-              <select
+              <label htmlFor="usr-papel-acesso" className="text-xs font-bold text-slate-500 uppercase">Papel / Acesso</label>
+              <select id="usr-papel-acesso"
                 value={userRole}
                 onChange={(e) => setUserRole(e.target.value as any)}
                 className="w-full text-xs px-3.5 py-3 border border-slate-200 rounded-xl outline-none bg-white font-medium focus:border-slate-800"
@@ -124,8 +124,8 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase">Sede Responsável</label>
-              <select
+              <label htmlFor="usr-sede-responsavel" className="text-xs font-bold text-slate-500 uppercase">Sede Responsável</label>
+              <select id="usr-sede-responsavel"
                 value={userRole === 'Visualizador' ? '' : userSede}
                 onChange={(e) => setUserSede(e.target.value)}
                 disabled={userRole === 'Visualizador'}

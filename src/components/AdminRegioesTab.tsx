@@ -60,8 +60,8 @@ export const AdminRegioesTab: React.FC<AdminRegioesTabProps> = ({
           
           <form onSubmit={handleAddRegiao} className="space-y-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase">Nome da Região</label>
-              <input
+              <label htmlFor="reg-nome-da-regiao" className="text-xs font-bold text-slate-500 uppercase">Nome da Região</label>
+              <input id="reg-nome-da-regiao"
                 type="text"
                 value={regiaoNome}
                 onChange={(e) => setRegiaoNome(e.target.value)}
@@ -103,6 +103,7 @@ export const AdminRegioesTab: React.FC<AdminRegioesTabProps> = ({
                       <td className="px-5 py-3.5 font-mono text-slate-400 font-medium">#{i + 1}</td>
                       <td className="px-5 py-3.5">
                         <input
+                          aria-label="Editar nome da região"
                           autoFocus
                           type="text"
                           className="w-full text-xs px-2 py-1.5 border border-slate-300 rounded font-bold text-slate-700 focus:border-indigo-500 focus:outline-none bg-white"

@@ -429,7 +429,7 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div className="relative">
           <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-          <input
+          <input aria-label="Pesquisar por Colaborador expulso, função ou motivo..."
             type="text"
             className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500"
             placeholder="Pesquisar por Colaborador expulso, função ou motivo..."
@@ -680,8 +680,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
                 </div>
               )}
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome Completo do Ex-Colaborador *</label>
-                <input
+                <label htmlFor="ent-nome-completo-do-ex-colaborador" className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome Completo do Ex-Colaborador *</label>
+                <input id="ent-nome-completo-do-ex-colaborador"
                   type="text"
                   required
                   placeholder="Ex: Daniela Souza Santos"
@@ -693,8 +693,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Função Desempenhada *</label>
-                  <input
+                  <label htmlFor="ent-funcao-desempenhada" className="block text-xs font-bold text-slate-500 uppercase mb-1">Função Desempenhada *</label>
+                  <input id="ent-funcao-desempenhada"
                     type="text"
                     required
                     placeholder="Ex: Analista Comercial"
@@ -705,8 +705,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Unidade / Setor</label>
-                  <input
+                  <label htmlFor="ent-unidade-setor" className="block text-xs font-bold text-slate-500 uppercase mb-1">Unidade / Setor</label>
+                  <input id="ent-unidade-setor"
                     type="text"
                     placeholder="Ex: TI / Comercial"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
@@ -718,8 +718,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data Admissão</label>
-                  <input
+                  <label htmlFor="ent-data-admissao" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data Admissão</label>
+                  <input id="ent-data-admissao"
                     type="date"
                     className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg"
                     value={admissao}
@@ -728,8 +728,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data Desligamento</label>
-                  <input
+                  <label htmlFor="ent-data-desligamento" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data Desligamento</label>
+                  <input id="ent-data-desligamento"
                     type="date"
                     className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg"
                     value={desligamento}
@@ -738,8 +738,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data Entrevista *</label>
-                  <input
+                  <label htmlFor="ent-data-entrevista" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data Entrevista *</label>
+                  <input id="ent-data-entrevista"
                     type="date"
                     required
                     className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg"
@@ -750,8 +750,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Por quais motivos está saindo da empresa?</label>
-                <select
+                <label htmlFor="ent-por-quais-motivos-esta-saindo-da-empresa" className="block text-xs font-bold text-slate-500 uppercase mb-1">Por quais motivos está saindo da empresa?</label>
+                <select id="ent-por-quais-motivos-esta-saindo-da-empresa"
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
                   value={motivoSaida}
                   onChange={(e) => setMotivoSaida(e.target.value)}
@@ -762,7 +762,7 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
                 </select>
                 {motivoSaida === 'Outros' && (
                   <div className="mt-2">
-                    <input
+                    <input aria-label="Especifique o motivo..."
                       type="text"
                       className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
                       placeholder="Especifique o motivo..."
@@ -788,8 +788,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Você gostava de seu trabalho?</label>
-                  <select
+                  <label htmlFor="ent-voce-gostava-de-seu-trabalho" className="block text-xs font-bold text-slate-500 uppercase mb-1">Você gostava de seu trabalho?</label>
+                  <select id="ent-voce-gostava-de-seu-trabalho"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
                     value={gostavaTrabalho}
                     onChange={(e) => setGostavaTrabalho(e.target.value as 'Sim' | 'Não' | 'Parcialmente')}
@@ -801,8 +801,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Voltaria a trabalhar conosco?</label>
-                  <select
+                  <label htmlFor="ent-voltaria-a-trabalhar-conosco" className="block text-xs font-bold text-slate-500 uppercase mb-1">Voltaria a trabalhar conosco?</label>
+                  <select id="ent-voltaria-a-trabalhar-conosco"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
                     value={voltaria}
                     onChange={(e) => setVoltaria(e.target.value as 'Sim' | 'Não' | 'Talvez')}
@@ -816,8 +816,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">O que você mais gostava no trabalho?</label>
-                  <input
+                  <label htmlFor="ent-o-que-voce-mais-gostava-no-trabalho" className="block text-xs font-bold text-slate-500 uppercase mb-1">O que você mais gostava no trabalho?</label>
+                  <input id="ent-o-que-voce-mais-gostava-no-trabalho"
                     type="text"
                     placeholder="Ex: Liberdade do projeto"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
@@ -827,8 +827,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">O que você menos gostava no trabalho?</label>
-                  <input
+                  <label htmlFor="ent-o-que-voce-menos-gostava-no-trabalho" className="block text-xs font-bold text-slate-500 uppercase mb-1">O que você menos gostava no trabalho?</label>
+                  <input id="ent-o-que-voce-menos-gostava-no-trabalho"
                     type="text"
                     placeholder="Ex: Salário defasado"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
@@ -840,8 +840,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Sugestões de melhoria</label>
-                  <textarea
+                  <label htmlFor="ent-sugestoes-de-melhoria" className="block text-xs font-bold text-slate-500 uppercase mb-1">Sugestões de melhoria</label>
+                  <textarea id="ent-sugestoes-de-melhoria"
                     rows={2}
                     placeholder="Sugestões de crescimento profissional..."
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
@@ -853,8 +853,8 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Entrevistador Responsável (RH)</label>
-                  <input
+                  <label htmlFor="ent-entrevistador-responsavel-rh" className="block text-xs font-bold text-slate-500 uppercase mb-1">Entrevistador Responsável (RH)</label>
+                  <input id="ent-entrevistador-responsavel-rh"
                     type="text"
                     placeholder="Ex: Larissa Moura"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"

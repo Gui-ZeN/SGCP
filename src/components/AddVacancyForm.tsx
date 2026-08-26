@@ -296,7 +296,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
               </select>
               {motivo === 'Outros' && (
                 <div className="mt-2">
-                  <input
+                  <input aria-label="Especifique o motivo..."
                     type="text"
                     className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors placeholder:text-slate-400"
                     placeholder="Especifique o motivo..."

@@ -42,8 +42,8 @@ export const AdminCargosTab: React.FC<AdminCargosTabProps> = ({
           
           <form onSubmit={handleAddCargo} className="space-y-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase">Nome do Cargo</label>
-              <input
+              <label htmlFor="cgo-nome-do-cargo" className="text-xs font-bold text-slate-500 uppercase">Nome do Cargo</label>
+              <input id="cgo-nome-do-cargo"
                 type="text"
                 value={cargoNome}
                 onChange={(e) => setCargoNome(e.target.value)}

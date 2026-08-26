@@ -425,7 +425,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="relative">
           <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-          <input
+          <input aria-label="Pesquisar por Tema, Facilitador..."
             type="text"
             className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500"
             placeholder="Pesquisar por Tema, Facilitador..."
@@ -434,7 +434,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
           />
         </div>
 
-        <select
+        <select aria-label="Todas as Unidades"
           className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
           value={selectedUnidade}
           onChange={(e) => setSelectedUnidade(e.target.value)}
@@ -445,7 +445,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
           ))}
         </select>
 
-        <select
+        <select aria-label="Todos os Tipos de Conteúdo"
           className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500"
           value={selectedTipo}
           onChange={(e) => setSelectedTipo(e.target.value)}
@@ -622,8 +622,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                 </div>
               )}
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tema da Qualificação *</label>
-                <input
+                <label htmlFor="tre-tema-da-qualificacao" className="block text-xs font-bold text-slate-500 uppercase mb-1">Tema da Qualificação *</label>
+                <input id="tre-tema-da-qualificacao"
                   type="text"
                   required
                   placeholder="Ex: Treinamento LNT e Processo de Promoções"
@@ -637,7 +637,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data de Início *</label>
                   <div className="relative">
-                    <input
+                    <input aria-label="Data de término"
                       type="date"
                       required
                       className="w-full pl-8 pr-2 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl cursor-pointer"
@@ -651,7 +651,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data Término</label>
                   <div className="relative">
-                    <input
+                    <input aria-label="Data de término"
                       type="date"
                       className="w-full pl-8 pr-2 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl cursor-pointer"
                       value={dataTermino}
@@ -662,8 +662,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mês Ref. (Opcional)</label>
-                  <input
+                  <label htmlFor="tre-mes-ref-opcional" className="block text-xs font-bold text-slate-500 uppercase mb-1">Mês Ref. (Opcional)</label>
+                  <input id="tre-mes-ref-opcional"
                     type="text"
                     placeholder={`Auto (${autoRefMonth})`}
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl capitalize placeholder:lowercase"
@@ -675,8 +675,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Conteúdo</label>
-                  <select
+                  <label htmlFor="tre-tipo-de-conteudo" className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Conteúdo</label>
+                  <select id="tre-tipo-de-conteudo"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
                     value={tipo}
                     onChange={(e) => setTipo(e.target.value as Treinamento['tipo'])}
@@ -688,8 +688,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Facilitador / Palestrante *</label>
-                  <input
+                  <label htmlFor="tre-facilitador-palestrante" className="block text-xs font-bold text-slate-500 uppercase mb-1">Facilitador / Palestrante *</label>
+                  <input id="tre-facilitador-palestrante"
                     type="text"
                     required
                     placeholder="Ex: Arlana Carvalho (RH)"
@@ -702,8 +702,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Carga Horária (Sessão)</label>
-                  <input
+                  <label htmlFor="tre-carga-horaria-sessao" className="block text-xs font-bold text-slate-500 uppercase mb-1">Carga Horária (Sessão)</label>
+                  <input id="tre-carga-horaria-sessao"
                     type="number"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
                     value={cargaHoraria}
@@ -712,8 +712,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Unidade / Sede</label>
-                  <select
+                  <label htmlFor="tre-unidade-sede" className="block text-xs font-bold text-slate-500 uppercase mb-1">Unidade / Sede</label>
+                  <select id="tre-unidade-sede"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
                     value={unidade}
                     onChange={(e) => setUnidade(e.target.value)}
@@ -726,8 +726,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Público Alvo / Participantes</label>
-                <input
+                <label htmlFor="tre-publico-alvo-participantes" className="block text-xs font-bold text-slate-500 uppercase mb-1">Público Alvo / Participantes</label>
+                <input id="tre-publico-alvo-participantes"
                   type="text"
                   placeholder="Ex: Auxiliares e Analistas Gerais"
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
@@ -738,8 +738,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
 
               <div className="grid grid-cols-3 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 mt-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Qtd Prevista</label>
-                  <input
+                  <label htmlFor="tre-qtd-prevista" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Qtd Prevista</label>
+                  <input id="tre-qtd-prevista"
                     type="number"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                     value={qtdPrevista}
@@ -748,8 +748,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Qtd Realizada</label>
-                  <input
+                  <label htmlFor="tre-qtd-realizada" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Qtd Realizada</label>
+                  <input id="tre-qtd-realizada"
                     type="number"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                     value={qtdRealizada}
@@ -758,8 +758,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Valor Investido</label>
-                  <input
+                  <label htmlFor="tre-valor-investido" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Valor Investido</label>
+                  <input id="tre-valor-investido"
                     type="number"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                     value={valorInvestido}

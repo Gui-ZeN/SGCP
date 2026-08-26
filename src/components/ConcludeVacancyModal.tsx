@@ -143,7 +143,7 @@ export const ConcludeVacancyModal: React.FC<ConcludeVacancyModalProps> = ({ vaga
           </div>
 
           <label className="flex items-center gap-2.5 mt-2 cursor-pointer p-2.5 bg-slate-50/50 rounded-xl border border-slate-100 hover:bg-slate-50 transition border-dashed">
-            <input
+            <input aria-label="Abrir acompanhamento de experiência"
               type="checkbox"
               className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
               checked={addToExperiencia}

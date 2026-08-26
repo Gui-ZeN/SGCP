@@ -69,7 +69,7 @@ export const AdminLogsTab: React.FC<AdminLogsTabProps> = ({ logs }) => {
       <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-50/70 p-4 rounded-2xl border border-slate-150">
         <div className="w-full md:w-auto flex-1 relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
-          <input
+          <input aria-label="Buscar por usuário, ação ou conteúdo..."
             type="text"
             placeholder="Buscar por usuário, ação ou conteúdo..."
             value={searchTerm}
@@ -80,7 +80,7 @@ export const AdminLogsTab: React.FC<AdminLogsTabProps> = ({ logs }) => {
         
         <div className="w-full md:w-auto flex flex-wrap gap-2">
           {/* Module Filter */}
-          <select
+          <select aria-label="TODOS OS MÓDULOS"
             value={selectedModulo}
             onChange={(e) => setSelectedModulo(e.target.value)}
             className="text-xs font-bold uppercase tracking-wider px-3.5 py-3 border border-slate-200 bg-white rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-850 cursor-pointer text-slate-650"
@@ -92,7 +92,7 @@ export const AdminLogsTab: React.FC<AdminLogsTabProps> = ({ logs }) => {
           </select>
 
           {/* Action Filter */}
-          <select
+          <select aria-label="TODAS AÇÕES"
             value={selectedAcao}
             onChange={(e) => setSelectedAcao(e.target.value)}
             className="text-xs font-bold uppercase tracking-wider px-3.5 py-3 border border-slate-200 bg-white rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-850 cursor-pointer text-slate-650"

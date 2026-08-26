@@ -838,7 +838,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           {/* Term Search */}
           <div className="relative">
             <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-            <input
+            <input aria-label="Pesquisar Cargo, Solicitante ou Código..."
               type="text"
               className="w-full pl-9 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-200/90 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-700 font-medium transition"
               placeholder="Pesquisar Cargo, Solicitante ou Código..."
@@ -848,7 +848,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           </div>
 
           {/* Sede Dropdown */}
-          <select
+          <select aria-label="Filtrar por sede"
             className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200/90 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-700 font-medium transition disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
             value={selectedSede}
             onChange={(e) => { setSelectedSede(e.target.value); setCurrentPage(1); }}
@@ -860,7 +860,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           </select>
 
           {/* Sector Dropdown */}
-          <select
+          <select aria-label="Filtrar por setor"
             className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200/90 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-700 font-medium transition"
             value={selectedSetor}
             onChange={(e) => { setSelectedSetor(e.target.value); setCurrentPage(1); }}
@@ -872,7 +872,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           </select>
 
           {/* Specific status filter */}
-          <select
+          <select aria-label="Status da Vaga: Todos"
             className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200/90 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-700 font-medium transition"
             value={selectedStatus}
             onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
@@ -944,7 +944,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                         };
                         return (
                           <label key={col} className="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-50 rounded-lg cursor-pointer text-xs font-medium text-slate-700">
-                            <input 
+                            <input aria-label="Mostrar esta coluna" 
                               type="checkbox" 
                               checked={visibleColumns[col]} 
                               onChange={() => toggleColumn(col)}
@@ -1031,7 +1031,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           </div>
           {kanbanGroupBy === 'etapa' && (
             <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase cursor-pointer select-none">
-              <input
+              <input aria-label="Mostrar vagas concluídas"
                 type="checkbox"
                 checked={showConcluidasEtapa}
                 onChange={(e) => setShowConcluidasEtapa(e.target.checked)}

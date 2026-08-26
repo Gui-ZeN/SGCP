@@ -70,8 +70,8 @@ export const AdminSedesTab: React.FC<AdminSedesTabProps> = ({
           <form onSubmit={handleAddSede} className="space-y-4">
             <div className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase">Identificador da Sede</label>
-                <input
+                <label htmlFor="sede-identificador-da-sede" className="text-xs font-bold text-slate-500 uppercase">Identificador da Sede</label>
+                <input id="sede-identificador-da-sede"
                   type="text"
                   value={sedeNome}
                   onChange={(e) => setSedeNome(e.target.value)}
@@ -81,8 +81,8 @@ export const AdminSedesTab: React.FC<AdminSedesTabProps> = ({
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase">Sigla da Sede</label>
-                <input
+                <label htmlFor="sede-sigla-da-sede" className="text-xs font-bold text-slate-500 uppercase">Sigla da Sede</label>
+                <input id="sede-sigla-da-sede"
                   type="text"
                   value={sedeSigla}
                   onChange={(e) => setSedeSigla(e.target.value.toUpperCase())}
@@ -95,8 +95,8 @@ export const AdminSedesTab: React.FC<AdminSedesTabProps> = ({
             </div>
             
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 uppercase">Região Operacional</label>
-              <select
+              <label htmlFor="sede-regiao-operacional" className="text-xs font-bold text-slate-500 uppercase">Região Operacional</label>
+              <select id="sede-regiao-operacional"
                 value={sedeRegiao}
                 onChange={(e) => setSedeRegiao(e.target.value)}
                 required
@@ -144,6 +144,7 @@ export const AdminSedesTab: React.FC<AdminSedesTabProps> = ({
                     <tr key={`edit-${s.id}`} className="bg-slate-50 transition">
                       <td className="px-5 py-3.5">
                         <input
+                          aria-label="Editar nome da sede"
                           autoFocus
                           type="text"
                           className="w-full text-xs px-2 py-1.5 border border-slate-300 rounded font-bold text-slate-700 focus:border-indigo-500 focus:outline-none bg-white"
@@ -152,7 +153,7 @@ export const AdminSedesTab: React.FC<AdminSedesTabProps> = ({
                         />
                       </td>
                       <td className="px-5 py-3.5">
-                        <input
+                        <input aria-label="Editar sigla da sede"
                           type="text"
                           maxLength={5}
                           className="w-full text-xs px-2 py-1.5 border border-slate-300 rounded font-bold text-slate-700 focus:border-indigo-500 focus:outline-none bg-white uppercase"
@@ -161,7 +162,7 @@ export const AdminSedesTab: React.FC<AdminSedesTabProps> = ({
                         />
                       </td>
                       <td className="px-5 py-3.5">
-                        <select
+                        <select aria-label="Geral"
                           className="w-full text-xs px-2 py-1.5 border border-slate-300 rounded focus:border-indigo-500 focus:outline-none bg-white"
                           value={editSedeRegiao}
                           onChange={(e) => setEditSedeRegiao(e.target.value)}

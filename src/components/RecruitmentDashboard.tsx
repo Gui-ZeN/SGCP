@@ -462,9 +462,8 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
 
            {/* Sede Select */}
           <div className="flex flex-col">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider ml-1 mb-0.5">Sede</label>
-            <select
-              id="filter-sede-select"
+            <label htmlFor="filter-sede-select" className="text-[9px] font-black text-slate-400 uppercase tracking-wider ml-1 mb-0.5">Sede</label>
+            <select id="filter-sede-select"
               value={selectedSede}
               onChange={(e) => setSelectedSede(e.target.value)}
               className="text-xs bg-white border border-slate-250 py-1.5 px-3 rounded-xl font-bold text-slate-700 focus:border-indigo-500 focus:outline-none shadow-sm cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
@@ -478,9 +477,8 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
 
           {/* Setor Select */}
           <div className="flex flex-col">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider ml-1 mb-0.5">Setor</label>
-            <select
-              id="filter-setor-select"
+            <label htmlFor="filter-setor-select" className="text-[9px] font-black text-slate-400 uppercase tracking-wider ml-1 mb-0.5">Setor</label>
+            <select id="filter-setor-select"
               value={selectedSetor}
               onChange={(e) => setSelectedSetor(e.target.value)}
               className="text-xs bg-white border border-slate-250 py-1.5 px-3 rounded-xl font-bold text-slate-700 focus:border-indigo-500 focus:outline-none shadow-sm cursor-pointer"
@@ -494,9 +492,8 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
 
           {/* Ano Select */}
           <div className="flex flex-col flex-wrap">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider ml-1 mb-0.5">Ano</label>
-            <select
-              id="filter-ano-select"
+            <label htmlFor="filter-ano-select" className="text-[9px] font-black text-slate-400 uppercase tracking-wider ml-1 mb-0.5">Ano</label>
+            <select id="filter-ano-select"
               value={selectedAno}
               onChange={(e) => setSelectedAno(e.target.value)}
               className="text-xs bg-white border border-slate-250 py-1.5 px-3 rounded-xl font-bold text-slate-700 focus:border-indigo-500 focus:outline-none shadow-sm cursor-pointer"

@@ -339,7 +339,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <div className="space-y-5 max-w-3xl">
                 <label className="block">
                   <span className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Arquivo .xlsx</span>
-                  <input
+                  <input aria-label="Selecionar planilha .xlsx"
                     type="file"
                     accept=".xlsx,.xls"
                     onChange={(e) => setImportFile(e.target.files?.[0] || null)}
@@ -354,7 +354,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     ['entrevistas', 'Entrevistas']
                   ].map(([key, label]) => (
                     <label key={key} className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-700 cursor-pointer">
-                      <input
+                      <input aria-label="Incluir esta aba na importação"
                         type="checkbox"
                         checked={importSelection[key as keyof typeof importSelection]}
                         onChange={(e) => setImportSelection(prev => ({ ...prev, [key]: e.target.checked }))}
@@ -366,7 +366,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
 
                 <label className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 cursor-pointer">
-                  <input
+                  <input aria-label="Substituir os registros existentes"
                     type="checkbox"
                     checked={importReplace}
                     onChange={(e) => setImportReplace(e.target.checked)}

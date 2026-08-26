@@ -517,7 +517,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="relative">
           <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-          <input
+          <input aria-label="Pesquisar por Colaborador ou Supervisor..."
             type="text"
             className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500"
             placeholder="Pesquisar por Colaborador ou Supervisor..."
@@ -526,7 +526,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
           />
         </div>
 
-        <select
+        <select aria-label="Todas as Sedes / Unidades"
           className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 font-medium disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
           value={selectedSede}
           onChange={(e) => setSelectedSede(e.target.value)}
@@ -909,8 +909,8 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                 </div>
               )}
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome Completo do Colaborador *</label>
-                <input
+                <label htmlFor="exp-nome-completo-do-colaborador" className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome Completo do Colaborador *</label>
+                <input id="exp-nome-completo-do-colaborador"
                   type="text"
                   required
                   placeholder="Ex: Camila Ferreira de Oliveira"
@@ -921,8 +921,8 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cargo / Função *</label>
-                <input
+                <label htmlFor="exp-cargo-funcao" className="block text-xs font-bold text-slate-500 uppercase mb-1">Cargo / Função *</label>
+                <input id="exp-cargo-funcao"
                   type="text"
                   required
                   placeholder="Ex: Analista de RH"
@@ -934,8 +934,8 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Sede / Unidade *</label>
-                  <select
+                  <label htmlFor="exp-sede-unidade" className="block text-xs font-bold text-slate-500 uppercase mb-1">Sede / Unidade *</label>
+                  <select id="exp-sede-unidade"
                     required
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
                     value={sede}
@@ -949,8 +949,8 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Setor / Área</label>
-                  <select
+                  <label htmlFor="exp-setor-area" className="block text-xs font-bold text-slate-500 uppercase mb-1">Setor / Área</label>
+                  <select id="exp-setor-area"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
                     value={setor}
                     onChange={(e) => setSetor(e.target.value)}
@@ -964,8 +964,8 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data Admissão *</label>
-                  <input
+                  <label htmlFor="exp-data-admissao" className="block text-xs font-bold text-slate-500 uppercase mb-1">Data Admissão *</label>
+                  <input id="exp-data-admissao"
                     type="date"
                     required
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
@@ -975,8 +975,8 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Supervisor Imediato</label>
-                  <input
+                  <label htmlFor="exp-supervisor-imediato" className="block text-xs font-bold text-slate-500 uppercase mb-1">Supervisor Imediato</label>
+                  <input id="exp-supervisor-imediato"
                     type="text"
                     placeholder="Ex: Eveline Santiago"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
@@ -987,8 +987,8 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Observações / Requisitos Avaliados</label>
-                <textarea
+                <label htmlFor="exp-observacoes-requisitos-avaliados" className="block text-xs font-bold text-slate-500 uppercase mb-1">Observações / Requisitos Avaliados</label>
+                <textarea id="exp-observacoes-requisitos-avaliados"
                   rows={3}
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
                   placeholder="Particularidades avaliadas na adaptação comercial ou industrial..."

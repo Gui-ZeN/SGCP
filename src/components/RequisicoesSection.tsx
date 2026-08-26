@@ -82,7 +82,7 @@ const RequisicaoCard: React.FC<{ req: Requisicao; onAceitar: (r: Requisicao) => 
             </div>
           ) : (
             <div className="space-y-2">
-              <textarea autoFocus value={motivo} onChange={e => setMotivo(e.target.value)} rows={2} placeholder="Motivo da recusa (o gestor verá)…" className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-slate-800" />
+              <textarea aria-label="Motivo da recusa" autoFocus value={motivo} onChange={e => setMotivo(e.target.value)} rows={2} placeholder="Motivo da recusa (o gestor verá)…" className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-slate-800" />
               <div className="flex gap-2">
                 <button onClick={() => { onRecusar(req, motivo.trim()); setRecusando(false); }} className="flex-1 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg cursor-pointer">Confirmar recusa</button>
                 <button onClick={() => { setRecusando(false); setMotivo(''); }} className="px-3 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg cursor-pointer">Cancelar</button>

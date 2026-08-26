@@ -265,7 +265,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
               </select>
               {tempMotivo === 'Outros' && (
                 <div className="mt-2">
-                  <input
+                  <input aria-label="Especifique o motivo..."
                     type="text"
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-750 font-medium"
                     placeholder="Especifique o motivo..."
