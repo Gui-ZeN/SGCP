@@ -416,27 +416,64 @@ test("entrevistas: anonimo NAO pode apagar registro", () =>
 
 
 // --- entrevista anonima (checkbox "quero responder anonimamente") ---
+// Anonima muda SO o nome: as demais perguntas continuam obrigatorias.
 const entrevistaAnon = Object.assign({}, entrevistaBase, {
   anonima: true,
   colaborador: "Anônimo",
-  funcao: "",
 });
 
-test("entrevistas: anonima passa sem nome e sem funcao", () =>
+test("entrevistas: anonima passa sem nome, com o resto preenchido", () =>
   assertSucceeds(setDoc(doc(ctx.unauth(), "entrevistas", "eAnon"), entrevistaAnon)));
 
 test("entrevistas: anonima com nome de verdade e' recusada", () =>
   assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eAnonNome"),
     Object.assign({}, entrevistaAnon, { colaborador: "Fulano de Tal" }))));
 
-test("entrevistas: identificada segue exigindo nome e funcao", () =>
-  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eSemNome"),
-    Object.assign({}, entrevistaBase, { colaborador: "" }))));
-
-test("entrevistas: identificada sem funcao e' recusada", () =>
-  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eSemFuncao"),
-    Object.assign({}, entrevistaBase, { funcao: "" }))));
+test("entrevistas: anonima SEM funcao e' recusada (anonimato nao dispensa o resto)", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eAnonSemFuncao"),
+    Object.assign({}, entrevistaAnon, { funcao: "" }))));
 
 test("entrevistas: anonima nao-booleana e' recusada", () =>
   assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eAnonStr"),
     Object.assign({}, entrevistaAnon, { anonima: "sim" }))));
+
+// --- obrigatoriedade dos campos do formulario publico ---
+test("entrevistas: identificada sem nome e' recusada", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eSemNome"),
+    Object.assign({}, entrevistaBase, { colaborador: "" }))));
+
+test("entrevistas: sem funcao e' recusada", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eSemFuncao"),
+    Object.assign({}, entrevistaBase, { funcao: "" }))));
+
+test("entrevistas: sem unidade e' recusada", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eSemUnidade"),
+    Object.assign({}, entrevistaBase, { unidade: "" }))));
+
+test("entrevistas: sem data de admissao e' recusada", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eSemAdm"),
+    Object.assign({}, entrevistaBase, { admissao: "" }))));
+
+test("entrevistas: sem data de saida e' recusada", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eSemDeslig"),
+    Object.assign({}, entrevistaBase, { desligamento: "" }))));
+
+test("entrevistas: sem motivo de saida e' recusada", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eSemMotivo"),
+    Object.assign({}, entrevistaBase, { motivoSaida: "" }))));
+
+test("entrevistas: 'gostava do trabalho' em branco e' recusada", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eSemGostava"),
+    Object.assign({}, entrevistaBase, { gostavaTrabalho: "" }))));
+
+test("entrevistas: 'voltaria' em branco e' recusada", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eSemVoltaria"),
+    Object.assign({}, entrevistaBase, { voltaria: "" }))));
+
+test("entrevistas: nota 0 (nao respondida) e' recusada", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "eNotaZero"),
+    Object.assign({}, entrevistaBase, { notaClimaOrg: 0 }))));
+
+test("entrevistas: textos livres vazios seguem aceitos (sao os unicos opcionais)", () =>
+  assertSucceeds(setDoc(doc(ctx.unauth(), "entrevistas", "eSemTextos"),
+    Object.assign({}, entrevistaBase, { oqMaisGostava: "", oqMenosGostava: "", sugestoes: "" }))));

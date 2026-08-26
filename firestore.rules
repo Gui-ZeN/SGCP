@@ -121,31 +121,32 @@ service cloud.firestore {
     // registro que pareça ter sido criado pelo RH. Mesmos tetos por campo da
     // requisição, e escrito campo a campo pelo mesmo motivo (indexação
     // dinâmica pode não compilar e reprovaria o deploy inteiro).
+    // As notas sao obrigatorias no formulario publico, entao 0 ("nao respondeu")
+    // nao passa -- so 1..5.
     function notaValida(n) {
-      return n is int && n >= 0 && n <= 5;
+      return n is int && n >= 1 && n <= 5;
     }
 
     function isValidEntrevistaPublica() {
       let d = incoming();
-      // Anonima: o nome TEM de ser exatamente 'Anonimo' (o servidor nao aceita um
-      // nome de verdade marcado como anonimo) e a funcao vira opcional - numa
-      // sede pequena, cargo + sede ja identificam quem respondeu.
+      // Anonima: o nome TEM de ser exatamente 'Anonimo' -- o servidor nao aceita
+      // um nome de verdade marcado como anonimo. O resto das perguntas continua
+      // obrigatorio; so os tres textos livres do fim podem vir vazios.
       let anon = d.get('anonima', false);
       return d.get('origem', '') == 'form-publico'
         && anon is bool
         && d.colaborador is string && d.colaborador.size() <= 200
         && (anon ? d.colaborador == 'Anônimo' : d.colaborador.size() > 0)
-        && d.funcao is string && d.funcao.size() <= 200
-        && (anon || d.funcao.size() > 0)
-        && d.unidade is string && d.unidade.size() <= 120
+        && d.funcao is string && d.funcao.size() > 0 && d.funcao.size() <= 200
+        && d.unidade is string && d.unidade.size() > 0 && d.unidade.size() <= 120
         && d.codigo is int
         && d.entrevistador == ''
         && d.dataEntrevista is string && d.dataEntrevista.size() <= 20
-        && d.admissao is string && d.admissao.size() <= 20
-        && d.desligamento is string && d.desligamento.size() <= 20
-        && d.motivoSaida is string && d.motivoSaida.size() <= 200
-        && d.gostavaTrabalho in ['', 'Sim', 'Não', 'Parcialmente']
-        && d.voltaria in ['', 'Sim', 'Não', 'Talvez']
+        && d.admissao is string && d.admissao.size() > 0 && d.admissao.size() <= 20
+        && d.desligamento is string && d.desligamento.size() > 0 && d.desligamento.size() <= 20
+        && d.motivoSaida is string && d.motivoSaida.size() > 0 && d.motivoSaida.size() <= 200
+        && d.gostavaTrabalho in ['Sim', 'Não', 'Parcialmente']
+        && d.voltaria in ['Sim', 'Não', 'Talvez']
         && d.oqMaisGostava is string && d.oqMaisGostava.size() <= 2000
         && d.oqMenosGostava is string && d.oqMenosGostava.size() <= 2000
         && d.sugestoes is string && d.sugestoes.size() <= 2000

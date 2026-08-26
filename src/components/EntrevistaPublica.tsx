@@ -14,10 +14,11 @@ import { Star, CheckCircle2, Loader2, LogOut } from 'lucide-react';
  *   e ordena do mais novo para o mais antigo, como o resto da lista.
  * - `entrevistador` fica vazio de propósito: aqui é autoatendimento; o RH
  *   preenche depois, se quiser.
- * - A pessoa escolhe entre identificar-se ou responder ANÔNIMO. Identificada, o
- *   formulário deixa claro que o RH lê as respostas com o nome dela. Anônima,
- *   grava `colaborador: 'Anônimo'` e nada mais é pedido — nem função, que numa
- *   sede pequena já entrega quem respondeu.
+ * - A pessoa escolhe entre identificar-se ou responder ANÔNIMO. Anônima, grava
+ *   `colaborador: 'Anônimo'` e o campo de nome nem aparece — só isso muda.
+ * - TODOS os campos são obrigatórios, exceto os três textos livres do fim
+ *   ("o que mais/menos gostava", "sugestões"): a ficha só vale para o indicador
+ *   se vier completa, e texto livre forçado vira "nada" digitado à toa.
  */
 
 const NOTAS = [
@@ -64,9 +65,9 @@ export const EntrevistaPublica: React.FC = () => {
 
   const [form, setForm] = useState({
     colaborador: '', funcao: '', unidade: '', admissao: '', desligamento: '',
-    // Todos os campos de opinião começam VAZIOS de propósito: um default como
-    // 'Sim' viraria resposta real de quem só clicou em enviar, e sujaria o
-    // indicador de clima. Vazio = "não respondeu", e o RH sabe disso.
+    // Começam vazios (e nota 0) de propósito: um default como 'Sim' viraria
+    // resposta real de quem só clicou em enviar. Vazio significa "ainda não
+    // respondeu" — e o envio exige que tudo isso seja preenchido.
     motivoSaida: '',
     gostavaTrabalho: '',
     voltaria: '',
@@ -92,8 +93,26 @@ export const EntrevistaPublica: React.FC = () => {
   const enviar = async () => {
     setErro('');
     if (website.trim()) { setEnviado(true); return; } // bot: sucesso falso, nada gravado
-    if (!anonima && (!form.colaborador.trim() || !form.funcao.trim())) {
-      setErro('Preencha seu nome e a função que exercia — ou marque a opção de responder anonimamente.');
+    // Tudo é obrigatório menos os textos livres do fim. Apontamos o que falta,
+    // em vez de um "preencha os campos" que obriga a caçar na tela.
+    const faltando = [
+      !anonima && !form.colaborador.trim() && 'nome completo',
+      !form.funcao.trim() && 'função que exercia',
+      !form.unidade.trim() && 'unidade / sede',
+      !form.admissao && 'data de admissão',
+      !form.desligamento && 'data de saída',
+      !form.motivoSaida && 'motivo da saída',
+      !form.gostavaTrabalho && 'se gostava do trabalho',
+      !form.voltaria && 'se voltaria a trabalhar conosco',
+      ...NOTAS.filter(n => !form[n.campo]).map(n => n.label.toLowerCase()),
+    ].filter(Boolean) as string[];
+
+    if (faltando.length) {
+      // Com o formulário vazio a lista tem 14 itens e vira uma parede de texto.
+      // Acima de 4, nomeamos os primeiros e contamos o resto.
+      setErro(faltando.length > 4
+        ? `Falta preencher ${faltando.length} campos, entre eles: ${faltando.slice(0, 3).join(', ')}.`
+        : `Falta preencher: ${faltando.join(', ')}.`);
       return;
     }
     if (!isFirebaseEnabled || !db) { setErro('Serviço indisponível no momento.'); return; }
@@ -178,7 +197,7 @@ export const EntrevistaPublica: React.FC = () => {
               <span>
                 <span className="block text-[13px] font-bold text-slate-800">Quero responder anonimamente</span>
                 <span className="block text-[11px] text-slate-500 font-medium">
-                  Seu nome não será enviado nem gravado. Todo o resto passa a ser opcional.
+                  Seu nome não será enviado nem gravado. As demais perguntas continuam valendo.
                 </span>
               </span>
             </label>
@@ -191,11 +210,11 @@ export const EntrevistaPublica: React.FC = () => {
                 </div>
               )}
               <div>
-                <label htmlFor="funcao" className={labelCls}>Função que exercia {anonima ? '' : '*'}</label>
-                <input id="funcao" autoComplete="off" className={inputCls} value={form.funcao} onChange={e => set('funcao', e.target.value)} placeholder={anonima ? 'Opcional…' : 'Ex.: Auxiliar Administrativo…'} />
+                <label htmlFor="funcao" className={labelCls}>Função que exercia *</label>
+                <input id="funcao" autoComplete="off" className={inputCls} value={form.funcao} onChange={e => set('funcao', e.target.value)} placeholder="Ex.: Auxiliar Administrativo…" />
               </div>
               <div>
-                <label htmlFor="unidade" className={labelCls}>Unidade / Sede</label>
+                <label htmlFor="unidade" className={labelCls}>Unidade / Sede *</label>
                 {sedes.length > 0 ? (
                   <select id="unidade" className={inputCls} value={form.unidade} onChange={e => set('unidade', e.target.value)}>
                     <option value="">Selecione…</option>
@@ -206,11 +225,11 @@ export const EntrevistaPublica: React.FC = () => {
                 )}
               </div>
               <div>
-                <label htmlFor="admissao" className={labelCls}>Data de admissão</label>
+                <label htmlFor="admissao" className={labelCls}>Data de admissão *</label>
                 <input id="admissao" type="date" className={`${inputCls} cursor-pointer`} value={form.admissao} onChange={e => set('admissao', e.target.value)} />
               </div>
               <div>
-                <label htmlFor="desligamento" className={labelCls}>Data de saída</label>
+                <label htmlFor="desligamento" className={labelCls}>Data de saída *</label>
                 <input id="desligamento" type="date" className={`${inputCls} cursor-pointer`} value={form.desligamento} onChange={e => set('desligamento', e.target.value)} />
               </div>
             </div>
@@ -219,26 +238,26 @@ export const EntrevistaPublica: React.FC = () => {
           <section className="space-y-4">
             <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">Sua saída</h2>
             <div>
-              <label htmlFor="motivoSaida" className={labelCls}>Principal motivo da saída</label>
+              <label htmlFor="motivoSaida" className={labelCls}>Principal motivo da saída *</label>
               <select id="motivoSaida" className={inputCls} value={form.motivoSaida} onChange={e => set('motivoSaida', e.target.value)}>
-                <option value="">Prefiro não responder</option>
+                <option value="">Selecione…</option>
                 {MOTIVOS_SAIDA.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="gostavaTrabalho" className={labelCls}>Você gostava do seu trabalho?</label>
+                <label htmlFor="gostavaTrabalho" className={labelCls}>Você gostava do seu trabalho? *</label>
                 <select id="gostavaTrabalho" className={inputCls} value={form.gostavaTrabalho} onChange={e => set('gostavaTrabalho', e.target.value)}>
-                  <option value="">Prefiro não responder</option>
+                  <option value="">Selecione…</option>
                   <option value="Sim">Sim</option>
                   <option value="Parcialmente">Parcialmente</option>
                   <option value="Não">Não</option>
                 </select>
               </div>
               <div>
-                <label htmlFor="voltaria" className={labelCls}>Voltaria a trabalhar conosco?</label>
+                <label htmlFor="voltaria" className={labelCls}>Voltaria a trabalhar conosco? *</label>
                 <select id="voltaria" className={inputCls} value={form.voltaria} onChange={e => set('voltaria', e.target.value)}>
-                  <option value="">Prefiro não responder</option>
+                  <option value="">Selecione…</option>
                   <option value="Sim">Sim</option>
                   <option value="Talvez">Talvez</option>
                   <option value="Não">Não</option>
@@ -248,7 +267,7 @@ export const EntrevistaPublica: React.FC = () => {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">Como foi sua experiência (1 a 5)</h2>
+            <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">Como foi sua experiência (1 a 5) *</h2>
             <div className="grid sm:grid-cols-2 gap-3">
               {NOTAS.map(n => (
                 <Estrelas
@@ -263,7 +282,7 @@ export const EntrevistaPublica: React.FC = () => {
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">Na sua opinião</h2>
+            <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-2">Na sua opinião (opcional)</h2>
             <div>
               <label htmlFor="oqMaisGostava" className={labelCls}>O que você mais gostava?</label>
               <textarea id="oqMaisGostava" rows={2} className={inputCls} value={form.oqMaisGostava} onChange={e => set('oqMaisGostava', e.target.value)} placeholder="O que funcionava bem…" />
