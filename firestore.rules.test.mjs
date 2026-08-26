@@ -324,4 +324,22 @@ async function main() {
 main().catch((e) => {
   console.error(e);
   process.exit(1);
-});
+});test("requisicoes: campo de texto gigante e' recusado (anti-abuso do form publico)", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "requisicoes", "rGrande"), {
+    cargo: "X", sede: "DT", gestorSolicitante: "Y", status: "pendente", criadaEm: "2026-01-01",
+    justificativa: "a".repeat(2001)
+  })));
+
+test("requisicoes: honeypot preenchido e' recusado no servidor", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "requisicoes", "rBot"), {
+    cargo: "X", sede: "DT", gestorSolicitante: "Y", status: "pendente", criadaEm: "2026-01-01",
+    website: "http://spam"
+  })));
+
+test("requisicoes: payload com chaves demais e' recusado", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "requisicoes", "rMuitas"), Object.assign(
+    { cargo: "X", sede: "DT", gestorSolicitante: "Y", status: "pendente", criadaEm: "2026-01-01" },
+    Object.fromEntries(Array.from({length: 25}, (_, i) => ["extra"+i, "v"]))
+  ))));
+
+

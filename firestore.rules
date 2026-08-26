@@ -85,13 +85,34 @@ service cloud.firestore {
     }
 
     // Validação da requisição de vaga (criada pelo formulário público, sem login).
+    // Os textos livres têm teto explícito: sem isso um POST anônimo podia mandar
+    // campos gigantes (o doc só estoura em 1 MB) e encher o banco — é a única
+    // escrita sem autenticação do sistema. Checagens escritas campo a campo de
+    // propósito: indexação dinâmica (d[campo]) nem sempre é aceita na linguagem
+    // de regras, e um erro aqui reprova o deploy inteiro.
     function isValidRequisicao() {
       let d = incoming();
       return d.cargo is string && d.cargo.size() > 0 && d.cargo.size() <= 200
         && d.sede is string && d.sede.size() <= 120
         && d.gestorSolicitante is string && d.gestorSolicitante.size() > 0 && d.gestorSolicitante.size() <= 200
         && d.status == 'pendente'
-        && d.criadaEm is string;
+        && d.criadaEm is string && d.criadaEm.size() <= 40
+        // teto de campos: bloqueia payload inflado com chaves extras
+        && d.keys().size() <= 20
+        && (!('setor' in d.keys()) || (d.setor is string && d.setor.size() <= 120))
+        && (!('selecao' in d.keys()) || (d.selecao is string && d.selecao.size() <= 60))
+        && (!('tipoContratacao' in d.keys()) || (d.tipoContratacao is string && d.tipoContratacao.size() <= 120))
+        && (!('gestorEmail' in d.keys()) || (d.gestorEmail is string && d.gestorEmail.size() <= 320))
+        && (!('jornada' in d.keys()) || (d.jornada is string && d.jornada.size() <= 200))
+        && (!('idade' in d.keys()) || (d.idade is string && d.idade.size() <= 60))
+        && (!('experiencia' in d.keys()) || (d.experiencia is string && d.experiencia.size() <= 500))
+        && (!('salarioBeneficios' in d.keys()) || (d.salarioBeneficios is string && d.salarioBeneficios.size() <= 500))
+        && (!('justificativa' in d.keys()) || (d.justificativa is string && d.justificativa.size() <= 2000))
+        && (!('hardSkills' in d.keys()) || (d.hardSkills is string && d.hardSkills.size() <= 2000))
+        && (!('softSkills' in d.keys()) || (d.softSkills is string && d.softSkills.size() <= 2000))
+        && (!('responsabilidades' in d.keys()) || (d.responsabilidades is string && d.responsabilidades.size() <= 2000))
+        // honeypot: humano nunca preenche; se vier, recusa no servidor também
+        && !('website' in d.keys());
     }
 
     // Validação do documento de usuário (escrita sempre grava o objeto completo).

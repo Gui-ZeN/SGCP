@@ -88,6 +88,27 @@ export function yearFromDate(value: unknown): number {
 export const DIAS_EXPERIENCIA_1 = 44; // marca o 45º dia (inclusivo)
 export const DIAS_EXPERIENCIA_2 = 89; // marca o 90º dia (inclusivo)
 
+/**
+ * Data LOCAL em ISO (YYYY-MM-DD) — use no lugar de `toISOString().slice(0,10)`.
+ *
+ * `toISOString()` converte para UTC: como o sistema roda em America/Fortaleza
+ * (UTC−3), das 21h à meia-noite ele devolvia JÁ O DIA SEGUINTE — o que empurrava
+ * `etapaDesde`/`pausadaDesde` em um dia e falseava a conta do SLA.
+ */
+export function dataISOLocal(d: Date = new Date()): string {
+  const dia = String(d.getDate()).padStart(2, '0');
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  return `${d.getFullYear()}-${mes}-${dia}`;
+}
+
+/** Diferença em dias entre duas datas (DD/MM/YYYY ou ISO). null se alguma for inválida. */
+export function diasEntre(de: string, ate: string): number | null {
+  const a = dateFromValue(de), b = dateFromValue(ate);
+  if (!a || !b) return null;
+  const dia = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  return Math.round((dia(b) - dia(a)) / 86400000);
+}
+
 /** Soma `days` dias a uma data DD/MM/YYYY ou YYYY-MM-DD; devolve DD/MM/YYYY (ou o original se inválida). */
 export function addDaysToDate(dateStr: string, days: number): string {
   try {

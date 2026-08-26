@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { dataISOLocal } from '../utils/date';
 import { Vaga, Experiencia } from '../types';
 import { AddVacancyForm } from './AddVacancyForm';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
@@ -198,7 +199,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   const [pauseDateISO, setPauseDateISO] = useState('');
   const openPauseModal = (v: Vaga) => {
     setVagaToPause(v);
-    setPauseDateISO(new Date().toISOString().slice(0, 10));
+    setPauseDateISO(dataISOLocal());
   };
 
   // Modal de transição de etapa (Kanban por etapa): ao mover, confirma os números
@@ -1844,7 +1845,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           onCancel={() => setVagaToPause(null)}
           onConfirm={async () => {
             const alvo = vagaToPause;
-            const data = pauseDateISO || new Date().toISOString().slice(0, 10);
+            const data = pauseDateISO || dataISOLocal();
             setVagaToPause(null);
             await updateVaga(alvo.id, { status: 'PAUSADA', pausadaDesde: data });
           }}

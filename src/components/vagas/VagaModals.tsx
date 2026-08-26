@@ -1,4 +1,5 @@
 import React from 'react';
+import { dataISOLocal } from '../../utils/date';
 import { Vaga } from '../../types';
 import { MOTIVOS_DESISTENCIA } from '../../constants/hr';
 import { Pause, AlertTriangle, Workflow, ChevronLeft, ChevronRight, X, Check } from 'lucide-react';
@@ -33,7 +34,7 @@ export const PauseVagaModal: React.FC<{
         <input
           id="pause-date"
           type="date"
-          max={new Date().toISOString().slice(0, 10)}
+          max={dataISOLocal()}
           value={dateISO}
           onChange={(e) => onDateChange(e.target.value)}
           className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-slate-500/10 focus:border-slate-500 focus:outline-none rounded-xl cursor-pointer"

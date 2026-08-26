@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useMemo, Suspense, type ComponentType } from 'react';
+import { dataISOLocal } from './utils/date';
 import { lazyComRetry } from './lib/lazyComRetry';
 import { useVagas } from './hooks/useVagas';
 import { AddVacancyForm } from './components/AddVacancyForm';
@@ -677,7 +678,7 @@ export default function App() {
             // pausado -> pausado (ex.: PAUSADA -> SUSPENSA): continua procurando o início real
           }
           if (inicio) {
-            await updateVaga(v.id, { pausadaDesde: new Date(inicio).toISOString().slice(0, 10) });
+            await updateVaga(v.id, { pausadaDesde: dataISOLocal(new Date(inicio)) });
             ok++;
           } else {
             semLog++;

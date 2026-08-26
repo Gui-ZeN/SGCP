@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { dataISOLocal } from '../utils/date';
 import { Vaga } from '../types';
 import { 
   db, 
@@ -119,7 +120,7 @@ export function useVagas(user?: any) {
       ...vagaInput,
       ano: vagaInput.ano || new Date().getFullYear(),
       // Marca o início da etapa atual na criação, p/ o "dias nesta etapa" começar do 0.
-      etapaDesde: vagaInput.etapaDesde || new Date().toISOString().slice(0, 10),
+      etapaDesde: vagaInput.etapaDesde || dataISOLocal(),
     };
 
     if (usingFirebase && db) {
@@ -154,7 +155,7 @@ export function useVagas(user?: any) {
       fields.etapaDesde === undefined &&
       current && fields.etapa !== current.etapa
     ) {
-      fields.etapaDesde = new Date().toISOString().slice(0, 10);
+      fields.etapaDesde = dataISOLocal();
     }
 
     // Congela/retoma o relógio do SLA ao pausar/retomar a vaga. Detecta a
@@ -163,7 +164,7 @@ export function useVagas(user?: any) {
       const PAUSADO = ['PAUSADA', 'SUSPENSA'];
       const eraPausada = PAUSADO.includes(current.status as string);
       const seraPausada = PAUSADO.includes(fields.status as string);
-      const hoje = new Date().toISOString().slice(0, 10);
+      const hoje = dataISOLocal();
       if (!eraPausada && seraPausada && fields.pausadaDesde === undefined) {
         // começou a pausa agora → marca o início (o SLA para de contar a partir daqui)
         fields.pausadaDesde = hoje;

@@ -18,7 +18,7 @@ import {
 import type { ImportableEntrevista, ImportableTreinamento } from '../lib/spreadsheetImport';
 import { stripUndefinedFields } from '../lib/firestoreData';
 import { useFirestoreCollection } from './useFirestoreCollection';
-import { addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from '../utils/date';
+import { addDaysToDate, diasEntre, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from '../utils/date';
 // Re-export para compatibilidade (definições movidas para utils/date, testáveis sem firebase).
 export { addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 };
 
@@ -245,17 +245,30 @@ export function useOperationalModules(user?: any) {
       termino1: addDaysToDate(input.dataAdmissao, DIAS_EXPERIENCIA_1),
       termino2: addDaysToDate(input.dataAdmissao, DIAS_EXPERIENCIA_2)
     });
-  const updateExperiencia = (id: string, updatedFields: Partial<Experiencia>) =>
-    exp.update(
-      id,
-      updatedFields.dataAdmissao
-        ? {
-            ...updatedFields,
-            termino1: addDaysToDate(updatedFields.dataAdmissao, DIAS_EXPERIENCIA_1),
-            termino2: addDaysToDate(updatedFields.dataAdmissao, DIAS_EXPERIENCIA_2)
-          }
-        : updatedFields
-    );
+  /**
+   * Ao editar, os prazos só são recalculados se a ADMISSÃO realmente mudou — e
+   * então são DESLOCADOS pelo mesmo número de dias, preservando o espaçamento
+   * próprio do registro.
+   *
+   * Antes recalculava com 45/90 fixos sempre que o payload trazia dataAdmissao
+   * (o formulário sempre traz), então editar qualquer campo de um registro da
+   * Universidade — que usa 45/75 — empurrava o 2º período de 75 para 90 dias
+   * silenciosamente.
+   */
+  const updateExperiencia = (id: string, updatedFields: Partial<Experiencia>) => {
+    const atual = exp.items.find(x => x.id === id);
+    const novaAdmissao = updatedFields.dataAdmissao;
+    if (!novaAdmissao || !atual || novaAdmissao === atual.dataAdmissao) {
+      return exp.update(id, updatedFields);
+    }
+    const desloc = diasEntre(atual.dataAdmissao, novaAdmissao);
+    if (desloc === null) return exp.update(id, updatedFields);
+    return exp.update(id, {
+      ...updatedFields,
+      termino1: atual.termino1 ? addDaysToDate(atual.termino1, desloc) : addDaysToDate(novaAdmissao, DIAS_EXPERIENCIA_1),
+      termino2: atual.termino2 ? addDaysToDate(atual.termino2, desloc) : addDaysToDate(novaAdmissao, DIAS_EXPERIENCIA_2),
+    });
+  };
   const deleteExperiencia = (id: string) => exp.remove(id);
 
   // Import em lote de experiências (planilha da Universidade): grava termino1/2
