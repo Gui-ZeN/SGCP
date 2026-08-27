@@ -201,3 +201,96 @@ export function totalGeral(linhas: CumprimentoSede[]): CumprimentoSede {
   for (const l of linhas) for (const [k, v] of Object.entries(l.detalhe)) detalhe[k] = (detalhe[k] || 0) + v;
   return { sede: 'GERAL', total, ok, pct: pct(ok, total), detalhe };
 }
+
+/* ─────────── Funil de seleção (aba QUANTI da planilha de Seleções) ─────────── */
+
+export interface FunilSelecao {
+  eventos: number;
+  convocados: number;
+  compareceram: number;
+  ausentes: number;
+  contratados: number;
+  desistiram: number;
+  /** compareceram / convocados, em % inteiro (mesmo `pct` do resto do módulo).
+   *  0 quando não há convocados. */
+  taxaComparecimento: number;
+  /** contratados / compareceram, em % inteiro. */
+  taxaContratacao: number;
+  /** Eventos em que convocados ≠ compareceram + ausentes. */
+  inconsistentes: number;
+}
+
+interface EventoSelecao {
+  convocados?: number;
+  compareceram?: number;
+  ausentes?: number;
+  contratados?: number;
+  desistiram?: number;
+}
+
+/**
+ * Consolida eventos de seleção.
+ *
+ * A taxa de comparecimento é sobre os CONVOCADOS — a leitura natural do RH
+ * ("convoquei 11, vieram 2"). A alternativa (sobre compareceram + ausentes)
+ * seria internamente coerente, mas ignoraria o número que o RH registrou.
+ *
+ * Só que os dois nem sempre batem: medido em 27/08/2026, 48 das 220 linhas têm
+ * `convocados ≠ compareceram + ausentes` (há casos de `conv=11 comp=2 aus=6` e
+ * até `conv=0 comp=1`). Por isso `inconsistentes` volta junto e a tela mostra:
+ * taxa parcial sem aviso vira taxa errada.
+ */
+export function funilSelecao(list: EventoSelecao[]): FunilSelecao {
+  const soma = (f: (e: EventoSelecao) => number) => list.reduce((acc, e) => acc + (Number(f(e)) || 0), 0);
+
+  const convocados = soma(e => e.convocados || 0);
+  const compareceram = soma(e => e.compareceram || 0);
+  const ausentes = soma(e => e.ausentes || 0);
+
+  return {
+    eventos: list.length,
+    convocados,
+    compareceram,
+    ausentes,
+    contratados: soma(e => e.contratados || 0),
+    desistiram: soma(e => e.desistiram || 0),
+    taxaComparecimento: pct(compareceram, convocados),
+    taxaContratacao: pct(soma(e => e.contratados || 0), compareceram),
+    inconsistentes: list.filter(e =>
+      (Number(e.convocados) || 0) !== (Number(e.compareceram) || 0) + (Number(e.ausentes) || 0)
+    ).length,
+  };
+}
+
+/** Agrupa o funil por uma chave (sede, mês, responsável), da maior para a menor. */
+export function funilPorChave<T extends EventoSelecao>(
+  list: T[],
+  chave: (e: T) => string
+): { name: string; convocados: number; compareceram: number; taxa: number }[] {
+  const grupos = new Map<string, T[]>();
+  list.forEach(e => {
+    const k = chave(e) || 'Não informado';
+    (grupos.get(k) || grupos.set(k, []).get(k)!).push(e);
+  });
+
+  return [...grupos.entries()]
+    .map(([name, itens]) => {
+      const f = funilSelecao(itens);
+      return { name, convocados: f.convocados, compareceram: f.compareceram, taxa: f.taxaComparecimento };
+    })
+    .sort((a, b) => b.convocados - a.convocados);
+}
+
+/** Motivos de desistência somados, do mais frequente ao menos. */
+export function motivosDesistencia(list: { motivos?: Record<string, number> }[]): { name: string; total: number }[] {
+  const soma = new Map<string, number>();
+  list.forEach(e => {
+    Object.entries(e.motivos || {}).forEach(([motivo, n]) => {
+      soma.set(motivo, (soma.get(motivo) || 0) + (Number(n) || 0));
+    });
+  });
+  return [...soma.entries()]
+    .map(([name, total]) => ({ name, total }))
+    .filter(m => m.total > 0)
+    .sort((a, b) => b.total - a.total);
+}

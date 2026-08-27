@@ -16,6 +16,7 @@ import type { Vaga } from '../types';
 import { SystemLog } from '../hooks/useLogs';
 import { AdminUsersTab } from './AdminUsersTab';
 import { ImportarVagasAnuais } from './ImportarVagasAnuais';
+import { ImportarSelecoes } from './ImportarSelecoes';
 import { AdminSedesTab } from './AdminSedesTab';
 import { AdminRegioesTab } from './AdminRegioesTab';
 import { AdminCargosTab } from './AdminCargosTab';
@@ -71,6 +72,9 @@ interface AdminPanelProps {
   vagasExistentes?: { vaga: string; sede: string; solicitacao: string }[];
   onImportarVagasAnuais?: (novas: any[]) => Promise<number>;
   onVagasAnuaisImportadas?: (quantidade: number, aba: string) => void;
+  selecoesExistentes?: { data: string; cargo: string; sede: string; origem: 'geral' | 'pedagogico' }[];
+  onImportarSelecoes?: (novas: any[]) => Promise<number>;
+  onSelecoesImportadas?: (quantidade: number, aba: string) => void;
   onRecalcExperiencias?: () => void;
   onBackfillPausas?: () => void;
 }
@@ -114,6 +118,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   vagasExistentes,
   onImportarVagasAnuais,
   onVagasAnuaisImportadas,
+  selecoesExistentes,
+  onImportarSelecoes,
+  onSelecoesImportadas,
   onRecalcExperiencias,
   onBackfillPausas
 }) => {
@@ -413,6 +420,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 vagasExistentes={vagasExistentes || []}
                 onImportar={onImportarVagasAnuais}
                 onConcluir={onVagasAnuaisImportadas}
+              />
+            )}
+
+            {onImportarSelecoes && (
+              <ImportarSelecoes
+                selecoesExistentes={selecoesExistentes || []}
+                onImportar={onImportarSelecoes}
+                onConcluir={onSelecoesImportadas}
               />
             )}
 

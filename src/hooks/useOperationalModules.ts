@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Treinamento, Experiencia, Entrevista, Turnover } from '../types';
+import { Treinamento, Experiencia, Entrevista, Turnover, Selecao } from '../types';
 import {
   db,
   collection,
@@ -26,6 +26,7 @@ const TREINAMENTOS_LOCAL_KEY = 'ats_treinamentos_fallback';
 const EXPERIENCIA_LOCAL_KEY = 'ats_experiencia_fallback';
 const ENTREVISTAS_LOCAL_KEY = 'ats_entrevistas_fallback';
 const TURNOVER_LOCAL_KEY = 'ats_turnover_fallback';
+const SELECOES_LOCAL_KEY = 'ats_selecoes_fallback';
 
 
 // ---------------------- PRESETS ----------------------
@@ -218,6 +219,16 @@ export function useOperationalModules(user?: any) {
     enabled
   });
 
+  // Eventos de seleção (abas QUANTI). Sem seed: nascem só da importação — não
+  // faz sentido inventar evento de seleção de mentira no modo demo.
+  const sel = useFirestoreCollection<Selecao>({
+    collectionName: 'selecoes',
+    localKey: SELECOES_LOCAL_KEY,
+    seed: [],
+    newLocalId: () => `local_sel_${Date.now()}`,
+    enabled
+  });
+
   const turn = useFirestoreCollection<Turnover>({
     collectionName: 'turnover',
     localKey: TURNOVER_LOCAL_KEY,
@@ -304,6 +315,28 @@ export function useOperationalModules(user?: any) {
     return { adicionadas: aceitos.length, puladas: imported.length - aceitos.length };
   };
 
+  /** Grava eventos de seleção em lote (writeBatch de 450, como os demais). */
+  const importSelecoes = async (imported: Omit<Selecao, 'id'>[]): Promise<number> => {
+    if (imported.length === 0) return 0;
+    if (sel.usingFirebase && db) {
+      try {
+        for (let i = 0; i < imported.length; i += 450) {
+          const batch = writeBatch(db);
+          imported.slice(i, i + 450).forEach(item => {
+            batch.set(doc(collection(db, 'selecoes')), stripUndefinedFields(item as any));
+          });
+          await batch.commit();
+        }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, 'selecoes/import');
+        return 0;
+      }
+    } else {
+      for (const item of imported) await sel.create(item as any);
+    }
+    return imported.length;
+  };
+
   // ==================== CRUD ENTREVISTAS ====================
   const addEntrevista = (input: Omit<Entrevista, 'id' | 'codigo'>) => {
     const nextCodigo = ent.items.length > 0 ? Math.max(...ent.items.map(e => e.codigo)) + 1 : 301;
@@ -387,6 +420,8 @@ export function useOperationalModules(user?: any) {
     updateExperiencia,
     deleteExperiencia,
     importExperiencias,
+    selecoes: sel.items,
+    importSelecoes,
     addEntrevista,
     updateEntrevista,
     deleteEntrevista,

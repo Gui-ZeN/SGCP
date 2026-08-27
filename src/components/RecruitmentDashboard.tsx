@@ -4,11 +4,11 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Vaga, Treinamento, Experiencia, Entrevista, Turnover, Integracao } from '../types';
+import { Vaga, Treinamento, Experiencia, Entrevista, Turnover, Integracao, Selecao } from '../types';
 import { SLA_META_DIAS } from '../constants/hr';
 import { ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa } from '../utils/vaga';
 import { RelatorioIndicadores } from './RelatorioSection';
-import { taxaPresencaPorCargo, taxaTurnover } from '../utils/indicadores';
+import { taxaPresencaPorCargo, taxaTurnover, funilSelecao, funilPorChave } from '../utils/indicadores';
 import { useCoresGrafico } from '../hooks/useCoresGrafico';
 import { Sede } from '../hooks/useMetadata';
 import { TabelaDoGrafico } from './TabelaDoGrafico';
@@ -90,6 +90,8 @@ interface RecruitmentDashboardProps {
   sedes?: Sede[];
   userSede?: string;
   isAdmin?: boolean;
+  /** Eventos de seleção (abas QUANTI). Agregados — não se ligam a uma vaga. */
+  selecoes?: Selecao[];
 }
 
 export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
@@ -101,6 +103,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   integracoes = [],
   mostrarIntegracao = false,
   sedes = [],
+  selecoes = [],
   userSede,
   isAdmin = false
 }) => {
@@ -322,6 +325,12 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
 
   // Totais para a legenda do gráfico de etapas — o número que diz o quanto dele
   // é chute. Sem isto, o leitor não tem como saber.
+  // Funil de SELEÇÃO (abas QUANTI) — agregado, sem vínculo com vaga. Não é o
+  // mesmo funil do card acima: aquele vem dos campos preenchidos na vaga, este
+  // dos dias de seleção importados da planilha.
+  const funilSel = useMemo(() => funilSelecao(selecoes), [selecoes]);
+  const funilSelPorSede = useMemo(() => funilPorChave(selecoes, s => s.sede).slice(0, 10), [selecoes]);
+
   const etapaIncerteza = useMemo(() => ({
     semEtapa: tempoEtapaData.reduce((s, l) => s + l.semEtapa, 0),
     semData: tempoEtapaData.reduce((s, l) => s + l.semData, 0),
@@ -959,6 +968,91 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
         </div>
 
       </div>
+
+      {/* --- Funil de Seleção (planilha QUANTI): agregado, sem vínculo com vaga --- */}
+      {funilSel.eventos > 0 && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
+          <h4 className="font-black text-slate-800 text-base mb-1.5 flex items-center gap-1.5">
+            <Users className="w-5 h-5 text-indigo-600" />
+            <span>Funil de Seleção</span>
+          </h4>
+          <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-4">
+            {funilSel.eventos} dias de seleção importados · números por evento, não por vaga
+          </p>
+
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 mb-4">
+            {[
+              { n: funilSel.convocados, t: 'Convocados', cor: 'text-slate-800' },
+              { n: funilSel.compareceram, t: 'Compareceram', cor: 'text-emerald-600' },
+              { n: funilSel.ausentes, t: 'Ausentes', cor: 'text-rose-600' },
+              { n: funilSel.contratados, t: 'Contratados', cor: 'text-indigo-600' },
+              { n: funilSel.desistiram, t: 'Desistiram', cor: 'text-amber-600' },
+            ].map(c => (
+              <div key={c.t} className="bg-slate-50 rounded-xl p-3 text-center">
+                <span className={`block text-xl font-black ${c.cor}`}>{c.n}</span>
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{c.t}</span>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-[11px] font-bold text-slate-600 mb-1">
+            Taxa de comparecimento: <span className="text-emerald-700 font-black">{funilSel.taxaComparecimento}%</span>
+            <span className="text-slate-400 font-semibold"> · {funilSel.compareceram} de {funilSel.convocados} convocados</span>
+            {funilSel.contratados > 0 && (
+              <span className="text-slate-400 font-semibold"> · contratação {funilSel.taxaContratacao}% dos presentes</span>
+            )}
+          </p>
+          {funilSel.inconsistentes > 0 && (
+            <p className="text-[10px] font-semibold text-amber-700 mb-3 flex items-start gap-1">
+              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+              Em {funilSel.inconsistentes} dos {funilSel.eventos} dias, convocados ≠ compareceram + ausentes na planilha.
+              A taxa usa os convocados como registrados.
+            </p>
+          )}
+
+          {funilSelPorSede.length > 0 && (
+            <>
+              <div style={{ height: funilSelPorSede.length * 32 + 24 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <BarChart data={funilSelPorSede} layout="vertical" margin={{ top: 4, right: 46, left: 0, bottom: 0 }}>
+                    <CartesianGrid horizontal={false} stroke={CHART.grade} />
+                    <XAxis type="number" domain={[0, 100]} fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} />
+                    <YAxis dataKey="name" type="category" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} width={110} />
+                    <Tooltip
+                      cursor={BAR_CURSOR}
+                      content={(p: any) => {
+                        if (!p?.active || !p.payload?.length) return null;
+                        const d = p.payload[0].payload;
+                        return (
+                          <div className="bg-white border border-slate-200 rounded-xl shadow-lg px-3 py-2 text-[11px]">
+                            <div className="font-bold text-slate-800 mb-0.5">{d.name}</div>
+                            <div className="text-slate-600">Convocados: <b>{d.convocados}</b></div>
+                            <div className="text-slate-600">Compareceram: <b>{d.compareceram}</b></div>
+                            <div className="text-slate-600">Taxa: <b>{d.taxa}%</b></div>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Bar dataKey="taxa" name="Comparecimento" fill={CHART.primary} radius={[0, 4, 4, 0]} barSize={16}>
+                      <LabelList dataKey="taxa" position="right" fontSize={10} fill={CHART.rotulo} formatter={(v: number) => `${v}%`} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <TabelaDoGrafico
+                titulo="Comparecimento por sede"
+                linhas={funilSelPorSede}
+                colunas={[
+                  { titulo: 'Sede', valor: (l: any) => l.name },
+                  { titulo: 'Convocados', valor: (l: any) => l.convocados, numerica: true },
+                  { titulo: 'Compareceram', valor: (l: any) => l.compareceram, numerica: true },
+                  { titulo: 'Taxa', valor: (l: any) => `${l.taxa}%`, numerica: true },
+                ]}
+              />
+            </>
+          )}
+        </div>
+      )}
 
       {/* --- Taxa de Presença por Cargo (quem comparece ao chamado) --- */}
       {presencaCargoData.length > 0 && (

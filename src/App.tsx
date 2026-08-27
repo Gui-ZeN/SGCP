@@ -146,6 +146,8 @@ export default function App() {
     updateExperiencia,
     deleteExperiencia,
     importExperiencias,
+    selecoes,
+    importSelecoes,
     addEntrevista,
     updateEntrevista,
     deleteEntrevista,
@@ -1196,6 +1198,7 @@ export default function App() {
               entrevistas={scopedEntrevistas}
               turnover={turnover}
               integracoes={integracoes}
+              selecoes={selecoes}
               mostrarIntegracao={podeVerIntegracao}
               sedes={scopedSedes}
               userSede={scopedUserSede}
@@ -1342,6 +1345,12 @@ export default function App() {
                 onImportSpreadsheet={handleSpreadsheetImport}
                 vagasExistentes={vagas}
                 onImportarVagasAnuais={importarVagasAnuais}
+                selecoesExistentes={selecoes}
+                onImportarSelecoes={importSelecoes}
+                onSelecoesImportadas={(quantidade, aba) => {
+                  logAction('CRIOU', 'Vagas', `Importação de seleções: ${quantidade} evento(s) da aba "${aba}".`);
+                  notify(`${quantidade} evento(s) de seleção importado(s).`, 'success');
+                }}
                 onVagasAnuaisImportadas={(quantidade, aba) => {
                   logAction('CRIOU', 'Vagas', `Importação da planilha anual: ${quantidade} vaga(s) da aba "${aba}".`);
                   notify(`${quantidade} vaga(s) importada(s) da aba "${aba}".`, 'success');

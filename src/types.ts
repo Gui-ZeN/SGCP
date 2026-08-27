@@ -173,6 +173,32 @@ export interface Turnover {
   foramDesligados: number;
 }
 
+/**
+ * Evento de seleção — um DIA de seleção numa sede, com quantos foram chamados e
+ * quantos apareceram. Vem das abas "QUANTI" da planilha de Seleções.
+ *
+ * Não se liga a uma Vaga de propósito: medido em 27/08/2026, são 220 eventos
+ * para 17 vagas pedagógicas, 56 deles com cargo genérico "Professor(a)", e
+ * NENHUM cai na mesma data de uma solicitação. A informação que ligaria os dois
+ * — qual vaga cada candidato disputava — nunca foi registrada. Ficam como
+ * agregado para os indicadores, que é o que a planilha de fato é.
+ */
+export interface Selecao {
+  id: string;
+  data: string;            // DD/MM/AAAA — o dia da seleção
+  cargo: string;
+  sede: string;
+  responsavel: string;     // quem do RH conduziu
+  origem: 'geral' | 'pedagogico';   // qual aba QUANTI originou
+  convocados: number;
+  compareceram: number;
+  ausentes: number;
+  contratados: number;     // só a aba Geral tem esta coluna; pedagógico vem 0
+  desistiram: number;
+  /** Motivos de desistência discriminados: { motivo: quantidade }. */
+  motivos?: Record<string, number>;
+}
+
 export interface RecruiterStats {
   responsavel: string;
   totalVagasConcluidas: number;

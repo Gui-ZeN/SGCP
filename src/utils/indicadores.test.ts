@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { integracaoPorSede, treinamentoPorSede, experienciaPorSede, totalGeral, filtrarPorMes, coletarAnos, taxaPresencaPorCargo, taxaTurnover } from './indicadores';
+import { integracaoPorSede, treinamentoPorSede, experienciaPorSede, totalGeral, filtrarPorMes, coletarAnos, taxaPresencaPorCargo, taxaTurnover, funilSelecao, funilPorChave, motivosDesistencia } from './indicadores';
 import type { Integracao, Treinamento, Experiencia } from '../types';
 
 const integ = (sede: string, status: Integracao['status']): Integracao =>
@@ -151,5 +151,80 @@ describe('taxaTurnover', () => {
       { mesAno: 'lixo', totalFuncionarios: 100, totalAdmissao: 99, pediramSair: 99, foramDesligados: 0 },
     ]);
     expect(r).toMatchObject({ mesAno: '06/2026', taxa: 2 });
+  });
+});
+
+describe('funilSelecao', () => {
+  const ev = (convocados: number, compareceram: number, ausentes: number, contratados = 0, desistiram = 0) =>
+    ({ convocados, compareceram, ausentes, contratados, desistiram });
+
+  it('soma os eventos e calcula as taxas sobre os convocados', () => {
+    const f = funilSelecao([ev(10, 4, 6, 2), ev(10, 6, 4, 1)]);
+
+    expect(f.eventos).toBe(2);
+    expect(f.convocados).toBe(20);
+    expect(f.compareceram).toBe(10);
+    expect(f.contratados).toBe(3);
+    expect(f.taxaComparecimento).toBe(50);   // 10 de 20
+    expect(f.taxaContratacao).toBe(30);      // 3 de 10 que compareceram
+  });
+
+  it('conta as linhas em que convocados != compareceram + ausentes', () => {
+    // O caso real da planilha: conv=11, comp=2, aus=6 (falta 3).
+    const f = funilSelecao([ev(11, 2, 6), ev(10, 4, 6), ev(0, 1, 0)]);
+    expect(f.inconsistentes).toBe(2);
+  });
+
+  it('não divide por zero quando não há convocados', () => {
+    const f = funilSelecao([ev(0, 0, 0)]);
+    expect(f.taxaComparecimento).toBe(0);
+    expect(f.taxaContratacao).toBe(0);
+  });
+
+  it('devolve zeros para lista vazia', () => {
+    expect(funilSelecao([])).toMatchObject({ eventos: 0, convocados: 0, taxaComparecimento: 0 });
+  });
+
+  it('trata campo ausente como zero (pedagógico não tem contratados)', () => {
+    const f = funilSelecao([{ convocados: 5, compareceram: 3, ausentes: 2 }]);
+    expect(f.contratados).toBe(0);
+    expect(f.taxaComparecimento).toBe(60);
+  });
+});
+
+describe('funilPorChave', () => {
+  it('agrupa e ordena do maior volume para o menor', () => {
+    const linhas = [
+      { sede: 'DT', convocados: 10, compareceram: 5, ausentes: 5 },
+      { sede: 'BS', convocados: 2, compareceram: 2, ausentes: 0 },
+      { sede: 'DT', convocados: 4, compareceram: 1, ausentes: 3 },
+    ];
+    const r = funilPorChave(linhas, e => e.sede);
+
+    expect(r.map(x => x.name)).toEqual(['DT', 'BS']);
+    expect(r[0]).toMatchObject({ convocados: 14, compareceram: 6, taxa: 43 });
+  });
+
+  it('agrupa chave vazia como "Não informado"', () => {
+    const r = funilPorChave([{ sede: '', convocados: 1, compareceram: 1, ausentes: 0 }], e => e.sede);
+    expect(r[0].name).toBe('Não informado');
+  });
+});
+
+describe('motivosDesistencia', () => {
+  it('soma os motivos e ordena do mais frequente ao menos', () => {
+    const r = motivosDesistencia([
+      { motivos: { 'local distante': 2, 'sem interesse': 1 } },
+      { motivos: { 'local distante': 3 } },
+      {},
+    ]);
+    expect(r).toEqual([
+      { name: 'local distante', total: 5 },
+      { name: 'sem interesse', total: 1 },
+    ]);
+  });
+
+  it('descarta motivo zerado', () => {
+    expect(motivosDesistencia([{ motivos: { x: 0 } }])).toEqual([]);
   });
 });

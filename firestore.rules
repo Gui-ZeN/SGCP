@@ -282,6 +282,13 @@ service cloud.firestore {
       allow update, delete: if isEditor();
     }
 
+    // Eventos de seleção (importados das abas QUANTI). Números agregados de
+    // processo seletivo — sem nome de candidato, mas continuam dado interno.
+    match /selecoes/{selecaoId} {
+      allow read: if isAppUser();
+      allow write: if isEditor();
+    }
+
     match /turnover/{turnoverId} {
       allow read: if isAppUser();
       allow write: if isEditor();

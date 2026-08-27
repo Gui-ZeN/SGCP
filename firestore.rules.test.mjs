@@ -477,3 +477,23 @@ test("entrevistas: nota 0 (nao respondida) e' recusada", () =>
 test("entrevistas: textos livres vazios seguem aceitos (sao os unicos opcionais)", () =>
   assertSucceeds(setDoc(doc(ctx.unauth(), "entrevistas", "eSemTextos"),
     Object.assign({}, entrevistaBase, { oqMaisGostava: "", oqMenosGostava: "", sugestoes: "" }))));
+
+// --- selecoes (eventos de selecao importados das abas QUANTI) ---
+const selecaoValida = { data: "13/01/2026", cargo: "Professor(a)", sede: "BENFICA",
+  responsavel: "Diana", origem: "pedagogico", convocados: 5, compareceram: 5,
+  ausentes: 0, contratados: 0, desistiram: 0 };
+
+test("selecoes: leitura SEM auth e' negada", () =>
+  assertFails(getDoc(doc(ctx.unauth(), "selecoes", "s1"))));
+
+test("selecoes: analista pode criar", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "selecoes", "s1"), selecaoValida)));
+
+test("selecoes: visualizador NAO pode criar", () =>
+  assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "selecoes", "s2"), selecaoValida)));
+
+test("selecoes: usuario verificado le", () =>
+  assertSucceeds(getDoc(doc(ctx.user(VIEWER_EMAIL), "selecoes", "s1"))));
+
+test("selecoes: anonimo NAO pode criar (nao e' formulario publico)", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "selecoes", "s3"), selecaoValida)));

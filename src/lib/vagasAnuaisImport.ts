@@ -1,7 +1,9 @@
-import readXlsxFile, { readSheet } from 'read-excel-file/browser';
 import { Vaga } from '../types';
 import { normalizeKey, numberValue } from './spreadsheetImport';
 import { cleanText, formatDateBR, monthAbbrFromDate, yearFromDate } from '../utils/date';
+import { lerAbaComCabecalho, listarAbas } from './planilhaUtils';
+
+export { listarAbas };
 
 /**
  * Importação do "Controle de Vagas" — a planilha histórica do RH, com UMA ABA
@@ -21,37 +23,6 @@ import { cleanText, formatDateBR, monthAbbrFromDate, yearFromDate } from '../uti
  * zero vagas. A leitura de coluna aceita os nomes alternativos, então o mesmo
  * parser serve para todas as abas sem um mapa por ano.
  */
-
-// Basta reconhecer 2 destas para a linha ser o cabeçalho — sobra folga para
-// abas que não têm todas as colunas.
-const COLUNAS_CONHECIDAS = ['vaga', 'cargo', 'sede', 'status', 'setor', 'solicitacao', 'solicitante']
-  .map(normalizeKey);
-
-/** Lê a aba e devolve as linhas como objetos, achando o cabeçalho pelo conteúdo. */
-async function linhasDaAba(file: File, aba: string): Promise<{ registros: Record<string, unknown>[]; primeiraLinha: number }> {
-  let matriz: unknown[][];
-  try {
-    matriz = (await readSheet(file, aba)) as unknown[][];
-  } catch {
-    return { registros: [], primeiraLinha: 0 };
-  }
-
-  const iCabecalho = matriz.findIndex(linha =>
-    linha.map(normalizeKey).filter(c => COLUNAS_CONHECIDAS.includes(c)).length >= 2
-  );
-  if (iCabecalho < 0) return { registros: [], primeiraLinha: 0 };
-
-  const cabecalho = matriz[iCabecalho].map(normalizeKey);
-  const registros = matriz.slice(iCabecalho + 1)
-    .filter(linha => linha.some(celula => cleanText(celula)))
-    .map(linha => {
-      const registro: Record<string, unknown> = {};
-      cabecalho.forEach((coluna, i) => { if (coluna) registro[coluna] = linha[i] ?? null; });
-      return registro;
-    });
-
-  return { registros, primeiraLinha: iCabecalho + 2 };
-}
 
 export interface VagaImportada extends Omit<Vaga, 'id' | 'codigo'> {}
 
@@ -82,6 +53,7 @@ function normalizarSexo(valor: unknown): Vaga['sexo'] {
   return 'INDIFERENTE';
 }
 
+/** Lê uma coluna aceitando nomes alternativos ("Vaga"/"Cargo", "Observações"/"Observação"). */
 function coluna(linha: Record<string, unknown>, ...nomes: string[]): unknown {
   for (const nome of nomes) {
     const chave = normalizeKey(nome);
@@ -90,31 +62,12 @@ function coluna(linha: Record<string, unknown>, ...nomes: string[]): unknown {
   return null;
 }
 
-/**
- * Nomes das abas do arquivo, na ordem em que aparecem na planilha.
- *
- * O export default do `read-excel-file` v9 devolve `{ sheet, data }[]` — a
- * propriedade do nome é `sheet`, e a opção `getSheets` das versões antigas não
- * existe mais. Ler daqui parseia o conteúdo de todas as abas, o que é caro,
- * mas acontece uma vez só na escolha do arquivo.
- */
-export async function listarAbas(file: File): Promise<string[]> {
-  try {
-    const sheets = await readXlsxFile(file);
-    return (sheets as unknown as { sheet: string }[])
-      .map(s => s.sheet)
-      .filter((nome): nome is string => typeof nome === 'string' && nome.length > 0);
-  } catch {
-    return [];
-  }
-}
-
 /** Lê UMA aba e devolve as vagas prontas para gravar (sem `codigo`, atribuído na importação). */
 export async function parseVagasDaAba(
   file: File,
   aba: string
 ): Promise<{ vagas: VagaImportada[]; ignoradas: string[] }> {
-  const { registros, primeiraLinha } = await linhasDaAba(file, aba);
+  const { registros, primeiraLinha } = await lerAbaComCabecalho(file, aba, ['vaga', 'cargo', 'sede', 'status', 'setor', 'solicitação', 'solicitante']);
   const ignoradas: string[] = [];
   const vagas: VagaImportada[] = [];
 
