@@ -15,6 +15,7 @@ import { Usuario, Sede, Regiao, Cargo, Setor, type UserRole } from '../hooks/use
 import type { Vaga } from '../types';
 import { SystemLog } from '../hooks/useLogs';
 import { AdminUsersTab } from './AdminUsersTab';
+import { ImportarVagasAnuais } from './ImportarVagasAnuais';
 import { AdminSedesTab } from './AdminSedesTab';
 import { AdminRegioesTab } from './AdminRegioesTab';
 import { AdminCargosTab } from './AdminCargosTab';
@@ -65,6 +66,11 @@ interface AdminPanelProps {
     entrevistas: boolean;
   }>>;
   onImportSpreadsheet: () => Promise<void>;
+  // Importação da planilha ANUAL de vagas (uma aba por ano) — fluxo próprio,
+  // com escolha de aba e prévia. Opcional para não quebrar quem não passa.
+  vagasExistentes?: { vaga: string; sede: string; solicitacao: string }[];
+  onImportarVagasAnuais?: (novas: any[]) => Promise<number>;
+  onVagasAnuaisImportadas?: (quantidade: number, aba: string) => void;
   onRecalcExperiencias?: () => void;
   onBackfillPausas?: () => void;
 }
@@ -105,6 +111,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   importSelection,
   setImportSelection,
   onImportSpreadsheet,
+  vagasExistentes,
+  onImportarVagasAnuais,
+  onVagasAnuaisImportadas,
   onRecalcExperiencias,
   onBackfillPausas
 }) => {
@@ -398,6 +407,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </div>
             </div>
+
+            {onImportarVagasAnuais && (
+              <ImportarVagasAnuais
+                vagasExistentes={vagasExistentes || []}
+                onImportar={onImportarVagasAnuais}
+                onConcluir={onVagasAnuaisImportadas}
+              />
+            )}
 
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-start gap-3 mb-4">

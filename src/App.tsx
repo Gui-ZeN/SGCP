@@ -80,7 +80,7 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', 'swiss');
     try { localStorage.setItem('sgcp_theme', 'swiss'); } catch (e) {}
   }, []);
-  const { vagas, loading, usingFirebase, errorMessage, addVaga, updateVaga, deleteVaga, importVagas, padronizarSetores } = useVagas(user);
+  const { vagas, loading, usingFirebase, errorMessage, addVaga, updateVaga, deleteVaga, importVagas, importarVagasAnuais, padronizarSetores } = useVagas(user);
   const [toast, setToast] = useState<{ message: string, type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
   const [triggerAddModal, setTriggerAddModal] = useState(0);
   // Vaga focada a partir do Home (alerta de SLA) → filtra o Quadro de Vagas por ela.
@@ -1340,6 +1340,12 @@ export default function App() {
                 importSelection={importSelection}
                 setImportSelection={setImportSelection}
                 onImportSpreadsheet={handleSpreadsheetImport}
+                vagasExistentes={vagas}
+                onImportarVagasAnuais={importarVagasAnuais}
+                onVagasAnuaisImportadas={(quantidade, aba) => {
+                  logAction('CRIOU', 'Vagas', `Importação da planilha anual: ${quantidade} vaga(s) da aba "${aba}".`);
+                  notify(`${quantidade} vaga(s) importada(s) da aba "${aba}".`, 'success');
+                }}
                 onRecalcExperiencias={handleRecalcularExperiencias}
                 onBackfillPausas={handleBackfillPausas}
               />

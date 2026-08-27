@@ -30,7 +30,7 @@ export function normalizeKey(value: unknown): string {
     .toLowerCase();
 }
 
-function numberValue(value: unknown, fallback = 0): number {
+export function numberValue(value: unknown, fallback = 0): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   const parsed = Number(cleanText(value).replace(/\./g, '').replace(',', '.'));
   return Number.isFinite(parsed) ? parsed : fallback;

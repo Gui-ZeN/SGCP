@@ -286,6 +286,47 @@ export function useVagas(user?: any) {
     return { atualizadas: alvos.length };
   };
 
+  /**
+   * Grava um lote de vagas vindas da planilha anual ("Controle de Vagas").
+   *
+   * Separado do `importVagas`: aquele deduplica por `codigo`, que a planilha
+   * anual não tem — a decisão do que entra já foi tomada por
+   * `planejarImportacao` (dedup por contagem contra o que existe). Aqui só
+   * numeramos e gravamos.
+   *
+   * writeBatch em blocos de 450: com `Promise.all(addDoc)` a importação de 355
+   * linhas vira 355 requisições soltas, que foi o que travou a importação de
+   * experiências antes.
+   */
+  const importarVagasAnuais = async (novas: Omit<Vaga, 'id' | 'codigo'>[]): Promise<number> => {
+    if (novas.length === 0) return 0;
+
+    let proximoCodigo = (vagas.length > 0 ? Math.max(...vagas.map(v => v.codigo)) : 1000) + 1;
+    const comCodigo = novas.map(v => ({ ...v, codigo: proximoCodigo++ }));
+
+    if (usingFirebase && db) {
+      try {
+        for (let i = 0; i < comCodigo.length; i += 450) {
+          const batch = writeBatch(db);
+          comCodigo.slice(i, i + 450).forEach(item => {
+            batch.set(doc(collection(db, 'vagas')), stripUndefinedFields(item as any));
+          });
+          await batch.commit();
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'vagas/importAnual');
+        return 0;
+      }
+    } else {
+      const locais = comCodigo.map((v, i) => ({ id: `local_vaga_anual_${Date.now()}_${i}`, ...v } as Vaga));
+      const lista = [...locais, ...vagas].sort((a, b) => b.codigo - a.codigo);
+      setVagas(lista);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(lista));
+    }
+
+    return comCodigo.length;
+  };
+
   return {
     vagas,
     loading,
@@ -295,6 +336,7 @@ export function useVagas(user?: any) {
     updateVaga,
     deleteVaga,
     importVagas,
+    importarVagasAnuais,
     padronizarSetores
   };
 }

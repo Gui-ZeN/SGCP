@@ -9,3 +9,10 @@ coverage/
 
 # Claude Code (local)
 .claude/
+
+# Dumps de leitura do Firestore de produção (scratch de diagnóstico).
+# Não são fonte, e mesmo sem nome de candidato são dados reais do cliente.
+vagas.json
+
+# Cache local do detector do impeccable (o config.json fica versionado).
+.impeccable/hook.cache.json

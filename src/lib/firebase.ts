@@ -40,8 +40,39 @@ export let auth: any = null;
 export let googleProvider: any = null;
 export let isFirebaseEnabled = false;
 
+/**
+ * Modo demonstração — `?demo=1` na URL.
+ *
+ * Desliga o Firebase por COMPLETO: nenhum app é inicializado, nenhuma conexão
+ * com produção é aberta, nada é gravado no servidor. O app inteiro cai no
+ * caminho local que já existe (seed de vagas + metadados em localStorage), e o
+ * login vira simulado. É sandbox para ver UI, não um atalho de acesso: como o
+ * Firebase nem sobe, não há dado real ao alcance.
+ *
+ * Fica gravado no localStorage para sobreviver ao F5. `?demo=0` sai do modo.
+ */
+const DEMO_KEY = 'ats_modo_demo';
+
+function resolverModoDemo(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const parametro = new URLSearchParams(window.location.search).get('demo');
+    if (parametro === '1') localStorage.setItem(DEMO_KEY, '1');
+    if (parametro === '0') localStorage.removeItem(DEMO_KEY);
+    return localStorage.getItem(DEMO_KEY) === '1';
+  } catch {
+    return false; // navegador sem localStorage (aba privada travada)
+  }
+}
+
+export const isModoDemo = resolverModoDemo();
+
+if (isModoDemo) {
+  console.log('SGPC em MODO DEMONSTRAÇÃO: Firebase desligado, dados locais de mentira. Saia com ?demo=0');
+}
+
 // Robust check to see if Firebase was fully configured
-if (finalFirebaseConfig.projectId && finalFirebaseConfig.apiKey) {
+if (!isModoDemo && finalFirebaseConfig.projectId && finalFirebaseConfig.apiKey) {
   try {
     const app = getApps().length === 0 ? initializeApp(finalFirebaseConfig) : getApp();
     
