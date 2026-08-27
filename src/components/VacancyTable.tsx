@@ -274,7 +274,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       vagaId,
       laneId,
       vagaTitle: targetVaga.vaga,
-      vagaCodigo: targetVaga.codigo || '',
+      vagaCodigo: String(targetVaga.codigo ?? ''),
       oldLaneTitle: laneTitles[currentLaneId] || targetVaga.status,
       newLaneTitle: laneTitles[laneId] || laneId,
     });
@@ -772,7 +772,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider opacity-80">Atendimento SLA</span>
-            <AlertTriangle className={`w-4 h-4 ${statusGroupFilter === 'ALERTA_SLA' ? 'text-white animate-bounce' : 'text-rose-500 animate-pulse'}`} />
+            <AlertTriangle className={`w-4 h-4 ${statusGroupFilter === 'ALERTA_SLA' ? 'text-white' : 'text-rose-500 animate-pulse'}`} />
           </div>
           <p className="text-2xl font-bold mt-2">{stats.alertas}</p>
           <div className="text-[10px] opacity-70 mt-1">Vagas &gt; {SLA_META_DIAS} dias abertas</div>
@@ -1137,17 +1137,6 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                       const sla = getSlaInfo(daysOpen, vaga.status === 'FECHADA', isPausedOrSuspended(vaga.status));
                       const isCurrentlyDragging = draggingVagaId === vaga.id;
 
-                      let borderLeftColor = 'border-l-emerald-500';
-                      if (isPausedOrSuspended(vaga.status)) {
-                        borderLeftColor = 'border-l-slate-300';
-                      } else if (vaga.status === 'FECHADA') {
-                        borderLeftColor = 'border-l-indigo-500';
-                      } else if (daysOpen > SLA_META_DIAS) {
-                        borderLeftColor = 'border-l-rose-500';
-                      } else if (daysOpen > 10) {
-                        borderLeftColor = 'border-l-amber-500';
-                      }
-
                       return (
                         <div 
                           key={vaga.id} 
@@ -1160,7 +1149,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                           onDragEnd={() => {
                             setDraggingVagaId(null);
                           }}
-                          className={`bg-white p-4 border border-slate-200 border-l-4 ${borderLeftColor} rounded-2xl shadow-xs hover:shadow-md hover:border-slate-300 transition duration-150 flex flex-col space-y-3 relative group cursor-grab active:cursor-grabbing ${
+                          className={`bg-white p-4 border border-slate-200 rounded-2xl shadow-xs hover:shadow-md hover:border-slate-300 transition duration-150 flex flex-col space-y-3 relative group cursor-grab active:cursor-grabbing ${
                             isCurrentlyDragging ? 'opacity-30 scale-95 border-dashed border-orange-200' : ''
                           }`}
                         >
@@ -1309,7 +1298,6 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
             {ETAPAS_FUNIL.map((etapa, idx) => {
               const etapaVagas = filteredVagas.filter(v => v.status !== 'FECHADA' && normalizeEtapa(v) === etapa);
               const isDraggedOver = draggedOverLaneId === `etapa-${etapa}`;
-              const topAccent = ['border-t-slate-400', 'border-t-amber-500', 'border-t-indigo-500', 'border-t-blue-500', 'border-t-emerald-500'][idx] || 'border-t-slate-400';
               const dotColor = ['bg-slate-400', 'bg-amber-500', 'bg-indigo-500', 'bg-blue-500', 'bg-emerald-500'][idx] || 'bg-slate-400';
               return (
                 <div
@@ -1323,7 +1311,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                     handleEtapaDrop(vagaId, etapa);
                     setDraggedOverLaneId(null);
                   }}
-                  className={`bg-slate-50 border border-t-4 ${topAccent} p-3 rounded-2xl flex flex-col space-y-3 min-h-[480px] transition duration-200 ${
+                  className={`bg-slate-50 border p-3 rounded-2xl flex flex-col space-y-3 min-h-[480px] transition duration-200 ${
                     isDraggedOver ? 'border-dashed border-orange-500 bg-orange-50/20 ring-4 ring-orange-500/5' : 'border-slate-200/80'
                   }`}
                 >
@@ -1343,10 +1331,6 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                         const dias = diasNestaEtapa(vaga);
                         const paused = isPausedOrSuspended(vaga.status);
                         const sla = getSlaInfo(dias, false, paused);
-                        let borderLeftColor = 'border-l-emerald-500';
-                        if (paused) borderLeftColor = 'border-l-slate-300';
-                        else if (dias > SLA_META_DIAS) borderLeftColor = 'border-l-rose-500';
-                        else if (dias > 10) borderLeftColor = 'border-l-amber-500';
                         const isCurrentlyDragging = draggingVagaId === vaga.id;
                         return (
                           <div
@@ -1354,7 +1338,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                             draggable={canManageVagas}
                             onDragStart={(e) => { if (!canManageVagas) return; e.dataTransfer.setData('text/plain', vaga.id); setDraggingVagaId(vaga.id); }}
                             onDragEnd={() => setDraggingVagaId(null)}
-                            className={`bg-white p-4 border border-slate-200 border-l-4 ${borderLeftColor} rounded-2xl shadow-xs hover:shadow-md hover:border-slate-300 transition duration-150 flex flex-col space-y-2.5 relative cursor-grab active:cursor-grabbing ${
+                            className={`bg-white p-4 border border-slate-200 rounded-2xl shadow-xs hover:shadow-md hover:border-slate-300 transition duration-150 flex flex-col space-y-2.5 relative cursor-grab active:cursor-grabbing ${
                               isCurrentlyDragging ? 'opacity-30 scale-95' : ''
                             } ${paused ? 'bg-slate-50/60' : ''}`}
                           >
@@ -1423,7 +1407,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                     {concluidas.map(vaga => (
-                      <div key={vaga.id} role="button" tabIndex={0} onClick={() => setSelectedDetailsVaga(vaga)} onKeyDown={teclaDetalhe(vaga)} title="Ver detalhes" className="border border-slate-200 border-l-4 border-l-emerald-500 rounded-xl p-2.5 cursor-pointer hover:bg-slate-50 transition-colors">
+                      <div key={vaga.id} role="button" tabIndex={0} onClick={() => setSelectedDetailsVaga(vaga)} onKeyDown={teclaDetalhe(vaga)} title="Ver detalhes" className="border border-slate-200 rounded-xl p-2.5 cursor-pointer hover:bg-slate-50 transition-colors">
                         <div className="flex items-center justify-between gap-1">
                           <span className="text-[10px] font-mono text-slate-400 font-bold">#{vaga.codigo}</span>
                           <span className="text-[9px] text-emerald-700 font-bold uppercase">{vaga.tempoProcesso ? `${vaga.tempoProcesso}d` : ''}</span>
@@ -1625,19 +1609,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                 const diffDays = getDiasEmAberto(vaga);
                 const sla = getSlaInfo(diffDays, vaga.status === 'FECHADA', isPausedOrSuspended(vaga.status));
 
-                let borderLeftColor = 'border-l-emerald-500';
-                if (isPausedOrSuspended(vaga.status)) {
-                  borderLeftColor = 'border-l-slate-300';
-                } else if (vaga.status === 'FECHADA') {
-                  borderLeftColor = 'border-l-indigo-500';
-                } else if (diffDays > SLA_META_DIAS) {
-                  borderLeftColor = 'border-l-rose-500';
-                } else if (diffDays > 10) {
-                  borderLeftColor = 'border-l-amber-500';
-                }
-
                 return (
-                  <div key={vaga.id} className={`bg-white rounded-3xl border border-slate-200 border-l-4 ${borderLeftColor} p-5 shadow-xs hover:shadow-md transition flex flex-col justify-between space-y-4`}>
+                  <div key={vaga.id} className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs hover:shadow-md transition flex flex-col justify-between space-y-4">
                     {/* Header bar of card */}
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-mono font-bold text-slate-400 tracking-wider">#{vaga.codigo}</span>

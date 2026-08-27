@@ -17,6 +17,11 @@ const TOKENS = {
   emerald: '--sgpc-sucesso',
   amber: '--sgpc-alerta',
   rose: '--sgpc-erro',
+  // Chrome do gráfico: eixo, grade e rótulo. Sem estes, o dashboard voltava a
+  // hexadecimal chumbado — as séries seguiam a campanha e os eixos não.
+  rotulo: '--sgpc-tinta-secundaria',
+  eixo: '--sgpc-tinta-suave',
+  grade: '--sgpc-hairline',
 } as const;
 
 // Fallbacks = os valores que a paleta usava antes, caso o token não resolva
@@ -27,6 +32,9 @@ const FALLBACK = {
   amber: '#D99500',
   rose: '#DC4448',
   slate: '#9CA0A8',
+  rotulo: '#45474D',
+  eixo: '#5F6169',
+  grade: '#DDE0E6',
 } as const;
 
 export interface CoresGrafico {
@@ -35,6 +43,12 @@ export interface CoresGrafico {
   amber: string;
   rose: string;
   slate: string;
+  /** Cor do rótulo de valor desenhado junto à marca (LabelList). */
+  rotulo: string;
+  /** Cor dos ticks e da linha de eixo. */
+  eixo: string;
+  /** Cor da grade — hairline, uma nota acima da superfície. */
+  grade: string;
 }
 
 function subscribe(callback: () => void) {
@@ -63,6 +77,9 @@ function getSnapshot(): CoresGrafico {
     amber: ler(TOKENS.amber, FALLBACK.amber),
     rose: ler(TOKENS.rose, FALLBACK.rose),
     slate: FALLBACK.slate, // neutro: não é semântico nem acento
+    rotulo: ler(TOKENS.rotulo, FALLBACK.rotulo),
+    eixo: ler(TOKENS.eixo, FALLBACK.eixo),
+    grade: ler(TOKENS.grade, FALLBACK.grade),
   };
   cache = { chave, cores };
   return cores;

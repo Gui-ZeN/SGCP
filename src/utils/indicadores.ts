@@ -138,6 +138,61 @@ export function taxaPresencaPorCargo(
     .sort((a, b) => b.convocados - a.convocados);
 }
 
+/* ─────────── Taxa de turnover ─────────── */
+
+export interface TaxaTurnover {
+  mesAno: string;           // mês de referência ('' quando não há dado)
+  taxa: number;             // ((admissões + saídas) / 2) / efetivo × 100, 1 casa
+  admissoes: number;
+  saidas: number;           // pediramSair + foramDesligados
+  totalFuncionarios: number;
+  temDados: boolean;        // false = nada a exibir (a UI mostra o vazio)
+}
+
+/** Ordena "MM/YYYY" cronologicamente; entradas fora do formato vão para o fim. */
+function ordemMesAno(mesAno?: string): number {
+  const m = /^(\d{2})\/(\d{4})$/.exec((mesAno || '').trim());
+  if (!m) return -Infinity;
+  return Number(m[2]) * 12 + (Number(m[1]) - 1);
+}
+
+/**
+ * Taxa de turnover do mês MAIS RECENTE registrado em /turnover.
+ *
+ * Fórmula: ((admissões + saídas) / 2) / efetivo — a MESMA já usada e rotulada
+ * no módulo Turnover (`TurnoverSection.tsx`). Não é a taxa de desligamento
+ * (saídas / efetivo): duas fórmulas sob a palavra "Turnover" dariam dois
+ * números diferentes na mesma tela.
+ *
+ * É uma taxa MENSAL — por isso `mesAno` volta junto: sem o mês à vista, o
+ * número é lido como acumulado do ano.
+ *
+ * Escolhe o mês pelo próprio `mesAno`, não pela posição no array: a ordem que
+ * chega do onSnapshot não é cronológica.
+ */
+export function taxaTurnover(list: { mesAno?: string; totalFuncionarios?: number; totalAdmissao?: number; pediramSair?: number; foramDesligados?: number }[]): TaxaTurnover {
+  const vazio: TaxaTurnover = { mesAno: '', taxa: 0, admissoes: 0, saidas: 0, totalFuncionarios: 0, temDados: false };
+  if (!list || list.length === 0) return vazio;
+
+  const recente = [...list].sort((a, b) => ordemMesAno(a.mesAno) - ordemMesAno(b.mesAno)).pop();
+  if (!recente) return vazio;
+
+  const mesAno = (recente.mesAno || '').trim();
+  const totalFuncionarios = Number(recente.totalFuncionarios) || 0;
+  const admissoes = Number(recente.totalAdmissao) || 0;
+  const saidas = (Number(recente.pediramSair) || 0) + (Number(recente.foramDesligados) || 0);
+  if (totalFuncionarios <= 0) return { ...vazio, mesAno, admissoes, saidas };
+
+  return {
+    mesAno,
+    taxa: Math.round((((admissoes + saidas) / 2) / totalFuncionarios) * 1000) / 10,
+    admissoes,
+    saidas,
+    totalFuncionarios,
+    temDados: true,
+  };
+}
+
 /** Soma uma coluna "GERAL" (todas as sedes) a partir das linhas por sede. */
 export function totalGeral(linhas: CumprimentoSede[]): CumprimentoSede {
   const total = linhas.reduce((s, l) => s + l.total, 0);

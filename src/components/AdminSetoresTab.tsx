@@ -187,7 +187,7 @@ export const AdminSetoresTab: React.FC<AdminSetoresTabProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
-              {setores.filter(s => s != null).sort((a,b) => a.nome.localeCompare(b)).map((s) => (
+              {setores.filter(s => s != null).sort((a,b) => a.nome.localeCompare(b.nome)).map((s) => (
                 <tr key={s.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-5 py-3.5 font-bold text-slate-700">{s.nome}</td>
                   <td className="px-5 py-3.5 text-right">

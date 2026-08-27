@@ -12,14 +12,39 @@ import type { Sede } from '../hooks/useMetadata';
 export const REGIAO_UNIVERSIDADE = 'universidade';
 export const ORIGEM_PLANILHA_UNI = 'planilha-universidade';
 
+/** A sede do catálogo correspondente ao rótulo — casa por NOME ou por SIGLA,
+ *  ignorando caixa e espaços em volta. undefined se não estiver catalogada. */
+export function acharSede(sedes: Sede[], rotulo?: string): Sede | undefined {
+  const alvo = String(rotulo || '').toLowerCase().trim();
+  if (!alvo) return undefined;
+  return sedes.find(s =>
+    (s.nome || '').toLowerCase().trim() === alvo || (s.sigla || '').toLowerCase().trim() === alvo
+  );
+}
+
+/**
+ * Sigla canônica de uma sede escrita de qualquer jeito. É a CHAVE DE
+ * AGRUPAMENTO dos indicadores por sede.
+ *
+ * O campo `sede` das vagas mistura nome e sigla da mesma unidade e varia a
+ * caixa — "DT" e "DIONISIO TORRES", "Sul 2" e "SUL 2", "PQL 1" e
+ * "PARQUELANDIA 1". Agrupar pela string crua parte a mesma sede em duas fatias
+ * e, como o rótulo final é a sigla nos dois casos, o gráfico desenha duas
+ * barras com o MESMO nome. Medido em 27/08/2026: 10 colisões, sendo DT 63 + 20
+ * quando o total real é 83.
+ *
+ * Rótulo fora do catálogo volta como veio (trim), para não sumir do gráfico.
+ */
+export function siglaCanonica(sedes: Sede[], rotulo?: string): string {
+  const achada = acharSede(sedes, rotulo);
+  if (achada) return achada.sigla || achada.nome || '';
+  return String(rotulo || '').trim();
+}
+
 /** Região de uma sede pelo NOME ou pela SIGLA; '' se não encontrada.
  *  (Treinamentos usam sigla no campo unidade — ex.: "DT", "PQL 1".) */
 export function regiaoDaSede(sedes: Sede[], nomeSede?: string): string {
-  const alvo = String(nomeSede || '').toLowerCase().trim();
-  if (!alvo) return '';
-  return sedes.find(s =>
-    (s.nome || '').toLowerCase() === alvo || (s.sigla || '').toLowerCase() === alvo
-  )?.regiao || '';
+  return acharSede(sedes, nomeSede)?.regiao || '';
 }
 
 /** A sede (por nome) pertence à região Universidade? */

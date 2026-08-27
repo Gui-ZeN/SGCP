@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   regiaoDaSede, sedeEhUniversidade, vagaEhUniversidade,
-  escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade
+  escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade,
+  acharSede, siglaCanonica
 } from './unidade';
 import type { Vaga } from '../types';
 import type { Sede } from '../hooks/useMetadata';
@@ -100,5 +101,50 @@ describe('escoparSedesPorUnidade (filtros)', () => {
   });
   it('admin vê todas', () => {
     expect(escoparSedesPorUnidade(SEDES, 'SUL', true)).toHaveLength(5);
+  });
+});
+
+describe('siglaCanonica / acharSede', () => {
+  // Recorte real do catálogo /sedes lido em 27/08/2026.
+  const cat = [
+    { id: '1', nome: 'DIONISIO TORRES', sigla: 'DT', regiao: 'Dionísio Torres' },
+    { id: '2', nome: 'PARQUELANDIA 1', sigla: 'PQL 1', regiao: 'Parquelândia' },
+    { id: '3', nome: 'SUL 2', sigla: 'SUL 2', regiao: 'Sul' },
+    { id: '4', nome: 'Construtora', sigla: null, regiao: 'Central' },
+  ] as any;
+
+  it('casa por nome e por sigla, ignorando caixa e espaços', () => {
+    expect(siglaCanonica(cat, 'DIONISIO TORRES')).toBe('DT');
+    expect(siglaCanonica(cat, 'DT')).toBe('DT');
+    expect(siglaCanonica(cat, '  dt  ')).toBe('DT');
+    expect(siglaCanonica(cat, 'Sul 2')).toBe('SUL 2');
+    expect(siglaCanonica(cat, 'PARQUELANDIA 1')).toBe('PQL 1');
+    expect(siglaCanonica(cat, 'PQL 1')).toBe('PQL 1');
+  });
+
+  it('as duas grafias colapsam na MESMA chave de agrupamento', () => {
+    // O bug medido: DT (63) e DIONISIO TORRES (20) viravam duas barras "DT".
+    expect(siglaCanonica(cat, 'DT')).toBe(siglaCanonica(cat, 'DIONISIO TORRES'));
+    expect(siglaCanonica(cat, 'SUL 2')).toBe(siglaCanonica(cat, 'Sul 2'));
+  });
+
+  it('sede sem sigla cai no nome', () => {
+    expect(siglaCanonica(cat, 'Construtora')).toBe('Construtora');
+  });
+
+  it('sede fora do catálogo volta como veio, sem sumir', () => {
+    expect(siglaCanonica(cat, 'CD LOJINHA')).toBe('CD LOJINHA');
+    expect(siglaCanonica(cat, '')).toBe('');
+    expect(siglaCanonica(cat, undefined)).toBe('');
+  });
+
+  it('acharSede devolve o doc do catálogo ou undefined', () => {
+    expect(acharSede(cat, 'dt')?.nome).toBe('DIONISIO TORRES');
+    expect(acharSede(cat, 'inexistente')).toBeUndefined();
+  });
+
+  it('regiaoDaSede continua funcionando por nome e por sigla', () => {
+    expect(regiaoDaSede(cat, 'DT')).toBe('Dionísio Torres');
+    expect(regiaoDaSede(cat, 'DIONISIO TORRES')).toBe('Dionísio Torres');
   });
 });

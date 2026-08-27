@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { integracaoPorSede, treinamentoPorSede, experienciaPorSede, totalGeral, filtrarPorMes, coletarAnos, taxaPresencaPorCargo } from './indicadores';
+import { integracaoPorSede, treinamentoPorSede, experienciaPorSede, totalGeral, filtrarPorMes, coletarAnos, taxaPresencaPorCargo, taxaTurnover } from './indicadores';
 import type { Integracao, Treinamento, Experiencia } from '../types';
 
 const integ = (sede: string, status: Integracao['status']): Integracao =>
@@ -100,5 +100,56 @@ describe('taxaPresencaPorCargo', () => {
     expect(r.map(x => x.cargo)).toEqual(['ASG', 'Recepcionista']); // "Sem funil" fora
     expect(r[0]).toMatchObject({ convocados: 73, presentes: 15, ausentes: 58, taxa: 21 }); // 15/73 → 20.5 → 21
     expect(r[1]).toMatchObject({ convocados: 19, presentes: 5, taxa: 26 });
+  });
+});
+
+describe('taxaTurnover', () => {
+  it('lista vazia nao tem dados', () => {
+    expect(taxaTurnover([])).toMatchObject({ temDados: false, taxa: 0, mesAno: '' });
+  });
+
+  it('usa a formula do modulo Turnover: ((admissoes + saidas) / 2) / efetivo', () => {
+    // Caso real do banco em 27/08/2026: 07/2026, efetivo 150, 10 admissoes, 8+4 saidas.
+    // ((10 + 12) / 2) / 150 = 11/150 = 7.333... -> 7.3
+    const r = taxaTurnover([{ mesAno: '07/2026', totalFuncionarios: 150, totalAdmissao: 10, pediramSair: 8, foramDesligados: 4 }]);
+    expect(r).toMatchObject({ temDados: true, mesAno: '07/2026', admissoes: 10, saidas: 12, totalFuncionarios: 150, taxa: 7.3 });
+  });
+
+  it('bate com o numero que TurnoverSection ja mostra', () => {
+    // ((20 + 20) / 2) / 200 = 20/200 = 10%
+    expect(taxaTurnover([{ mesAno: '01/2026', totalFuncionarios: 200, totalAdmissao: 20, pediramSair: 12, foramDesligados: 8 }]).taxa).toBe(10);
+  });
+
+  it('escolhe o mes mais recente por mesAno, nao pela ordem do array', () => {
+    const r = taxaTurnover([
+      { mesAno: '01/2026', totalFuncionarios: 100, totalAdmissao: 0, pediramSair: 20, foramDesligados: 0 },
+      { mesAno: '12/2025', totalFuncionarios: 100, totalAdmissao: 0, pediramSair: 50, foramDesligados: 0 },
+      { mesAno: '03/2026', totalFuncionarios: 200, totalAdmissao: 4, pediramSair: 2, foramDesligados: 2 },
+      { mesAno: '02/2026', totalFuncionarios: 100, totalAdmissao: 0, pediramSair: 90, foramDesligados: 0 },
+    ]);
+    // ((4 + 4) / 2) / 200 = 2%
+    expect(r).toMatchObject({ mesAno: '03/2026', admissoes: 4, saidas: 4, taxa: 2 });
+  });
+
+  it('arredonda para 1 casa decimal', () => {
+    // ((0 + 5) / 2) / 150 = 1.666...% -> 1.7
+    expect(taxaTurnover([{ mesAno: '05/2026', totalFuncionarios: 150, totalAdmissao: 0, pediramSair: 5, foramDesligados: 0 }]).taxa).toBe(1.7);
+  });
+
+  it('totalFuncionarios zero nao vira divisao por zero', () => {
+    const r = taxaTurnover([{ mesAno: '05/2026', totalFuncionarios: 0, totalAdmissao: 2, pediramSair: 3, foramDesligados: 1 }]);
+    expect(r).toMatchObject({ temDados: false, taxa: 0, saidas: 4, admissoes: 2, mesAno: '05/2026' });
+  });
+
+  it('campos ausentes contam como zero', () => {
+    expect(taxaTurnover([{ mesAno: '05/2026', totalFuncionarios: 50 }])).toMatchObject({ temDados: true, saidas: 0, admissoes: 0, taxa: 0 });
+  });
+
+  it('mesAno fora do formato nao ganha de um mes valido', () => {
+    const r = taxaTurnover([
+      { mesAno: '06/2026', totalFuncionarios: 100, totalAdmissao: 2, pediramSair: 1, foramDesligados: 1 },
+      { mesAno: 'lixo', totalFuncionarios: 100, totalAdmissao: 99, pediramSair: 99, foramDesligados: 0 },
+    ]);
+    expect(r).toMatchObject({ mesAno: '06/2026', taxa: 2 });
   });
 });

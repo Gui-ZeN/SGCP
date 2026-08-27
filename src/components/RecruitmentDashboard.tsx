@@ -8,9 +8,11 @@ import { Vaga, Treinamento, Experiencia, Entrevista, Turnover, Integracao } from
 import { SLA_META_DIAS } from '../constants/hr';
 import { ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa } from '../utils/vaga';
 import { RelatorioIndicadores } from './RelatorioSection';
-import { taxaPresencaPorCargo } from '../utils/indicadores';
+import { taxaPresencaPorCargo, taxaTurnover } from '../utils/indicadores';
 import { useCoresGrafico } from '../hooks/useCoresGrafico';
 import { Sede } from '../hooks/useMetadata';
+import { TabelaDoGrafico } from './TabelaDoGrafico';
+import { acharSede, siglaCanonica } from '../utils/unidade';
 import { 
   ResponsiveContainer, 
   BarChart, 
@@ -105,15 +107,14 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   const CHART = useCoresGrafico();
   const BAR_CURSOR = { fill: CHART.primary, fillOpacity: 0.06 } as const;
 
+  // Casam por nome OU sigla (acharSede), como o resto do sistema já faz. Antes
+  // casavam só por nome, e "DT" nunca era reconhecida como DIONISIO TORRES.
   const getSedeLabel = (nome: string) => {
-    const matched = sedes?.find(s => s.nome.toLowerCase() === nome.toLowerCase());
+    const matched = acharSede(sedes || [], nome);
     return matched && matched.sigla ? `${matched.nome} (${matched.sigla})` : nome;
   };
 
-  const getSedeSigla = (nome: string) => {
-    const matched = sedes?.find(s => s.nome.toLowerCase() === nome.toLowerCase());
-    return matched && matched.sigla ? matched.sigla : nome;
-  };
+  const getSedeSigla = (nome: string) => siglaCanonica(sedes || [], nome);
 
   // --- Estados de Filtros Interativos ---
   const [selectedSede, setSelectedSede] = useState<string>(() => {
@@ -192,17 +193,27 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   // --- KPIs Principais (Baseados em dados filtrados) ---
   const vagasAbertas = filteredVagas.filter(v => ['ABERTA', 'REABERTA'].includes(v.status.toUpperCase())).length;
   const closedVagas = filteredVagas.filter(v => v.status.toUpperCase() === 'FECHADA' && v.tempoProcesso && v.tempoProcesso > 0);
-  const mediaSla = closedVagas.length > 0 
-    ? Math.round(closedVagas.reduce((acc, curr) => acc + (curr.tempoProcesso || 0), 0) / closedVagas.length) 
+  const mediaSla = closedVagas.length > 0
+    ? Math.round(closedVagas.reduce((acc, curr) => acc + (curr.tempoProcesso || 0), 0) / closedVagas.length)
     : 0;
-  
+  // Denominador honesto do SLA: `tempoProcesso > 0` descarta as fechadas com
+  // tempo 0 (36 no banco em 27/08/2026) e o registro com valor negativo herdado
+  // da época do Excel. Sem mostrar quantas entraram, uma média sobre parte das
+  // fechadas é lida como se fosse sobre todas.
+  const totalFechadas = filteredVagas.filter(v => v.status.toUpperCase() === 'FECHADA').length;
+
   const totalInvestidoTreinamento = filteredTreinamentos.reduce((acc, t) => acc + (t.valorInvestido || 0), 0);
   const horasTotaisTreinamento = filteredTreinamentos.reduce((acc, t) => acc + (t.totalHorasFormacao || 0), 0);
 
   const mediaClima = filteredEntrevistas.length > 0 
     ? (filteredEntrevistas.reduce((acc, e) => acc + (e.notaClimaOrg || 0), 0) / filteredEntrevistas.length).toFixed(1) 
     : '0.0';
-  const turnoverGeral = turnover.length > 0 ? (turnover[turnover.length - 1].taxaTurnoverGeral ?? 0) : 0;
+  // Turnover: o campo `taxaTurnoverGeral` que este KPI lia não existe no tipo,
+  // no banco nem em lugar nenhum do repositório — o card mostrava 0 fixo. Agora
+  // a taxa é calculada dos campos que existem, e o mês vem junto porque é uma
+  // taxa MENSAL. /turnover não tem sede, então o número é de todas as unidades:
+  // o card diz isso em vez de deixar parecer que respeita o filtro de sede.
+  const turnoverInfo = useMemo(() => taxaTurnover(turnover), [turnover]);
 
   // --- Vagas Status Chart Data ---
   const statusData = useMemo(() => {
@@ -215,13 +226,15 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
 
   // --- Vagas por Sede/Unidade (Top 6) ---
   const sedeChartData = useMemo(() => {
+    // Agrupa pela sigla CANÔNICA, não pela string crua: senão "DT" e
+    // "DIONISIO TORRES" viram duas barras com o mesmo rótulo (relatório §3).
     const counts: Record<string, number> = {};
     filteredVagas.forEach(v => {
-      const s = v.sede || 'Não informada';
-      counts[s] = (counts[s] || 0) + 1;
+      const key = siglaCanonica(sedes || [], v.sede) || 'Não informada';
+      counts[key] = (counts[key] || 0) + 1;
     });
     return Object.keys(counts)
-      .map(key => ({ name: getSedeSigla(key), quantidade: counts[key] }))
+      .map(key => ({ name: key, quantidade: counts[key] }))
       .sort((a, b) => b.quantidade - a.quantidade)
       .slice(0, 6);
   }, [filteredVagas, sedes]);
@@ -260,6 +273,12 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
     { name: 'Aprovados', total: funilData.aprovados }
   ]), [funilData]);
 
+  // Quantas vagas de fato têm funil preenchido — é o denominador honesto do card.
+  const vagasComFunil = useMemo(
+    () => filteredVagas.filter(v => (v.candChamados || 0) > 0 || (v.candCompareceram || 0) > 0).length,
+    [filteredVagas]
+  );
+
   const taxaComparecimento = funilData.chamados > 0 ? Math.round((funilData.compareceram / funilData.chamados) * 100) : 0;
   const taxaAprovacao = funilData.compareceram > 0 ? Math.round((funilData.aprovados / funilData.compareceram) * 100) : 0;
 
@@ -273,16 +292,41 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   const tempoEtapaData = useMemo(() => {
     const sum: Record<string, number> = {};
     const count: Record<string, number> = {};
+    const semEtapa: Record<string, number> = {};   // vagas que caíram no bucket sem etapa gravada
+    const semData: Record<string, number> = {};    // vagas sem etapaDesde (dias = tempo total em aberto)
     filteredVagas.forEach(v => {
       if (v.status.toUpperCase() === 'FECHADA') return;
       const et = normalizeEtapa(v);
       sum[et] = (sum[et] || 0) + diasNestaEtapa(v);
       count[et] = (count[et] || 0) + 1;
+      // normalizeEtapa devolve 'Triagem' também quando a vaga não tem etapa
+      // nenhuma — é o fallback. Sem separar, "Triagem" parece o gargalo quando
+      // na verdade é o balde do desconhecido (relatório §3: 59 das 111 ativas).
+      if (!String(v.etapa || '').trim() && v.status.toUpperCase() !== 'DOCUMENTAÇÃO') {
+        semEtapa[et] = (semEtapa[et] || 0) + 1;
+      }
+      // Sem etapaDesde, diasNestaEtapa cai no tempo TOTAL em aberto e infla a
+      // média (relatório §9: só 28 das 111 ativas têm a data).
+      if (!String(v.etapaDesde || '').trim()) semData[et] = (semData[et] || 0) + 1;
     });
     return ETAPAS_FUNIL
       .filter(et => count[et])
-      .map(et => ({ name: et, dias: Math.round(sum[et] / count[et]), qtd: count[et] }));
+      .map(et => ({
+        name: et,
+        dias: Math.round(sum[et] / count[et]),
+        qtd: count[et],
+        semEtapa: semEtapa[et] || 0,
+        semData: semData[et] || 0,
+      }));
   }, [filteredVagas]);
+
+  // Totais para a legenda do gráfico de etapas — o número que diz o quanto dele
+  // é chute. Sem isto, o leitor não tem como saber.
+  const etapaIncerteza = useMemo(() => ({
+    semEtapa: tempoEtapaData.reduce((s, l) => s + l.semEtapa, 0),
+    semData: tempoEtapaData.reduce((s, l) => s + l.semData, 0),
+    total: tempoEtapaData.reduce((s, l) => s + l.qtd, 0),
+  }), [tempoEtapaData]);
 
   // --- Motivos de desistência (top) ---
   const motivosDesistData = useMemo(() => {
@@ -536,7 +580,12 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             <h3 className="text-3xl font-black text-slate-800 tracking-tight">{vagasAbertas}</h3>
             <p className="text-[11px] text-slate-500 font-bold mt-1.5 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-              <span>SLA médio de fechamento: <span className="text-orange-600 font-extrabold">{mediaSla} dias</span></span>
+              <span>
+                SLA médio: <span className="text-orange-600 font-extrabold">{mediaSla} dias</span>
+                {totalFechadas > 0 && (
+                  <span className="text-slate-400 font-semibold"> · {closedVagas.length} de {totalFechadas} fechadas</span>
+                )}
+              </span>
             </p>
           </div>
         </div>
@@ -544,17 +593,36 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
         {/* Card: Turnover Mês */}
         <div className="bg-white rounded-3xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition hover:shadow-md hover:border-slate-300 group">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">Turnover Médio Geral</span>
+            <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">
+              Turnover {turnoverInfo.mesAno ? `· ${turnoverInfo.mesAno}` : 'do mês'}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
               <LogOut className="w-4.5 h-4.5 text-rose-600" />
             </div>
           </div>
           <div>
-            <h3 className="text-3xl font-black text-slate-800 tracking-tight">{turnoverGeral}%</h3>
-            <p className="text-[11px] text-slate-500 font-bold mt-1.5 flex items-center gap-1">
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-              <span>Baseado em <span className="text-slate-700 font-extrabold">{filteredEntrevistas.length} entrevistas</span> de saída</span>
-            </p>
+            {turnoverInfo.temDados ? (
+              <>
+                <h3 className="text-3xl font-black text-slate-800 tracking-tight">
+                  {turnoverInfo.taxa.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}%
+                </h3>
+                <p className="text-[11px] text-slate-500 font-bold mt-1.5 flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                  <span>
+                    <span className="text-slate-700 font-extrabold">{turnoverInfo.admissoes} admissões</span> e{' '}
+                    <span className="text-slate-700 font-extrabold">{turnoverInfo.saidas} saídas</span> em{' '}
+                    {turnoverInfo.totalFuncionarios} · todas as unidades
+                  </span>
+                </p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-3xl font-black text-slate-300 tracking-tight">—</h3>
+                <p className="text-[11px] text-slate-500 font-bold mt-1.5">
+                  Sem mês fechado em Turnover. Cadastre o mês para ver a taxa.
+                </p>
+              </>
+            )}
           </div>
         </div>
 
@@ -682,7 +750,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
                     >
                       {statusData.map((e, idx) => <Cell key={idx} fill={e.color} stroke="transparent" />)}
                     </Pie>
-                    <Tooltip content={(p: any) => <ChartTooltip {...p} suffix=" vagas" />} cursor={{ fill: '#f1f5f9' }} />
+                    <Tooltip content={(p: any) => <ChartTooltip {...p} suffix=" vagas" />} cursor={BAR_CURSOR} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -711,16 +779,17 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             <div className="h-56 mt-auto">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={sedeChartData} margin={{ top: 18, left: -10, right: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="name" fontSize={10} stroke="#64748b" tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
-                  <YAxis fontSize={10} stroke="#64748b" tickLine={false} axisLine={false} />
+                  <CartesianGrid vertical={false} stroke={CHART.grade} />
+                  <XAxis dataKey="name" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={{ stroke: CHART.grade }} />
+                  <YAxis fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} />
                   <Tooltip content={<ChartTooltip />} cursor={BAR_CURSOR} />
-                  <Bar dataKey="quantidade" fill={CHART.primary} radius={[6, 6, 0, 0]} barSize={36}>
-                    <LabelList dataKey="quantidade" position="top" fontSize={10} fill="#475569" />
+                  <Bar dataKey="quantidade" fill={CHART.primary} radius={[4, 4, 0, 0]} barSize={36}>
+                    <LabelList dataKey="quantidade" position="top" fontSize={10} fill={CHART.rotulo} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            <TabelaDoGrafico titulo="Vagas por Unidade" linhas={sedeChartData} colunas={[{ titulo: 'Unidade', valor: (l: any) => l.name }, { titulo: 'Vagas', valor: (l: any) => l.quantidade, numerica: true }]} />
           </div>
 
           {/* SLA Médio por Setor */}
@@ -734,12 +803,12 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
               {slaSetorChartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <BarChart layout="vertical" data={slaSetorChartData} margin={{ top: 0, right: 28, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                    <XAxis type="number" fontSize={10} stroke="#64748b" tickLine={false} axisLine={false} />
-                    <YAxis dataKey="name" type="category" fontSize={10} stroke="#475569" tickLine={false} axisLine={false} width={80} />
+                    <CartesianGrid horizontal={false} stroke={CHART.grade} />
+                    <XAxis type="number" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} />
+                    <YAxis dataKey="name" type="category" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} width={80} />
                     <Tooltip content={(p: any) => <ChartTooltip {...p} suffix=" dias" />} cursor={BAR_CURSOR} />
                     <Bar dataKey="sla" fill={CHART.amber} radius={[0, 4, 4, 0]} barSize={14}>
-                      <LabelList dataKey="sla" position="right" fontSize={10} fill="#475569" />
+                      <LabelList dataKey="sla" position="right" fontSize={10} fill={CHART.rotulo} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -765,22 +834,29 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             <Users className="w-5 h-5 text-indigo-600" />
             <span>Funil de Candidatos</span>
           </h4>
-          <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-4">Chamados → Compareceram → Aprovados</p>
+          <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-1">Chamados → Compareceram → Aprovados</p>
+          {/* O funil só existe em 15% das vagas (relatório §9). Sem o
+              denominador, uma amostra pequena é lida como o total. */}
+          <p className="text-[10px] text-slate-400 font-semibold mb-3">
+            {vagasComFunil} de {filteredVagas.length} vagas registraram candidatos
+          </p>
           {funilData.chamados > 0 ? (
             <>
               <div className="h-40">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <BarChart data={funilChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" fontSize={10} stroke="#64748b" tickLine={false} axisLine={false} />
-                    <YAxis fontSize={10} stroke="#64748b" tickLine={false} axisLine={false} allowDecimals={false} />
+                    <CartesianGrid vertical={false} stroke={CHART.grade} />
+                    <XAxis dataKey="name" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} allowDecimals={false} />
                     <Tooltip content={(p: any) => <ChartTooltip {...p} />} cursor={BAR_CURSOR} />
-                    <Bar dataKey="total" name="Candidatos" fill={CHART.primary} radius={[6, 6, 0, 0]} barSize={42}>
-                      <LabelList dataKey="total" position="top" fontSize={11} fill="#475569" />
+                    <Bar dataKey="total" name="Candidatos" fill={CHART.primary} radius={[4, 4, 0, 0]} barSize={42}>
+                      <LabelList dataKey="total" position="top" fontSize={11} fill={CHART.rotulo} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+              <TabelaDoGrafico titulo="Funil de candidatos" linhas={funilChartData} colunas={[{ titulo: 'Etapa', valor: (l: any) => l.name }, { titulo: 'Candidatos', valor: (l: any) => l.total, numerica: true }]} />
+              <TabelaDoGrafico titulo="SLA médio por setor" linhas={slaSetorChartData} colunas={[{ titulo: 'Setor', valor: (l: any) => l.name }, { titulo: 'Dias', valor: (l: any) => l.sla, numerica: true }]} />
               <div className="grid grid-cols-2 gap-2 mt-3">
                 <div className="bg-slate-50 rounded-xl p-2.5 text-center">
                   <span className="block text-lg font-black text-emerald-600">{taxaComparecimento}%</span>
@@ -806,20 +882,43 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             <Clock className="w-5 h-5 text-amber-600" />
             <span>Tempo Médio por Etapa</span>
           </h4>
-          <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-4">Onde o processo trava (dias, vagas ativas)</p>
+          <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-1">Onde o processo trava (dias, vagas ativas)</p>
+          {etapaIncerteza.total > 0 && (etapaIncerteza.semEtapa > 0 || etapaIncerteza.semData > 0) && (
+            <p className="text-[10px] text-slate-400 font-semibold mb-3 leading-snug">
+              {etapaIncerteza.semEtapa > 0 && (
+                <>{etapaIncerteza.semEtapa} de {etapaIncerteza.total} sem etapa gravada (contam como Triagem)</>
+              )}
+              {etapaIncerteza.semEtapa > 0 && etapaIncerteza.semData > 0 && ' · '}
+              {etapaIncerteza.semData > 0 && (
+                <>{etapaIncerteza.semData} sem data de etapa (usam o tempo total em aberto)</>
+              )}
+            </p>
+          )}
           {tempoEtapaData.length > 0 ? (
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={tempoEtapaData} layout="vertical" margin={{ top: 4, right: 28, left: 0, bottom: 0 }}>
-                  <XAxis type="number" fontSize={10} stroke="#64748b" tickLine={false} axisLine={false} allowDecimals={false} />
-                  <YAxis dataKey="name" type="category" fontSize={10} stroke="#475569" tickLine={false} axisLine={false} width={96} />
-                  <Tooltip content={(p: any) => <ChartTooltip {...p} suffix=" dias" />} cursor={BAR_CURSOR} />
-                  <Bar dataKey="dias" name="Média" fill={CHART.amber} radius={[0, 4, 4, 0]} barSize={16}>
-                    <LabelList dataKey="dias" position="right" fontSize={10} fill="#475569" />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <>
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <BarChart data={tempoEtapaData} layout="vertical" margin={{ top: 4, right: 28, left: 0, bottom: 0 }}>
+                    <XAxis type="number" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} allowDecimals={false} />
+                    <YAxis dataKey="name" type="category" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} width={96} />
+                    <Tooltip content={(p: any) => <ChartTooltip {...p} suffix=" dias" />} cursor={BAR_CURSOR} />
+                    <Bar dataKey="dias" name="Média" fill={CHART.amber} radius={[0, 4, 4, 0]} barSize={16}>
+                      <LabelList dataKey="dias" position="right" fontSize={10} fill={CHART.rotulo} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <TabelaDoGrafico
+                titulo="Tempo médio por etapa"
+                linhas={tempoEtapaData}
+                colunas={[
+                  { titulo: 'Etapa', valor: (l: any) => l.name },
+                  { titulo: 'Vagas', valor: (l: any) => l.qtd, numerica: true },
+                  { titulo: 'Sem etapa', valor: (l: any) => l.semEtapa, numerica: true },
+                  { titulo: 'Dias', valor: (l: any) => l.dias, numerica: true },
+                ]}
+              />
+            </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-[180px]">
               <Clock className="w-8 h-8 text-slate-350 mb-1.5" />
@@ -836,18 +935,21 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
           </h4>
           <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-4">Por que candidatos caem do processo</p>
           {motivosDesistData.length > 0 ? (
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={motivosDesistData} layout="vertical" margin={{ top: 4, right: 28, left: 0, bottom: 0 }}>
-                  <XAxis type="number" fontSize={10} stroke="#64748b" tickLine={false} axisLine={false} allowDecimals={false} />
-                  <YAxis dataKey="name" type="category" fontSize={9} stroke="#475569" tickLine={false} axisLine={false} width={104} />
-                  <Tooltip content={(p: any) => <ChartTooltip {...p} />} cursor={BAR_CURSOR} />
-                  <Bar dataKey="total" name="Desistências" fill={CHART.rose} radius={[0, 4, 4, 0]} barSize={16}>
-                    <LabelList dataKey="total" position="right" fontSize={10} fill="#475569" />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <>
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <BarChart data={motivosDesistData} layout="vertical" margin={{ top: 4, right: 28, left: 0, bottom: 0 }}>
+                    <XAxis type="number" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} allowDecimals={false} />
+                    <YAxis dataKey="name" type="category" fontSize={9} stroke={CHART.eixo} tickLine={false} axisLine={false} width={104} />
+                    <Tooltip content={(p: any) => <ChartTooltip {...p} />} cursor={BAR_CURSOR} />
+                    <Bar dataKey="total" name="Desistências" fill={CHART.rose} radius={[0, 4, 4, 0]} barSize={16}>
+                      <LabelList dataKey="total" position="right" fontSize={10} fill={CHART.rotulo} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <TabelaDoGrafico titulo="Motivos de desistência" linhas={motivosDesistData} colunas={[{ titulo: 'Motivo', valor: (l: any) => l.name }, { titulo: 'Vagas', valor: (l: any) => l.total, numerica: true }]} />
+            </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-[180px]">
               <CheckCircle className="w-8 h-8 text-emerald-400 mb-1.5" />
@@ -869,9 +971,9 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
           <div style={{ height: presencaCargoData.length * 34 + 24 }}>
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <BarChart data={presencaCargoData} layout="vertical" margin={{ top: 4, right: 46, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                <XAxis type="number" domain={[0, 100]} fontSize={10} stroke="#64748b" tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} />
-                <YAxis dataKey="cargo" type="category" fontSize={10} stroke="#475569" tickLine={false} axisLine={false} width={150} />
+                <CartesianGrid horizontal={false} stroke={CHART.grade} />
+                <XAxis type="number" domain={[0, 100]} fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} />
+                <YAxis dataKey="cargo" type="category" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} width={150} />
                 <Tooltip
                   cursor={BAR_CURSOR}
                   content={(p: any) => {
@@ -888,11 +990,12 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
                   }}
                 />
                 <Bar dataKey="taxa" name="Presença" fill={CHART.primary} radius={[0, 4, 4, 0]} barSize={16}>
-                  <LabelList dataKey="taxa" position="right" fontSize={10} fill="#475569" formatter={(v: number) => `${v}%`} />
+                  <LabelList dataKey="taxa" position="right" fontSize={10} fill={CHART.rotulo} formatter={(v: number) => `${v}%`} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
+          <TabelaDoGrafico titulo="Taxa de presença por cargo" linhas={presencaCargoData} colunas={[{ titulo: 'Cargo', valor: (l: any) => l.cargo }, { titulo: 'Convocados', valor: (l: any) => l.convocados, numerica: true }, { titulo: 'Presentes', valor: (l: any) => l.presentes, numerica: true }, { titulo: 'Taxa', valor: (l: any) => `${l.taxa}%`, numerica: true }]} />
         </div>
       )}
 
@@ -911,9 +1014,9 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             <div className="h-60">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={headcountFlowData} margin={{ top: 10, left: -10, right: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="mes" fontSize={10} stroke="#64748b" tickLine={false} />
-                  <YAxis fontSize={10} stroke="#64748b" tickLine={false} />
+                  <CartesianGrid vertical={false} stroke={CHART.grade} />
+                  <XAxis dataKey="mes" fontSize={10} stroke={CHART.eixo} tickLine={false} />
+                  <YAxis fontSize={10} stroke={CHART.eixo} tickLine={false} />
                   <Tooltip content={<ChartTooltip />} cursor={BAR_CURSOR} />
                   <Legend verticalAlign="top" height={36} iconSize={10} wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
                   <Bar dataKey="Admissões" fill={CHART.emerald} radius={[4, 4, 0, 0]} barSize={20} />
@@ -921,6 +1024,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            <TabelaDoGrafico titulo="Admissões e desligamentos" linhas={headcountFlowData} colunas={[{ titulo: 'Mês', valor: (l: any) => l.mes }, { titulo: 'Admissões', valor: (l: any) => l['Admissões'], numerica: true }, { titulo: 'Desligamentos', valor: (l: any) => l['Desligamentos'], numerica: true }]} />
           </div>
         </div>
 
@@ -936,22 +1040,23 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             <div className="h-60">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart layout="vertical" data={dimensoesClima} margin={{ top: 0, right: 28, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                  <XAxis type="number" domain={[0, 5]} fontSize={10} stroke="#64748b" tickLine={false} />
-                  <YAxis dataKey="name" type="category" fontSize={10} stroke="#334155" tickLine={false} width={110} />
+                  <CartesianGrid horizontal={false} stroke={CHART.grade} />
+                  <XAxis type="number" domain={[0, 5]} fontSize={10} stroke={CHART.eixo} tickLine={false} />
+                  <YAxis dataKey="name" type="category" fontSize={10} stroke={CHART.eixo} tickLine={false} width={110} />
                   <Tooltip content={(p: any) => <ChartTooltip {...p} suffix=" / 5.0" />} cursor={BAR_CURSOR} />
                   <Bar dataKey="score" fill={CHART.emerald} radius={[0, 4, 4, 0]} barSize={14}>
                     {dimensoesClima.map((entry, index) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={entry.score >= 4.0 ? CHART.emerald : entry.score >= 3.0 ? CHART.amber : '#ef4444'}
+                        fill={entry.score >= 4.0 ? CHART.emerald : entry.score >= 3.0 ? CHART.amber : CHART.rose}
                       />
                     ))}
-                    <LabelList dataKey="score" position="right" fontSize={10} fill="#475569" />
+                    <LabelList dataKey="score" position="right" fontSize={10} fill={CHART.rotulo} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            <TabelaDoGrafico titulo="Dimensões do clima" linhas={dimensoesClima} colunas={[{ titulo: 'Dimensão', valor: (l: any) => l.name }, { titulo: 'Nota (1-5)', valor: (l: any) => l.score, numerica: true }]} />
           </div>
         </div>
 
@@ -983,19 +1088,22 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             </div>
 
             {trTypeMap.length > 0 ? (
-              <div className="h-40">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={trTypeMap} margin={{ top: 18, left: -10, right: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" fontSize={9} stroke="#64748b" tickLine={false} />
-                    <YAxis fontSize={9} stroke="#64748b" tickLine={false} />
-                    <Tooltip content={<ChartTooltip />} cursor={BAR_CURSOR} />
-                    <Bar dataKey="total" fill={CHART.primary} radius={[4, 4, 0, 0]} barSize={24}>
-                      <LabelList dataKey="total" position="top" fontSize={10} fill="#475569" />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <>
+                <div className="h-40">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <BarChart data={trTypeMap} margin={{ top: 18, left: -10, right: 8, bottom: 0 }}>
+                      <CartesianGrid vertical={false} stroke={CHART.grade} />
+                      <XAxis dataKey="name" fontSize={9} stroke={CHART.eixo} tickLine={false} />
+                      <YAxis fontSize={9} stroke={CHART.eixo} tickLine={false} />
+                      <Tooltip content={<ChartTooltip />} cursor={BAR_CURSOR} />
+                      <Bar dataKey="total" fill={CHART.primary} radius={[4, 4, 0, 0]} barSize={24}>
+                        <LabelList dataKey="total" position="top" fontSize={10} fill={CHART.rotulo} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <TabelaDoGrafico titulo="Treinamentos por tipo" linhas={trTypeMap} colunas={[{ titulo: 'Tipo', valor: (l: any) => l.name }, { titulo: 'Turmas', valor: (l: any) => l.total, numerica: true }]} />
+              </>
             ) : (
               <div className="h-40 flex flex-col items-center justify-center text-slate-400">
                 <GraduationCap className="w-8 h-8 text-slate-300 mb-1.5" />

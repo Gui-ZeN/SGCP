@@ -26,6 +26,13 @@ html[data-theme="swiss"] {
   --sgpc-scroll-trilho: #D8D7D1;
   --sgpc-scroll-polegar: #CFCEC7;
 
+  /* Tinta de apoio — usada pela CHROME dos gráficos (rótulos de série, ticks de
+     eixo). Existe porque o Recharts pinta via atributo SVG e style inline, onde
+     as classes do Tailwind não alcançam: sem token, o dashboard voltava a
+     hexadecimal chumbado e os eixos não acompanhavam a campanha. */
+  --sgpc-tinta-secundaria: #45474D;  /* rótulo de valor sobre papel — 8.9:1 */
+  --sgpc-tinta-suave: #5F6169;       /* tick de eixo, texto de apoio — 6.2:1 */
+
   /* Família do ACENTO — é o único bloco que a campanha troca.
      Todos os tons derivam da mesma cor: base, forte (hover), borda e 3 tints. */
   --sgpc-acento: #1B4DD8;          /* cobalto */
