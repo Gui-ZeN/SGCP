@@ -3,13 +3,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // O parser lê a planilha pelo `read-excel-file/browser`; nos testes trocamos a
 // leitura por matrizes fixas, para exercitar as diferenças reais entre as abas
 // (2026 sem `Etapa` e com lembrete na 1ª linha; 2023 com `Cargo`/`Observação`).
+//
+// O mock do export default devolve `{ sheet, data }`, que é a FORMA REAL da
+// v9 da lib. Uma versão anterior deste mock usava `{ name }`: o teste passava
+// e a tela abria o dropdown de abas vazio.
 const matrizes: Record<string, unknown[][]> = {};
 // Ordem das abas vive num array: chaves numéricas em objeto JS são reordenadas
 // em ordem crescente, o que mascararia a ordem real do arquivo.
 const ordemDasAbas: string[] = [];
 
 vi.mock('read-excel-file/browser', () => ({
-  default: vi.fn(async () => ordemDasAbas.map(name => ({ name }))),
+  default: vi.fn(async () => ordemDasAbas.map(sheet => ({ sheet, data: matrizes[sheet] || [] }))),
   readSheet: vi.fn(async (_file: unknown, aba: string) => {
     if (!(aba in matrizes)) throw new Error('aba inexistente');
     return matrizes[aba];

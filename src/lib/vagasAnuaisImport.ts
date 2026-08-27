@@ -90,11 +90,20 @@ function coluna(linha: Record<string, unknown>, ...nomes: string[]): unknown {
   return null;
 }
 
-/** Nomes das abas do arquivo, na ordem em que aparecem na planilha. */
+/**
+ * Nomes das abas do arquivo, na ordem em que aparecem na planilha.
+ *
+ * O export default do `read-excel-file` v9 devolve `{ sheet, data }[]` — a
+ * propriedade do nome é `sheet`, e a opção `getSheets` das versões antigas não
+ * existe mais. Ler daqui parseia o conteúdo de todas as abas, o que é caro,
+ * mas acontece uma vez só na escolha do arquivo.
+ */
 export async function listarAbas(file: File): Promise<string[]> {
   try {
-    const sheets = await (readXlsxFile as any)(file, { getSheets: true });
-    return (sheets as { name: string }[]).map(s => s.name);
+    const sheets = await readXlsxFile(file);
+    return (sheets as unknown as { sheet: string }[])
+      .map(s => s.sheet)
+      .filter((nome): nome is string => typeof nome === 'string' && nome.length > 0);
   } catch {
     return [];
   }
