@@ -909,7 +909,7 @@ export default function App() {
               {activeTab === 'entrevistas' && 'Entrevistas de Desligamento'}
               {activeTab === 'turnover' && 'Turnover & Headcount'}
               {activeTab === 'requisicoes' && 'Requisições de Vaga'}
-              {activeTab === 'integracao' && 'Treinamento de Integração · Universidade'}
+              {activeTab === 'integracao' && 'Treinamento de Integração'}
               {activeTab === 'admin' && 'Painel Administrativo'}
             </p>
           </div>
@@ -1084,7 +1084,6 @@ export default function App() {
                 >
                   <GraduationCap className="w-4 h-4 shrink-0" />
                   <span className="flex-1 text-left">Integração</span>
-                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 leading-none shrink-0">UNI</span>
                 </button>
               )}
             </div>
