@@ -96,7 +96,16 @@
   animation-name: sgpc-enter;
   animation-duration: 200ms;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  animation-fill-mode: both;
+  /* `backwards`, NÃO `both`: o `forwards` deixava o `transform` grudado no
+     elemento depois da animação (matriz identidade, mas != none). Transform em
+     um ancestral torna ELE o bloco de contenção dos `position: fixed` de
+     dentro — e todo modal aninhado numa seção animada parava de se posicionar
+     pela janela. Ficava centralizado no meio do DOCUMENTO: invisível em tela
+     longa (a de Integração, com 453 linhas, jogava o modal 19 mil px abaixo).
+     Sem o forwards, o elemento volta ao estilo próprio (transform: none) e o
+     resultado visual é o mesmo, porque o quadro final da animação já É o
+     estilo natural. */
+  animation-fill-mode: backwards;
 }
 
 /* Variantes (definem só o estado inicial via variável) */
