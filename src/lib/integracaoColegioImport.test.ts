@@ -58,7 +58,8 @@ describe('parseIntegracoesColegio', () => {
     expect(integracoes).toHaveLength(1);
     expect(integracoes[0]).toMatchObject({
       nome: 'Gustavo Pedrosa Silva',
-      sede: 'KMC2',
+      sede: 'Construtora',   // KMC2 no arquivo; mapeada abaixo
+
       setor: 'Lojinha',
       admissao: '08/01/2026',
       responsavel: 'Arlana',
@@ -129,6 +130,35 @@ describe('parseIntegracoesColegio', () => {
     const { integracoes } = await parseIntegracoesColegio(arquivo, '2026 Geral');
     // O 51 é total da planilha; não pode virar campo do registro.
     expect(Object.values(integracoes[0])).not.toContain(51);
+  });
+});
+
+describe('sedes que não existem no cadastro', () => {
+  const comSede = async (sede: string) => {
+    matrizes['2026 Geral'] = [
+      TITULO,
+      CAB_GERAL,
+      ['Fulano', data(2026, 1, 5), data(2026, 1, 8), sede, 'TI', 'Arlana', null],
+    ];
+    const { integracoes } = await parseIntegracoesColegio(arquivo, '2026 Geral');
+    return integracoes[0].sede;
+  };
+
+  it('KMC2 vira Construtora', async () => expect(await comSede('KMC2')).toBe('Construtora'));
+  it('PQL vira PARQUELANDIA 1', async () => expect(await comSede('PQL')).toBe('PARQUELANDIA 1'));
+  it('Volante vira DT (era regime de trabalho, não sede)', async () => expect(await comSede('Volante')).toBe('DT'));
+  it('Unichristus vira PARQUE ECOLÓGICO', async () => expect(await comSede('Unichristus')).toBe('PARQUE ECOLÓGICO'));
+
+  it('aceita a variação de caixa que existe no arquivo real', async () => {
+    expect(await comSede('UNICHRISTUS')).toBe('PARQUE ECOLÓGICO');
+    expect(await comSede('volante')).toBe('DT');
+  });
+
+  it('sede já cadastrada passa intacta', async () => {
+    expect(await comSede('DT')).toBe('DT');
+    expect(await comSede('BENFICA')).toBe('BENFICA');
+    // Ainda sem decisão do RH: continua como veio, para não sumir do filtro.
+    expect(await comSede('BS/ SP/ PN')).toBe('BS/ SP/ PN');
   });
 });
 

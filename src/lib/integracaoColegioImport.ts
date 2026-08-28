@@ -24,6 +24,29 @@ export { listarAbas };
  * achado pelo conteúdo, como nos outros importadores com escolha de aba.
  */
 
+/**
+ * Sedes da planilha que NÃO existem no cadastro, e para onde vão (decidido com
+ * o RH em 28/08/2026). Sem isto viram "sedes" fantasma no filtro.
+ *
+ * Só entram aqui os rótulos que não resolvem sozinhos: os demais ("DT", "BS",
+ * "SUL"…) já são nome ou sigla de sede cadastrada e passam intactos.
+ *
+ * "Volante" era regime de trabalho, não sede — equipe de Infraestrutura que
+ * circulava entre unidades, usada só em 2023/2024.
+ */
+const SEDE_DA_PLANILHA: Record<string, string> = {
+  'kmc2': 'Construtora',
+  'pql': 'PARQUELANDIA 1',
+  'volante': 'DT',
+  'unichristus': 'PARQUE ECOLÓGICO',
+};
+
+/** Resolve o rótulo de sede da planilha, ignorando caixa e acento. */
+function sedeCanonica(rotulo: string): string {
+  const chave = rotulo.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  return SEDE_DA_PLANILHA[chave] || rotulo;
+}
+
 export interface IntegracaoImportada extends Omit<Integracao, 'id'> {}
 
 export interface ResumoIntegracoes {
@@ -67,8 +90,9 @@ export async function parseIntegracoesColegio(file: File, aba: string): Promise<
     if (!nome) { ignoradas.push(`linha ${nLinha}: sem nome`); return; }
 
     const dataTreinamento = formatDateBR(linha[normalizeKey('data do treinamento')]);
-    const sede = cleanText(linha[normalizeKey('localização/sede')])
+    const sedeCrua = cleanText(linha[normalizeKey('localização/sede')])
       || cleanText(linha[normalizeKey('locação / sede')]);
+    const sede = sedeCanonica(sedeCrua);
 
     integracoes.push({
       nome,
