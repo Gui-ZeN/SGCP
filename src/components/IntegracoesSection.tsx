@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Integracao } from '../types';
 import { Sede } from '../hooks/useMetadata';
 import { parseIntegracoes, ImportableIntegracao } from '../lib/integracaoImport';
+import { listarAbas, ehAbaDeDados, parseIntegracoesColegio } from '../lib/integracaoColegioImport';
 import { toISOInput, formatDateBR } from '../utils/date';
 import { exportToXlsx } from '../utils/xlsxExporter';
 import {
@@ -10,12 +11,20 @@ import {
 } from 'lucide-react';
 
 /**
- * Módulo "Integração" (treinamento de integração / onboarding) — EXCLUSIVO da
- * Universidade (a visibilidade é decidida no App: só Universidade + admin).
+ * Módulo "Integração" (treinamento de integração / onboarding).
+ *
+ * Nasceu exclusivo da Universidade; o Colégio passou a fazer integração
+ * também, então atende as duas unidades — a lista que chega já vem escopada
+ * pelo App, e as sedes oferecidas são as da unidade do usuário.
+ *
+ * As duas planilhas têm formatos diferentes e o importador decide sozinho:
+ *  - UNIVERSIDADE: uma aba por campus, com nomes fixos → lê todas de uma vez.
+ *  - COLÉGIO: abas por ano ("2026 Geral", "2025 pedagógico"…) → o usuário
+ *    escolhe a aba, porque a lista muda a cada ano.
  */
 interface IntegracoesSectionProps {
   integracoes: Integracao[];
-  sedes: Sede[]; // só as sedes da Universidade (o App já filtra)
+  sedes: Sede[]; // sedes da unidade do usuário (o App já filtra)
   addIntegracao: (i: ImportableIntegracao) => Promise<void>;
   updateIntegracao: (id: string, f: Partial<Integracao>) => Promise<void>;
   deleteIntegracao: (id: string) => Promise<void>;
@@ -43,6 +52,9 @@ export const IntegracoesSection: React.FC<IntegracoesSectionProps> = ({
   integracoes, sedes, addIntegracao, updateIntegracao, deleteIntegracao, importIntegracoes,
   confirmAction, notify, canManage = true, onChangeStatus
 }) => {
+  // Fluxo da planilha do Colégio: precisa de escolha de aba, então o arquivo
+  // fica retido até o usuário decidir. `null` = nenhum arquivo desse tipo.
+  const [arquivoColegio, setArquivoColegio] = useState<{ file: File; abas: string[] } | null>(null);
   // Mudança inline de status (leve): usa o handler dedicado se houver, senão o update comum.
   const mudarStatus = (i: Integracao, novo: Integracao['status']) => {
     if (novo === i.status) return;
@@ -98,14 +110,43 @@ export const IntegracoesSection: React.FC<IntegracoesSectionProps> = ({
     else if (confirm(`Remover a integração de "${i.nome}"?`)) acao();
   };
 
+  /** Aplica o resultado de um parser à coleção, com o mesmo aviso ao usuário. */
+  const gravar = async (lidas: ImportableIntegracao[], avisos: string[], rotulo: string) => {
+    if (!lidas.length) { notify?.(`Nenhum registro reconhecido em ${rotulo}.`, 'warning'); return; }
+    const { adicionadas, puladas } = await importIntegracoes(lidas);
+    notify?.(`Importação concluída: ${adicionadas} adicionada(s), ${puladas} duplicada(s) pulada(s).${avisos.length ? ` (${avisos.length} aviso(s) no console)` : ''}`, 'success');
+    if (avisos.length) console.warn('Avisos do import de integrações:', avisos);
+  };
+
+  const importarAbaColegio = async (aba: string) => {
+    if (!arquivoColegio || !aba) return;
+    setImportando(true);
+    try {
+      const { integracoes: lidas, ignoradas } = await parseIntegracoesColegio(arquivoColegio.file, aba);
+      await gravar(lidas, ignoradas, `na aba "${aba}"`);
+      setArquivoColegio(null);
+    } catch (e: any) {
+      notify?.(`Erro ao importar: ${e?.message || e}`, 'error');
+    } finally {
+      setImportando(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
   const importar = async (file: File) => {
     setImportando(true);
     try {
+      // A planilha do Colégio tem abas por ano; a da Universidade, por campus.
+      // Se houver aba de dados que NÃO é campus conhecido, é a do Colégio e
+      // precisamos perguntar qual ano importar.
+      const abas = (await listarAbas(file)).filter(ehAbaDeDados);
       const { integracoes: lidas, warnings } = await parseIntegracoes(file);
-      if (!lidas.length) { notify?.('Nenhum registro reconhecido na planilha.', 'warning'); return; }
-      const { adicionadas, puladas } = await importIntegracoes(lidas);
-      notify?.(`Importação concluída: ${adicionadas} adicionada(s), ${puladas} duplicada(s) pulada(s).${warnings.length ? ` (${warnings.length} aviso(s) no console)` : ''}`, 'success');
-      if (warnings.length) console.warn('Avisos do import de integrações:', warnings);
+      if (!lidas.length && abas.length) {
+        setArquivoColegio({ file, abas });
+        notify?.('Planilha do Colégio: escolha a aba (ano) que quer importar.', 'info');
+        return;
+      }
+      await gravar(lidas, warnings, 'na planilha');
     } catch (e: any) {
       notify?.(`Erro ao importar: ${e?.message || e}`, 'error');
     } finally {
@@ -128,7 +169,7 @@ export const IntegracoesSection: React.FC<IntegracoesSectionProps> = ({
       { type: String, value: i.status }, { type: String, value: i.dataIntegracao || null }, { type: String, value: i.responsavel || null },
       { type: String, value: i.contato || null }, { type: String, value: i.observacao || null }
     ]);
-    await exportToXlsx(`integracoes_universidade_${new Date().toISOString().slice(0, 10)}.xlsx`, columns, rows, { sheet: 'Integrações' });
+    await exportToXlsx(`integracoes_${new Date().toISOString().slice(0, 10)}.xlsx`, columns, rows, { sheet: 'Integrações' });
   };
 
   return (
@@ -139,9 +180,8 @@ export const IntegracoesSection: React.FC<IntegracoesSectionProps> = ({
           <h2 className="text-xl font-bold text-slate-850 flex items-center gap-2">
             <GraduationCap className="w-6 h-6 text-orange-500" />
             Treinamento de Integração
-            <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border bg-indigo-50 text-indigo-700 border-indigo-200">Universidade</span>
           </h2>
-          <p className="text-sm text-slate-500 font-medium mt-1">Onboarding dos novos colaboradores por campus.</p>
+          <p className="text-sm text-slate-500 font-medium mt-1">Onboarding dos novos colaboradores por sede.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={exportar} className="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer transition">
@@ -160,6 +200,33 @@ export const IntegracoesSection: React.FC<IntegracoesSectionProps> = ({
           )}
         </div>
       </div>
+
+      {/* Escolha da aba — só aparece para a planilha do Colégio, que é por ano */}
+      {arquivoColegio && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-end gap-3">
+          <div className="flex-1">
+            <label htmlFor="aba-integracao-colegio" className={labelCls}>
+              Aba a importar de "{arquivoColegio.file.name}"
+            </label>
+            <select
+              id="aba-integracao-colegio"
+              className={`${inputCls} cursor-pointer`}
+              defaultValue=""
+              disabled={importando}
+              onChange={e => importarAbaColegio(e.target.value)}
+            >
+              <option value="">Selecione o ano…</option>
+              {arquivoColegio.abas.map(aba => <option key={aba} value={aba}>{aba}</option>)}
+            </select>
+          </div>
+          <button
+            onClick={() => { setArquivoColegio(null); if (fileRef.current) fileRef.current.value = ''; }}
+            className="px-3.5 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold cursor-pointer transition shrink-0"
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

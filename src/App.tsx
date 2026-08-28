@@ -180,12 +180,30 @@ export default function App() {
     if (icone) icone.setAttribute('href', campanhaSetembro ? '/logo-setembro.svg' : '/logo.svg');
   }, [campanhaSetembro]);
 
-  // Módulo "Integração": exclusivo da Universidade (usuário de sede na região
-  // Universidade) e do Administrador. Só assina a coleção pra quem pode ver.
+  // Módulo "Integração": era exclusivo da Universidade; agora o Colégio também
+  // faz integração, então vale para todo usuário do app.
+  //
+  // Como passou a ser das duas unidades, a LISTA precisa ser escopada (abaixo,
+  // `scopedIntegracoes`): sem isso, quem é do Colégio passaria a ver os
+  // colaboradores da Universidade e vice-versa. Enquanto era uni-only, o gate
+  // de acesso fazia esse papel sozinho.
   const usuarioEhUni = sedeEhUniversidade(sedes, selectedSede);
-  const podeVerIntegracao = isAdmin || usuarioEhUni;
+  const podeVerIntegracao = true;
   const { integracoes, addIntegracao, updateIntegracao, deleteIntegracao, importIntegracoes } = useIntegracoes(user, podeVerIntegracao);
   const sedesUniversidade = useMemo(() => (sedes || []).filter(s => (s.regiao || '').toLowerCase() === REGIAO_UNIVERSIDADE), [sedes]);
+  // Sedes oferecidas no formulário de Integração: as da unidade do usuário.
+  // Antes eram fixas as da Universidade, o que deixaria o Colégio sem opção.
+  const sedesIntegracao = useMemo(
+    () => escoparSedesPorUnidade(sedes || [], selectedSede, isAdmin),
+    [sedes, selectedSede, isAdmin]
+  );
+
+  // Integrações da unidade do usuário (admin e coordenador veem tudo o que o
+  // escopo deles já permite).
+  const scopedIntegracoes = useMemo(
+    () => escoparListaPorUnidade(integracoes, i => i.sede, sedes || [], selectedSede, isAdmin),
+    [integracoes, sedes, selectedSede, isAdmin]
+  );
 
   const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'integracao' | 'admin'>('home');
   const scopedUserSede = isViewer ? '' : selectedSede;
@@ -1197,7 +1215,7 @@ export default function App() {
               experiencias={scopedExperiencias}
               entrevistas={scopedEntrevistas}
               turnover={turnover}
-              integracoes={integracoes}
+              integracoes={scopedIntegracoes}
               selecoes={selecoes}
               mostrarIntegracao={podeVerIntegracao}
               sedes={scopedSedes}
@@ -1283,8 +1301,8 @@ export default function App() {
 
           {activeTab === 'integracao' && podeVerIntegracao && (
             <IntegracoesSection
-              integracoes={integracoes}
-              sedes={sedesUniversidade}
+              integracoes={scopedIntegracoes}
+              sedes={sedesIntegracao}
               addIntegracao={wrappedAddIntegracao}
               updateIntegracao={wrappedUpdateIntegracao}
               deleteIntegracao={wrappedDeleteIntegracao}
