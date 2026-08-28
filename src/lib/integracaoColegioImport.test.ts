@@ -147,18 +147,61 @@ describe('sedes que não existem no cadastro', () => {
   it('KMC2 vira Construtora', async () => expect(await comSede('KMC2')).toBe('Construtora'));
   it('PQL vira PARQUELANDIA 1', async () => expect(await comSede('PQL')).toBe('PARQUELANDIA 1'));
   it('Volante vira DT (era regime de trabalho, não sede)', async () => expect(await comSede('Volante')).toBe('DT'));
-  it('Unichristus vira PARQUE ECOLÓGICO', async () => expect(await comSede('Unichristus')).toBe('PARQUE ECOLÓGICO'));
+  it('Unichristus vira UNICHRISTUS, que já é sede cadastrada (sigla UC)', async () =>
+    expect(await comSede('Unichristus')).toBe('UNICHRISTUS'));
+  it('"Parquelândia" (nome de REGIÃO) vai para PARQUELANDIA 1, junto com PQL', async () =>
+    expect(await comSede('Parquelândia')).toBe('PARQUELANDIA 1'));
+  it('PREJOVITA vira PRE JOVITA', async () => expect(await comSede('PREJOVITA')).toBe('PRE JOVITA'));
 
   it('aceita a variação de caixa que existe no arquivo real', async () => {
-    expect(await comSede('UNICHRISTUS')).toBe('PARQUE ECOLÓGICO');
+    expect(await comSede('UNICHRISTUS')).toBe('UNICHRISTUS');
     expect(await comSede('volante')).toBe('DT');
   });
 
-  it('sede já cadastrada passa intacta', async () => {
+  it('sede já cadastrada passa intacta (DT, BS, SP e PN são siglas do cadastro)', async () => {
     expect(await comSede('DT')).toBe('DT');
     expect(await comSede('BENFICA')).toBe('BENFICA');
-    // Ainda sem decisão do RH: continua como veio, para não sumir do filtro.
-    expect(await comSede('BS/ SP/ PN')).toBe('BS/ SP/ PN');
+    expect(await comSede('Sul')).toBe('Sul');
+  });
+
+  it('rótulo sem decisão fica como veio, para não sumir do filtro', async () => {
+    expect(await comSede('Metalurgica Ed.Queiroz')).toBe('Metalurgica Ed.Queiroz');
+    expect(await comSede('')).toBe('');
+  });
+});
+
+describe('rateio de "BS/ SP/ PN"', () => {
+  const seteLinhas = () => {
+    matrizes['2026 Geral'] = [
+      TITULO,
+      CAB_GERAL,
+      ...Array.from({ length: 7 }, (_, i) =>
+        [`Pessoa ${i + 1}`, data(2026, 1, 5), data(2026, 1, 8), 'BS/ SP/ PN', 'TI', 'Arlana', null]),
+    ];
+  };
+
+  it('distribui em rodízio, em partes o mais iguais possível', async () => {
+    seteLinhas();
+    const { integracoes } = await parseIntegracoesColegio(arquivo, '2026 Geral');
+
+    expect(integracoes.map(i => i.sede)).toEqual(['BS', 'SP', 'PN', 'BS', 'SP', 'PN', 'BS']);
+  });
+
+  it('marca na observação que a sede foi atribuída, não informada', async () => {
+    seteLinhas();
+    const { integracoes } = await parseIntegracoesColegio(arquivo, '2026 Geral');
+
+    expect(integracoes[0].observacao).toContain('rateio');
+    expect(integracoes[0].observacao).toContain('BS/ SP/ PN'); // o rótulo original fica registrado
+  });
+
+  it('quem tem sede informada não ganha a observação', async () => {
+    matrizes['2026 Geral'] = [
+      TITULO, CAB_GERAL,
+      ['Fulano', data(2026, 1, 5), data(2026, 1, 8), 'DT', 'TI', 'Arlana', null],
+    ];
+    const { integracoes } = await parseIntegracoesColegio(arquivo, '2026 Geral');
+    expect(integracoes[0].observacao).toBeUndefined();
   });
 });
 

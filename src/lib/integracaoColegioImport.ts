@@ -28,23 +28,43 @@ export { listarAbas };
  * Sedes da planilha que NÃO existem no cadastro, e para onde vão (decidido com
  * o RH em 28/08/2026). Sem isto viram "sedes" fantasma no filtro.
  *
- * Só entram aqui os rótulos que não resolvem sozinhos: os demais ("DT", "BS",
- * "SUL"…) já são nome ou sigla de sede cadastrada e passam intactos.
+ * Só entram aqui os rótulos que não resolvem sozinhos. A maioria resolve: "DT",
+ * "BS", "SP" e "PN" são SIGLAS cadastradas, e "Sul"/"SUL" e "BENFICA"/"Benfica"
+ * casam pelo nome ignorando caixa.
  *
- * "Volante" era regime de trabalho, não sede — equipe de Infraestrutura que
- * circulava entre unidades, usada só em 2023/2024.
+ * Notas de cada decisão:
+ *  - "Volante" era regime de trabalho, não sede — equipe de Infraestrutura que
+ *    circulava entre unidades, usada só em 2023/2024.
+ *  - "Parquelândia" é o nome de uma REGIÃO (agrupa PARQUELANDIA 1 e 2), por
+ *    isso não resolve como sede; vai para a 1, junto com "PQL".
+ *  - "PREJOVITA" é "PRE JOVITA" sem o espaço.
  */
 const SEDE_DA_PLANILHA: Record<string, string> = {
   'kmc2': 'Construtora',
   'pql': 'PARQUELANDIA 1',
+  'parquelandia': 'PARQUELANDIA 1',
   'volante': 'DT',
-  'unichristus': 'PARQUE ECOLÓGICO',
+  'unichristus': 'UNICHRISTUS',
+  'prejovita': 'PRE JOVITA',
 };
 
-/** Resolve o rótulo de sede da planilha, ignorando caixa e acento. */
-function sedeCanonica(rotulo: string): string {
-  const chave = rotulo.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-  return SEDE_DA_PLANILHA[chave] || rotulo;
+/**
+ * Rótulos que juntam VÁRIAS sedes num campo só ("BS/ SP/ PN", 55 registros).
+ *
+ * A planilha não diz quem é de qual, então o RH decidiu ratear em partes
+ * iguais. É ATRIBUIÇÃO, não dado: cada registro rateado leva uma observação
+ * dizendo isso, senão daqui a um ano ninguém distingue o que foi informado do
+ * que foi dividido por nós.
+ */
+const SEDES_COMBINADAS: Record<string, string[]> = {
+  'bs/sp/pn': ['BS', 'SP', 'PN'],
+};
+
+const NOTA_RATEIO = 'Sede atribuída por rateio: a planilha trazia várias sedes no mesmo campo.';
+
+/** Normaliza o rótulo para comparação: sem acento, sem caixa, sem espaços. */
+function chaveSede(rotulo: string): string {
+  return rotulo.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, '');
 }
 
 export interface IntegracaoImportada extends Omit<Integracao, 'id'> {}
@@ -83,6 +103,9 @@ export async function parseIntegracoesColegio(file: File, aba: string): Promise<
 
   const integracoes: IntegracaoImportada[] = [];
   const ignoradas: string[] = [];
+  // Rodízio por rótulo combinado, para o rateio sair equilibrado e sempre igual
+  // na mesma planilha (a ordem das linhas não muda entre importações).
+  const rodizio = new Map<string, number>();
 
   registros.forEach((linha, i) => {
     const nLinha = primeiraLinha + i;
@@ -92,7 +115,17 @@ export async function parseIntegracoesColegio(file: File, aba: string): Promise<
     const dataTreinamento = formatDateBR(linha[normalizeKey('data do treinamento')]);
     const sedeCrua = cleanText(linha[normalizeKey('localização/sede')])
       || cleanText(linha[normalizeKey('locação / sede')]);
-    const sede = sedeCanonica(sedeCrua);
+    const chave = chaveSede(sedeCrua);
+
+    const combinada = SEDES_COMBINADAS[chave];
+    let sede = SEDE_DA_PLANILHA[chave] || sedeCrua;
+    let rateada = false;
+    if (combinada) {
+      const n = rodizio.get(chave) || 0;
+      sede = combinada[n % combinada.length];
+      rodizio.set(chave, n + 1);
+      rateada = true;
+    }
 
     integracoes.push({
       nome,
@@ -102,6 +135,7 @@ export async function parseIntegracoesColegio(file: File, aba: string): Promise<
       responsavel: cleanText(linha[normalizeKey('facilitador')]),
       dataIntegracao: dataTreinamento,
       status: statusDaLinha(linha[normalizeKey('realizada')], dataTreinamento),
+      ...(rateada ? { observacao: `${NOTA_RATEIO} (original: "${sedeCrua}")` } : {}),
     });
   });
 
