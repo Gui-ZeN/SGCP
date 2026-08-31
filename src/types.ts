@@ -164,6 +164,24 @@ export interface Funcionario {
   observacoes?: string;
 }
 
+/**
+ * Consulta solicitada por um funcionário do Colégio. Registro simples de fila:
+ * quem pediu, o que pediu, quando pediu, se já foi atendido e quando.
+ *
+ * "Consulta" aqui NÃO tem sentido médico — é só o registro da solicitação.
+ * São exatamente os cinco campos pedidos, sem nada além. Funcionário e
+ * especialidade são texto livre (não há catálogo de especialidades, e o roster
+ * `/funcionarios` ainda não tem tela de cadastro).
+ */
+export interface Consulta {
+  id: string;
+  funcionario: string;
+  especialidade: string;   // especialidade solicitada
+  dataSolicitacao: string; // DD/MM/YYYY
+  status: 'No aguardo' | 'Atendido';
+  dataAtendimento?: string; // DD/MM/YYYY — só preenchida quando Atendido
+}
+
 export interface Turnover {
   id: string;
   mesAno: string; // e.g. "05/2026"

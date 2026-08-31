@@ -192,6 +192,34 @@ test("integracoes: analista (editor) pode escrever", () =>
 test("integracoes: visualizador NÃO pode escrever", () =>
   assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "integracoes", "i2"), { nome: "Bia", sede: "ALDEOTA", status: "Não realizado" })));
 
+// --- consultas (solicitacao de especialidade pelo funcionario, modulo do Colegio) ---
+const consultaValida = { funcionario: "Marcos Silva", especialidade: "Ortodontia",
+  dataSolicitacao: "10/08/2026", status: "No aguardo", dataAtendimento: "" };
+
+test("consultas: leitura SEM auth é negada (nome de colaborador é dado pessoal)", () =>
+  assertFails(getDoc(doc(ctx.unauth(), "consultas", "c1"))));
+
+test("consultas: analista (editor) pode criar", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "consultas", "c1"), consultaValida)));
+
+test("consultas: usuário do app lê", () =>
+  assertSucceeds(getDoc(doc(ctx.user(VIEWER_EMAIL), "consultas", "c1"))));
+
+test("consultas: coordenador (editor) pode marcar como atendida", () =>
+  assertSucceeds(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "consultas", "c1"),
+    Object.assign({}, consultaValida, { status: "Atendido", dataAtendimento: "15/08/2026" }))));
+
+test("consultas: visualizador NÃO pode escrever", () =>
+  assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "consultas", "c2"), consultaValida)));
+
+test("consultas: conta verificada porém NÃO provisionada não lê nem escreve", async () => {
+  await assertFails(getDoc(doc(ctx.user(STRANGER_EMAIL), "consultas", "c1")));
+  await assertFails(setDoc(doc(ctx.user(STRANGER_EMAIL), "consultas", "c3"), consultaValida));
+});
+
+test("consultas: anônimo NÃO pode criar (não é formulário público)", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "consultas", "c4"), consultaValida)));
+
 // ---------------------------------------------------------------------------
 //  USUÁRIOS — escrita só admin (+validação)
 // ---------------------------------------------------------------------------

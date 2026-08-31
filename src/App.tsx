@@ -18,6 +18,7 @@ import { useMetadata, type UserRole } from './hooks/useMetadata';
 import { useLogs } from './hooks/useLogs';
 import { useRequisicoes } from './hooks/useRequisicoes';
 import { useIntegracoes } from './hooks/useIntegracoes';
+import { useConsultas } from './hooks/useConsultas';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Bandeirinhas } from './components/Bandeirinhas';
 import { BootLoader } from './components/BootLoader';
@@ -52,6 +53,7 @@ const EntrevistasSection = lazyComRetry(() => import('./components/EntrevistasSe
 const TurnoverSection = lazyComRetry(() => import('./components/TurnoverSection').then(m => ({ default: m.TurnoverSection })));
 const RequisicoesSection = lazyComRetry(() => import('./components/RequisicoesSection').then(m => ({ default: m.RequisicoesSection })));
 const IntegracoesSection = lazyComRetry(() => import('./components/IntegracoesSection').then(m => ({ default: m.IntegracoesSection })));
+const ConsultasSection = lazyComRetry(() => import('./components/ConsultasSection').then(m => ({ default: m.ConsultasSection })));
 import { 
   Briefcase, 
   BarChart3, 
@@ -62,6 +64,7 @@ import {
   Lock,
   ShieldAlert,
   GraduationCap,
+  ClipboardList,
   ShieldCheck,
   HeartCrack,
   Percent,
@@ -205,7 +208,7 @@ export default function App() {
     [integracoes, sedes, selectedSede, isAdmin]
   );
 
-  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'integracao' | 'admin'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'integracao' | 'consultas' | 'admin'>('home');
   const scopedUserSede = isViewer ? '' : selectedSede;
   const canManageModules = !isViewer;
 
@@ -245,6 +248,13 @@ export default function App() {
     () => escoparListaPorUnidade(entrevistas, e => e.unidade, sedes, selectedSede, ehAdminPleno),
     [entrevistas, sedes, selectedSede, ehAdminPleno]
   );
+
+  // Módulo "Consultas": nasceu para o COLÉGIO. O registro tem só os cinco campos
+  // do pedido — sem sede —, então não há como escopar a LISTA por unidade: o
+  // isolamento é o gate de acesso, e a Universidade simplesmente não tem a aba
+  // (nem os dados, que só entram por aqui). Administrador pleno vê, como em tudo.
+  const podeVerConsultas = ehAdminPleno || !usuarioEhUni;
+  const { consultas, addConsulta, updateConsulta, deleteConsulta } = useConsultas(user, podeVerConsultas);
 
   // Painel admin do Coordenador: vê/gerencia só a UNIDADE dele (Colégio OU
   // Universidade, conforme a região da sede do usuário). Usuário sem sede conta
@@ -331,6 +341,32 @@ export default function App() {
       await deleteIntegracao(id);
       await logAction('EXCLUIU', 'Integrações', `Integração de "${alvo?.nome || id}" removida.`);
     });
+  // Consultas (Colégio): operações com loading + auditoria, como nos demais módulos.
+  const wrappedAddConsulta = (c: any) =>
+    executeWithLoading("Registrando consulta...", async () => {
+      await addConsulta(c);
+      await logAction('CRIOU', 'Consultas', `Consulta de "${c.funcionario}" (${c.especialidade}) solicitada em ${c.dataSolicitacao}.`);
+    });
+  const wrappedUpdateConsulta = (id: string, campos: any) =>
+    executeWithLoading("Atualizando consulta...", async () => {
+      const alvo = consultas.find(x => x.id === id);
+      await updateConsulta(id, campos);
+      const virouAtendida = campos.status === 'Atendido' && alvo?.status !== 'Atendido';
+      await logAction(
+        'ALTEROU',
+        'Consultas',
+        virouAtendida
+          ? `Consulta de "${campos.funcionario || alvo?.funcionario || id}" marcada como Atendido em ${campos.dataAtendimento}.`
+          : `Consulta de "${campos.funcionario || alvo?.funcionario || id}" alterada.`
+      );
+    });
+  const wrappedDeleteConsulta = (id: string) =>
+    executeWithLoading("Excluindo consulta...", async () => {
+      const alvo = consultas.find(x => x.id === id);
+      await deleteConsulta(id);
+      await logAction('EXCLUIU', 'Consultas', `Consulta de "${alvo?.funcionario || id}" removida.`);
+    });
+
   // Import da planilha "Acompanhamento do período de experiência" da Universidade
   // (abas por campus). Dedupe por colaborador+admissão+sede no hook.
   const handleImportExpUni = (file: File) =>
@@ -910,6 +946,7 @@ export default function App() {
               {activeTab === 'turnover' && 'Turnover & Headcount'}
               {activeTab === 'requisicoes' && 'Requisições de Vaga'}
               {activeTab === 'integracao' && 'Treinamento de Integração'}
+              {activeTab === 'consultas' && 'Consultas'}
               {activeTab === 'admin' && 'Painel Administrativo'}
             </p>
           </div>
@@ -1084,6 +1121,21 @@ export default function App() {
                 >
                   <GraduationCap className="w-4 h-4 shrink-0" />
                   <span className="flex-1 text-left">Integração</span>
+                </button>
+              )}
+
+              {podeVerConsultas && (
+                <button
+                  id="tab-consultas"
+                  onClick={() => setActiveTab('consultas')}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                    activeTab === 'consultas'
+                      ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
+                  }`}
+                >
+                  <ClipboardList className="w-4 h-4 shrink-0 text-indigo-500" />
+                  <span className="flex-1 text-left">Consultas</span>
                 </button>
               )}
             </div>
@@ -1307,6 +1359,18 @@ export default function App() {
               deleteIntegracao={wrappedDeleteIntegracao}
               importIntegracoes={handleImportIntegracoes}
               onChangeStatus={handleStatusIntegracao}
+              confirmAction={askConfirmation}
+              notify={notify}
+              canManage={canManageModules}
+            />
+          )}
+
+          {activeTab === 'consultas' && podeVerConsultas && (
+            <ConsultasSection
+              consultas={consultas}
+              addConsulta={wrappedAddConsulta}
+              updateConsulta={wrappedUpdateConsulta}
+              deleteConsulta={wrappedDeleteConsulta}
               confirmAction={askConfirmation}
               notify={notify}
               canManage={canManageModules}

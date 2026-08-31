@@ -158,6 +158,19 @@
       },
       "required": ["mesAno", "totalFuncionarios", "totalAdmissao"]
     },
+    "consulta": {
+      "title": "Consulta",
+      "description": "Consulta solicitada por um funcionário do Colégio e o andamento do atendimento",
+      "type": "object",
+      "properties": {
+        "funcionario": { "type": "string", "description": "Nome do funcionário que solicitou" },
+        "especialidade": { "type": "string", "description": "Especialidade solicitada" },
+        "dataSolicitacao": { "type": "string", "description": "Data da solicitação (DD/MM/YYYY)" },
+        "status": { "type": "string", "description": "Situação da consulta", "enum": ["No aguardo", "Atendido"] },
+        "dataAtendimento": { "type": "string", "description": "Data do atendimento (DD/MM/YYYY); vazia enquanto No aguardo" }
+      },
+      "required": ["funcionario", "especialidade", "dataSolicitacao", "status"]
+    },
     "log": {
       "title": "Log",
       "description": "Registro de auditoria e logs de modificações do sistema",
@@ -228,6 +241,10 @@
     "/turnover/{turnoverId}": {
       "schema": "turnover",
       "description": "Históricos consolidados mensais de admissões, demissões e índice geral de turnover"
+    },
+    "/consultas/{consultaId}": {
+      "schema": "consulta",
+      "description": "Fila de consultas solicitadas por funcionários, com status e data de atendimento"
     },
     "/logs/{logId}": {
       "schema": "log",

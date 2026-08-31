@@ -301,6 +301,15 @@ service cloud.firestore {
       allow write: if isEditor();
     }
 
+    // Consultas solicitadas por funcionários — módulo do Colégio. O registro
+    // guarda só os cinco campos do pedido (sem sede), então a restrição "só
+    // Colégio" é do menu/UI; aqui vale o padrão operacional (nome de colaborador
+    // é dado pessoal, logo leitura exige usuário do app).
+    match /consultas/{consultaId} {
+      allow read: if isAppUser();
+      allow write: if isEditor();
+    }
+
     // Treinamento de Integração (onboarding) — módulo da Universidade. A
     // visibilidade "só Universidade" é aplicada na UI/nav (mesma limitação de
     // unidade das vagas); aqui vale o padrão operacional.
