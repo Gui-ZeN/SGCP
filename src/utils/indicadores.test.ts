@@ -263,3 +263,28 @@ describe('taxaTurnover com registros por unidade', () => {
     expect(r.saidas).toBe(12);
   });
 });
+
+describe('taxaTurnover — cobertura declarada', () => {
+  const base = { mesAno: '07/2026', totalFuncionarios: 100, totalAdmissao: 4, pediramSair: 3, foramDesligados: 1 };
+
+  it('só Colégio lançado → cobertura "colegio" (o card não pode dizer "todas")', () => {
+    expect(taxaTurnover([{ ...base, unidade: 'colegio' }] as any).cobertura).toBe('colegio');
+  });
+
+  it('as duas unidades no mês → "ambas"', () => {
+    expect(taxaTurnover([
+      { ...base, unidade: 'colegio' },
+      { ...base, unidade: 'universidade' },
+    ] as any).cobertura).toBe('ambas');
+  });
+
+  it('registro antigo sem unidade → "consolidado"', () => {
+    expect(taxaTurnover([base] as any).cobertura).toBe('consolidado');
+  });
+
+  it('mês sem efetivo ainda declara a cobertura', () => {
+    const r = taxaTurnover([{ ...base, totalFuncionarios: 0, unidade: 'colegio' }] as any);
+    expect(r.temDados).toBe(false);
+    expect(r.cobertura).toBe('colegio');
+  });
+});

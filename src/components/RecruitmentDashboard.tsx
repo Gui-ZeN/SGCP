@@ -214,9 +214,19 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   // Turnover: o campo `taxaTurnoverGeral` que este KPI lia não existe no tipo,
   // no banco nem em lugar nenhum do repositório — o card mostrava 0 fixo. Agora
   // a taxa é calculada dos campos que existem, e o mês vem junto porque é uma
-  // taxa MENSAL. /turnover não tem sede, então o número é de todas as unidades:
-  // o card diz isso em vez de deixar parecer que respeita o filtro de sede.
+  // taxa MENSAL.
+  //
+  // O rótulo de cobertura SEGUE o dado (`cobertura`) em vez de cravar "todas as
+  // unidades": o RH lança só o Colégio, então afirmar "todas" seria falso e
+  // ninguém teria como perceber olhando a tela. O card também não respeita o
+  // filtro de sede — o registro é mensal, não por sede.
   const turnoverInfo = useMemo(() => taxaTurnover(turnover), [turnover]);
+  const COBERTURA_TURNOVER: Record<string, string> = {
+    colegio: 'Colégio',
+    universidade: 'Universidade',
+    ambas: 'Colégio + Universidade',
+    consolidado: 'unidade não informada',
+  };
 
   // --- Vagas Status Chart Data ---
   const statusData = useMemo(() => {
@@ -620,7 +630,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
                   <span>
                     <span className="text-slate-700 font-extrabold">{turnoverInfo.admissoes} admissões</span> e{' '}
                     <span className="text-slate-700 font-extrabold">{turnoverInfo.saidas} saídas</span> em{' '}
-                    {turnoverInfo.totalFuncionarios} · todas as unidades
+                    {turnoverInfo.totalFuncionarios} · {COBERTURA_TURNOVER[turnoverInfo.cobertura]}
                   </span>
                 </p>
               </>

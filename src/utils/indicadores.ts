@@ -142,6 +142,12 @@ export function taxaPresencaPorCargo(
 
 export interface TaxaTurnover {
   mesAno: string;           // mês de referência ('' quando não há dado)
+  /**
+   * Que unidades o número cobre, para o card DIZER o que somou em vez de
+   * afirmar "todas as unidades". Hoje o RH lança só o Colégio: cravar "todas"
+   * seria falso, e ninguém teria como perceber olhando a tela.
+   */
+  cobertura: 'colegio' | 'universidade' | 'ambas' | 'consolidado';
   taxa: number;             // ((admissões + saídas) / 2) / efetivo × 100, 1 casa
   admissoes: number;
   saidas: number;           // pediramSair + foramDesligados
@@ -170,8 +176,8 @@ function ordemMesAno(mesAno?: string): number {
  * Escolhe o mês pelo próprio `mesAno`, não pela posição no array: a ordem que
  * chega do onSnapshot não é cronológica.
  */
-export function taxaTurnover(list: { mesAno?: string; totalFuncionarios?: number; totalAdmissao?: number; pediramSair?: number; foramDesligados?: number }[]): TaxaTurnover {
-  const vazio: TaxaTurnover = { mesAno: '', taxa: 0, admissoes: 0, saidas: 0, totalFuncionarios: 0, temDados: false };
+export function taxaTurnover(list: { mesAno?: string; totalFuncionarios?: number; totalAdmissao?: number; pediramSair?: number; foramDesligados?: number; unidade?: string }[]): TaxaTurnover {
+  const vazio: TaxaTurnover = { mesAno: '', cobertura: 'consolidado', taxa: 0, admissoes: 0, saidas: 0, totalFuncionarios: 0, temDados: false };
   if (!list || list.length === 0) return vazio;
 
   const recente = [...list].sort((a, b) => ordemMesAno(a.mesAno) - ordemMesAno(b.mesAno)).pop();
@@ -190,10 +196,18 @@ export function taxaTurnover(list: { mesAno?: string; totalFuncionarios?: number
   const totalFuncionarios = somar(t => t.totalFuncionarios || 0);
   const admissoes = somar(t => t.totalAdmissao || 0);
   const saidas = somar(t => t.pediramSair || 0) + somar(t => t.foramDesligados || 0);
-  if (totalFuncionarios <= 0) return { ...vazio, mesAno, admissoes, saidas };
+
+  const unidades = new Set(doMes.map(t => (t as any).unidade).filter(Boolean));
+  const cobertura: TaxaTurnover['cobertura'] =
+    unidades.size === 0 ? 'consolidado'
+    : unidades.size > 1 ? 'ambas'
+    : (unidades.has('universidade') ? 'universidade' : 'colegio');
+
+  if (totalFuncionarios <= 0) return { ...vazio, mesAno, cobertura, admissoes, saidas };
 
   return {
     mesAno,
+    cobertura,
     taxa: Math.round((((admissoes + saidas) / 2) / totalFuncionarios) * 1000) / 10,
     admissoes,
     saidas,
