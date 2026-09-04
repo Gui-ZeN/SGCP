@@ -228,3 +228,38 @@ describe('motivosDesistencia', () => {
     expect(motivosDesistencia([{ motivos: { x: 0 } }])).toEqual([]);
   });
 });
+
+describe('taxaTurnover com registros por unidade', () => {
+  it('SOMA as duas unidades do mesmo mês em vez de mostrar só uma', () => {
+    const r = taxaTurnover([
+      { mesAno: '07/2026', totalFuncionarios: 200, totalAdmissao: 8, pediramSair: 6, foramDesligados: 2, unidade: 'colegio' },
+      { mesAno: '07/2026', totalFuncionarios: 50, totalAdmissao: 2, pediramSair: 2, foramDesligados: 2, unidade: 'universidade' },
+    ] as any);
+
+    expect(r.totalFuncionarios).toBe(250);
+    expect(r.admissoes).toBe(10);
+    expect(r.saidas).toBe(12);   // 6+2 do colégio + 2+2 da universidade
+    expect(r.mesAno).toBe('07/2026');
+    expect(r.temDados).toBe(true);
+  });
+
+  it('não mistura meses: soma só o mês mais recente', () => {
+    const r = taxaTurnover([
+      { mesAno: '06/2026', totalFuncionarios: 999, totalAdmissao: 99, pediramSair: 99, foramDesligados: 99 },
+      { mesAno: '07/2026', totalFuncionarios: 200, totalAdmissao: 8, pediramSair: 6, foramDesligados: 2 },
+      { mesAno: '07/2026', totalFuncionarios: 50, totalAdmissao: 2, pediramSair: 2, foramDesligados: 2 },
+    ] as any);
+
+    expect(r.mesAno).toBe('07/2026');
+    expect(r.totalFuncionarios).toBe(250);
+  });
+
+  it('mês consolidado (registro único, sem unidade) segue funcionando', () => {
+    const r = taxaTurnover([
+      { mesAno: '07/2026', totalFuncionarios: 250, totalAdmissao: 10, pediramSair: 8, foramDesligados: 4 },
+    ] as any);
+
+    expect(r.totalFuncionarios).toBe(250);
+    expect(r.saidas).toBe(12);
+  });
+});

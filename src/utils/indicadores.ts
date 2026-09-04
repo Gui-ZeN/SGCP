@@ -178,9 +178,18 @@ export function taxaTurnover(list: { mesAno?: string; totalFuncionarios?: number
   if (!recente) return vazio;
 
   const mesAno = (recente.mesAno || '').trim();
-  const totalFuncionarios = Number(recente.totalFuncionarios) || 0;
-  const admissoes = Number(recente.totalAdmissao) || 0;
-  const saidas = (Number(recente.pediramSair) || 0) + (Number(recente.foramDesligados) || 0);
+
+  // SOMA todos os registros do mês, não só o último: desde que o turnover pode
+  // ser lançado por unidade, o mesmo mês tem dois registros (Colégio e
+  // Universidade). Pegar só um mostraria metade do grupo com cara de total —
+  // e o card diz "todas as unidades".
+  const doMes = list.filter(t => (t.mesAno || '').trim() === mesAno);
+  const somar = (f: (t: typeof doMes[number]) => number) =>
+    doMes.reduce((acc, t) => acc + (Number(f(t)) || 0), 0);
+
+  const totalFuncionarios = somar(t => t.totalFuncionarios || 0);
+  const admissoes = somar(t => t.totalAdmissao || 0);
+  const saidas = somar(t => t.pediramSair || 0) + somar(t => t.foramDesligados || 0);
   if (totalFuncionarios <= 0) return { ...vazio, mesAno, admissoes, saidas };
 
   return {

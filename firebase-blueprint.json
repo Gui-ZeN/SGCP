@@ -154,7 +154,8 @@
         "totalFuncionarios": { "type": "integer" },
         "totalAdmissao": { "type": "integer" },
         "pediramSair": { "type": "integer" },
-        "foramDesligados": { "type": "integer" }
+        "foramDesligados": { "type": "integer" },
+        "unidade": { "type": "string", "description": "Unidade do registro; ausente = consolidado (as duas juntas)", "enum": ["colegio", "universidade"] }
       },
       "required": ["mesAno", "totalFuncionarios", "totalAdmissao"]
     },

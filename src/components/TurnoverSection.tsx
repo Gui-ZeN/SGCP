@@ -66,6 +66,14 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
   const [totalAdmissao, setTotalAdmissao] = useState<number>(5);
   const [pediramSair, setPediramSair] = useState<number>(2);
   const [foramDesligados, setForamDesligados] = useState<number>(2);
+  // '' = consolidado (Colégio + Universidade no mesmo número), que é como os
+  // meses antigos foram lançados.
+  const [unidade, setUnidade] = useState<'' | 'colegio' | 'universidade'>('');
+  const [filtroUnidade, setFiltroUnidade] = useState<'TODAS' | 'colegio' | 'universidade' | 'consolidado'>('TODAS');
+
+  /** Rótulo da unidade; sem valor é consolidado (as duas juntas). */
+  const rotuloUnidade = (u?: string) =>
+    u === 'colegio' ? 'Colégio' : u === 'universidade' ? 'Universidade' : 'Consolidado';
 
   const mesAnoToInput = (value: string) => {
     const parts = value.split('/');
@@ -79,6 +87,7 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
     setTotalAdmissao(5);
     setPediramSair(2);
     setForamDesligados(2);
+    setUnidade('');
     setEditingTurnover(null);
     setErrorMsg('');
   };
@@ -95,13 +104,27 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
     setTotalAdmissao(item.totalAdmissao || 0);
     setPediramSair(item.pediramSair || 0);
     setForamDesligados(item.foramDesligados || 0);
+    setUnidade(item.unidade || '');
     setErrorMsg('');
     setShowAddForm(true);
   };
 
   // Auto computations mapping for chart visualization
+  /**
+   * Registros da unidade escolhida. "Consolidado" são os meses lançados antes
+   * de existir o campo — vivem sozinhos, sem par de unidade.
+   */
+  const turnoverFiltrado = useMemo(() => {
+    if (filtroUnidade === 'TODAS') return turnover;
+    if (filtroUnidade === 'consolidado') return turnover.filter(t => !t.unidade);
+    return turnover.filter(t => t.unidade === filtroUnidade);
+  }, [turnover, filtroUnidade]);
+
+  /** A base tem registro por unidade? Só então o filtro faz sentido na tela. */
+  const temUnidadeLancada = useMemo(() => turnover.some(t => !!t.unidade), [turnover]);
+
   const computedData = useMemo(() => {
-    return turnover.map((item) => {
+    return turnoverFiltrado.map((item) => {
       const saidasTotais = (item.pediramSair || 0) + (item.foramDesligados || 0);
       
       // Formulas
@@ -125,7 +148,40 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
         turnoverInvoluntario: Number(turnoverInvoluntario.toFixed(2))
       };
     });
-  }, [turnover]);
+  }, [turnoverFiltrado]);
+
+  /**
+   * Série dos gráficos. Com o filtro em "todas as unidades", SOMA os registros
+   * do mesmo mês: sem isso o eixo mostraria "07/2026" duas vezes, uma por
+   * unidade, como se fossem meses diferentes. Filtrado numa unidade, cada mês
+   * já é único e a série passa direto.
+   */
+  const dadosGrafico = useMemo(() => {
+    if (filtroUnidade !== 'TODAS') return computedData;
+
+    const porMes = new Map<string, any>();
+    computedData.forEach(item => {
+      const atual = porMes.get(item.mesAno);
+      if (!atual) { porMes.set(item.mesAno, { ...item }); return; }
+      atual.totalFuncionarios += item.totalFuncionarios || 0;
+      atual.totalAdmissao += item.totalAdmissao || 0;
+      atual.pediramSair += item.pediramSair || 0;
+      atual.foramDesligados += item.foramDesligados || 0;
+      atual.saidasTotais += item.saidasTotais || 0;
+    });
+
+    // As taxas são recalculadas sobre o efetivo somado — média de percentuais
+    // de unidades com tamanhos diferentes daria um número que não existe.
+    return [...porMes.values()].map(m => ({
+      ...m,
+      turnoverTotal: m.totalFuncionarios > 0
+        ? Number(((((m.totalAdmissao + m.saidasTotais) / 2) / m.totalFuncionarios) * 100).toFixed(2)) : 0,
+      turnoverVoluntario: m.totalFuncionarios > 0
+        ? Number(((m.pediramSair / m.totalFuncionarios) * 100).toFixed(2)) : 0,
+      turnoverInvoluntario: m.totalFuncionarios > 0
+        ? Number(((m.foramDesligados / m.totalFuncionarios) * 100).toFixed(2)) : 0,
+    }));
+  }, [computedData, filtroUnidade]);
 
   // General Average KPI
   const avgStats = useMemo(() => {
@@ -162,7 +218,10 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
       totalFuncionarios: Number(totalFuncionarios) || 0,
       totalAdmissao: Number(totalAdmissao) || 0,
       pediramSair: Number(pediramSair) || 0,
-      foramDesligados: Number(foramDesligados) || 0
+      foramDesligados: Number(foramDesligados) || 0,
+      // Só grava a unidade quando escolhida: ausência significa consolidado, e
+      // gravar '' faria o registro parecer "sem unidade por engano".
+      ...(unidade ? { unidade } : {})
     };
 
     try {
@@ -182,6 +241,7 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
     if (!computedData.length) { alert('Nenhum mês para exportar.'); return; }
     const columns = [
       { title: 'Mês/Ano', width: 12 },
+      { title: 'Unidade', width: 16 },
       { title: 'Total Funcionários', width: 18 },
       { title: 'Admissões', width: 14 },
       { title: 'Pediram p/ Sair', width: 16 },
@@ -193,6 +253,7 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
     ];
     const rows = computedData.map(t => [
       { type: String, value: t.mesAno || null },
+      { type: String, value: rotuloUnidade(t.unidade) },
       { type: Number, value: t.totalFuncionarios ?? null },
       { type: Number, value: t.totalAdmissao ?? null },
       { type: Number, value: t.pediramSair ?? null },
@@ -222,6 +283,19 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
           <p className="text-slate-500 text-sm font-medium font-sans">Acompanhe estatísticas mensais de admissão, demissão espontânea e demissão induzida.</p>
         </div>
         <div className="flex items-center gap-2 self-start">
+          {temUnidadeLancada && (
+            <select
+              value={filtroUnidade}
+              onChange={e => setFiltroUnidade(e.target.value as any)}
+              aria-label="Filtrar por unidade"
+              className="px-3 py-2 bg-white border border-slate-250 rounded-xl text-xs font-bold text-slate-700 cursor-pointer"
+            >
+              <option value="TODAS">Todas as unidades</option>
+              <option value="colegio">Colégio</option>
+              <option value="universidade">Universidade</option>
+              <option value="consolidado">Consolidado (sem unidade)</option>
+            </select>
+          )}
           <button
             onClick={handleExportTurnover}
             className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded-xl text-xs font-bold uppercase tracking-wider border border-slate-250 flex items-center gap-1.5 cursor-pointer transition-colors"
@@ -285,14 +359,14 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
       </div>
 
       {/* Chart Visualizer */}
-      {computedData.length > 0 && (
+      {dadosGrafico.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Timeline chart */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Comportamento Geral das Rotatividades (%)</h3>
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <AreaChart data={computedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <AreaChart data={dadosGrafico} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={accent} stopOpacity={0.2}/>
@@ -326,7 +400,7 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
             </p>
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={computedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <BarChart data={dadosGrafico} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="mesAno" stroke="#94a3b8" style={{ fontSize: 10, fontWeight: 600 }} />
                   <YAxis stroke="#94a3b8" style={{ fontSize: 10, fontWeight: 600 }} />
@@ -368,6 +442,14 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                       <div className="font-bold text-slate-850 flex items-center gap-1.5 whitespace-nowrap mb-0.5">
                         <Calendar className="w-4 h-4 text-slate-450" />
                         {item.mesAno}
+                        {temUnidadeLancada && (
+                          <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${
+                            item.unidade === 'universidade' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                            : item.unidade === 'colegio' ? 'bg-sky-50 text-sky-700 border-sky-200'
+                            : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                            {rotuloUnidade(item.unidade)}
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] font-semibold text-slate-500 ml-5">
                         Efetivo: {item.totalFuncionarios} colaboradores
@@ -468,6 +550,22 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                   value={mesAno}
                   onChange={(e) => setMesAno(e.target.value)}
                 />
+              </div>
+
+              <div>
+                <label htmlFor="trn-unidade" className="block text-xs font-bold text-slate-500 uppercase mb-1">Unidade</label>
+                <select id="trn-unidade"
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl cursor-pointer"
+                  value={unidade}
+                  onChange={(e) => setUnidade(e.target.value as '' | 'colegio' | 'universidade')}
+                >
+                  <option value="">Consolidado (as duas unidades juntas)</option>
+                  <option value="colegio">Colégio</option>
+                  <option value="universidade">Universidade</option>
+                </select>
+                <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                  Para acompanhar separado, lance dois registros no mesmo mês — um de cada unidade.
+                </p>
               </div>
 
               <div>

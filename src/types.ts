@@ -189,6 +189,16 @@ export interface Turnover {
   totalAdmissao: number;
   pediramSair: number;
   foramDesligados: number;
+  /**
+   * Unidade do registro. OPCIONAL de propósito: os meses cadastrados antes de
+   * 31/08/2026 são consolidados (Colégio + Universidade no mesmo número) e não
+   * há como dividi-los depois — ninguém sabe quanto de cada um está ali dentro.
+   * Ausente = consolidado; a tela mostra isso em vez de fingir uma unidade.
+   *
+   * Para separar de verdade, cadastra-se DOIS registros por mês, um de cada
+   * unidade. A soma continua dando o total do grupo.
+   */
+  unidade?: 'colegio' | 'universidade';
 }
 
 /**
