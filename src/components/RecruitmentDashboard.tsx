@@ -341,6 +341,43 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   const funilSel = useMemo(() => funilSelecao(selecoes), [selecoes]);
   const funilSelPorSede = useMemo(() => funilPorChave(selecoes, s => s.sede).slice(0, 10), [selecoes]);
 
+  /**
+   * Evolução mensal do quadro — a mesma leitura da tela de Turnover, trazida
+   * para os Indicadores porque é aqui que o RH olha. Ordena pelo próprio
+   * `mesAno` (a ordem que vem do onSnapshot não é cronológica) e soma os
+   * registros do mesmo mês, caso as duas unidades estejam lançadas.
+   */
+  const evolucaoTurnover = useMemo(() => {
+    const chave = (m?: string) => {
+      const p = /^(\d{2})\/(\d{4})$/.exec((m || '').trim());
+      return p ? Number(p[2]) * 12 + Number(p[1]) : -Infinity;
+    };
+
+    const porMes = new Map<string, { name: string; admissoes: number; pediramSair: number; foramDesligados: number; efetivo: number }>();
+    turnover.forEach(t => {
+      const mes = (t.mesAno || '').trim();
+      if (!mes) return;
+      const atual = porMes.get(mes) || { name: mes, admissoes: 0, pediramSair: 0, foramDesligados: 0, efetivo: 0 };
+      atual.admissoes += t.totalAdmissao || 0;
+      atual.pediramSair += t.pediramSair || 0;
+      atual.foramDesligados += t.foramDesligados || 0;
+      atual.efetivo += t.totalFuncionarios || 0;
+      porMes.set(mes, atual);
+    });
+
+    return [...porMes.values()]
+      .sort((a, b) => chave(a.name) - chave(b.name))
+      .map(m => ({
+        ...m,
+        saidas: m.pediramSair + m.foramDesligados,
+        // Mesma fórmula rotulada no módulo Turnover — duas fórmulas sob a mesma
+        // palavra dariam dois números diferentes no mesmo sistema.
+        taxa: m.efetivo > 0
+          ? Number(((((m.admissoes + m.pediramSair + m.foramDesligados) / 2) / m.efetivo) * 100).toFixed(1))
+          : 0,
+      }));
+  }, [turnover]);
+
   const etapaIncerteza = useMemo(() => ({
     semEtapa: tempoEtapaData.reduce((s, l) => s + l.semEtapa, 0),
     semData: tempoEtapaData.reduce((s, l) => s + l.semData, 0),
@@ -420,16 +457,24 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   }, [filteredEntrevistas]);
 
   // --- Headcount Admissions vs Exits Flow ---
-  const headcountFlowData = useMemo(() => {
-    return turnover.map(t => {
-      const exits = (t.pediramSair || 0) + (t.foramDesligados || 0);
-      return {
-        mes: t.mesAno,
-        Admissões: t.totalAdmissao || 0,
-        Desligamentos: exits
-      };
-    }).slice(-6); // Last 6 historical slots
-  }, [turnover]);
+  /**
+   * Últimos 12 meses da série mensal, para o gráfico de movimentação.
+   *
+   * Antes: `turnover.map(...).slice(-6)` — que pegava 6 meses na ordem em que o
+   * onSnapshot entregou, NÃO os 6 mais recentes, e somava as duas saídas numa
+   * barra só. `evolucaoTurnover` já vem ordenado e com as saídas separadas.
+   */
+  const headcountFlowData = useMemo(
+    () => evolucaoTurnover.slice(-12).map(m => ({
+      mes: m.name,
+      'Admissões': m.admissoes,
+      'Pediram para sair': m.pediramSair,
+      'Foram desligados': m.foramDesligados,
+      efetivo: m.efetivo,
+      taxa: m.taxa,
+    })),
+    [evolucaoTurnover]
+  );
 
   // --- Geração Automática de Insights Heurísticos (Rápidos / Offline) ---
   const heuristicInsights = useMemo(() => {
@@ -1113,7 +1158,9 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
               <Users className="w-5 h-5 text-indigo-600" />
               <span>Fluxo de Headcount & Turnover</span>
             </h4>
-            <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-6">Comparação Semestral: Admissões vs Desligamentos</p>
+            <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-6">
+              Mês a mês: quem entrou, quem pediu para sair e quem foi desligado
+            </p>
 
             <div className="h-60">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
@@ -1123,12 +1170,24 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
                   <YAxis fontSize={10} stroke={CHART.eixo} tickLine={false} />
                   <Tooltip content={<ChartTooltip />} cursor={BAR_CURSOR} />
                   <Legend verticalAlign="top" height={36} iconSize={10} wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                  <Bar dataKey="Admissões" fill={CHART.emerald} radius={[4, 4, 0, 0]} barSize={20} />
-                  <Bar dataKey="Desligamentos" fill={CHART.rose} radius={[4, 4, 0, 0]} barSize={20} />
+                  <Bar dataKey="Admissões" fill={CHART.emerald} radius={[4, 4, 0, 0]} barSize={14} />
+                  <Bar dataKey="Pediram para sair" fill={CHART.amber} radius={[4, 4, 0, 0]} barSize={14} />
+                  <Bar dataKey="Foram desligados" fill={CHART.rose} radius={[4, 4, 0, 0]} barSize={14} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <TabelaDoGrafico titulo="Admissões e desligamentos" linhas={headcountFlowData} colunas={[{ titulo: 'Mês', valor: (l: any) => l.mes }, { titulo: 'Admissões', valor: (l: any) => l['Admissões'], numerica: true }, { titulo: 'Desligamentos', valor: (l: any) => l['Desligamentos'], numerica: true }]} />
+            <TabelaDoGrafico
+              titulo="Movimentação do quadro mês a mês"
+              linhas={headcountFlowData}
+              colunas={[
+                { titulo: 'Mês', valor: (l: any) => l.mes },
+                { titulo: 'Efetivo', valor: (l: any) => l.efetivo, numerica: true },
+                { titulo: 'Admissões', valor: (l: any) => l['Admissões'], numerica: true },
+                { titulo: 'Pediram sair', valor: (l: any) => l['Pediram para sair'], numerica: true },
+                { titulo: 'Desligados', valor: (l: any) => l['Foram desligados'], numerica: true },
+                { titulo: 'Turnover', valor: (l: any) => `${l.taxa}%`, numerica: true },
+              ]}
+            />
           </div>
         </div>
 
