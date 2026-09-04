@@ -315,9 +315,15 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
             </div>
           </div>
 
-          {/* Hiring vs Dismissal flow */}
+          {/* Movimentação mês a mês. As saídas vêm SEPARADAS (pediu sair x foi
+              desligado): somadas numa barra só, escondiam a única metade sobre a
+              qual o RH consegue agir — quem pede para sair. Pedido do RH em
+              31/08/2026, para acompanhar a evolução de janeiro em diante. */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Fluxo de Movimentação do Quadro (Admissão vs Demissão)</h3>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Movimentação do Quadro mês a mês</h3>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-4">
+              Quem entrou, quem pediu para sair e quem foi desligado
+            </p>
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={computedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -327,7 +333,8 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                   <Tooltip />
                   <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
                   <Bar name="Admissões" dataKey="totalAdmissao" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar name="Saídas (Desligamentos)" dataKey="saidasTotais" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                  <Bar name="Pediram para sair" dataKey="pediramSair" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  <Bar name="Foram desligados" dataKey="foramDesligados" fill="#f43f5e" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
