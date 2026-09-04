@@ -90,6 +90,27 @@ describe('escoparListaPorUnidade (treinamentos/experiências/entrevistas)', () =
   });
 });
 
+describe('escoparListaPorUnidade — eventos de seleção', () => {
+  // O "Funil de Seleção" dos Indicadores somava as duas unidades num número só
+  // até 31/08/2026. Indicador do Colégio e da Universidade não se misturam.
+  const selecoes = [
+    { id: 's1', sede: 'DT' },                 // Colégio (sigla)
+    { id: 's2', sede: 'BS' },                 // Colégio
+    { id: 's3', sede: 'ALDEOTA' },            // Universidade
+    { id: 's4', sede: 'PARQUE ECOLÓGICO' },   // Universidade
+  ];
+  const ids = (l: { id: string }[]) => l.map(x => x.id);
+
+  it('Colégio não soma as convocações da Universidade', () => {
+    expect(ids(escoparListaPorUnidade(selecoes, s => s.sede, SEDES, 'SUL', false)))
+      .toEqual(['s1', 's2']);
+  });
+  it('Universidade não soma as do Colégio', () => {
+    expect(ids(escoparListaPorUnidade(selecoes, s => s.sede, SEDES, 'ALDEOTA', false)))
+      .toEqual(['s3', 's4']);
+  });
+});
+
 describe('escoparSedesPorUnidade (filtros)', () => {
   it('Colégio não lista sedes da Universidade', () => {
     expect(escoparSedesPorUnidade(SEDES, 'SUL', false).map(s => s.sigla))

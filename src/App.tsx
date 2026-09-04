@@ -249,6 +249,25 @@ export default function App() {
     [entrevistas, sedes, selectedSede, ehAdminPleno]
   );
 
+  // Eventos de seleção: escopados pela SEDE do evento, como as experiências.
+  // Sem isto, o "Funil de Seleção" dos Indicadores somava as convocações das
+  // duas unidades num número só — indicador do Colégio e da Universidade não se
+  // misturam.
+  const scopedSelecoes = useMemo(
+    () => escoparListaPorUnidade(selecoes, s => s.sede, sedes, selectedSede, ehAdminPleno),
+    [selecoes, sedes, selectedSede, ehAdminPleno]
+  );
+
+  // Turnover é o único módulo cujo registro NÃO tem sede — o escopo sai do campo
+  // `unidade` do próprio lançamento. Registro sem unidade é legado consolidado
+  // (as duas juntas): só o Administrador pleno o vê, porque exibi-lo para uma
+  // unidade seria mostrar o número da outra somado junto.
+  const scopedTurnover = useMemo(() => {
+    if (ehAdminPleno) return turnover;
+    const minha = usuarioEhUni ? 'universidade' : 'colegio';
+    return turnover.filter(t => t.unidade === minha);
+  }, [turnover, ehAdminPleno, usuarioEhUni]);
+
   // Módulo "Consultas": nasceu para o COLÉGIO. O registro tem só os cinco campos
   // do pedido — sem sede —, então não há como escopar a LISTA por unidade: o
   // isolamento é o gate de acesso, e a Universidade simplesmente não tem a aba
@@ -1249,7 +1268,7 @@ export default function App() {
               treinamentos={scopedTreinamentos}
               experiencias={scopedExperiencias}
               entrevistas={scopedEntrevistas}
-              turnover={turnover}
+              turnover={scopedTurnover}
               setActiveTab={setActiveTab}
               onFocusVaga={handleFocusVaga}
               userName={user?.displayName}
@@ -1265,9 +1284,9 @@ export default function App() {
               treinamentos={scopedTreinamentos}
               experiencias={scopedExperiencias}
               entrevistas={scopedEntrevistas}
-              turnover={turnover}
+              turnover={scopedTurnover}
               integracoes={scopedIntegracoes}
-              selecoes={selecoes}
+              selecoes={scopedSelecoes}
               mostrarIntegracao={podeVerIntegracao}
               sedes={scopedSedes}
               userSede={scopedUserSede}
@@ -1341,7 +1360,7 @@ export default function App() {
 
           {activeTab === 'turnover' && (
             <TurnoverSection 
-              turnover={turnover} 
+              turnover={scopedTurnover} 
               addTurnover={wrappedAddTurnover} 
               updateTurnover={wrappedUpdateTurnover}
               deleteTurnover={wrappedDeleteTurnover}
