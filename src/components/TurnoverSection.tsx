@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Turnover } from '../types';
 import { 
   Percent, 
@@ -60,12 +60,21 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
   const [editingTurnover, setEditingTurnover] = useState<Turnover | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Form states
-  const [mesAno, setMesAno] = useState('');
-  const [totalFuncionarios, setTotalFuncionarios] = useState<number>(150);
-  const [totalAdmissao, setTotalAdmissao] = useState<number>(5);
-  const [pediramSair, setPediramSair] = useState<number>(2);
-  const [foramDesligados, setForamDesligados] = useState<number>(2);
+  // Form states. Mês e ano são SEPARADOS: o `<input type="month">` obriga a
+  // digitar "mm/aaaa" e é a parte mais penosa do lançamento mensal.
+  const [mes, setMes] = useState('');
+  const [ano, setAno] = useState('');
+  const [totalFuncionarios, setTotalFuncionarios] = useState<number>(0);
+  const [totalAdmissao, setTotalAdmissao] = useState<number>(0);
+  const [pediramSair, setPediramSair] = useState<number>(0);
+  const [foramDesligados, setForamDesligados] = useState<number>(0);
+  /**
+   * O efetivo foi digitado à mão? Enquanto não for, ele é recalculado do mês
+   * anterior. Depois de editado, paramos de sobrescrever — quem digitou sabe de
+   * algo que a conta não sabe (transferência entre unidades, correção de
+   * cadastro), e apagar isso a cada tecla seria hostil.
+   */
+  const [efetivoManual, setEfetivoManual] = useState(false);
   // '' = consolidado (Colégio + Universidade no mesmo número), que é como os
   // meses antigos foram lançados.
   const [unidade, setUnidade] = useState<'' | 'colegio' | 'universidade'>('');
@@ -75,18 +84,35 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
   const rotuloUnidade = (u?: string) =>
     u === 'colegio' ? 'Colégio' : u === 'universidade' ? 'Universidade' : 'Consolidado';
 
-  const mesAnoToInput = (value: string) => {
-    const parts = value.split('/');
-    if (parts.length === 2) return `${parts[1]}-${parts[0].padStart(2, '0')}`;
-    return value;
-  };
+  const MESES = [
+    'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+    'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+  ];
+
+  /** Anos oferecidos: os já lançados + o corrente e o seguinte, sem buracos. */
+  const anosDisponiveis = useMemo(() => {
+    const atual = new Date().getFullYear();
+    const anos = new Set<number>([atual, atual + 1]);
+    turnover.forEach(t => {
+      const a = Number((t.mesAno || '').split('/')[1]);
+      if (a) anos.add(a);
+    });
+    const lista = [...anos].sort((a, b) => a - b);
+    // Preenche os buracos, para o dropdown não pular de 2023 para 2026.
+    return Array.from({ length: lista[lista.length - 1] - lista[0] + 1 }, (_, i) => lista[0] + i);
+  }, [turnover]);
 
   const resetForm = () => {
-    setMesAno('');
-    setTotalFuncionarios(150);
-    setTotalAdmissao(5);
-    setPediramSair(2);
-    setForamDesligados(2);
+    // Abre no mês PASSADO: "logar mês operacional" é fechar o mês que acabou.
+    const agora = new Date();
+    const anterior = new Date(agora.getFullYear(), agora.getMonth() - 1, 1);
+    setMes(String(anterior.getMonth() + 1).padStart(2, '0'));
+    setAno(String(anterior.getFullYear()));
+    setTotalFuncionarios(0);
+    setTotalAdmissao(0);
+    setPediramSair(0);
+    setForamDesligados(0);
+    setEfetivoManual(false);
     setUnidade('');
     setEditingTurnover(null);
     setErrorMsg('');
@@ -99,7 +125,11 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
 
   const openEditForm = (item: Turnover) => {
     setEditingTurnover(item);
-    setMesAno(mesAnoToInput(item.mesAno || ''));
+    const [m, a] = (item.mesAno || '').split('/');
+    setMes(m || '');
+    setAno(a || '');
+    // Editando, o efetivo é o que está gravado — nunca recalculado por cima.
+    setEfetivoManual(true);
     setTotalFuncionarios(item.totalFuncionarios || 0);
     setTotalAdmissao(item.totalAdmissao || 0);
     setPediramSair(item.pediramSair || 0);
@@ -198,20 +228,47 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
     };
   }, [computedData]);
 
+  const ordemMes = (m?: string) => {
+    const p = /^(\d{2})\/(\d{4})$/.exec((m || '').trim());
+    return p ? Number(p[2]) * 12 + Number(p[1]) : -Infinity;
+  };
+
+  /**
+   * Último mês lançado ANTES do escolhido, na mesma unidade — a base do efetivo.
+   * Compara pelo `mesAno`, não pela posição no array (a ordem do onSnapshot não
+   * é cronológica). Editando, ignora o próprio registro.
+   */
+  const mesBase = useMemo(() => {
+    if (!mes || !ano) return null;
+    const alvo = ordemMes(`${mes}/${ano}`);
+    return turnover
+      .filter(t => t.id !== editingTurnover?.id)
+      .filter(t => (t.unidade || '') === unidade)
+      .filter(t => ordemMes(t.mesAno) < alvo)
+      .sort((a, b) => ordemMes(a.mesAno) - ordemMes(b.mesAno))
+      .pop() || null;
+  }, [turnover, mes, ano, unidade, editingTurnover]);
+
+  /** Efetivo do mês anterior + entradas − saídas. */
+  const efetivoCalculado = mesBase
+    ? (mesBase.totalFuncionarios || 0) + totalAdmissao - pediramSair - foramDesligados
+    : null;
+
+  // Enquanto o campo não for tocado à mão, ele acompanha a conta.
+  useEffect(() => {
+    if (efetivoManual || efetivoCalculado === null) return;
+    setTotalFuncionarios(Math.max(0, efetivoCalculado));
+  }, [efetivoCalculado, efetivoManual]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
-    if (!mesAno.trim()) {
-      setErrorMsg("Por favor, preencha o Mês/Ano.");
+    if (!mes || !ano) {
+      setErrorMsg("Escolha o mês e o ano.");
       return;
     }
 
-    // Convert monthly select value from YYYY-MM to MM/YYYY
-    let cleanMesAno = mesAno;
-    if (mesAno.includes('-')) {
-      const parts = mesAno.split('-');
-      cleanMesAno = `${parts[1]}/${parts[0]}`;
-    }
+    const cleanMesAno = `${mes}/${ano}`;
 
     const payload = {
       mesAno: cleanMesAno,
@@ -541,15 +598,33 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                   {errorMsg}
                 </div>
               )}
-              <div>
-                <label htmlFor="trn-mes-de-referencia-mes-ano" className="block text-xs font-bold text-slate-500 uppercase mb-1">Mês de Referência (Mês/Ano) *</label>
-                <input id="trn-mes-de-referencia-mes-ano"
-                  type="month"
-                  required
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                  value={mesAno}
-                  onChange={(e) => setMesAno(e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="trn-mes" className="block text-xs font-bold text-slate-500 uppercase mb-1">Mês *</label>
+                  <select id="trn-mes"
+                    required
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl cursor-pointer capitalize"
+                    value={mes}
+                    onChange={(e) => setMes(e.target.value)}
+                  >
+                    <option value="">Selecione…</option>
+                    {MESES.map((nome, i) => (
+                      <option key={nome} value={String(i + 1).padStart(2, '0')}>{nome}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="trn-ano" className="block text-xs font-bold text-slate-500 uppercase mb-1">Ano *</label>
+                  <select id="trn-ano"
+                    required
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl cursor-pointer"
+                    value={ano}
+                    onChange={(e) => setAno(e.target.value)}
+                  >
+                    <option value="">Selecione…</option>
+                    {anosDisponiveis.map(a => <option key={a} value={String(a)}>{a}</option>)}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -566,17 +641,6 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                 <p className="text-[10px] text-slate-400 font-semibold mt-1">
                   Para acompanhar separado, lance dois registros no mesmo mês — um de cada unidade.
                 </p>
-              </div>
-
-              <div>
-                <label htmlFor="trn-total-ativo-de-funcionarios-ultimo-dia-d" className="block text-xs font-bold text-slate-500 uppercase mb-1">Total Ativo de Funcionários (Último dia do Mês)</label>
-                <input id="trn-total-ativo-de-funcionarios-ultimo-dia-d"
-                  type="number"
-                  placeholder="Ex: 154"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl font-mono text-slate-800"
-                  value={totalFuncionarios}
-                  onChange={(e) => setTotalFuncionarios(Number(e.target.value))}
-                />
               </div>
 
               <div className="grid grid-cols-3 gap-3 p-3.5 bg-slate-50 border rounded-2xl">
@@ -611,6 +675,48 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
                     title="Funcionários desligados de forma involuntária"
                   />
                 </div>
+              </div>
+
+              {/* Efetivo vem DEPOIS da movimentação porque é calculado a partir
+                  dela — e continua editável: a conta não sabe de transferência
+                  entre unidades nem de correção de cadastro. */}
+              <div>
+                <label htmlFor="trn-total-ativo-de-funcionarios-ultimo-dia-d" className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                  Total Ativo de Funcionários (Último dia do Mês)
+                </label>
+                <input id="trn-total-ativo-de-funcionarios-ultimo-dia-d"
+                  type="number"
+                  placeholder="Ex: 154"
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl font-mono text-slate-800"
+                  value={totalFuncionarios}
+                  onChange={(e) => { setEfetivoManual(true); setTotalFuncionarios(Number(e.target.value)); }}
+                />
+
+                {mesBase ? (
+                  <p className="text-[10px] font-semibold text-slate-500 mt-1.5 flex items-start gap-1">
+                    <Calculator className="w-3 h-3 shrink-0 mt-0.5 text-slate-400" />
+                    <span>
+                      {mesBase.totalFuncionarios} em {mesBase.mesAno} + {totalAdmissao} admissões
+                      − {pediramSair + foramDesligados} saídas = <strong className="text-slate-700">{efetivoCalculado}</strong>
+                      {efetivoManual && totalFuncionarios !== efetivoCalculado && (
+                        <>
+                          {' · '}
+                          <button
+                            type="button"
+                            onClick={() => { setEfetivoManual(false); setTotalFuncionarios(Math.max(0, efetivoCalculado ?? 0)); }}
+                            className="underline font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
+                          >
+                            usar a conta
+                          </button>
+                        </>
+                      )}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-[10px] font-semibold text-slate-400 mt-1.5">
+                    Sem mês anterior lançado nesta unidade — informe o efetivo.
+                  </p>
+                )}
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
