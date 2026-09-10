@@ -54,6 +54,7 @@ const TurnoverSection = lazyComRetry(() => import('./components/TurnoverSection'
 const RequisicoesSection = lazyComRetry(() => import('./components/RequisicoesSection').then(m => ({ default: m.RequisicoesSection })));
 const IntegracoesSection = lazyComRetry(() => import('./components/IntegracoesSection').then(m => ({ default: m.IntegracoesSection })));
 const ConsultasSection = lazyComRetry(() => import('./components/ConsultasSection').then(m => ({ default: m.ConsultasSection })));
+const AgendaSection = lazyComRetry(() => import('./components/AgendaSection').then(m => ({ default: m.AgendaSection })));
 import { 
   Briefcase, 
   BarChart3, 
@@ -65,6 +66,7 @@ import {
   ShieldAlert,
   GraduationCap,
   ClipboardList,
+  CalendarDays,
   ShieldCheck,
   HeartCrack,
   Percent,
@@ -208,7 +210,7 @@ export default function App() {
     [integracoes, sedes, selectedSede, isAdmin]
   );
 
-  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'integracao' | 'consultas' | 'admin'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'integracao' | 'consultas' | 'agenda' | 'admin'>('home');
   const scopedUserSede = isViewer ? '' : selectedSede;
   const canManageModules = !isViewer;
 
@@ -274,6 +276,12 @@ export default function App() {
   // (nem os dados, que só entram por aqui). Administrador pleno vê, como em tudo.
   const podeVerConsultas = ehAdminPleno || !usuarioEhUni;
   const { consultas, addConsulta, updateConsulta, deleteConsulta } = useConsultas(user, podeVerConsultas);
+
+  // Agenda diária (BETA): pedido do Diretor — o RH trabalha muito e não aparece,
+  // porque só existe o resumo do mês. Nasce só para o Colégio, como o Consultas.
+  // Não tem coleção própria: monta o dia a partir das listas JÁ ESCOPADAS por
+  // unidade, então o isolamento vem de graça.
+  const podeVerAgenda = podeVerConsultas;
 
   // Painel admin do Coordenador: vê/gerencia só a UNIDADE dele (Colégio OU
   // Universidade, conforme a região da sede do usuário). Usuário sem sede conta
@@ -966,6 +974,7 @@ export default function App() {
               {activeTab === 'requisicoes' && 'Requisições de Vaga'}
               {activeTab === 'integracao' && 'Treinamento de Integração'}
               {activeTab === 'consultas' && 'Consultas'}
+              {activeTab === 'agenda' && 'Agenda do RH'}
               {activeTab === 'admin' && 'Painel Administrativo'}
             </p>
           </div>
@@ -1155,6 +1164,24 @@ export default function App() {
                 >
                   <ClipboardList className="w-4 h-4 shrink-0 text-indigo-500" />
                   <span className="flex-1 text-left">Consultas</span>
+                </button>
+              )}
+
+              {podeVerAgenda && (
+                <button
+                  id="tab-agenda"
+                  onClick={() => setActiveTab('agenda')}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                    activeTab === 'agenda'
+                      ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
+                  }`}
+                >
+                  <CalendarDays className="w-4 h-4 shrink-0 text-indigo-500" />
+                  <span className="flex-1 text-left">Agenda</span>
+                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 leading-none shrink-0">
+                    BETA
+                  </span>
                 </button>
               )}
             </div>
@@ -1381,6 +1408,17 @@ export default function App() {
               confirmAction={askConfirmation}
               notify={notify}
               canManage={canManageModules}
+            />
+          )}
+
+          {activeTab === 'agenda' && podeVerAgenda && (
+            <AgendaSection
+              selecoes={scopedSelecoes}
+              vagas={scopedVagas}
+              integracoes={scopedIntegracoes}
+              entrevistas={scopedEntrevistas}
+              consultas={consultas}
+              experiencias={scopedExperiencias}
             />
           )}
 
