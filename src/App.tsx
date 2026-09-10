@@ -153,6 +153,8 @@ export default function App() {
     importExperiencias,
     selecoes,
     importSelecoes,
+    addSelecao,
+    updateSelecao,
     addEntrevista,
     updateEntrevista,
     deleteEntrevista,
@@ -282,6 +284,19 @@ export default function App() {
   // Não tem coleção própria: monta o dia a partir das listas JÁ ESCOPADAS por
   // unidade, então o isolamento vem de graça.
   const podeVerAgenda = podeVerConsultas;
+
+  // Agendar/confirmar seleção pela agenda, com auditoria como nos demais módulos.
+  const wrappedAgendarSelecao = (dados: any) =>
+    executeWithLoading("Agendando seleção...", async () => {
+      await addSelecao(dados);
+      await logAction('CRIOU', 'Vagas', `Seleção agendada: ${dados.cargo} em ${dados.sede}, ${dados.data} — ${dados.convocados} convocado(s).`);
+    });
+  const wrappedConfirmarSelecao = (id: string, campos: any) =>
+    executeWithLoading("Confirmando presença...", async () => {
+      const alvo = selecoes.find(s => s.id === id);
+      await updateSelecao(id, campos);
+      await logAction('ALTEROU', 'Vagas', `Presença confirmada na seleção de ${alvo?.cargo || id} (${alvo?.data}): ${campos.compareceram} de ${alvo?.convocados} compareceram.`);
+    });
 
   // Painel admin do Coordenador: vê/gerencia só a UNIDADE dele (Colégio OU
   // Universidade, conforme a região da sede do usuário). Usuário sem sede conta
@@ -1419,6 +1434,9 @@ export default function App() {
               entrevistas={scopedEntrevistas}
               consultas={consultas}
               experiencias={scopedExperiencias}
+              sedes={sedesIntegracao}
+              agendarSelecao={canManageModules ? wrappedAgendarSelecao : undefined}
+              confirmarSelecao={canManageModules ? wrappedConfirmarSelecao : undefined}
             />
           )}
 

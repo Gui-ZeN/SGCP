@@ -422,6 +422,9 @@ export function useOperationalModules(user?: any) {
     importExperiencias,
     selecoes: sel.items,
     importSelecoes,
+    // Agenda: agendar o dia de seleção antes e confirmar a presença depois.
+    addSelecao: sel.create,
+    updateSelecao: sel.update,
     addEntrevista,
     updateEntrevista,
     deleteEntrevista,

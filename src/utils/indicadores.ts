@@ -249,6 +249,8 @@ interface EventoSelecao {
   ausentes?: number;
   contratados?: number;
   desistiram?: number;
+  /** 'agendado' = ainda não aconteceu; ausente = realizado (importados). */
+  status?: string;
 }
 
 /**
@@ -263,7 +265,12 @@ interface EventoSelecao {
  * até `conv=0 comp=1`). Por isso `inconsistentes` volta junto e a tela mostra:
  * taxa parcial sem aviso vira taxa errada.
  */
-export function funilSelecao(list: EventoSelecao[]): FunilSelecao {
+export function funilSelecao(todos: EventoSelecao[]): FunilSelecao {
+  // Agendados ficam de FORA: um dia que ainda não chegou tem 0 presentes, e
+  // entraria no funil como comparecimento zero, derrubando a taxa por algo que
+  // simplesmente não aconteceu ainda. Registro sem status é realizado (os
+  // importados da planilha).
+  const list = todos.filter(e => (e.status || 'realizado') === 'realizado');
   const soma = (f: (e: EventoSelecao) => number) => list.reduce((acc, e) => acc + (Number(f(e)) || 0), 0);
 
   const convocados = soma(e => e.convocados || 0);

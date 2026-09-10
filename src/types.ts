@@ -225,6 +225,26 @@ export interface Selecao {
   desistiram: number;
   /** Motivos de desistência discriminados: { motivo: quantidade }. */
   motivos?: Record<string, number>;
+  /**
+   * Momento do registro. AUSENTE = realizado: os 220 eventos importados da
+   * planilha já tinham acontecido.
+   *
+   * Existe porque `compareceram: 0` é ambíguo sem ele — um dia agendado que
+   * ainda não chegou e um dia em que ninguém apareceu são opostos com o mesmo
+   * número. Sem separar, os agendamentos futuros entrariam no funil como 0% e
+   * derrubariam a taxa de comparecimento.
+   */
+  status?: 'agendado' | 'realizado';
+  /**
+   * Vaga que originou a convocação, quando agendada a partir dela.
+   *
+   * O vínculo seleção↔vaga foi impossível de reconstruir no histórico (89
+   * eventos para 17 vagas, cargo genérico, nenhuma data coincidindo). Quem
+   * AGENDA sabe para qual vaga está chamando, então daqui pra frente o vínculo
+   * nasce junto. Opcional: no pedagógico chamam "Professor(a)" sem vaga.
+   */
+  vagaId?: string;
+  vagaCodigo?: number;
 }
 
 export interface RecruiterStats {

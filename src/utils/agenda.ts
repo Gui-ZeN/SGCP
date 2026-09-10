@@ -15,9 +15,11 @@
  */
 
 import type { Selecao, Vaga, Integracao, Entrevista, Consulta, Experiencia } from '../types';
+import { ehRealizada } from './selecao';
 
 export type TipoEvento =
   | 'selecao'
+  | 'selecao-agendada'
   | 'vaga-aberta'
   | 'vaga-concluida'
   | 'integracao'
@@ -35,6 +37,9 @@ export interface EventoAgenda {
   contexto?: string;
   /** Números do evento, quando houver (convocados × presentes). */
   numeros?: string;
+  /** Preenchidos só em seleção — a agenda confirma a presença ali mesmo. */
+  selecaoId?: string;
+  convocados?: number;
 }
 
 export interface ResumoDoDia {
@@ -46,6 +51,8 @@ export interface ResumoDoDia {
   entrevistas: number;
   /** Prazos de experiência (45 e 90 dias) que vencem no dia. */
   prazos: number;
+  /** Seleções agendadas do dia ainda sem confirmação de presença. */
+  aConfirmar: number;
 }
 
 export interface AgendaDoDia {
@@ -81,17 +88,26 @@ export function montarAgendaDoDia(dia: string, fontes: FontesAgenda): AgendaDoDi
   const eventos: EventoAgenda[] = [];
   const resumo: ResumoDoDia = {
     convocados: 0, compareceram: 0, vagasAbertas: 0,
-    vagasConcluidas: 0, integracoes: 0, entrevistas: 0, prazos: 0,
+    vagasConcluidas: 0, integracoes: 0, entrevistas: 0, prazos: 0, aConfirmar: 0,
   };
 
   fontes.selecoes.filter(s => ehODia(s.data, dia)).forEach(s => {
+    const realizada = ehRealizada(s);
     resumo.convocados += s.convocados || 0;
-    resumo.compareceram += s.compareceram || 0;
+    // Presença só entra depois de confirmada — agendado tem 0 porque ainda não
+    // aconteceu, e somar isso faria o card do dia mentir.
+    if (realizada) resumo.compareceram += s.compareceram || 0;
+    else resumo.aConfirmar++;
+
     eventos.push({
-      tipo: 'selecao',
-      titulo: `Seleção — ${s.cargo}`,
+      tipo: realizada ? 'selecao' : 'selecao-agendada',
+      titulo: `Seleção — ${s.cargo}${s.vagaCodigo ? ` (vaga #${s.vagaCodigo})` : ''}`,
       contexto: [s.sede, s.responsavel].filter(Boolean).join(' · '),
-      numeros: `${s.convocados || 0} convocados · ${s.compareceram || 0} compareceram`,
+      numeros: realizada
+        ? `${s.convocados || 0} convocados · ${s.compareceram || 0} compareceram`
+        : `${s.convocados || 0} convocados · a confirmar`,
+      selecaoId: s.id,
+      convocados: s.convocados || 0,
     });
   });
 
@@ -188,5 +204,6 @@ export function resumoEmTexto(resumo: ResumoDoDia): string {
   if (resumo.integracoes) partes.push(plural(resumo.integracoes, 'integração', 'integrações'));
   if (resumo.entrevistas) partes.push(plural(resumo.entrevistas, 'entrevista de saída', 'entrevistas de saída'));
   if (resumo.prazos) partes.push(plural(resumo.prazos, 'prazo de experiência', 'prazos de experiência'));
+  if (resumo.aConfirmar) partes.push(plural(resumo.aConfirmar, 'seleção a confirmar', 'seleções a confirmar'));
   return partes.length ? partes.join(' · ') : 'Nenhum registro neste dia.';
 }

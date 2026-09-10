@@ -288,3 +288,29 @@ describe('taxaTurnover — cobertura declarada', () => {
     expect(r.cobertura).toBe('colegio');
   });
 });
+
+describe('funilSelecao — agendados não entram na conta', () => {
+  const realizado = { convocados: 10, compareceram: 4, ausentes: 6, status: 'realizado' };
+  const agendado = { convocados: 20, compareceram: 0, ausentes: 0, status: 'agendado' };
+
+  it('agendamento futuro não derruba a taxa de comparecimento', () => {
+    const so = funilSelecao([realizado]);
+    const com = funilSelecao([realizado, agendado]);
+
+    expect(so.taxaComparecimento).toBe(40);
+    expect(com.taxaComparecimento).toBe(40);   // o agendado foi ignorado
+    expect(com.convocados).toBe(10);
+    expect(com.eventos).toBe(1);
+  });
+
+  it('registro sem status continua contando (importados da planilha)', () => {
+    expect(funilSelecao([{ convocados: 10, compareceram: 5, ausentes: 5 }]).eventos).toBe(1);
+  });
+
+  it('só agendados devolve funil vazio, não taxa zero enganosa', () => {
+    const f = funilSelecao([agendado]);
+    expect(f.eventos).toBe(0);
+    expect(f.convocados).toBe(0);
+    expect(f.taxaComparecimento).toBe(0);
+  });
+});
