@@ -376,7 +376,10 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
       {/* KPI Stats Widgets */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Total Turnover Avg */}
-        <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-5 rounded-2xl border border-slate-700 shadow-md flex items-center justify-between">
+        {/* Fundo CHAPADO, não gradiente: o tema Suíço zera background-image
+            (`[class*="bg-gradient-"]`), e este cartão usava o gradiente como
+            único fundo — sobrava texto branco em cartão claro. */}
+        <div className="bg-slate-900 text-white p-5 rounded-2xl border border-slate-700 shadow-md flex items-center justify-between">
           <div>
             <span className="text-[10px] uppercase font-bold text-slate-350 tracking-wider flex items-center gap-1">
               <Calculator className="w-3.5 h-3.5 text-orange-400" />
