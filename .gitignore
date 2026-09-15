@@ -16,3 +16,5 @@ vagas.json
 
 # Cache local do detector do impeccable (o config.json fica versionado).
 .impeccable/hook.cache.json
+# Estado efêmero da sessão `live` (servidor, anotações) — não é fonte.
+.impeccable/live/
