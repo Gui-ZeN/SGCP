@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { montarAgendaDoDia, resumoEmTexto, type FontesAgenda } from './agenda';
+import { montarAgendaDoDia, resumoEmTexto, resumoDeOutrosModulos, type FontesAgenda } from './agenda';
 
 const VAZIO: FontesAgenda = {
   selecoes: [], vagas: [], integracoes: [], entrevistas: [], consultas: [], experiencias: [],
@@ -118,5 +118,34 @@ describe('resumoEmTexto', () => {
 
   it('dia vazio diz que está vazio, em vez de uma frase truncada', () => {
     expect(resumoEmTexto(montarAgendaDoDia(DIA, VAZIO).resumo)).toBe('Nenhum registro neste dia.');
+  });
+});
+
+describe('resumoDeOutrosModulos', () => {
+  const resumoDoDia = (parcial: Partial<FontesAgenda>) =>
+    resumoDeOutrosModulos(montarAgendaDoDia(DIA, fontes(parcial)).resumo);
+
+  it('não repete o que a tabela de seleções já mostra', () => {
+    const texto = resumoDoDia({
+      selecoes: [{ data: DIA, cargo: 'ASG', sede: 'DT', convocados: 10, compareceram: 4 }] as any,
+    });
+    expect(texto).toBe('');
+  });
+
+  it('lista o resto do dia do RH', () => {
+    const texto = resumoDoDia({
+      selecoes: [{ data: DIA, cargo: 'ASG', sede: 'DT', convocados: 10, compareceram: 4 }] as any,
+      integracoes: [{ dataIntegracao: DIA, nome: 'Ana', sede: 'DT' }] as any,
+      entrevistas: [{ dataEntrevista: DIA, colaborador: 'João' }] as any,
+      vagas: [{ solicitacao: DIA, vaga: 'ASG', sede: 'DT' }] as any,
+    });
+    expect(texto).toBe('1 vaga aberta · 1 integração · 1 entrevista de saída');
+  });
+
+  it('pluraliza sem "(s)" na cara do usuário', () => {
+    const texto = resumoDoDia({
+      integracoes: [{ dataIntegracao: DIA, nome: 'Ana' }, { dataIntegracao: DIA, nome: 'Bia' }] as any,
+    });
+    expect(texto).toBe('2 integrações');
   });
 });

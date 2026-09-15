@@ -15,7 +15,7 @@
  */
 
 import type { Selecao, Vaga, Integracao, Entrevista, Consulta, Experiencia } from '../types';
-import { ehRealizada } from './selecao';
+import { ehRealizada, codigosDasVagas } from './selecao';
 
 export type TipoEvento =
   | 'selecao'
@@ -101,7 +101,12 @@ export function montarAgendaDoDia(dia: string, fontes: FontesAgenda): AgendaDoDi
 
     eventos.push({
       tipo: realizada ? 'selecao' : 'selecao-agendada',
-      titulo: `Seleção — ${s.cargo}${s.vagaCodigo ? ` (vaga #${s.vagaCodigo})` : ''}`,
+      titulo: (() => {
+        const codigos = codigosDasVagas(s);
+        if (!codigos.length) return `Seleção — ${s.cargo}`;
+        const rotulo = codigos.length === 1 ? 'vaga' : 'vagas';
+        return `Seleção — ${s.cargo} (${rotulo} ${codigos.map(c => `#${c}`).join(' ')})`;
+      })(),
       contexto: [s.sede, s.responsavel].filter(Boolean).join(' · '),
       numeros: realizada
         ? `${s.convocados || 0} convocados · ${s.compareceram || 0} compareceram`
@@ -192,6 +197,24 @@ export function montarAgendaDoDia(dia: string, fontes: FontesAgenda): AgendaDoDi
   });
 
   return { resumo, eventos };
+}
+
+/**
+ * O que o dia teve FORA de seleção, em uma linha.
+ *
+ * A tela de Seleções é a folha do dia, no formato das abas QUANTI. O resto do
+ * RH (integração, desligamento, vaga, prazo de experiência) não some por isso:
+ * vira esta linha no topo. Sem ela, o dia do RH voltaria a ser só seleção —
+ * exatamente a cegueira que a Diretoria reclamou.
+ */
+export function resumoDeOutrosModulos(resumo: ResumoDoDia): string {
+  const partes: string[] = [];
+  if (resumo.vagasAbertas) partes.push(plural(resumo.vagasAbertas, 'vaga aberta', 'vagas abertas'));
+  if (resumo.vagasConcluidas) partes.push(plural(resumo.vagasConcluidas, 'vaga concluída', 'vagas concluídas'));
+  if (resumo.integracoes) partes.push(plural(resumo.integracoes, 'integração', 'integrações'));
+  if (resumo.entrevistas) partes.push(plural(resumo.entrevistas, 'entrevista de saída', 'entrevistas de saída'));
+  if (resumo.prazos) partes.push(plural(resumo.prazos, 'prazo de experiência', 'prazos de experiência'));
+  return partes.join(' · ');
 }
 
 /** Uma frase com o que o dia rendeu — o "apareceu" que o Diretor pediu. */

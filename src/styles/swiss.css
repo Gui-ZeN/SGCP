@@ -95,9 +95,12 @@ html[data-theme="swiss"] .bg-clip-text {
 html[data-theme="swiss"] .bg-slate-50 { background-color: var(--sgpc-canvas) !important; }   /* chão */
 html[data-theme="swiss"] .bg-white { background-color: var(--sgpc-papel) !important; }      /* painel */
 html[data-theme="swiss"] .bg-slate-100 { background-color: var(--sgpc-superficie) !important; }
-/* Sidebar = chão (não um bloco branco). Seletor com classe vence o .bg-white !important. */
+/* Sidebar = chão (não um bloco branco). Seletor com classe vence o .bg-white !important.
+   `#nav-principal` porque o menu lateral virou <nav> (era <aside>): navegação
+   primária anunciada como landmark de navegação, não como complementar. */
 html[data-theme="swiss"] aside.bg-white,
-html[data-theme="swiss"] aside { background-color: var(--sgpc-canvas) !important; }
+html[data-theme="swiss"] aside,
+html[data-theme="swiss"] #nav-principal { background-color: var(--sgpc-canvas) !important; }
 
 /* Cartões ganham hairline crisp (substitui a profundidade que vinha da sombra) */
 html[data-theme="swiss"] .rounded-2xl,
@@ -116,7 +119,8 @@ html[data-theme="swiss"] .border-slate-950,
 html[data-theme="swiss"] .border-slate-900 { border-color: var(--sgpc-tinta) !important; }
 /* No menu lateral, o item selecionado usa o acento cobalto (não preto) — fica mais
    "você está aqui" e menos pesado. Vale também pro chip de tema. */
-html[data-theme="swiss"] aside .bg-slate-900 { background-color: var(--sgpc-acento) !important; }
+html[data-theme="swiss"] aside .bg-slate-900,
+html[data-theme="swiss"] #nav-principal .bg-slate-900 { background-color: var(--sgpc-acento) !important; }
 
 /* ===== Acento único: laranja (marca) + índigo (dados) → cobalto ===== */
 /* Disciplina suíça de UM acento: tudo que era laranja ou índigo vira cobalto.
@@ -243,7 +247,8 @@ html[data-theme="swiss"] .border-t-slate-400, html[data-theme="swiss"] .border-t
 
 /* Ícones das abas do menu: monocromáticos (herdam a cor do botão) — acaba com o
    "arco-íris" da lateral. Só no Suíço; o tema Clássico segue colorido. */
-html[data-theme="swiss"] aside button[id^="tab-"] svg { color: inherit !important; }
+html[data-theme="swiss"] aside button[id^="tab-"] svg,
+html[data-theme="swiss"] #nav-principal button[id^="tab-"] svg { color: inherit !important; }
 
 /* ===== Form controls: caixa hairline precisa ===== */
 html[data-theme="swiss"] input,

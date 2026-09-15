@@ -57,6 +57,56 @@ export function validarConfirmacao(convocados: number, compareceram: number): st
   return erros;
 }
 
+/**
+ * Códigos das vagas ligadas à seleção, em um formato só.
+ *
+ * Lê a LISTA (formato atual) e cai no campo único dos registros gravados antes
+ * dela. Sem isto, toda tela que mostra o vínculo precisaria conhecer os dois
+ * formatos — e os agendamentos de setembro apareceriam sem vaga nenhuma.
+ */
+export function codigosDasVagas(s: Pick<Selecao, 'vagaCodigos' | 'vagaCodigo'>): number[] {
+  if (s.vagaCodigos?.length) return s.vagaCodigos;
+  return s.vagaCodigo === undefined || s.vagaCodigo === null ? [] : [s.vagaCodigo];
+}
+
+export interface TotaisDeSelecao {
+  convocados: number;
+  compareceram: number;
+  ausentes: number;
+  desistiram: number;
+  contratados: number;
+  /** Quantos dias ainda esperam confirmação de presença. */
+  aConfirmar: number;
+  /** % de comparecimento, ou null quando não há dia realizado para medir. */
+  taxa: number | null;
+}
+
+/**
+ * Soma os dias de seleção — a linha "TOTAL" que as abas QUANTI trazem no topo.
+ *
+ * Agendado NÃO entra no numerador nem no denominador da taxa: um dia que ainda
+ * não chegou tem `compareceram: 0`, e somá-lo derrubaria o comparecimento por
+ * um evento que nem aconteceu. Ele aparece só em `aConfirmar`.
+ */
+export function totaisDeSelecoes(selecoes: Selecao[]): TotaisDeSelecao {
+  const realizadas = selecoes.filter(ehRealizada);
+  const soma = (campo: keyof Pick<Selecao, 'convocados' | 'compareceram' | 'ausentes' | 'desistiram' | 'contratados'>) =>
+    realizadas.reduce((t, s) => t + (s[campo] || 0), 0);
+
+  const convocados = soma('convocados');
+  const compareceram = soma('compareceram');
+
+  return {
+    convocados,
+    compareceram,
+    ausentes: soma('ausentes'),
+    desistiram: soma('desistiram'),
+    contratados: soma('contratados'),
+    aConfirmar: selecoes.length - realizadas.length,
+    taxa: convocados === 0 ? null : Math.round((compareceram / convocados) * 1000) / 10,
+  };
+}
+
 /** Campos gravados ao confirmar: ausentes saem da conta, não da digitação. */
 export function camposDaConfirmacao(convocados: number, compareceram: number): Pick<Selecao, 'status' | 'compareceram' | 'ausentes'> {
   return {

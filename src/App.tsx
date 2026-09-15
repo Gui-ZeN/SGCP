@@ -54,7 +54,7 @@ const TurnoverSection = lazyComRetry(() => import('./components/TurnoverSection'
 const RequisicoesSection = lazyComRetry(() => import('./components/RequisicoesSection').then(m => ({ default: m.RequisicoesSection })));
 const IntegracoesSection = lazyComRetry(() => import('./components/IntegracoesSection').then(m => ({ default: m.IntegracoesSection })));
 const ConsultasSection = lazyComRetry(() => import('./components/ConsultasSection').then(m => ({ default: m.ConsultasSection })));
-const AgendaSection = lazyComRetry(() => import('./components/AgendaSection').then(m => ({ default: m.AgendaSection })));
+const SelecoesSection = lazyComRetry(() => import('./components/SelecoesSection').then(m => ({ default: m.SelecoesSection })));
 import { 
   Briefcase, 
   BarChart3, 
@@ -66,11 +66,13 @@ import {
   ShieldAlert,
   GraduationCap,
   ClipboardList,
-  CalendarDays,
+  Users,
   ShieldCheck,
   HeartCrack,
   Percent,
-  User
+  User,
+  Menu,
+  X
 } from 'lucide-react';
 import { auth, googleProvider, isFirebaseEnabled, db } from './lib/firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
@@ -212,7 +214,12 @@ export default function App() {
     [integracoes, sedes, selectedSede, isAdmin]
   );
 
-  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'integracao' | 'consultas' | 'agenda' | 'admin'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'integracao' | 'consultas' | 'selecoes' | 'admin'>('home');
+  // Menu em gaveta abaixo de `lg`. Antes a sidebar virava uma fita horizontal de
+  // colunas: 1408px de conteúdo num celular de 375px, com 8 dos 12 itens fora da
+  // tela e o "Sair" com 0×0. Na gaveta cabe a lista inteira, com rótulo e nome
+  // do grupo — os mesmos que o desktop mostra.
+  const [menuAberto, setMenuAberto] = useState(false);
   const scopedUserSede = isViewer ? '' : selectedSede;
   const canManageModules = !isViewer;
 
@@ -279,13 +286,14 @@ export default function App() {
   const podeVerConsultas = ehAdminPleno || !usuarioEhUni;
   const { consultas, addConsulta, updateConsulta, deleteConsulta } = useConsultas(user, podeVerConsultas);
 
-  // Agenda diária (BETA): pedido do Diretor — o RH trabalha muito e não aparece,
-  // porque só existe o resumo do mês. Nasce só para o Colégio, como o Consultas.
-  // Não tem coleção própria: monta o dia a partir das listas JÁ ESCOPADAS por
-  // unidade, então o isolamento vem de graça.
-  const podeVerAgenda = podeVerConsultas;
+  // Seleções: o dia de seleção nas colunas das abas QUANTI da planilha do RH.
+  // Substituiu a Agenda beta — as abas de seleção JÁ são a agenda deles, e uma
+  // segunda linguagem para o mesmo trabalho era custo sem ganho. Não tem coleção
+  // própria além de `selecoes`: o resto do dia vem das listas JÁ ESCOPADAS por
+  // unidade, então o isolamento Colégio × Universidade vem de graça.
+  const podeVerSelecoes = podeVerConsultas;
 
-  // Agendar/confirmar seleção pela agenda, com auditoria como nos demais módulos.
+  // Agendar/confirmar seleção, com auditoria como nos demais módulos.
   const wrappedAgendarSelecao = (dados: any) =>
     executeWithLoading("Agendando seleção...", async () => {
       await addSelecao(dados);
@@ -971,6 +979,16 @@ export default function App() {
       <header className="no-print flex items-center justify-between bg-white py-3.5 px-6 border-b border-slate-200 shadow-xs shrink-0 z-10 gap-4">
         {/* Logo and Dynamic Screen Name */}
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setMenuAberto(true)}
+            aria-label="Abrir menu de navegação"
+            aria-expanded={menuAberto}
+            aria-controls="nav-principal"
+            className="lg:hidden w-11 h-11 -ml-2 shrink-0 flex items-center justify-center rounded-2xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer transition"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <LogoSGPC className="w-9 h-9 rounded-xl shrink-0" />
           <div>
             <h1 className="text-sm font-extrabold text-slate-800 tracking-tight leading-none flex items-center gap-1">
@@ -989,7 +1007,7 @@ export default function App() {
               {activeTab === 'requisicoes' && 'Requisições de Vaga'}
               {activeTab === 'integracao' && 'Treinamento de Integração'}
               {activeTab === 'consultas' && 'Consultas'}
-              {activeTab === 'agenda' && 'Agenda do RH'}
+              {activeTab === 'selecoes' && 'Seleções'}
               {activeTab === 'admin' && 'Painel Administrativo'}
             </p>
           </div>
@@ -1019,19 +1037,52 @@ export default function App() {
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
         
         {/* Navigation Sidebar Drawer */}
-        <aside className="no-print w-full lg:w-64 bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-5 flex flex-row lg:flex-col gap-4 overflow-x-auto lg:overflow-y-auto scrollbar-none shrink-0 justify-between">
-          
-          <div className="flex flex-row lg:flex-col gap-4 w-full">
+        {menuAberto && (
+          <div
+            className="lg:hidden fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[1px]"
+            onClick={() => setMenuAberto(false)}
+            aria-hidden="true"
+          />
+        )}
+        <nav
+          id="nav-principal"
+          aria-label="Navegação principal"
+          className={`no-print bg-white border-slate-200 p-5 flex flex-col gap-4 shrink-0 overflow-hidden
+            fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] border-r shadow-2xl transition-transform duration-200 ${
+              menuAberto ? 'translate-x-0' : '-translate-x-full'
+            }
+            lg:static lg:translate-x-0 lg:w-64 lg:max-w-none lg:shadow-none lg:transition-none`}
+        >
+          <div className="lg:hidden flex items-center justify-between shrink-0">
+            <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Navegação</span>
+            <button
+              type="button"
+              onClick={() => setMenuAberto(false)}
+              aria-label="Fechar menu"
+              className="w-11 h-11 -mr-2 flex items-center justify-center rounded-2xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Só a lista rola; o cartão de usuário fica ancorado embaixo. Em
+              notebook 1366×768 os 12 itens não cabiam e o `scrollbar-none`
+              escondia que havia mais — o Painel Admin e o Sair ficavam
+              inalcançáveis. */}
+          <div
+            onClick={() => setMenuAberto(false)}
+            className="flex flex-col gap-4 w-full flex-1 min-h-0 overflow-y-auto nav-scroll"
+          >
             
             {/* Category 1: Visão Geral */}
-            <div className="space-y-1 w-full shrink-0 lg:shrink">
-              <div className="hidden lg:block px-3 py-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+            <div className="space-y-1 w-full shrink-0">
+              <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
                 Visão geral
               </div>
               <button
                 id="tab-home"
                 onClick={() => setActiveTab('home')}
-                className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
                   activeTab === 'home' 
                     ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10' 
                     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
@@ -1046,7 +1097,7 @@ export default function App() {
               <button
                 id="tab-dashboard"
                 onClick={() => setActiveTab('dashboard')}
-                className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
                   activeTab === 'dashboard' 
                     ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10' 
                     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
@@ -1058,14 +1109,14 @@ export default function App() {
             </div>
 
             {/* Category 2: Recrutamento */}
-            <div className="space-y-1 w-full shrink-0 lg:shrink">
-              <div className="hidden lg:block px-3 py-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider mt-1">
+            <div className="space-y-1 w-full shrink-0">
+              <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-500 tracking-wider mt-1">
                 Recrutamento
               </div>
               <button
                 id="tab-vagas"
                 onClick={() => setActiveTab('vagas')}
-                className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
                   activeTab === 'vagas' 
                     ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10' 
                     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
@@ -1079,7 +1130,7 @@ export default function App() {
                 <button
                   id="tab-requisicoes"
                   onClick={() => setActiveTab('requisicoes')}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                  className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
                     activeTab === 'requisicoes'
                       ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
                       : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
@@ -1092,18 +1143,33 @@ export default function App() {
                   )}
                 </button>
               )}
+
+              {podeVerSelecoes && (
+                <button
+                  id="tab-selecoes"
+                  onClick={() => setActiveTab('selecoes')}
+                  className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                    activeTab === 'selecoes'
+                      ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
+                  }`}
+                >
+                  <Users className="w-4 h-4 shrink-0 text-indigo-500" />
+                  <span className="flex-1 text-left">Seleções</span>
+                </button>
+              )}
             </div>
 
             {/* Category 3: Gestão */}
-            <div className="space-y-1 w-full shrink-0 lg:shrink">
-              <div className="hidden lg:block px-3 py-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider mt-1">
+            <div className="space-y-1 w-full shrink-0">
+              <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-500 tracking-wider mt-1">
                 Gestão
               </div>
               
               <button
                 id="tab-treinamentos"
                 onClick={() => setActiveTab('treinamentos')}
-                className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
                   activeTab === 'treinamentos' 
                     ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10' 
                     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
@@ -1116,7 +1182,7 @@ export default function App() {
               <button
                 id="tab-experiencias"
                 onClick={() => setActiveTab('experiencias')}
-                className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
                   activeTab === 'experiencias' 
                     ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10' 
                     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
@@ -1129,7 +1195,7 @@ export default function App() {
               <button
                 id="tab-entrevistas"
                 onClick={() => setActiveTab('entrevistas')}
-                className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
                   activeTab === 'entrevistas' 
                     ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10' 
                     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
@@ -1142,7 +1208,7 @@ export default function App() {
               <button
                 id="tab-turnover"
                 onClick={() => setActiveTab('turnover')}
-                className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
                   activeTab === 'turnover' 
                     ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10' 
                     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
@@ -1156,7 +1222,7 @@ export default function App() {
                 <button
                   id="tab-integracao"
                   onClick={() => setActiveTab('integracao')}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                  className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
                     activeTab === 'integracao'
                       ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
                       : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
@@ -1171,7 +1237,7 @@ export default function App() {
                 <button
                   id="tab-consultas"
                   onClick={() => setActiveTab('consultas')}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                  className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
                     activeTab === 'consultas'
                       ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
                       : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
@@ -1182,36 +1248,19 @@ export default function App() {
                 </button>
               )}
 
-              {podeVerAgenda && (
-                <button
-                  id="tab-agenda"
-                  onClick={() => setActiveTab('agenda')}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                    activeTab === 'agenda'
-                      ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
-                  }`}
-                >
-                  <CalendarDays className="w-4 h-4 shrink-0 text-indigo-500" />
-                  <span className="flex-1 text-left">Agenda</span>
-                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 leading-none shrink-0">
-                    BETA
-                  </span>
-                </button>
-              )}
             </div>
 
             {/* Category 4: Sistema / Admin (Administrador completo ou Coordenador regional) */}
             {(isAdmin || isCoord) && (
-              <div className="space-y-1 w-full shrink-0 lg:shrink">
-                <div className="hidden lg:block px-3 py-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider mt-1">
+              <div className="space-y-1 w-full shrink-0">
+                <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-500 tracking-wider mt-1">
                   Sistema
                 </div>
                 {(isAdmin || isCoord) && (
                   <button
                     id="tab-admin"
                     onClick={() => setActiveTab('admin')}
-                    className={`flex items-center gap-2.5 px-3 py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                    className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
                       activeTab === 'admin' 
                         ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/15' 
                         : 'text-slate-500 hover:text-indigo-600 hover:bg-slate-100/70'
@@ -1226,7 +1275,7 @@ export default function App() {
           </div>
 
           {/* Sidebar Footer User Card with Integrated System Indicators & Copyright */}
-          <div className="hidden lg:flex flex-col gap-3 mt-auto pt-4 border-t border-slate-100 w-full shrink-0">
+          <div className="flex flex-col gap-3 pt-4 border-t border-slate-100 w-full shrink-0">
             {user ? (
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center gap-3">
                 {user.photoURL ? (
@@ -1256,7 +1305,7 @@ export default function App() {
                   </div>
                   <button
                     onClick={handleLogout}
-                    className="text-[9px] text-rose-500 hover:text-rose-700 font-extrabold uppercase tracking-wider block mt-2 cursor-pointer leading-none hover:underline animate-duration-150"
+                    className="text-[10px] text-rose-600 hover:text-rose-700 font-extrabold uppercase tracking-wider inline-flex items-center mt-1.5 -mx-1 px-1 min-h-[32px] cursor-pointer hover:underline animate-duration-150"
                   >
                     Sair
                   </button>
@@ -1288,7 +1337,7 @@ export default function App() {
               </div>
             </div>
           </div>
-        </aside>
+        </nav>
 
         {/* Dynamic Content Pane - scrollable workspace */}
         <main className="flex-1 bg-slate-50 p-6 lg:p-8 overflow-y-auto min-h-0 h-full">
@@ -1426,8 +1475,8 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'agenda' && podeVerAgenda && (
-            <AgendaSection
+          {activeTab === 'selecoes' && podeVerSelecoes && (
+            <SelecoesSection
               selecoes={scopedSelecoes}
               vagas={scopedVagas}
               integracoes={scopedIntegracoes}
@@ -1435,6 +1484,8 @@ export default function App() {
               consultas={consultas}
               experiencias={scopedExperiencias}
               sedes={sedesIntegracao}
+              sedePadrao={scopedUserSede}
+              responsavelPadrao={user?.displayName || ''}
               agendarSelecao={canManageModules ? wrappedAgendarSelecao : undefined}
               confirmarSelecao={canManageModules ? wrappedConfirmarSelecao : undefined}
             />

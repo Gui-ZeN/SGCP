@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { ehRealizada, estaAtrasada, validarAgendamento, validarConfirmacao, camposDaConfirmacao } from './selecao';
+import { ehRealizada, estaAtrasada, validarAgendamento, validarConfirmacao, camposDaConfirmacao, totaisDeSelecoes, codigosDasVagas } from './selecao';
+import type { Selecao } from '../types';
+
+const dia = (over: Partial<Selecao>): Selecao => ({
+  id: 'x', data: '10/09/2026', cargo: 'ASG', sede: 'DT', responsavel: 'Arlana',
+  origem: 'geral', convocados: 0, compareceram: 0, ausentes: 0, contratados: 0,
+  desistiram: 0, ...over,
+});
 
 describe('ehRealizada', () => {
   it('registro SEM status conta como realizado (os 220 importados da planilha)', () => {
@@ -67,5 +74,56 @@ describe('camposDaConfirmacao', () => {
   });
   it('nunca devolve ausentes negativo', () => {
     expect(camposDaConfirmacao(3, 3).ausentes).toBe(0);
+  });
+});
+
+describe('totaisDeSelecoes', () => {
+  it('soma os dias realizados e calcula a taxa', () => {
+    const t = totaisDeSelecoes([
+      dia({ convocados: 10, compareceram: 4, ausentes: 6, desistiram: 2, contratados: 1 }),
+      dia({ convocados: 10, compareceram: 6, ausentes: 4 }),
+    ]);
+    expect(t).toMatchObject({ convocados: 20, compareceram: 10, ausentes: 10, desistiram: 2, contratados: 1, taxa: 50 });
+  });
+
+  it('agendado fica fora da taxa — senão um dia que nem chegou derruba o indicador', () => {
+    const t = totaisDeSelecoes([
+      dia({ convocados: 10, compareceram: 5, ausentes: 5 }),
+      dia({ status: 'agendado', convocados: 40 }),
+    ]);
+    expect(t.convocados).toBe(10);
+    expect(t.taxa).toBe(50);
+    expect(t.aConfirmar).toBe(1);
+  });
+
+  it('sem nada realizado a taxa é null, não zero', () => {
+    expect(totaisDeSelecoes([dia({ status: 'agendado', convocados: 5 })]).taxa).toBeNull();
+    expect(totaisDeSelecoes([]).taxa).toBeNull();
+  });
+
+  it('arredonda a taxa a uma casa', () => {
+    expect(totaisDeSelecoes([dia({ convocados: 3, compareceram: 1 })]).taxa).toBe(33.3);
+  });
+});
+
+describe('codigosDasVagas', () => {
+  it('lê a lista de vagas — uma seleção atende várias', () => {
+    expect(codigosDasVagas({ vagaCodigos: [31, 1120] })).toEqual([31, 1120]);
+  });
+
+  it('ainda lê o vínculo único gravado antes da lista', () => {
+    expect(codigosDasVagas({ vagaCodigo: 24 })).toEqual([24]);
+  });
+
+  it('a lista tem precedência quando os dois existem', () => {
+    expect(codigosDasVagas({ vagaCodigos: [31, 1120], vagaCodigo: 24 })).toEqual([31, 1120]);
+  });
+
+  it('seleção sem vaga devolve lista vazia (pedagógico chama sem vaga)', () => {
+    expect(codigosDasVagas({})).toEqual([]);
+  });
+
+  it('código zero não é tratado como ausência', () => {
+    expect(codigosDasVagas({ vagaCodigo: 0 })).toEqual([0]);
   });
 });

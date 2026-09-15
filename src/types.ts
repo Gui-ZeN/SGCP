@@ -236,14 +236,23 @@ export interface Selecao {
    */
   status?: 'agendado' | 'realizado';
   /**
-   * Vaga que originou a convocação, quando agendada a partir dela.
+   * Vagas que originaram a convocação, quando agendada a partir delas.
+   *
+   * É LISTA porque um dia de seleção atende VÁRIAS vagas: chamar 20 pessoas
+   * para as 2 vagas de ASG da mesma sede é uma seleção só, não duas. O campo
+   * único de antes obrigava a escolher uma vaga e descartar a outra — o vínculo
+   * ficava incompleto justamente onde há mais gente envolvida.
    *
    * O vínculo seleção↔vaga foi impossível de reconstruir no histórico (89
    * eventos para 17 vagas, cargo genérico, nenhuma data coincidindo). Quem
-   * AGENDA sabe para qual vaga está chamando, então daqui pra frente o vínculo
-   * nasce junto. Opcional: no pedagógico chamam "Professor(a)" sem vaga.
+   * AGENDA sabe para quais vagas está chamando, então daqui pra frente o
+   * vínculo nasce junto. Opcional: no pedagógico chamam "Professor(a)" sem vaga.
    */
+  vagaIds?: string[];
+  vagaCodigos?: number[];
+  /** @deprecated Formato de vínculo único, anterior à lista. Só leitura. */
   vagaId?: string;
+  /** @deprecated Ver `vagaCodigos`. */
   vagaCodigo?: number;
 }
 
