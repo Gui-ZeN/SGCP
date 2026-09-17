@@ -2,5 +2,11 @@
   "rewrites": [
     { "source": "/requisicao", "destination": "/index.html" },
     { "source": "/entrevista", "destination": "/index.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/selecoes-do-dia",
+      "schedule": "0 21 * * *"
+    }
   ]
 }

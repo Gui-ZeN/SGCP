@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { dataISOLocal } from '../utils/date';
-import { Vaga, Experiencia } from '../types';
+import { Vaga, Experiencia, Selecao } from '../types';
 import { AddVacancyForm } from './AddVacancyForm';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import type { SystemLog } from '../hooks/useLogs';
@@ -53,6 +53,7 @@ import {
 import { exportToXlsx } from '../utils/xlsxExporter';
 import { SLA_META_DIAS } from '../constants/hr';
 import { parseDateDDMMYYYY, isPausedOrSuspended, getDiasEmAberto, getSlaInfo, ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa, statusForEtapa } from '../utils/vaga';
+import { funilDaVaga, type FunilDaVaga } from '../utils/selecao';
 
 interface VacancyTableProps {
   vagas: Vaga[];
@@ -72,6 +73,12 @@ interface VacancyTableProps {
   focusVaga?: { codigo: string; token: number } | null;
   // Logs de auditoria (só carregados para admin) — usados na timeline do painel de detalhes.
   logs?: SystemLog[];
+  /**
+   * Seleções do escopo. Entram aqui só para PRÉ-PREENCHER o funil quando a
+   * vaga muda de etapa — nada é gravado na vaga automaticamente: os números da
+   * seleção são sugestão, e quem confirma é quem move a vaga.
+   */
+  selecoes?: Selecao[];
 }
 
 export const VacancyTable: React.FC<VacancyTableProps> = ({ 
@@ -89,7 +96,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   userSede,
   userRole,
   focusVaga,
-  logs
+  logs,
+  selecoes = []
 }) => {
   const canManageVagas = isAdmin || userRole === 'Analista' || userRole === 'Administrador';
   // Abrir detalhes via teclado (Enter/Espaço) onde a área é clicável (acessibilidade).
@@ -184,6 +192,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   }, [triggerAddModal]);
 
   const [editingVaga, setEditingVaga] = useState<Vaga | null>(null);
+  const [selecaoDaVaga, setSelecaoDaVaga] = useState<FunilDaVaga | null>(null);
 
   const [dragMoveConfirm, setDragMoveConfirm] = useState<{
     vagaId: string;
@@ -210,11 +219,26 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   const [moveAprovados, setMoveAprovados] = useState(0);
   const [moveMotivo, setMoveMotivo] = useState('');
   const openEtapaMove = (vaga: Vaga, novaEtapa: string, tipo: 'funil' | 'desistencia') => {
+    const daSelecao = funilDaVaga(selecoes, vaga);
+    // Pré-preenche SÓ quando a vaga ainda não tem número próprio. Se o RH já
+    // digitou algo, o que ele escreveu fica — os números da seleção viram uma
+    // sugestão com botão, em vez de apagarem o trabalho dele por baixo.
+    const vazia = !vaga.candChamados && !vaga.candCompareceram && !vaga.candAprovados;
+    const usarSelecao = vazia && daSelecao.selecoes > 0;
+
+    setSelecaoDaVaga(daSelecao.selecoes > 0 ? daSelecao : null);
     setEtapaMove({ vaga, novaEtapa, tipo });
-    setMoveChamados(vaga.candChamados || 0);
-    setMoveCompareceram(vaga.candCompareceram || 0);
-    setMoveAprovados(vaga.candAprovados || 0);
+    setMoveChamados(usarSelecao ? daSelecao.chamados : (vaga.candChamados || 0));
+    setMoveCompareceram(usarSelecao ? daSelecao.compareceram : (vaga.candCompareceram || 0));
+    setMoveAprovados(usarSelecao ? daSelecao.aprovados : (vaga.candAprovados || 0));
     setMoveMotivo(vaga.motivoDesistencia || '');
+  };
+
+  const aplicarNumerosDaSelecao = () => {
+    if (!selecaoDaVaga) return;
+    setMoveChamados(selecaoDaVaga.chamados);
+    setMoveCompareceram(selecaoDaVaga.compareceram);
+    setMoveAprovados(selecaoDaVaga.aprovados);
   };
   const confirmEtapaMove = async () => {
     if (!etapaMove) return;
@@ -1840,6 +1864,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           onMotivo={setMoveMotivo}
           onCancel={() => setEtapaMove(null)}
           onConfirm={confirmEtapaMove}
+          selecao={etapaMove.tipo === 'funil' ? selecaoDaVaga : null}
+          onUsarSelecao={aplicarNumerosDaSelecao}
         />
       )}
 

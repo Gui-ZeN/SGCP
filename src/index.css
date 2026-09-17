@@ -130,6 +130,66 @@
   .animate-in { animation: none; }
 }
 
+/* ===== Organograma: lista hierárquica com conector em L =====
+   Trocou a árvore horizontal: com 36 irmãos num nível, o desenho de cima para
+   baixo ia a 11.648px de largura, e quebrá-los em um bloco tracejado resolvia a
+   largura às custas de um agrupamento que não é nível nenhum.
+   Aqui cada subordinado é uma linha; um fio desce do chefe e um cotovelo entra
+   em cada um. Cresce para baixo, que é a direção em que a tela rola de graça. */
+.org-l { list-style: none; margin: 0; padding: 0; }
+.org-l .org-l {
+  margin: 0;
+  padding-left: 26px;
+  position: relative;
+}
+.org-l .org-l > li {
+  position: relative;
+  padding-left: 22px;
+}
+/* fio vertical que desce ao longo dos irmãos */
+.org-l .org-l > li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--color-slate-300, #cad5e2);
+}
+/* no último, o fio para na altura do cotovelo em vez de vazar para baixo */
+.org-l .org-l > li:last-child::before { bottom: auto; height: 22px; }
+/* cotovelo que entra na caixa */
+.org-l .org-l > li::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 22px;
+  width: 16px;
+  border-top: 1px solid var(--color-slate-300, #cad5e2);
+}
+
+/* Retrato para o organograma. O `@page` global é paisagem (nasceu dos
+   relatórios em slide), mas aqui o conteúdo é uma coluna estreita e alta:
+   em paisagem sobra papel à direita e cabem menos linhas por folha. */
+@page retrato { size: A4 portrait; margin: 12mm; }
+
+@media print {
+  /* A regra geral manda `.bg-white` não quebrar entre páginas — bom para
+     cartão, péssimo aqui: o organograma de Dionísio Torres tem 81 linhas e
+     precisa atravessar folhas. Solta a folha inteira e protege só cada linha,
+     que é o que não pode ser cortado ao meio. */
+  .org-folha {
+    page: retrato;
+    break-inside: auto !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  .org-l li > div { break-inside: avoid; }
+  /* Zoom de tela não vale na folha, e a rolagem lateral viraria corte. */
+  .org-l { zoom: 1 !important; }
+  .org-folha .overflow-x-auto { overflow: visible !important; }
+}
+
 /* Barra de rolagem da navegação: discreta, mas VISÍVEL. A lista de módulos
    não cabe em notebook 1366×768, e sem a barra o usuário não tem como saber
    que existe mais coisa abaixo. */

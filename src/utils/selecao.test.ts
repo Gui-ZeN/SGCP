@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ehRealizada, estaAtrasada, validarAgendamento, validarConfirmacao, camposDaConfirmacao, totaisDeSelecoes, codigosDasVagas } from './selecao';
+import { ehRealizada, estaAtrasada, validarAgendamento, validarConfirmacao, camposDaConfirmacao, totaisDeSelecoes, codigosDasVagas, funilDaVaga } from './selecao';
 import type { Selecao } from '../types';
 
 const dia = (over: Partial<Selecao>): Selecao => ({
@@ -125,5 +125,45 @@ describe('codigosDasVagas', () => {
 
   it('código zero não é tratado como ausência', () => {
     expect(codigosDasVagas({ vagaCodigo: 0 })).toEqual([0]);
+  });
+});
+
+describe('funilDaVaga', () => {
+  const vaga = { id: 'v1', codigo: 31 };
+
+  it('soma as seleções ligadas pela lista de vagas', () => {
+    const f = funilDaVaga([
+      dia({ vagaIds: ['v1'], vagaCodigos: [31], convocados: 8, compareceram: 5, contratados: 1 }),
+      dia({ vagaIds: ['v1'], vagaCodigos: [31], convocados: 4, compareceram: 4, contratados: 2, data: '11/09/2026' }),
+      dia({ vagaIds: ['v9'], vagaCodigos: [99], convocados: 50, compareceram: 50 }),
+    ], vaga);
+
+    expect(f).toMatchObject({ selecoes: 2, chamados: 12, compareceram: 9, aprovados: 3 });
+    expect(f.ultimaData).toBe('11/09/2026');
+  });
+
+  it('acha pelo vínculo único antigo, gravado antes da lista', () => {
+    const f = funilDaVaga([dia({ vagaId: 'v1', vagaCodigo: 31, convocados: 6, compareceram: 2 })], vaga);
+    expect(f).toMatchObject({ selecoes: 1, chamados: 6, compareceram: 2 });
+  });
+
+  it('agendada não entra — senão a vaga herdava "ninguém compareceu"', () => {
+    const f = funilDaVaga([
+      dia({ vagaIds: ['v1'], convocados: 8, compareceram: 5 }),
+      dia({ vagaIds: ['v1'], status: 'agendado', convocados: 40 }),
+    ], vaga);
+    expect(f).toMatchObject({ selecoes: 1, chamados: 8, compareceram: 5 });
+  });
+
+  it('vaga sem seleção devolve tudo zerado, não null', () => {
+    expect(funilDaVaga([], vaga)).toMatchObject({ selecoes: 0, chamados: 0, ultimaData: '' });
+  });
+
+  it('a última data respeita o calendário, não a ordem alfabética', () => {
+    const f = funilDaVaga([
+      dia({ vagaIds: ['v1'], data: '09/12/2025', convocados: 1, compareceram: 1 }),
+      dia({ vagaIds: ['v1'], data: '10/09/2026', convocados: 1, compareceram: 1 }),
+    ], vaga);
+    expect(f.ultimaData).toBe('10/09/2026');
   });
 });

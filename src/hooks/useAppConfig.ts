@@ -8,9 +8,22 @@ const LOCAL_KEY = 'sgcp_app_config';
  * editável só por admin (ver firestore.rules). Hoje guarda os "enfeites de época"
  * (ex.: bandeirinhas de São João) — um mapa id→ligado. Fallback local (offline).
  */
+export interface Notificacoes {
+  /** Quem recebe o e-mail das Seleções do dia (18h de Fortaleza). */
+  destinatariosSelecoes: string[];
+  /** Liga/desliga o disparo sem precisar apagar a lista. */
+  selecoesAtivo: boolean;
+}
+
+const NOTIF_VAZIO: Notificacoes = { destinatariosSelecoes: [], selecoesAtivo: true };
+
 export function useAppConfig(currentUser: any) {
   const [enfeites, setEnfeites] = useState<Record<string, boolean>>(() => {
     try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || '{}').enfeites || {}; } catch { return {}; }
+  });
+  const [notificacoes, setNotificacoes] = useState<Notificacoes>(() => {
+    try { return { ...NOTIF_VAZIO, ...(JSON.parse(localStorage.getItem(LOCAL_KEY) || '{}').notificacoes || {}) }; }
+    catch { return NOTIF_VAZIO; }
   });
 
   useEffect(() => {
@@ -19,9 +32,31 @@ export function useAppConfig(currentUser: any) {
       const unsub = onSnapshot(ref, (snap: any) => {
         setEnfeites((snap.data()?.enfeites) || {});
       }, () => { /* sem acesso/erro: mantém o que tem */ });
-      return () => unsub();
+
+      // Doc separado do `ui` de propósito: a função de e-mail (cron, sem
+      // usuário logado) lê SÓ `config/notificacoes` com a conta de serviço —
+      // quanto menor o documento que ela alcança, menor o estrago possível.
+      const refNotif = doc(db, 'config', 'notificacoes');
+      const unsubNotif = onSnapshot(refNotif, (snap: any) => {
+        setNotificacoes({ ...NOTIF_VAZIO, ...(snap.data() || {}) });
+      }, () => { /* idem */ });
+
+      return () => { unsub(); unsubNotif(); };
     }
   }, [currentUser]);
+
+  const salvarNotificacoes = async (novo: Notificacoes) => {
+    setNotificacoes(novo); // otimista
+    if (isFirebaseEnabled && db) {
+      try { await setDoc(doc(db, 'config', 'notificacoes'), novo, { merge: true }); }
+      catch (e) { console.error('Erro ao salvar notificações:', e); throw e; }
+    } else {
+      try {
+        const atual = JSON.parse(localStorage.getItem(LOCAL_KEY) || '{}');
+        localStorage.setItem(LOCAL_KEY, JSON.stringify({ ...atual, notificacoes: novo }));
+      } catch (e) {}
+    }
+  };
 
   const setEnfeite = async (id: string, ativo: boolean) => {
     const novo = { ...enfeites, [id]: ativo };
@@ -34,5 +69,5 @@ export function useAppConfig(currentUser: any) {
     }
   };
 
-  return { enfeites, setEnfeite };
+  return { enfeites, setEnfeite, notificacoes, salvarNotificacoes };
 }

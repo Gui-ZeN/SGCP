@@ -62,7 +62,10 @@ export const EtapaMoveModal: React.FC<{
   onChamados: (n: number) => void; onCompareceram: (n: number) => void; onAprovados: (n: number) => void; onMotivo: (m: string) => void;
   onCancel: () => void;
   onConfirm: () => void;
-}> = ({ move, chamados, compareceram, aprovados, motivo, onChamados, onCompareceram, onAprovados, onMotivo, onCancel, onConfirm }) => (
+  /** Números já registrados nas seleções desta vaga — sugestão, não imposição. */
+  selecao?: { selecoes: number; chamados: number; compareceram: number; aprovados: number; ultimaData: string } | null;
+  onUsarSelecao?: () => void;
+}> = ({ move, chamados, compareceram, aprovados, motivo, onChamados, onCompareceram, onAprovados, onMotivo, onCancel, onConfirm, selecao, onUsarSelecao }) => (
   <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
     <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
       <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
@@ -80,6 +83,25 @@ export const EtapaMoveModal: React.FC<{
         {move.tipo === 'funil' ? (
           <div>
             <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Funil de candidatos</p>
+            {selecao && (
+              /* Não grava nada sozinho: diz de onde vieram os números e deixa
+                 aplicar num clique quando o RH já tinha digitado outra coisa. */
+              <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                <p className="text-[11px] font-bold text-slate-700">
+                  {selecao.selecoes === 1 ? '1 seleção registrada' : `${selecao.selecoes} seleções registradas`} nesta vaga
+                  {selecao.ultimaData && ` · última em ${selecao.ultimaData}`}
+                </p>
+                <p className="text-[11px] text-slate-600 font-semibold mt-0.5 tabular-nums">
+                  {selecao.chamados} chamados · {selecao.compareceram} compareceram · {selecao.aprovados} aprovados
+                </p>
+                {(chamados !== selecao.chamados || compareceram !== selecao.compareceram || aprovados !== selecao.aprovados) && onUsarSelecao && (
+                  <button type="button" onClick={onUsarSelecao}
+                    className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 underline hover:text-slate-900 cursor-pointer">
+                    Usar estes números
+                  </button>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label htmlFor="move-chamados" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Chamados</label>

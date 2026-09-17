@@ -9,7 +9,8 @@ import {
   FolderTree,
   Upload,
   FileSpreadsheet,
-  Sparkles
+  Sparkles,
+  Mail
 } from 'lucide-react';
 import { Usuario, Sede, Regiao, Cargo, Setor, type UserRole } from '../hooks/useMetadata';
 import type { Vaga } from '../types';
@@ -22,11 +23,15 @@ import { AdminRegioesTab } from './AdminRegioesTab';
 import { AdminCargosTab } from './AdminCargosTab';
 import { AdminSetoresTab } from './AdminSetoresTab';
 import { AdminLogsTab } from './AdminLogsTab';
+import { AdminNotificacoesTab } from './AdminNotificacoesTab';
+import type { Notificacoes } from '../hooks/useAppConfig';
 
 interface AdminPanelProps {
   isCoordenador?: boolean; // Coordenador: painel restrito à UNIDADE dele (Usuários/Sedes/Logs); sem cadastros globais
   coordUnidadeNome?: string; // rótulo da unidade do coordenador ('Colégio' | 'Universidade')
   enfeites?: { id: string; nome: string; ativo: boolean }[]; // enfeites de época (liga/desliga global)
+  notificacoes?: Notificacoes;       // destinatários do e-mail das Seleções do dia
+  salvarNotificacoes?: (n: Notificacoes) => Promise<void>;
   onToggleEnfeite?: (id: string, ativo: boolean) => void;
   usuarios: Usuario[];
   sedes: Sede[];
@@ -45,7 +50,8 @@ interface AdminPanelProps {
   addRegiao: (nome: string) => Promise<void>;
   updateRegiao: (id: string, nome: string) => Promise<void>;
   deleteRegiao: (id: string) => Promise<void>;
-  addCargo: (nome: string) => Promise<void>;
+  addCargo: (nome: string, nivel?: number) => Promise<void>;
+  updateCargoNivel?: (id: string, nivel: number | null) => Promise<void>;
   deleteCargo: (id: string) => Promise<void>;
   addSetor: (nome: string) => Promise<void>;
   deleteSetor: (id: string) => Promise<void>;
@@ -84,6 +90,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   coordUnidadeNome = 'Colégio',
   enfeites = [],
   onToggleEnfeite,
+  notificacoes,
+  salvarNotificacoes,
   usuarios,
   sedes,
   regioes,
@@ -102,6 +110,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   updateRegiao,
   deleteRegiao,
   addCargo,
+  updateCargoNivel,
   deleteCargo,
   addSetor,
   deleteSetor,
@@ -124,7 +133,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onRecalcExperiencias,
   onBackfillPausas
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'usuarios' | 'sedes' | 'regioes' | 'cargos' | 'setores' | 'logs' | 'importacao' | 'enfeites'>('usuarios');
+  const [activeSubTab, setActiveSubTab] = useState<'usuarios' | 'sedes' | 'regioes' | 'cargos' | 'setores' | 'logs' | 'importacao' | 'enfeites' | 'notificacoes'>('usuarios');
   
   return (
     <div className="bg-transparent space-y-6">
@@ -235,8 +244,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               Enfeites
             </button>
             )}
+            {!isCoordenador && notificacoes && salvarNotificacoes && (
+            <button
+              onClick={() => setActiveSubTab('notificacoes')}
+              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
+                activeSubTab === 'notificacoes'
+                  ? 'bg-slate-900 text-white shadow-md'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Mail className="w-3.5 h-3.5" />
+              Notificações
+            </button>
+            )}
           </div>
         </div>
+
+        {activeSubTab === 'notificacoes' && !isCoordenador && notificacoes && salvarNotificacoes && (
+          <AdminNotificacoesTab notificacoes={notificacoes} salvar={salvarNotificacoes} />
+        )}
 
         {activeSubTab === 'usuarios' && (
           <AdminUsersTab
@@ -275,6 +301,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <AdminCargosTab
             cargos={cargos}
             addCargo={addCargo}
+            updateCargoNivel={updateCargoNivel}
             deleteCargo={deleteCargo}
             confirmAction={confirmAction}
           />

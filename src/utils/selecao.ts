@@ -69,6 +69,50 @@ export function codigosDasVagas(s: Pick<Selecao, 'vagaCodigos' | 'vagaCodigo'>):
   return s.vagaCodigo === undefined || s.vagaCodigo === null ? [] : [s.vagaCodigo];
 }
 
+export interface FunilDaVaga {
+  /** Seleções realizadas ligadas a esta vaga. */
+  selecoes: number;
+  chamados: number;
+  compareceram: number;
+  aprovados: number;
+  /** Data da última seleção realizada, DD/MM/AAAA. */
+  ultimaData: string;
+}
+
+/**
+ * Soma o que as seleções desta vaga já registraram.
+ *
+ * Serve para PRÉ-PREENCHER o funil quando o RH move a vaga de etapa: os
+ * números de chamou/veio/aprovou já foram digitados uma vez na seleção, e
+ * pedi-los de novo é o tipo de digitação dupla que o sistema existe para
+ * evitar. Nada aqui grava sozinho — quem decide é quem move a vaga.
+ *
+ * Só conta seleção REALIZADA: um agendamento futuro tem `compareceram: 0` e
+ * entraria como "ninguém veio".
+ */
+export function funilDaVaga(
+  selecoes: Selecao[],
+  vaga: { id: string; codigo?: number | string }
+): FunilDaVaga {
+  const codigo = vaga.codigo === undefined || vaga.codigo === null ? null : Number(vaga.codigo);
+  const ligadas = selecoes.filter(s => {
+    if (!ehRealizada(s)) return false;
+    if (s.vagaIds?.includes(vaga.id) || s.vagaId === vaga.id) return true;
+    return codigo !== null && codigosDasVagas(s).includes(codigo);
+  });
+
+  return {
+    selecoes: ligadas.length,
+    chamados: ligadas.reduce((t, s) => t + (s.convocados || 0), 0),
+    compareceram: ligadas.reduce((t, s) => t + (s.compareceram || 0), 0),
+    aprovados: ligadas.reduce((t, s) => t + (s.contratados || 0), 0),
+    ultimaData: ligadas
+      .map(s => s.data)
+      .sort((a, b) => (a || '').split('/').reverse().join('').localeCompare((b || '').split('/').reverse().join('')))
+      .at(-1) || '',
+  };
+}
+
 export interface TotaisDeSelecao {
   convocados: number;
   compareceram: number;

@@ -19,6 +19,7 @@ import { useLogs } from './hooks/useLogs';
 import { useRequisicoes } from './hooks/useRequisicoes';
 import { useIntegracoes } from './hooks/useIntegracoes';
 import { useConsultas } from './hooks/useConsultas';
+import { useFuncionarios } from './hooks/useFuncionarios';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Bandeirinhas } from './components/Bandeirinhas';
 import { BootLoader } from './components/BootLoader';
@@ -55,6 +56,7 @@ const RequisicoesSection = lazyComRetry(() => import('./components/RequisicoesSe
 const IntegracoesSection = lazyComRetry(() => import('./components/IntegracoesSection').then(m => ({ default: m.IntegracoesSection })));
 const ConsultasSection = lazyComRetry(() => import('./components/ConsultasSection').then(m => ({ default: m.ConsultasSection })));
 const SelecoesSection = lazyComRetry(() => import('./components/SelecoesSection').then(m => ({ default: m.SelecoesSection })));
+const OrganogramaSection = lazyComRetry(() => import('./components/OrganogramaSection').then(m => ({ default: m.OrganogramaSection })));
 import { 
   Briefcase, 
   BarChart3, 
@@ -67,6 +69,7 @@ import {
   GraduationCap,
   ClipboardList,
   Users,
+  Network,
   ShieldCheck,
   HeartCrack,
   Percent,
@@ -133,7 +136,8 @@ export default function App() {
     addRegiao, 
     updateRegiao,
     deleteRegiao, 
-    addCargo, 
+    addCargo,
+    updateCargoNivel,
     deleteCargo,
     addSetor,
     deleteSetor 
@@ -173,7 +177,7 @@ export default function App() {
   const { logs, logAction } = useLogs(user, isAdmin || isCoord, userRegiao);
   const { requisicoes, updateRequisicao } = useRequisicoes(user, isAdmin);
   const requisicoesPendentes = requisicoes.filter(r => r.status === 'pendente').length;
-  const { enfeites, setEnfeite } = useAppConfig(user);
+  const { enfeites, setEnfeite, notificacoes, salvarNotificacoes } = useAppConfig(user);
   const enfeiteAtivo = (e: { id: string; padrao: boolean }) => enfeites[e.id] ?? e.padrao;
   const enfeiteLigado = (id: string) => { const e = ENFEITES.find(x => x.id === id); return e ? enfeiteAtivo(e) : false; };
   // Campanha ativa reskina o ACENTO do sistema inteiro (ver swiss.css):
@@ -214,7 +218,7 @@ export default function App() {
     [integracoes, sedes, selectedSede, isAdmin]
   );
 
-  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'integracao' | 'consultas' | 'selecoes' | 'admin'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'integracao' | 'consultas' | 'selecoes' | 'organograma' | 'admin'>('home');
   // Menu em gaveta abaixo de `lg`. Antes a sidebar virava uma fita horizontal de
   // colunas: 1408px de conteúdo num celular de 375px, com 8 dos 12 itens fora da
   // tela e o "Sair" com 0×0. Na gaveta cabe a lista inteira, com rótulo e nome
@@ -292,6 +296,34 @@ export default function App() {
   // própria além de `selecoes`: o resto do dia vem das listas JÁ ESCOPADAS por
   // unidade, então o isolamento Colégio × Universidade vem de graça.
   const podeVerSelecoes = podeVerConsultas;
+
+  // Organograma: cadastro de pessoas + desenho a partir do nível do cargo.
+  // A coleção `funcionarios` já existia (base dos aniversários) e nunca teve
+  // tela de cadastro — é esta. Escopo por unidade como os demais: a lista vai
+  // filtrada por sede, então ninguém enxerga o quadro da outra unidade.
+  const { funcionarios, addFuncionario, updateFuncionario, deleteFuncionario } = useFuncionarios(user);
+  const scopedFuncionarios = useMemo(
+    () => escoparListaPorUnidade(funcionarios, f => f.sede, sedes || [], selectedSede, isAdmin),
+    [funcionarios, sedes, selectedSede, isAdmin]
+  );
+
+  const wrappedAddFuncionario = (dados: any) =>
+    executeWithLoading('Cadastrando pessoa...', async () => {
+      await addFuncionario(dados);
+      await logAction('CRIOU', 'Organograma', `Pessoa cadastrada: ${dados.nome} — ${dados.cargo} (${dados.sede}).`);
+    });
+  const wrappedUpdateFuncionario = (id: string, campos: any) =>
+    executeWithLoading('Salvando alteração...', async () => {
+      const alvo = funcionarios.find(f => f.id === id);
+      await updateFuncionario(id, campos);
+      await logAction('ALTEROU', 'Organograma', `Pessoa "${alvo?.nome || id}" atualizada.`);
+    });
+  const wrappedDeleteFuncionario = (id: string) =>
+    executeWithLoading('Removendo do cadastro...', async () => {
+      const alvo = funcionarios.find(f => f.id === id);
+      await deleteFuncionario(id);
+      await logAction('EXCLUIU', 'Organograma', `Pessoa "${alvo?.nome || id}" removida do cadastro.`);
+    });
 
   // Agendar/confirmar seleção, com auditoria como nos demais módulos.
   const wrappedAgendarSelecao = (dados: any) =>
@@ -642,10 +674,19 @@ export default function App() {
       await logAction('ALTEROU', 'Regiões', `Região "${nome}" atualizada.`);
     });
 
-  const wrappedAddCargo = (nome: string) => 
+  const wrappedAddCargo = (nome: string, nivel?: number) =>
     executeWithLoading("Definindo cargo autorizado para vagas...", async () => {
-      await addCargo(nome);
-      await logAction('CRIOU', 'Cargos', `Cargo catalogado "${nome}" adicionado.`);
+      await addCargo(nome, nivel);
+      await logAction('CRIOU', 'Cargos', `Cargo catalogado "${nome}" adicionado${nivel ? ` (nível ${nivel})` : ''}.`);
+    });
+
+  // O nível é a régua do organograma: mudar um cargo remonta a árvore de todo
+  // mundo que o ocupa, então vai para o log como qualquer alteração estrutural.
+  const wrappedUpdateCargoNivel = (id: string, nivel: number | null) =>
+    executeWithLoading("Atualizando nível do cargo...", async () => {
+      const c = cargos.find(item => item.id === id);
+      await updateCargoNivel(id, nivel);
+      await logAction('ALTEROU', 'Cargos', `Cargo "${c?.nome || id}": nível ${nivel ?? 'removido'}.`);
     });
 
   const wrappedDeleteCargo = (id: string) => 
@@ -1008,6 +1049,7 @@ export default function App() {
               {activeTab === 'integracao' && 'Treinamento de Integração'}
               {activeTab === 'consultas' && 'Consultas'}
               {activeTab === 'selecoes' && 'Seleções'}
+              {activeTab === 'organograma' && 'Organograma'}
               {activeTab === 'admin' && 'Painel Administrativo'}
             </p>
           </div>
@@ -1218,6 +1260,19 @@ export default function App() {
                 <span>Turn Over</span>
               </button>
 
+              <button
+                id="tab-organograma"
+                onClick={() => setActiveTab('organograma')}
+                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                  activeTab === 'organograma'
+                    ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
+                }`}
+              >
+                <Network className="w-4 h-4 shrink-0 text-violet-500" />
+                <span>Organograma</span>
+              </button>
+
               {podeVerIntegracao && (
                 <button
                   id="tab-integracao"
@@ -1396,6 +1451,7 @@ export default function App() {
               cargos={cargos}
               setores={setores}
               isAdmin={isAdmin || isCoord}
+              selecoes={scopedSelecoes}
               confirmAction={askConfirmation}
               triggerAddModal={triggerAddModal}
               userSede={scopedUserSede}
@@ -1491,6 +1547,20 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'organograma' && (
+            <OrganogramaSection
+              funcionarios={scopedFuncionarios}
+              sedes={sedesIntegracao}
+              cargos={cargos}
+              setores={setores}
+              sedePadrao={scopedUserSede}
+              addFuncionario={canManageModules ? wrappedAddFuncionario : undefined}
+              updateFuncionario={canManageModules ? wrappedUpdateFuncionario : undefined}
+              deleteFuncionario={canManageModules ? wrappedDeleteFuncionario : undefined}
+              confirmAction={askConfirmation}
+            />
+          )}
+
           {activeTab === 'consultas' && podeVerConsultas && (
             <ConsultasSection
               consultas={consultas}
@@ -1518,6 +1588,8 @@ export default function App() {
                 isCoordenador={isCoord}
                 enfeites={ENFEITES.map(e => ({ id: e.id, nome: e.nome, ativo: enfeiteAtivo(e) }))}
                 onToggleEnfeite={setEnfeite}
+                notificacoes={notificacoes}
+                salvarNotificacoes={salvarNotificacoes}
                 coordUnidadeNome={usuarioEhUni ? 'Universidade' : 'Colégio'}
                 usuarios={adminUsuarios}
                 sedes={adminSedes}
@@ -1537,6 +1609,7 @@ export default function App() {
                 updateRegiao={wrappedUpdateRegiao}
                 deleteRegiao={wrappedDeleteRegiao}
                 addCargo={wrappedAddCargo}
+                updateCargoNivel={wrappedUpdateCargoNivel}
                 deleteCargo={wrappedDeleteCargo}
                 addSetor={wrappedAddSetor}
                 deleteSetor={wrappedDeleteSetor}

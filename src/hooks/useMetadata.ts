@@ -49,6 +49,15 @@ export interface Regiao {
 export interface Cargo {
   id: string;
   nome: string;
+  /**
+   * Altura do cargo na hierarquia — 1 é o topo. É daqui que o organograma
+   * nasce: o nível é definido UMA VEZ por cargo e vale para todo mundo que o
+   * ocupa, em vez de ser digitado pessoa por pessoa.
+   *
+   * Opcional: cargo sem nível fica fora do desenho (e a tela lista quais são),
+   * o que permite cadastrar gente antes de a régua de cargos estar pronta.
+   */
+  nivel?: number;
 }
 
 export interface Setor {
@@ -550,24 +559,41 @@ export function useMetadata(currentUser: any) {
   };
 
   // Operations: Cargo
-  const addCargo = async (nome: string) => {
+  const addCargo = async (nome: string, nivel?: number) => {
     const cleanNome = nome.trim();
     if (!cleanNome) return;
+    const corpo = nivel ? { nome: cleanNome, nivel } : { nome: cleanNome };
 
     if (usingFirebase && db) {
       try {
-        await addDoc(collection(db, 'cargos'), {
-          nome: cleanNome
-        });
+        await addDoc(collection(db, 'cargos'), corpo);
       } catch (error) {
         handleFirestoreError(error, OperationType.CREATE, 'cargos');
       }
     } else {
-      const newCargo: Cargo = {
-        id: `local_cargo_${Date.now()}`,
-        nome: cleanNome
-      };
+      const newCargo: Cargo = { id: `local_cargo_${Date.now()}`, ...corpo };
       const updated = [...cargos, newCargo];
+      setCargos(updated);
+      localStorage.setItem(CARGOS_LOCAL_KEY, JSON.stringify(updated));
+    }
+  };
+
+  /** Só o nível muda depois de criado — o nome é a chave que as telas usam. */
+  const updateCargoNivel = async (id: string, nivel: number | null) => {
+    if (usingFirebase && db) {
+      try {
+        // `null` em vez de apagar o campo: o leitor trata null como "sem nível"
+        // (`nivel > 0`), e não precisamos exportar `deleteField` só para isto.
+        await updateDoc(doc(db, 'cargos', id), { nivel });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `cargos/${id}`);
+      }
+    } else {
+      const updated = cargos.map(c => {
+        if (c.id !== id) return c;
+        const { nivel: _antigo, ...resto } = c;
+        return nivel === null ? resto : { ...resto, nivel };
+      });
       setCargos(updated);
       localStorage.setItem(CARGOS_LOCAL_KEY, JSON.stringify(updated));
     }
@@ -651,6 +677,7 @@ export function useMetadata(currentUser: any) {
     updateRegiao,
     deleteRegiao,
     addCargo,
+    updateCargoNivel,
     deleteCargo,
     addSetor,
     deleteSetor
