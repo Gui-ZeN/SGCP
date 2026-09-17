@@ -172,7 +172,26 @@
    em paisagem sobra papel à direita e cabem menos linhas por folha. */
 @page retrato { size: A4 portrait; margin: 12mm; }
 
+/* A caixa ocupa a linha inteira do seu nível: é o que faz sede e ações
+   alinharem entre irmãos. Com caixa "abraçando o conteúdo", cada nome de
+   tamanho diferente empurrava a coluna da direita para um lugar diferente. */
+.org-l li > .org-caixa { max-width: 34rem; }
+
+/* Ações só no hover, MAS visíveis onde não existe hover. Em tablet elas
+   simplesmente nunca apareciam. */
+.org-acoes { opacity: 0; transition: opacity 120ms ease-out; }
+.org-caixa:hover .org-acoes,
+.org-caixa:focus-within .org-acoes { opacity: 1; }
+@media (hover: none) {
+  .org-acoes { opacity: 1; }
+}
+
 @media print {
+  /* Ação não vai para o papel, e a caixa do topo em tinta cheia gastaria
+     toner sem informar nada — no papel ela vira contorno forte. */
+  .org-acoes { display: none !important; }
+  .org-l li > .org-caixa { max-width: none; }
+
   /* A regra geral manda `.bg-white` não quebrar entre páginas — bom para
      cartão, péssimo aqui: o organograma de Dionísio Torres tem 81 linhas e
      precisa atravessar folhas. Solta a folha inteira e protege só cada linha,

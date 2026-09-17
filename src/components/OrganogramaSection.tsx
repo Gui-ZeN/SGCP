@@ -186,45 +186,91 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
             e.stopPropagation(); // senão o drop sobe e desfaz o vínculo recém-criado
             soltarSobre(e.dataTransfer.getData('text/plain') || arrastando || '', no.id);
           }}
-          className={`group flex items-center gap-2.5 rounded-lg border bg-white px-2.5 py-1.5 transition ${
+          className={`org-caixa group grid grid-cols-1 sm:grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2 transition ${
             podeEditar ? 'cursor-grab active:cursor-grabbing' : ''
-          } ${alvo ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200'} ${saindo ? 'opacity-40' : ''}`}
+          } ${
+            alvo ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200'
+          } ${saindo ? 'opacity-40' : ''} ${
+            // O topo é um bloco sólido: num desenho em que tudo tem o mesmo
+            // peso, a hierarquia existe só pela indentação e o olho não recebe
+            // ajuda nenhuma. Uma única caixa em tinta cheia dá o "aqui começa".
+            item.nivel === 1 ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white'
+          }`}
         >
-          {temFilhos ? (
-            <button
-              onClick={() => alternarRecolhido(no.id)}
-              aria-label={recolhido ? `Expandir equipe de ${no.nome}` : `Recolher equipe de ${no.nome}`}
-              aria-expanded={!recolhido}
-              className="flex items-center gap-0.5 px-1 py-0.5 -ml-0.5 rounded text-[10px] font-bold text-slate-600 hover:bg-slate-100 cursor-pointer shrink-0 no-print"
-            >
-              {recolhido ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              {item.filhos.length}
-            </button>
-          ) : (
-            <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" aria-hidden="true" />
-          )}
+          <span className="min-w-0 flex items-baseline gap-2">
+            {temFilhos ? (
+              <button
+                onClick={() => alternarRecolhido(no.id)}
+                aria-label={recolhido ? `Expandir equipe de ${no.nome}` : `Recolher equipe de ${no.nome}`}
+                aria-expanded={!recolhido}
+                title={`${item.filhos.length} ${item.filhos.length === 1 ? 'pessoa responde' : 'pessoas respondem'} a ${no.nome}`}
+                className={`shrink-0 self-center inline-flex items-center gap-0.5 rounded px-1 py-0.5 -ml-1 text-[10px] font-bold tabular-nums cursor-pointer no-print ${
+                  item.nivel === 1
+                    ? 'text-white/80 hover:bg-white/10'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {recolhido ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                {item.filhos.length}
+              </button>
+            ) : (
+              <span className="w-1 h-1 rounded-full bg-slate-300 shrink-0 self-center" aria-hidden="true" />
+            )}
 
-          <span className="text-[13px] font-bold text-slate-800 truncate">{no.nome}</span>
-          {no.cargo && <span className="text-[11px] font-semibold text-slate-600 truncate">{no.cargo}</span>}
-          {no.sede && <span className="text-[10px] font-semibold text-slate-500 truncate hidden sm:inline">{no.sede}</span>}
-
-          {podeEditar && (
-            <span className="flex items-center gap-0.5 ml-auto shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition no-print">
-              <button onClick={() => abrirNovo(no)} aria-label={`Adicionar subordinado a ${no.nome}`}
-                title="Adicionar subordinado"
-                className="w-6 h-6 flex items-center justify-center rounded text-slate-500 hover:bg-slate-100 cursor-pointer">
-                <UserPlus className="w-3 h-3" />
-              </button>
-              <button onClick={() => abrirEdicao(no)} aria-label={`Editar ${no.nome}`}
-                className="w-6 h-6 flex items-center justify-center rounded text-slate-500 hover:bg-slate-100 cursor-pointer">
-                <Pencil className="w-3 h-3" />
-              </button>
-              <button onClick={() => remover(no)} aria-label={`Remover ${no.nome}`}
-                className="w-6 h-6 flex items-center justify-center rounded text-slate-500 hover:bg-rose-50 hover:text-rose-600 cursor-pointer">
-                <Trash2 className="w-3 h-3" />
-              </button>
+            <span className="min-w-0">
+              <span className={`block truncate font-bold ${
+                item.nivel === 1 ? 'text-[15px] text-white' : item.nivel === 2 ? 'text-[13px] text-slate-850' : 'text-[13px] text-slate-800'
+              }`}>
+                {no.nome}
+              </span>
+              {no.cargo && (
+                /* Cargo em LINHA PRÓPRIA: inline, ele começava onde o nome
+                   terminava, e a coluna do meio ficava esfarrapada entre irmãos. */
+                <span className={`block truncate text-[11px] font-semibold ${
+                  item.nivel === 1 ? 'text-white/70' : 'text-slate-600'
+                }`}>
+                  {no.cargo}
+                </span>
+              )}
             </span>
-          )}
+          </span>
+
+          {/* Em tela estreita esta coluna cai para baixo: na mesma linha, os
+              três botões comiam o nome e sobrava "Camila N...". */}
+          <span className="flex items-center gap-2 shrink-0 justify-self-end">
+            {no.sede && (
+              <span className={`text-[10px] font-semibold uppercase tracking-wider hidden sm:inline ${
+                item.nivel === 1 ? 'text-white/60' : 'text-slate-500'
+              }`}>
+                {no.sede}
+              </span>
+            )}
+
+            {podeEditar && (
+              /* Em toque não existe hover: sem isto, tablet nunca via os botões. */
+              <span className="org-acoes flex items-center gap-0.5 no-print">
+                <button onClick={() => abrirNovo(no)} aria-label={`Adicionar subordinado a ${no.nome}`}
+                  title="Adicionar subordinado"
+                  className={`w-7 h-7 flex items-center justify-center rounded cursor-pointer ${
+                    item.nivel === 1 ? 'text-white/70 hover:bg-white/10' : 'text-slate-500 hover:bg-slate-100'
+                  }`}>
+                  <UserPlus className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => abrirEdicao(no)} aria-label={`Editar ${no.nome}`}
+                  className={`w-7 h-7 flex items-center justify-center rounded cursor-pointer ${
+                    item.nivel === 1 ? 'text-white/70 hover:bg-white/10' : 'text-slate-500 hover:bg-slate-100'
+                  }`}>
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => remover(no)} aria-label={`Remover ${no.nome}`}
+                  className={`w-7 h-7 flex items-center justify-center rounded cursor-pointer ${
+                    item.nivel === 1 ? 'text-white/70 hover:bg-rose-500/20' : 'text-slate-500 hover:bg-rose-50 hover:text-rose-600'
+                  }`}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            )}
+          </span>
         </div>
 
         {temFilhos && !recolhido && (
