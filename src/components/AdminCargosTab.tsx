@@ -2,28 +2,9 @@ import React, { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Cargo } from '../hooks/useMetadata';
 
-/**
- * Níveis da régua hierárquica. São rótulos fixos porque o organograma precisa
- * de uma ordem comparável entre cargos — texto livre ("chefia", "gestão") não
- * se ordena sozinho.
- */
-export const NIVEIS_CARGO = [
-  { valor: 1, rotulo: 'Diretoria' },
-  { valor: 2, rotulo: 'Gerência' },
-  { valor: 3, rotulo: 'Coordenação' },
-  { valor: 4, rotulo: 'Supervisão' },
-  { valor: 5, rotulo: 'Analista / Técnico' },
-  { valor: 6, rotulo: 'Assistente / Auxiliar' },
-  { valor: 7, rotulo: 'Aprendiz / Estágio' },
-];
-
-export const rotuloDoNivel = (nivel?: number | null) =>
-  NIVEIS_CARGO.find(n => n.valor === nivel)?.rotulo || '';
-
 interface AdminCargosTabProps {
   cargos: Cargo[];
-  addCargo: (nome: string, nivel?: number) => Promise<void>;
-  updateCargoNivel?: (id: string, nivel: number | null) => Promise<void>;
+  addCargo: (nome: string) => Promise<void>;
   deleteCargo: (id: string) => Promise<void>;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
 }
@@ -31,12 +12,10 @@ interface AdminCargosTabProps {
 export const AdminCargosTab: React.FC<AdminCargosTabProps> = ({
   cargos,
   addCargo,
-  updateCargoNivel,
   deleteCargo,
   confirmAction
 }) => {
   const [cargoNome, setCargoNome] = useState('');
-  const [cargoNivel, setCargoNivel] = useState('');
   const [busy, setBusy] = useState(false);
 
   const handleAddCargo = async (e: React.FormEvent) => {
@@ -44,9 +23,8 @@ export const AdminCargosTab: React.FC<AdminCargosTabProps> = ({
     if (!cargoNome.trim()) return;
     setBusy(true);
     try {
-      await addCargo(cargoNome.trim(), cargoNivel ? Number(cargoNivel) : undefined);
+      await addCargo(cargoNome.trim());
       setCargoNome('');
-      setCargoNivel('');
     } catch (err) {
       console.error(err);
       alert("Erro ao salvar cargo.");
@@ -54,8 +32,6 @@ export const AdminCargosTab: React.FC<AdminCargosTabProps> = ({
       setBusy(false);
     }
   };
-
-  const semNivel = cargos.filter(c => c && !c.nivel).length;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -77,22 +53,6 @@ export const AdminCargosTab: React.FC<AdminCargosTabProps> = ({
               />
             </div>
 
-            <div className="space-y-1">
-              <label htmlFor="cgo-nivel" className="text-xs font-bold text-slate-500 uppercase">
-                Nível hierárquico
-              </label>
-              <select id="cgo-nivel" value={cargoNivel} onChange={e => setCargoNivel(e.target.value)}
-                className="w-full text-xs px-3.5 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/10 focus:border-slate-800 outline-none bg-white font-medium cursor-pointer">
-                <option value="">Sem nível definido</option>
-                {NIVEIS_CARGO.map(n => (
-                  <option key={n.valor} value={n.valor}>{n.valor} — {n.rotulo}</option>
-                ))}
-              </select>
-              <p className="text-[10px] text-slate-500 font-semibold">
-                É o nível que monta o organograma. Definido uma vez por cargo, vale para todos que o ocupam.
-              </p>
-            </div>
-
             <button
               type="submit"
               disabled={busy || !cargoNome.trim()}
@@ -106,23 +66,13 @@ export const AdminCargosTab: React.FC<AdminCargosTabProps> = ({
       </div>
 
       <div className="md:col-span-2 space-y-3">
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-          Catálogo de Cargos Base ({cargos.length})
-        </h3>
-        {semNivel > 0 && (
-          <p className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-            {semNivel === 1
-              ? '1 cargo ainda sem nível — quem o ocupa fica de fora do organograma.'
-              : `${semNivel} cargos ainda sem nível — quem os ocupa fica de fora do organograma.`}
-          </p>
-        )}
-
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Catálogo de Cargos Base ({cargos.length})</h3>
+        
         <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 font-mono text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                 <th className="px-5 py-3">Registro</th>
-                <th className="px-5 py-3">Nível hierárquico</th>
                 <th className="px-5 py-3 text-right">Ação</th>
               </tr>
             </thead>
@@ -130,25 +80,6 @@ export const AdminCargosTab: React.FC<AdminCargosTabProps> = ({
               {cargos.filter(c => c != null).map((c) => (
                 <tr key={c.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-5 py-3.5 font-bold text-slate-700">{c.nome}</td>
-                  <td className="px-5 py-3.5">
-                    {updateCargoNivel ? (
-                      <select
-                        value={c.nivel ?? ''}
-                        aria-label={`Nível hierárquico de ${c.nome}`}
-                        onChange={e => updateCargoNivel(c.id, e.target.value ? Number(e.target.value) : null)}
-                        className={`text-[11px] px-2 py-1.5 border rounded-lg font-bold outline-none cursor-pointer focus:border-slate-800 ${
-                          c.nivel ? 'border-slate-200 bg-white text-slate-700' : 'border-amber-200 bg-amber-50 text-amber-800'
-                        }`}
-                      >
-                        <option value="">Sem nível</option>
-                        {NIVEIS_CARGO.map(n => (
-                          <option key={n.valor} value={n.valor}>{n.valor} — {n.rotulo}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="text-slate-600 font-semibold">{rotuloDoNivel(c.nivel) || '—'}</span>
-                    )}
-                  </td>
                   <td className="px-5 py-3.5 text-right">
                     <button
                       onClick={() => {
@@ -174,7 +105,7 @@ export const AdminCargosTab: React.FC<AdminCargosTabProps> = ({
               ))}
               {cargos.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-5 py-8 text-center text-slate-500 font-medium font-sans">
+                  <td colSpan={2} className="px-5 py-8 text-center text-slate-400 font-medium font-sans">
                     Catálogo de cargos vazio.
                   </td>
                 </tr>

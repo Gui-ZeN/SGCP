@@ -51,7 +51,6 @@ interface AdminPanelProps {
   updateRegiao: (id: string, nome: string) => Promise<void>;
   deleteRegiao: (id: string) => Promise<void>;
   addCargo: (nome: string, nivel?: number) => Promise<void>;
-  updateCargoNivel?: (id: string, nivel: number | null) => Promise<void>;
   deleteCargo: (id: string) => Promise<void>;
   addSetor: (nome: string) => Promise<void>;
   deleteSetor: (id: string) => Promise<void>;
@@ -110,7 +109,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   updateRegiao,
   deleteRegiao,
   addCargo,
-  updateCargoNivel,
   deleteCargo,
   addSetor,
   deleteSetor,
@@ -301,7 +299,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <AdminCargosTab
             cargos={cargos}
             addCargo={addCargo}
-            updateCargoNivel={updateCargoNivel}
             deleteCargo={deleteCargo}
             confirmAction={confirmAction}
           />

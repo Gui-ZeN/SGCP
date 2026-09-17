@@ -294,6 +294,15 @@ service cloud.firestore {
       allow write: if isEditor();
     }
 
+    // Organograma — as caixas do desenho e a quem cada uma responde. Coleção
+    // separada de `funcionarios` porque estrutura tem caixa sem pessoa: posição
+    // vaga, cargo que existe antes do dono. Contém nome e cargo, então leitura
+    // exige usuário do app.
+    match /organograma/{noId} {
+      allow read: if isAppUser();
+      allow write: if isEditor();
+    }
+
     // Cadastro de colaboradores (roster) — base dos aniversários. Contém dado
     // pessoal (data de nascimento), por isso leitura exige usuário do app.
     match /funcionarios/{funcionarioId} {

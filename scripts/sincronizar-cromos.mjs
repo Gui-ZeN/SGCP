@@ -14,9 +14,10 @@
  * alguém com acesso aos dois projetos o dispara.
  *
  * O SGPC ESPELHA, não fica dono: nome, função, sede, empresa e matrícula vêm do
- * Cromos e são sobrescritos a cada execução. O que é do SGPC — em especial o
- * `respondeA`, a hierarquia que o RH monta arrastando no organograma — fica
- * FORA do `updateMask` e sobrevive à sincronização.
+ * Cromos e são sobrescritos a cada execução. O `updateMask` lista só esses
+ * campos, então qualquer coisa que o SGPC venha a guardar na pessoa sobrevive à
+ * sincronização. A hierarquia do organograma nem entra na conta: vive em
+ * `organograma`, coleção separada, e o quadro só sugere nomes lá.
  */
 import { execSync } from 'node:child_process';
 
@@ -160,8 +161,8 @@ for (const item of aCriar) {
   if (r.ok) criados++; else { erros++; if (erros <= 3) console.error(await r.text()); }
 }
 for (const item of aAtualizar) {
-  // updateMask com os campos do Cromos e SÓ eles: `respondeA` não está na
-  // lista, então o vínculo de hierarquia feito no organograma não é apagado.
+  // updateMask com os campos do Cromos e SÓ eles — o que for do SGPC não é
+  // apagado por uma sincronização.
   const mask = Object.keys(item.corpo).map(c => `updateMask.fieldPaths=${c}`).join('&');
   const r = await fetch(`${SGPC}/funcionarios/${item.id}?${mask}`, {
     method: 'PATCH', headers: cabecalho, body: JSON.stringify(paraCampos(item.corpo)),

@@ -20,6 +20,7 @@ import { useRequisicoes } from './hooks/useRequisicoes';
 import { useIntegracoes } from './hooks/useIntegracoes';
 import { useConsultas } from './hooks/useConsultas';
 import { useFuncionarios } from './hooks/useFuncionarios';
+import { useOrganograma } from './hooks/useOrganograma';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Bandeirinhas } from './components/Bandeirinhas';
 import { BootLoader } from './components/BootLoader';
@@ -137,7 +138,6 @@ export default function App() {
     updateRegiao,
     deleteRegiao, 
     addCargo,
-    updateCargoNivel,
     deleteCargo,
     addSetor,
     deleteSetor 
@@ -307,22 +307,26 @@ export default function App() {
     [funcionarios, sedes, selectedSede, isAdmin]
   );
 
-  const wrappedAddFuncionario = (dados: any) =>
-    executeWithLoading('Cadastrando pessoa...', async () => {
-      await addFuncionario(dados);
-      await logAction('CRIOU', 'Organograma', `Pessoa cadastrada: ${dados.nome} — ${dados.cargo} (${dados.sede}).`);
+  // Nós do organograma: coleção própria, desenho montado à mão. O quadro de
+  // funcionários NÃO define a estrutura — só sugere nomes ao escolher o cargo.
+  const { nos: nosOrganograma, adicionarNo, atualizarNo, removerNo } = useOrganograma(user);
+
+  const wrappedAdicionarNo = (dados: any) =>
+    executeWithLoading('Adicionando ao organograma...', async () => {
+      await adicionarNo(dados);
+      await logAction('CRIOU', 'Organograma', `"${dados.nome}"${dados.cargo ? ` (${dados.cargo})` : ''} entrou no organograma.`);
     });
-  const wrappedUpdateFuncionario = (id: string, campos: any) =>
-    executeWithLoading('Salvando alteração...', async () => {
-      const alvo = funcionarios.find(f => f.id === id);
-      await updateFuncionario(id, campos);
-      await logAction('ALTEROU', 'Organograma', `Pessoa "${alvo?.nome || id}" atualizada.`);
+  const wrappedAtualizarNo = (id: string, campos: any) =>
+    executeWithLoading('Salvando organograma...', async () => {
+      const alvo = nosOrganograma.find(n => n.id === id);
+      await atualizarNo(id, campos);
+      await logAction('ALTEROU', 'Organograma', `"${alvo?.nome || id}" atualizado no organograma.`);
     });
-  const wrappedDeleteFuncionario = (id: string) =>
-    executeWithLoading('Removendo do cadastro...', async () => {
-      const alvo = funcionarios.find(f => f.id === id);
-      await deleteFuncionario(id);
-      await logAction('EXCLUIU', 'Organograma', `Pessoa "${alvo?.nome || id}" removida do cadastro.`);
+  const wrappedRemoverNo = (id: string) =>
+    executeWithLoading('Removendo do organograma...', async () => {
+      const alvo = nosOrganograma.find(n => n.id === id);
+      await removerNo(id);
+      await logAction('EXCLUIU', 'Organograma', `"${alvo?.nome || id}" saiu do organograma.`);
     });
 
   // Agendar/confirmar seleção, com auditoria como nos demais módulos.
@@ -674,21 +678,14 @@ export default function App() {
       await logAction('ALTEROU', 'Regiões', `Região "${nome}" atualizada.`);
     });
 
-  const wrappedAddCargo = (nome: string, nivel?: number) =>
+  const wrappedAddCargo = (nome: string) =>
     executeWithLoading("Definindo cargo autorizado para vagas...", async () => {
-      await addCargo(nome, nivel);
-      await logAction('CRIOU', 'Cargos', `Cargo catalogado "${nome}" adicionado${nivel ? ` (nível ${nivel})` : ''}.`);
+      await addCargo(nome);
+      await logAction('CRIOU', 'Cargos', `Cargo catalogado "${nome}" adicionado.`);
     });
 
   // O nível é a régua do organograma: mudar um cargo remonta a árvore de todo
   // mundo que o ocupa, então vai para o log como qualquer alteração estrutural.
-  const wrappedUpdateCargoNivel = (id: string, nivel: number | null) =>
-    executeWithLoading("Atualizando nível do cargo...", async () => {
-      const c = cargos.find(item => item.id === id);
-      await updateCargoNivel(id, nivel);
-      await logAction('ALTEROU', 'Cargos', `Cargo "${c?.nome || id}": nível ${nivel ?? 'removido'}.`);
-    });
-
   const wrappedDeleteCargo = (id: string) => 
     executeWithLoading("Sincronizando remoção do cargo catalogado...", async () => {
       const c = cargos.find(item => item.id === id);
@@ -1549,14 +1546,13 @@ export default function App() {
 
           {activeTab === 'organograma' && (
             <OrganogramaSection
+              nos={nosOrganograma}
               funcionarios={scopedFuncionarios}
-              sedes={sedesIntegracao}
               cargos={cargos}
-              setores={setores}
-              sedePadrao={scopedUserSede}
-              addFuncionario={canManageModules ? wrappedAddFuncionario : undefined}
-              updateFuncionario={canManageModules ? wrappedUpdateFuncionario : undefined}
-              deleteFuncionario={canManageModules ? wrappedDeleteFuncionario : undefined}
+              sedes={sedesIntegracao}
+              adicionarNo={canManageModules ? wrappedAdicionarNo : undefined}
+              atualizarNo={canManageModules ? wrappedAtualizarNo : undefined}
+              removerNo={canManageModules ? wrappedRemoverNo : undefined}
               confirmAction={askConfirmation}
             />
           )}
@@ -1609,7 +1605,6 @@ export default function App() {
                 updateRegiao={wrappedUpdateRegiao}
                 deleteRegiao={wrappedDeleteRegiao}
                 addCargo={wrappedAddCargo}
-                updateCargoNivel={wrappedUpdateCargoNivel}
                 deleteCargo={wrappedDeleteCargo}
                 addSetor={wrappedAddSetor}
                 deleteSetor={wrappedDeleteSetor}

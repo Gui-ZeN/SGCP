@@ -162,15 +162,6 @@ export interface Funcionario {
   admissao?: string;      // DD/MM/YYYY
   ativo?: boolean;        // false = desligado (mantém histórico sem aparecer nos avisos)
   observacoes?: string;
-  /**
-   * Superior imediato (id de outro funcionário), para o organograma.
-   *
-   * Só é preenchido quando o nível do cargo NÃO basta: dois coordenadores no
-   * mesmo setor deixam indefinido a qual deles cada analista responde. No caso
-   * comum — um superior possível — a linha sai do nível e este campo fica
-   * vazio, que é o ponto de a hierarquia morar no cargo e não na pessoa.
-   */
-  respondeA?: string;
 }
 
 /**

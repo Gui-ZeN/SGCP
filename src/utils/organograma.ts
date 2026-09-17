@@ -2,154 +2,63 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  *
- * Organograma gerado a partir do NÍVEL DO CARGO.
+ * Árvore do organograma a partir do vínculo DECLARADO.
  *
- * O RH cadastra pessoa + cargo; o nível mora no catálogo de cargos (Diretor 1,
- * Coordenador 2, Supervisor 3…), então ninguém digita hierarquia por pessoa —
- * é definido uma vez por cargo e vale para todo mundo que o ocupa.
+ * A versão anterior deduzia a hierarquia do nível do cargo, e estava errada de
+ * origem: nível dá a altura da caixa, não a linha entre elas. No quadro real
+ * (399 pessoas, 3 coordenadores, 22 supervisores) isso deixava 36 caixas soltas
+ * no topo e 233 pessoas penduradas onde o sistema "achou" — um desenho que
+ * parece pronto e ninguém confere.
  *
- * O QUE O NÍVEL RESOLVE E O QUE NÃO RESOLVE
- * Nível dá a ALTURA de cada caixa, não a linha entre elas. Num setor com um
- * coordenador e cinco analistas, a ligação é óbvia — os analistas respondem ao
- * único coordenador acima. Com DOIS coordenadores no mesmo setor, nenhuma regra
- * de nível diz a qual deles cada analista responde: são dois desenhos
- * igualmente compatíveis com os mesmos dados.
- *
- * Aqui isso não vira chute. Quando há um único superior possível, a linha sai
- * sozinha; quando há mais de um, a pessoa fica como raiz e entra em
- * `ambiguidades`, para a tela pedir a definição só onde ela é necessária. Um
- * organograma que inventa a linha é pior que um que admite não saber: ninguém
- * confere o que parece pronto.
+ * Aqui cada nó diz a quem responde, e ponto. Quem monta é o RH, de cima para
+ * baixo. O quadro de funcionários entra só como SUGESTÃO de nome ao escolher o
+ * cargo — não como fonte da estrutura.
  */
 
-export interface PessoaOrganograma {
+export interface NoOrganograma {
   id: string;
   nome: string;
   cargo?: string;
   sede?: string;
-  setor?: string;
-  /** Superior definido à mão. Vence o nível — existe para desempatar. */
+  /** id do superior. Vazio = está no topo. */
   respondeA?: string;
-  ativo?: boolean;
 }
 
-export interface NoOrganograma {
-  pessoa: PessoaOrganograma;
+export interface ArvoreNo {
+  no: NoOrganograma;
+  /** Profundidade a partir da raiz, começando em 1. */
   nivel: number;
-  filhos: NoOrganograma[];
+  filhos: ArvoreNo[];
 }
 
-export interface Ambiguidade {
-  pessoa: PessoaOrganograma;
-  /** Superiores possíveis — mesma distância hierárquica, sem desempate. */
-  candidatos: PessoaOrganograma[];
-  /**
-   * Onde a pessoa foi pendurada: o chefe comum de todos os candidatos, quando
-   * existe um só. `undefined` = ficou como raiz, sem lugar dedutível.
-   */
-  penduradaEm?: PessoaOrganograma;
-}
-
-export interface Organograma {
-  raizes: NoOrganograma[];
-  ambiguidades: Ambiguidade[];
-  /** Cadastrados cujo cargo não tem nível definido no catálogo. */
-  semNivel: PessoaOrganograma[];
-  /** Total de pessoas desenhadas na árvore. */
+export interface Arvore {
+  raizes: ArvoreNo[];
+  /** Nós cujo superior aponta para alguém que não existe mais. */
+  orfaos: NoOrganograma[];
   total: number;
 }
-
-const texto = (v?: string) =>
-  String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
 /**
  * Monta a árvore.
  *
- * @param pessoas    cadastrados (já escopados por unidade/sede pela tela)
- * @param nivelDoCargo nome do cargo (normalizado) → nível; 1 é o topo
+ * Trata dois defeitos que o dado permite e a tela não pode quebrar por causa
+ * deles: superior apagado (o nó vira raiz e é reportado como órfão) e ciclo
+ * criado à mão (A→B→A), que estouraria a pilha na renderização.
  */
-export function montarOrganograma(
-  pessoas: PessoaOrganograma[],
-  nivelDoCargo: Map<string, number>
-): Organograma {
-  const ativos = pessoas.filter(p => p.ativo !== false);
+export function montarArvore(nos: NoOrganograma[]): Arvore {
+  const porId = new Map(nos.map(n => [n.id, n]));
 
-  const nivelDe = (p: PessoaOrganograma) => nivelDoCargo.get(texto(p.cargo));
-  const semNivel = ativos.filter(p => nivelDe(p) === undefined);
-  const comNivel = ativos.filter(p => nivelDe(p) !== undefined);
-
-  const porId = new Map(comNivel.map(p => [p.id, p]));
-  const ambiguidades: Ambiguidade[] = [];
+  const orfaos: NoOrganograma[] = [];
   const paiDe = new Map<string, string>();
-
-  comNivel.forEach(pessoa => {
-    const nivel = nivelDe(pessoa)!;
-
-    // Definição manual vence — é o desempate que a tela grava.
-    if (pessoa.respondeA && porId.has(pessoa.respondeA) && pessoa.respondeA !== pessoa.id) {
-      paiDe.set(pessoa.id, pessoa.respondeA);
-      return;
-    }
-
-    // Candidatos: o nível MAIS PRÓXIMO acima. Procura primeiro no mesmo setor;
-    // só abre para a sede inteira se o setor não tiver ninguém acima — um
-    // coordenador de Cantina responde a um diretor que não é da Cantina.
-    const acima = comNivel.filter(o => o.id !== pessoa.id && nivelDe(o)! < nivel);
-    const doSetor = acima.filter(
-      o => texto(o.sede) === texto(pessoa.sede) && texto(o.setor) === texto(pessoa.setor)
-    );
-    const daSede = acima.filter(o => texto(o.sede) === texto(pessoa.sede));
-    // Três anéis, do mais próximo ao mais largo: mesmo setor → mesma sede →
-    // todo o recorte recebido (a região, quando a tela agrupa por região).
-    // O terceiro anel existe porque a coordenação é REGIONAL: em Dionísio
-    // Torres o coordenador fica lotado numa sede e responde pelas outras, e sem
-    // ele o quadro inteiro ficava solto — medido, 126 caixas no topo contra 36.
-    const escopo = doSetor.length ? doSetor : (daSede.length ? daSede : acima);
-    if (!escopo.length) return; // ninguém acima: é topo
-
-    const maisProximo = Math.max(...escopo.map(o => nivelDe(o)!));
-    const candidatos = escopo.filter(o => nivelDe(o)! === maisProximo);
-
-    if (candidatos.length === 1) { paiDe.set(pessoa.id, candidatos[0].id); return; }
-    ambiguidades.push({ pessoa, candidatos });
+  nos.forEach(n => {
+    if (!n.respondeA || n.respondeA === n.id) return;
+    if (!porId.has(n.respondeA)) { orfaos.push(n); return; }
+    paiDe.set(n.id, n.respondeA);
   });
 
-  /**
-   * Ambíguo NÃO vira caixa solta: sobe para o chefe comum dos candidatos.
-   *
-   * No quadro real da infraestrutura — 1 coordenador, 10 supervisores, 5 TME,
-   * 36 ASG — cada ASG tem 5 TME possíveis e cada TME tem 10 supervisores
-   * possíveis. Deixando cada um como raiz, a tela virava 42 caixas soltas em
-   * vez de um organograma. Como todos os candidatos respondem ao mesmo
-   * coordenador, a pessoa entra ali: é a afirmação mais forte que os dados
-   * sustentam ("está sob a coordenação de X"), sem inventar a linha fina
-   * ("responde ao supervisor Y") que ninguém sabe.
-   *
-   * Roda depois do laço porque depende dos vínculos dos candidatos já
-   * resolvidos — o pai do TME só existe após o TME ser ligado.
-   *
-   * ORDENADO POR NÍVEL, e isso não é detalhe: a ambiguidade encadeia. O ASG
-   * depende do TME ter achado o chefe dele, que depende do supervisor. Numa
-   * passada na ordem crua, quem viesse antes do próprio candidato ficava sem
-   * chefe comum e caía como raiz solta — medido no quadro real de Dionísio
-   * Torres: 27 caixas no topo onde o certo era 1.
-   */
-  [...ambiguidades].sort((a, b) => nivelDe(a.pessoa)! - nivelDe(b.pessoa)!).forEach(amb => {
-    const paisDosCandidatos = new Set(
-      amb.candidatos.map(c => paiDe.get(c.id)).filter((x): x is string => !!x)
-    );
-    if (paisDosCandidatos.size !== 1) return;
-    const comum = [...paisDosCandidatos][0];
-    if (comum === amb.pessoa.id) return;
-    paiDe.set(amb.pessoa.id, comum);
-    amb.penduradaEm = porId.get(comum);
-  });
-
-  // Ciclo só é possível via `respondeA` manual (A responde a B, B responde a A).
-  // Detecta sobre uma CÓPIA e só então remove: apagar durante a varredura
-  // quebraria uma ponta só, e a outra sobreviveria — o desenho sairia válido
-  // com um vencedor escolhido pela ordem de iteração, escondendo o erro de
-  // cadastro. Todos os envolvidos viram raiz, onde dá para ver que estão soltos.
+  // Ciclo: detecta sobre uma cópia e só então remove TODOS os envolvidos.
+  // Apagar durante a varredura quebraria uma ponta só, e a outra sobreviveria —
+  // o desenho sairia válido com um vencedor escolhido pela ordem de iteração.
   const original = new Map(paiDe);
   const emCiclo = new Set<string>();
   original.forEach((_, id) => {
@@ -163,29 +72,51 @@ export function montarOrganograma(
   });
   emCiclo.forEach(id => paiDe.delete(id));
 
-  const nos = new Map<string, NoOrganograma>(
-    comNivel.map(p => [p.id, { pessoa: p, nivel: nivelDe(p)!, filhos: [] }])
+  const criados = new Map<string, ArvoreNo>(
+    nos.map(n => [n.id, { no: n, nivel: 1, filhos: [] }])
   );
 
-  const raizes: NoOrganograma[] = [];
-  comNivel.forEach(p => {
-    const no = nos.get(p.id)!;
-    const pai = paiDe.get(p.id);
-    if (pai && nos.has(pai)) nos.get(pai)!.filhos.push(no);
-    else raizes.push(no);
+  const raizes: ArvoreNo[] = [];
+  nos.forEach(n => {
+    const atual = criados.get(n.id)!;
+    const pai = paiDe.get(n.id);
+    if (pai && criados.has(pai)) criados.get(pai)!.filhos.push(atual);
+    else raizes.push(atual);
   });
 
-  const ordenar = (lista: NoOrganograma[]) => {
-    lista.sort((a, b) =>
-      a.nivel - b.nivel || a.pessoa.nome.localeCompare(b.pessoa.nome, 'pt-BR'));
-    lista.forEach(n => ordenar(n.filhos));
+  const numerar = (lista: ArvoreNo[], nivel: number) => {
+    lista.sort((a, b) => a.no.nome.localeCompare(b.no.nome, 'pt-BR'));
+    lista.forEach(item => {
+      item.nivel = nivel;
+      numerar(item.filhos, nivel + 1);
+    });
   };
-  ordenar(raizes);
+  numerar(raizes, 1);
 
-  return { raizes, ambiguidades, semNivel, total: comNivel.length };
+  return { raizes, orfaos, total: nos.length };
 }
 
-/** Quantos níveis a árvore tem de profundidade — usado no rodapé da tela. */
-export function profundidade(nos: NoOrganograma[]): number {
+/** Quantos degraus a árvore tem. */
+export function profundidade(nos: ArvoreNo[]): number {
   return nos.reduce((max, n) => Math.max(max, 1 + profundidade(n.filhos)), 0);
+}
+
+/**
+ * Descendentes de um nó — usado para barrar o arraste que inverteria a ordem
+ * (soltar um chefe dentro da própria equipe).
+ */
+export function descendentes(raizes: ArvoreNo[], id: string): Set<string> {
+  const achar = (lista: ArvoreNo[]): ArvoreNo | null => {
+    for (const item of lista) {
+      if (item.no.id === id) return item;
+      const achado = achar(item.filhos);
+      if (achado) return achado;
+    }
+    return null;
+  };
+  const alvo = achar(raizes);
+  const saco = new Set<string>();
+  const descer = (item: ArvoreNo) => item.filhos.forEach(f => { saco.add(f.no.id); descer(f); });
+  if (alvo) descer(alvo);
+  return saco;
 }
