@@ -108,3 +108,41 @@ describe('descendentes', () => {
     expect(descendentes(raizes, 'fantasma').size).toBe(0);
   });
 });
+
+describe('recorte por setor', () => {
+  // Infra responde ao diretor-geral, que é de outro setor.
+  const todos = [
+    { id: 'dir', nome: 'DIRETOR', setor: 'Administrativo' },
+    { id: 'coord', nome: 'COORD INFRA', setor: 'Infra', respondeA: 'dir' },
+    { id: 'asg', nome: 'ASG', setor: 'Infra', respondeA: 'coord' },
+    { id: 'prof', nome: 'PROFESSOR', setor: 'Pedagógico', respondeA: 'dir' },
+  ];
+  const idsExistentes = new Set(todos.map(n => n.id));
+  const doSetor = (setor: string) => todos.filter(n => n.setor === setor);
+
+  it('o chefe de fora do recorte vira topo, sem virar órfão', () => {
+    const { raizes, orfaos } = montarArvore(doSetor('Infra'), idsExistentes);
+    expect(orfaos).toHaveLength(0);
+    expect(raizes.map(r => r.no.nome)).toEqual(['COORD INFRA']);
+    expect(filhos(raizes[0])).toEqual(['ASG']);
+  });
+
+  it('cada setor desenha só o seu', () => {
+    expect(montarArvore(doSetor('Pedagógico'), idsExistentes).total).toBe(1);
+    expect(montarArvore(doSetor('Infra'), idsExistentes).total).toBe(2);
+  });
+
+  it('sem o universo de ids, o chefe de fora ainda conta como órfão', () => {
+    // É o comportamento de quem monta a árvore inteira: chefe ausente = apagado.
+    const { orfaos } = montarArvore(doSetor('Infra'));
+    expect(orfaos.map(o => o.nome)).toEqual(['COORD INFRA']);
+  });
+
+  it('chefe que nao existe em lugar nenhum segue sendo orfao', () => {
+    const { orfaos } = montarArvore(
+      [{ id: 'x', nome: 'X', respondeA: 'fantasma' }],
+      new Set(['x'])
+    );
+    expect(orfaos.map(o => o.nome)).toEqual(['X']);
+  });
+});

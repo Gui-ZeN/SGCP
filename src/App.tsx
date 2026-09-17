@@ -1550,6 +1550,7 @@ export default function App() {
               funcionarios={scopedFuncionarios}
               cargos={cargos}
               sedes={sedesIntegracao}
+              setores={setores}
               adicionarNo={canManageModules ? wrappedAdicionarNo : undefined}
               atualizarNo={canManageModules ? wrappedAtualizarNo : undefined}
               removerNo={canManageModules ? wrappedRemoverNo : undefined}

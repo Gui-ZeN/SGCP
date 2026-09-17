@@ -20,6 +20,8 @@ export interface NoOrganogramaDoc {
   nome: string;
   cargo?: string;
   sede?: string;
+  /** Recorte do desenho: Infra, Pedagógico, Administrativo… um por setor. */
+  setor?: string;
   /** id de outro nó. Vazio = topo do desenho. */
   respondeA?: string;
 }

@@ -20,6 +20,8 @@ export interface NoOrganograma {
   nome: string;
   cargo?: string;
   sede?: string;
+  /** Recorte do desenho: cada setor tem o seu organograma. */
+  setor?: string;
   /** id do superior. Vazio = está no topo. */
   respondeA?: string;
 }
@@ -45,14 +47,21 @@ export interface Arvore {
  * deles: superior apagado (o nó vira raiz e é reportado como órfão) e ciclo
  * criado à mão (A→B→A), que estouraria a pilha na renderização.
  */
-export function montarArvore(nos: NoOrganograma[]): Arvore {
+export function montarArvore(nos: NoOrganograma[], idsExistentes?: Set<string>): Arvore {
   const porId = new Map(nos.map(n => [n.id, n]));
 
   const orfaos: NoOrganograma[] = [];
   const paiDe = new Map<string, string>();
   nos.forEach(n => {
     if (!n.respondeA || n.respondeA === n.id) return;
-    if (!porId.has(n.respondeA)) { orfaos.push(n); return; }
+    if (!porId.has(n.respondeA)) {
+      // Chefe fora da LISTA mas existente no desenho (é o caso ao ver um setor
+      // só: o coordenador de Infra responde a um diretor de outro setor). Isso
+      // é topo do recorte, não órfão — avisar seria alarme falso a cada filtro.
+      // Órfão de verdade é chefe que não existe em lugar nenhum: foi apagado.
+      if (!idsExistentes || !idsExistentes.has(n.respondeA)) orfaos.push(n);
+      return;
+    }
     paiDe.set(n.id, n.respondeA);
   });
 

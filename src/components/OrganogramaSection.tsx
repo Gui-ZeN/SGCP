@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { Funcionario } from '../types';
-import type { Sede, Cargo } from '../hooks/useMetadata';
+import type { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import type { NoOrganogramaDoc } from '../hooks/useOrganograma';
 import { montarArvore, profundidade, descendentes, type ArvoreNo } from '../utils/organograma';
 import {
@@ -24,6 +24,7 @@ interface OrganogramaSectionProps {
   funcionarios: Funcionario[];
   cargos: Cargo[];
   sedes: Sede[];
+  setores: Setor[];
   adicionarNo?: (dados: Omit<NoOrganogramaDoc, 'id'>) => Promise<void>;
   atualizarNo?: (id: string, campos: Partial<NoOrganogramaDoc>) => Promise<void>;
   removerNo?: (id: string) => Promise<void>;
@@ -36,13 +37,13 @@ const chave = (t?: string) =>
   String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
 export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
-  nos, funcionarios, cargos, sedes,
+  nos, funcionarios, cargos, sedes, setores,
   adicionarNo, atualizarNo, removerNo, confirmAction,
 }) => {
   const [editando, setEditando] = useState<NoOrganogramaDoc | null>(null);
   const [novoSob, setNovoSob] = useState<NoOrganogramaDoc | null>(null);
   const [abrindo, setAbrindo] = useState(false);
-  const [form, setForm] = useState({ nome: '', cargo: '', sede: '', respondeA: '' });
+  const [form, setForm] = useState({ nome: '', cargo: '', sede: '', setor: '', respondeA: '' });
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
@@ -54,7 +55,57 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
   const podeEditar = !!adicionarNo;
   const LIMITE_VISIVEL = 8;
 
-  const { raizes, orfaos, total } = useMemo(() => montarArvore(nos), [nos]);
+  /**
+   * Um organograma POR SETOR. "Tudo junto" desenhava Infra e Pedagógico na
+   * mesma árvore, e eles não se encontram em lugar nenhum do dia a dia.
+   *
+   * A lista de setores vem do catálogo MAIS o que já existe nos nós — setor
+   * digitado à mão não pode sumir do seletor e levar as caixas junto.
+   */
+  const setoresDoDesenho = useMemo(() => {
+    const doCatalogo = setores.map(s => s.nome).filter(Boolean);
+    const dosNos = nos.map(n => (n.setor || '').trim()).filter(Boolean);
+    return [...new Set([...doCatalogo, ...dosNos])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [setores, nos]);
+
+  const semSetor = useMemo(() => nos.filter(n => !(n.setor || '').trim()).length, [nos]);
+  const [setorAtivo, setSetorAtivo] = useState<string>('__todos__');
+
+  const doRecorte = useMemo(() => {
+    if (setorAtivo === '__todos__') return nos;
+    if (setorAtivo === '__sem__') return nos.filter(n => !(n.setor || '').trim());
+    return nos.filter(n => chave(n.setor) === chave(setorAtivo));
+  }, [nos, setorAtivo]);
+
+  const idsExistentes = useMemo(() => new Set(nos.map(n => n.id)), [nos]);
+
+  const { raizes, orfaos, total } = useMemo(
+    () => montarArvore(doRecorte, idsExistentes),
+    [doRecorte, idsExistentes]
+  );
+
+  /** Quantas caixas cada setor tem — o seletor diz o tamanho antes de abrir. */
+  const contagemPorSetor = useMemo(() => {
+    const mapa = new Map<string, number>();
+    nos.forEach(n => {
+      const s = (n.setor || '').trim();
+      if (s) mapa.set(s, (mapa.get(s) || 0) + 1);
+    });
+    return mapa;
+  }, [nos]);
+
+  const comDesenho = useMemo(
+    () => setoresDoDesenho.filter(nome => (contagemPorSetor.get(nome) || 0) > 0),
+    [setoresDoDesenho, contagemPorSetor]
+  );
+  const vaziosDoCatalogo = useMemo(
+    () => setoresDoDesenho.filter(nome => !(contagemPorSetor.get(nome) || 0)),
+    [setoresDoDesenho, contagemPorSetor]
+  );
+
+  const rotuloDoRecorte = setorAtivo === '__todos__'
+    ? 'todos os setores'
+    : setorAtivo === '__sem__' ? 'sem setor' : setorAtivo;
 
   /**
    * Nomes sugeridos para o cargo escolhido — é todo o papel do quadro aqui.
@@ -72,7 +123,14 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
   const abrirNovo = (sob: NoOrganogramaDoc | null) => {
     setEditando(null);
     setNovoSob(sob);
-    setForm({ nome: '', cargo: '', sede: sob?.sede || '', respondeA: sob?.id || '' });
+    setForm({
+      nome: '', cargo: '',
+      sede: sob?.sede || '',
+      // O subordinado nasce no setor do chefe; sem chefe, no setor que está
+      // aberto na tela. Fora isso, a caixa sumiria do recorte ao ser criada.
+      setor: sob?.setor || (setorAtivo.startsWith('__') ? '' : setorAtivo),
+      respondeA: sob?.id || '',
+    });
     setErro('');
     setAbrindo(true);
   };
@@ -80,7 +138,10 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
   const abrirEdicao = (n: NoOrganogramaDoc) => {
     setEditando(n);
     setNovoSob(null);
-    setForm({ nome: n.nome || '', cargo: n.cargo || '', sede: n.sede || '', respondeA: n.respondeA || '' });
+    setForm({
+      nome: n.nome || '', cargo: n.cargo || '', sede: n.sede || '',
+      setor: n.setor || '', respondeA: n.respondeA || '',
+    });
     setErro('');
     setAbrindo(true);
   };
@@ -91,6 +152,7 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
       nome: form.nome.trim(),
       cargo: form.cargo.trim() || undefined,
       sede: form.sede.trim() || undefined,
+      setor: form.setor.trim() || undefined,
       respondeA: form.respondeA || undefined,
     };
     setSalvando(true);
@@ -311,6 +373,36 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
         </div>
 
         <div className="flex items-center gap-2 self-start no-print">
+          {(setoresDoDesenho.length > 0 || semSetor > 0) && (
+            <select
+              value={setorAtivo}
+              onChange={e => setSetorAtivo(e.target.value)}
+              aria-label="Setor do organograma"
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 cursor-pointer outline-none focus:border-slate-800"
+            >
+              <option value="__todos__">Todos os setores ({nos.length})</option>
+              {/* Quem JÁ tem desenho vem primeiro: o catálogo tem 24 setores e
+                  listar os vazios junto transformava o seletor numa parede de
+                  "(0)" entre os dois que a pessoa usa. */}
+              {comDesenho.length > 0 && (
+                <optgroup label="Com organograma">
+                  {comDesenho.map(nome => (
+                    <option key={nome} value={nome}>{nome} ({contagemPorSetor.get(nome)})</option>
+                  ))}
+                </optgroup>
+              )}
+              {semSetor > 0 && (
+                <optgroup label="Pendente">
+                  <option value="__sem__">Sem setor ({semSetor})</option>
+                </optgroup>
+              )}
+              {vaziosDoCatalogo.length > 0 && (
+                <optgroup label="Ainda sem ninguém">
+                  {vaziosDoCatalogo.map(nome => <option key={nome} value={nome}>{nome}</option>)}
+                </optgroup>
+              )}
+            </select>
+          )}
           <button
             onClick={imprimir}
             className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded-xl text-xs font-bold uppercase tracking-wider border border-slate-250 flex items-center gap-1.5 cursor-pointer transition-colors"
@@ -349,7 +441,11 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
         {raizes.length === 0 ? (
           <div className="py-14 text-center">
             <Network className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm font-bold text-slate-600">O organograma está vazio.</p>
+            <p className="text-sm font-bold text-slate-600">
+              {setorAtivo === '__todos__'
+                ? 'O organograma está vazio.'
+                : `Nenhuma caixa em ${rotuloDoRecorte}.`}
+            </p>
             <p className="text-[11px] text-slate-500 font-medium mt-1">
               Comece pela caixa do topo — depois use o <strong>+</strong> de cada caixa para pendurar quem responde a ela.
             </p>
@@ -357,16 +453,19 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
         ) : (
           <>
             <div className="print-only mb-3">
-              <p className="text-sm font-bold">Organograma</p>
+              <p className="text-sm font-bold">
+                Organograma{setorAtivo === '__todos__' ? '' : ` — ${rotuloDoRecorte}`}
+              </p>
               <p className="text-[11px]">
-                {total} {total === 1 ? 'caixa' : 'caixas'} · {profundidade(raizes)} níveis ·
+                {total} {total === 1 ? 'caixa' : 'caixas'} · {profundidade(raizes)} {profundidade(raizes) === 1 ? 'nível' : 'níveis'} ·
                 gerado em {new Date().toLocaleDateString('pt-BR')}
               </p>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                {total} {total === 1 ? 'caixa' : 'caixas'} · {profundidade(raizes)} níveis
+                {setorAtivo === '__todos__' ? '' : `${rotuloDoRecorte} · `}
+                {total} {total === 1 ? 'caixa' : 'caixas'} · {profundidade(raizes)} {profundidade(raizes) === 1 ? 'nível' : 'níveis'}
               </p>
               {podeEditar && (
                 <span className="text-[10px] font-semibold text-slate-500 no-print">
@@ -435,13 +534,27 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
                 </p>
               </div>
 
-              <div>
-                <label htmlFor="org-sede" className={rotuloCls}>Sede (opcional)</label>
-                <input id="org-sede" className={campoCls} list="org-sedes"
-                  value={form.sede} onChange={e => setForm(f => ({ ...f, sede: e.target.value }))} />
-                <datalist id="org-sedes">
-                  {sedes.map(s => <option key={s.nome} value={s.nome} />)}
-                </datalist>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="org-setor" className={rotuloCls}>Setor</label>
+                  <input id="org-setor" className={campoCls} list="org-setores"
+                    placeholder="Ex.: Infra…"
+                    value={form.setor} onChange={e => setForm(f => ({ ...f, setor: e.target.value }))} />
+                  <datalist id="org-setores">
+                    {setoresDoDesenho.map(nome => <option key={nome} value={nome} />)}
+                  </datalist>
+                  <p className="text-[10px] text-slate-500 font-semibold mt-1">
+                    Cada setor tem o seu organograma.
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="org-sede" className={rotuloCls}>Sede (opcional)</label>
+                  <input id="org-sede" className={campoCls} list="org-sedes"
+                    value={form.sede} onChange={e => setForm(f => ({ ...f, sede: e.target.value }))} />
+                  <datalist id="org-sedes">
+                    {sedes.map(s => <option key={s.nome} value={s.nome} />)}
+                  </datalist>
+                </div>
               </div>
 
               {editando && (
