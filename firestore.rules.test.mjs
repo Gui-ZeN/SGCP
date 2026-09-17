@@ -525,3 +525,24 @@ test("selecoes: usuario verificado le", () =>
 
 test("selecoes: anonimo NAO pode criar (nao e' formulario publico)", () =>
   assertFails(setDoc(doc(ctx.unauth(), "selecoes", "s3"), selecaoValida)));
+
+// --- organograma: caixas do desenho (nome + cargo = dado interno) -----------
+const noOrganograma = { nome: "Ana Silva", cargo: "COORDENADOR(A)", sede: "DIONISIO TORRES" };
+
+test("organograma: leitura SEM auth e' negada", () =>
+  assertFails(getDoc(doc(ctx.unauth(), "organograma", "o1"))));
+
+test("organograma: analista pode criar caixa", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "organograma", "o1"), noOrganograma)));
+
+test("organograma: visualizador NAO pode criar", () =>
+  assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "organograma", "o2"), noOrganograma)));
+
+test("organograma: usuario verificado le", () =>
+  assertSucceeds(getDoc(doc(ctx.user(VIEWER_EMAIL), "organograma", "o1"))));
+
+test("organograma: anonimo NAO pode criar (nao ha formulario publico aqui)", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "organograma", "o3"), noOrganograma)));
+
+test("organograma: analista pode apagar caixa (desenho e' editavel)", () =>
+  assertSucceeds(deleteDoc(doc(ctx.user(ANALISTA_EMAIL), "organograma", "o1"))));
