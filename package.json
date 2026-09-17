@@ -12,6 +12,7 @@
     "test": "vitest run",
     "sync:cromos": "node scripts/sincronizar-cromos.mjs",
     "testar:disparo": "tsx scripts/testar-disparo.mts",
+    "setores:padronizar": "node scripts/padronizar-setores.mjs",
     "test:rules": "firebase emulators:exec --only firestore --project sgcp-rules-test \"node firestore.rules.test.mjs\""
   },
   "dependencies": {
