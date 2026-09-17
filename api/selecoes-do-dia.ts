@@ -97,10 +97,25 @@ async function lerColecao(colecao: string, token: string): Promise<any[]> {
 
 export default async function handler(req: any, res: any) {
   // Trava 1: só o cron da Vercel (ou quem tem o segredo) dispara.
+  //
+  // "Não configurado" e "chamador errado" respondem DIFERENTE de propósito: os
+  // dois devolviam 401 e, no log, ninguém distinguia a função sem variável de
+  // ambiente de alguém batendo na porta. Variável adicionada depois do deploy
+  // não vale para o deploy que já está no ar — é a causa mais provável de o
+  // e-mail não chegar, e agora o log diz isso em vez de "não autorizado".
   const segredo = process.env.CRON_SECRET;
-  const autorizacao = req.headers?.authorization || '';
-  if (!segredo || autorizacao !== `Bearer ${segredo}`) {
+  if (!segredo) {
+    console.error('[selecoes-do-dia] CRON_SECRET ausente neste deploy — refaça o deploy após configurar as variáveis.');
+    return res.status(503).json({ erro: 'disparo não configurado neste deploy' });
+  }
+  const faltando = ['SMTP_USER', 'SMTP_APP_PASSWORD', 'GOOGLE_SERVICE_ACCOUNT_JSON']
+    .filter(v => !process.env[v]);
+  if ((req.headers?.authorization || '') !== `Bearer ${segredo}`) {
     return res.status(401).json({ erro: 'não autorizado' });
+  }
+  if (faltando.length) {
+    console.error(`[selecoes-do-dia] variáveis ausentes: ${faltando.join(', ')}`);
+    return res.status(503).json({ erro: 'disparo não configurado', faltando });
   }
 
   try {
