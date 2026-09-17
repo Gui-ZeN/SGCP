@@ -5,6 +5,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts']
+    // `api/` entra junto: a função serverless do disparo das 18h tem teste de
+    // carregamento, e ele só vale se rodar com o `npm test` de todo dia.
+    include: ['src/**/*.test.ts', 'api/**/*.test.ts']
   }
 });
