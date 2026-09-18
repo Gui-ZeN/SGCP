@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { montarEmailSelecoes } from './emailSelecoes';
-import type { Selecao } from '../types';
+import { montarEmailSelecoes } from './selecoes-do-dia';
+import { ehRealizada, totaisDeSelecoes, codigosDasVagas } from '../src/utils/selecao';
+import type { Selecao } from '../src/types';
 
 const DIA = '17/09/2026';
 const sel = (over: Partial<Selecao>): Selecao => ({
@@ -84,5 +85,40 @@ describe('montarEmailSelecoes', () => {
     ]);
     expect(e.html.indexOf('REALIZADA')).toBeLessThan(e.html.indexOf('AGENDADA'));
     expect(e.html).toContain('3 / — / —');
+  });
+});
+
+
+describe('as regras duplicadas concordam com src/utils/selecao', () => {
+  // A funcao serverless nao pode importar de fora de `api/` (a Vercel nao
+  // empacota, so transpila). As tres regrinhas foram copiadas para la; este
+  // teste existe para elas nao divergirem em silencio.
+  const casos: Selecao[][] = [
+    [sel({ convocados: 10, compareceram: 4, ausentes: 6, desistiram: 2, contratados: 1 })],
+    [sel({ convocados: 8, compareceram: 5 }), sel({ status: 'agendado', convocados: 40 })],
+    [sel({ status: 'agendado', convocados: 3 })],
+    [],
+    [sel({ convocados: 3, compareceram: 1 })],
+  ];
+
+  it('totaisDeSelecoes da o mesmo resultado nos dois lugares', () => {
+    casos.forEach(lista => {
+      const daApi = montarEmailSelecoes(DIA, lista);
+      const doApp = totaisDeSelecoes(lista);
+      // O e-mail usa os totais no assunto; se divergissem, o assunto mentiria.
+      if (doApp.convocados > 0) {
+        expect(daApi.assunto).toContain(`${doApp.compareceram} de ${doApp.convocados}`);
+      }
+    });
+  });
+
+  it('ehRealizada e codigosDasVagas seguem a mesma regra', () => {
+    expect(ehRealizada({} as any)).toBe(true);
+    expect(ehRealizada({ status: 'agendado' } as any)).toBe(false);
+    expect(codigosDasVagas({ vagaCodigos: [31, 1120] })).toEqual([31, 1120]);
+    expect(codigosDasVagas({ vagaCodigo: 24 })).toEqual([24]);
+    // e o e-mail imprime exatamente esses codigos
+    const e = montarEmailSelecoes(DIA, [sel({ convocados: 1, compareceram: 1, vagaCodigos: [31, 1120] })]);
+    expect(e.html).toContain('#31 #1120');
   });
 });

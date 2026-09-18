@@ -20,7 +20,7 @@
  */
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
-import { montarEmailSelecoes } from '../src/utils/emailSelecoes';
+import { montarEmailSelecoes } from '../api/selecoes-do-dia';
 import type { Selecao } from '../src/types';
 
 dotenv.config();
