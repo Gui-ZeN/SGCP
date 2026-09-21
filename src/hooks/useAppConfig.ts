@@ -13,6 +13,22 @@ export interface Notificacoes {
   destinatariosSelecoes: string[];
   /** Liga/desliga o disparo sem precisar apagar a lista. */
   selecoesAtivo: boolean;
+  /**
+   * Resultado da ÚLTIMA execução do disparo, gravado pela própria função.
+   *
+   * Existe porque sucesso e falha eram indistinguíveis de fora: a evidência de
+   * sucesso é um e-mail na caixa de outra pessoa, e a de falha é silêncio — o
+   * mesmo silêncio de um dia sem seleção. Levou três dias para alguém notar
+   * que o disparo de 17/09/2026 tinha morrido.
+   */
+  ultimoDisparo?: {
+    quando?: string;         // ISO
+    dia?: string;            // DD/MM/AAAA do resumo
+    enviado?: boolean;
+    motivo?: string;
+    destinatarios?: number;
+    assunto?: string;
+  };
 }
 
 const NOTIF_VAZIO: Notificacoes = { destinatariosSelecoes: [], selecoesAtivo: true };
@@ -47,8 +63,12 @@ export function useAppConfig(currentUser: any) {
 
   const salvarNotificacoes = async (novo: Notificacoes) => {
     setNotificacoes(novo); // otimista
+    // `ultimoDisparo` é escrito pela função das 18h, não pela tela. Mandá-lo de
+    // volta aqui sobrescreveria um registro mais novo pela cópia que o
+    // navegador tinha em mãos.
+    const { ultimoDisparo: _naoEhMeu, ...meus } = novo;
     if (isFirebaseEnabled && db) {
-      try { await setDoc(doc(db, 'config', 'notificacoes'), novo, { merge: true }); }
+      try { await setDoc(doc(db, 'config', 'notificacoes'), meus, { merge: true }); }
       catch (e) { console.error('Erro ao salvar notificações:', e); throw e; }
     } else {
       try {

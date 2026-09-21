@@ -17,7 +17,9 @@
  *     lista que o admin configurou.
  *
  * A conta de serviço é necessária porque o cron roda sem usuário logado: não há
- * token de ninguém para o Firestore autorizar. Ela deve ter leitura e nada mais.
+ * token de ninguém para o Firestore autorizar. Precisa de LEITURA (selecoes,
+ * config) e de ESCRITA em `config/notificacoes`, onde cada execução deixa o
+ * registro do que fez — `roles/datastore.user`.
  */
 import crypto from 'node:crypto';
 import nodemailer from 'nodemailer';
@@ -261,6 +263,44 @@ async function lerColecao(colecao: string, token: string): Promise<any[]> {
   return docs;
 }
 
+/**
+ * Grava o resultado de CADA execução em `config/notificacoes.ultimoDisparo`.
+ *
+ * Sem isto, sucesso e falha são indistinguíveis: a evidência de sucesso é um
+ * e-mail na caixa de outra pessoa, e a de falha é silêncio — que também é o que
+ * um dia sem seleção produz. Levamos três dias para notar que o disparo de
+ * 17/09 tinha morrido.
+ *
+ * `updateMask` limitado ao campo: a lista de destinatários não é tocada.
+ * Falhar aqui NÃO derruba o envio — registro é diagnóstico, não a tarefa.
+ */
+async function registrarDisparo(token: string, dados: Record<string, string | number | boolean>) {
+  try {
+    const fields = Object.fromEntries(Object.entries(dados).map(([k, v]) => [
+      k,
+      typeof v === 'boolean' ? { booleanValue: v }
+        : typeof v === 'number' ? { integerValue: String(v) }
+        : { stringValue: String(v) },
+    ]));
+    const r = await fetch(`${BASE}/config/notificacoes?updateMask.fieldPaths=ultimoDisparo`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { ultimoDisparo: { mapValue: { fields } } } }),
+    });
+    if (!r.ok) {
+      // 403 aqui quer dizer conta de serviço só-leitura. Sem este aviso o
+      // registro sumiria no catch e a tela ficaria eternamente em "nenhum
+      // registro ainda" — trocaríamos um silêncio por outro.
+      console.error(
+        `[selecoes-do-dia] não gravei o registro (${r.status}). ` +
+        'A conta de serviço precisa de permissão de ESCRITA no Firestore (roles/datastore.user).'
+      );
+    }
+  } catch (e: any) {
+    console.error('[selecoes-do-dia] não consegui registrar o disparo:', e?.message || e);
+  }
+}
+
 export default async function handler(req: any, res: any) {
   // Trava 1: só o cron da Vercel (ou quem tem o segredo) dispara.
   //
@@ -295,8 +335,15 @@ export default async function handler(req: any, res: any) {
       .filter((e: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
     const ativo = notif?.fields?.selecoesAtivo?.booleanValue !== false;
 
-    if (!ativo) return res.status(200).json({ enviado: false, motivo: 'desligado na configuração' });
-    if (!lista.length) return res.status(200).json({ enviado: false, motivo: 'sem destinatários configurados' });
+    const quando = new Date().toISOString();
+    if (!ativo) {
+      await registrarDisparo(token, { quando, enviado: false, motivo: 'desligado na configuração' });
+      return res.status(200).json({ enviado: false, motivo: 'desligado na configuração' });
+    }
+    if (!lista.length) {
+      await registrarDisparo(token, { quando, enviado: false, motivo: 'sem destinatários configurados' });
+      return res.status(200).json({ enviado: false, motivo: 'sem destinatários configurados' });
+    }
 
     const dia = hojeEmFortaleza();
     const selecoes: Selecao[] = (await lerColecao('selecoes', token)).map(d => ({
@@ -322,20 +369,42 @@ export default async function handler(req: any, res: any) {
     const email = montarEmailSelecoes(dia, selecoes);
     // Dia sem seleção não vira e-mail: aviso que quase sempre diz "nada
     // aconteceu" ensina o destinatário a ignorar o remetente.
-    if (!email.vale) return res.status(200).json({ enviado: false, motivo: `sem seleções em ${dia}` });
+    if (!email.vale) {
+      // Registrado mesmo sem enviar: é o que separa "não houve seleção" de
+      // "quebrou". Sem essa linha, os dois parecem iguais de fora.
+      await registrarDisparo(token, { quando, dia, enviado: false, motivo: 'nenhuma seleção neste dia' });
+      return res.status(200).json({ enviado: false, motivo: `sem seleções em ${dia}` });
+    }
 
     const transporte = nodemailer.createTransport({
       service: 'gmail',
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_APP_PASSWORD },
     });
-    await transporte.sendMail({
-      from: `SGPC <${process.env.SMTP_USER}>`,
-      to: lista,
-      subject: email.assunto,
-      text: email.texto,
-      html: email.html,
-    });
+    try {
+      await transporte.sendMail({
+        from: `SGPC <${process.env.SMTP_USER}>`,
+        to: lista,
+        subject: email.assunto,
+        text: email.texto,
+        html: email.html,
+      });
+    } catch (e: any) {
+      // A falha do SMTP é registrada ANTES de subir: é o caso em que o RH
+      // precisa saber que houve tentativa, e o motivo (senha de app recusada,
+      // caixa cheia, Gmail bloqueando).
+      await registrarDisparo(token, {
+        quando, dia, enviado: false,
+        motivo: `falha no envio: ${String(e?.message || e).slice(0, 140)}`,
+      });
+      throw e;
+    }
 
+    await registrarDisparo(token, {
+      quando, dia, enviado: true,
+      motivo: 'enviado',
+      destinatarios: lista.length,
+      assunto: email.assunto,
+    });
     return res.status(200).json({ enviado: true, dia, destinatarios: lista.length, assunto: email.assunto });
   } catch (e: any) {
     console.error('[selecoes-do-dia]', e?.message || e);

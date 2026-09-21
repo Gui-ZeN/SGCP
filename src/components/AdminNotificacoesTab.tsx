@@ -23,6 +23,7 @@ export const AdminNotificacoesTab: React.FC<Props> = ({ notificacoes, salvar }) 
   const [salvando, setSalvando] = useState(false);
 
   const lista = notificacoes.destinatariosSelecoes || [];
+  const ultimo = notificacoes.ultimoDisparo;
 
   const aplicar = async (n: Notificacoes) => {
     setSalvando(true);
@@ -55,12 +56,43 @@ export const AdminNotificacoesTab: React.FC<Props> = ({ notificacoes, salvar }) 
           Resumo do que o RH fez no dia, por e-mail.
         </p>
 
-        <div className="flex items-start gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 mb-4">
+        <div className="flex items-start gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 mb-3">
           <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
           <p className="text-[11px] text-slate-600 font-semibold leading-relaxed">
             Disparo automático às <strong>18h de Fortaleza</strong>.
             Dia sem seleção não gera e-mail.
           </p>
+        </div>
+
+        {/* O que a última execução fez. Sem isto, "não chegou e-mail" e "não
+            havia seleção" são a mesma tela em branco. */}
+        <div className={`rounded-xl border px-3 py-2.5 mb-4 ${
+          !ultimo ? 'bg-slate-50 border-slate-200'
+            : ultimo.enviado ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'
+        }`}>
+          <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Último disparo</p>
+          {!ultimo ? (
+            <p className="text-[11px] font-semibold text-slate-600 mt-0.5">
+              Nenhum registro ainda — o primeiro aparece aqui depois das 18h.
+            </p>
+          ) : (
+            <>
+              <p className={`text-xs font-bold mt-0.5 ${ultimo.enviado ? 'text-emerald-800' : 'text-amber-800'}`}>
+                {ultimo.enviado
+                  ? `Enviado para ${ultimo.destinatarios || 0} ${(ultimo.destinatarios || 0) === 1 ? 'pessoa' : 'pessoas'}`
+                  : `Não enviado — ${ultimo.motivo || 'sem motivo registrado'}`}
+              </p>
+              <p className="text-[11px] font-semibold text-slate-600">
+                {ultimo.dia ? `Resumo de ${ultimo.dia} · ` : ''}
+                {ultimo.quando ? new Date(ultimo.quando).toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }) : ''}
+              </p>
+              {ultimo.enviado && ultimo.assunto && (
+                <p className="text-[10px] text-slate-600 font-medium mt-1 truncate" title={ultimo.assunto}>
+                  {ultimo.assunto}
+                </p>
+              )}
+            </>
+          )}
         </div>
 
         <form onSubmit={adicionar} className="space-y-3">
