@@ -122,3 +122,26 @@ describe('as regras duplicadas concordam com src/utils/selecao', () => {
     expect(e.html).toContain('#31 #1120');
   });
 });
+
+describe('resumo nao contradiz a tabela', () => {
+  it('dia so com agendamento nao anuncia "0 convocados"', () => {
+    const e = montarEmailSelecoes(DIA, [sel({ status: 'agendado', convocados: 2 })]);
+    expect(e.texto).not.toContain('0 convocados');
+    expect(e.html).toContain('2 convocados a confirmar');
+  });
+
+  it('dia misto mostra o realizado E o que falta confirmar', () => {
+    const e = montarEmailSelecoes(DIA, [
+      sel({ convocados: 8, compareceram: 5 }),
+      sel({ status: 'agendado', convocados: 4 }),
+    ]);
+    expect(e.html).toContain('8 convocados');
+    expect(e.html).toContain('5 compareceram');
+    expect(e.html).toContain('4 convocados a confirmar');
+  });
+
+  it('dia so realizado nao inventa "a confirmar"', () => {
+    const e = montarEmailSelecoes(DIA, [sel({ convocados: 6, compareceram: 6 })]);
+    expect(e.html).not.toContain('a confirmar');
+  });
+});

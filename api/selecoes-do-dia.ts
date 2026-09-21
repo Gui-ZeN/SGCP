@@ -113,11 +113,22 @@ export function montarEmailSelecoes(dia: string, selecoes: Selecao[]): EmailSele
     return { assunto: '', html: '', texto: '', vale: false };
   }
 
+  // Convocados AGENDADOS entram no resumo por fora do total: `totaisDeSelecoes`
+  // só conta o realizado (senão um dia que não chegou derruba a taxa), mas
+  // anunciar "0 convocados" com 2 na tabela logo abaixo é a folha se
+  // contradizendo. Medido em 21/09/2026, num dia só com agendamento.
+  const convocadosAConfirmar = doDia
+    .filter(s => !ehRealizada(s))
+    .reduce((soma, s) => soma + (s.convocados || 0), 0);
+
   const resumo = [
-    `${t.convocados} convocados`,
-    `${t.compareceram} compareceram`,
+    t.convocados > 0 ? `${t.convocados} convocados` : '',
+    t.convocados > 0 ? `${t.compareceram} compareceram` : '',
     t.taxa !== null ? `${t.taxa}% de comparecimento` : '',
     t.contratados ? plural(t.contratados, 'contratado', 'contratados') : '',
+    convocadosAConfirmar > 0
+      ? `${convocadosAConfirmar} ${convocadosAConfirmar === 1 ? 'convocado' : 'convocados'} a confirmar`
+      : '',
   ].filter(Boolean).join(' · ');
 
   const assunto = t.convocados > 0
