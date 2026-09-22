@@ -121,10 +121,15 @@ export function montarEmailSelecoes(dia: string, selecoes: Selecao[]): EmailSele
     .filter(s => !ehRealizada(s))
     .reduce((soma, s) => soma + (s.convocados || 0), 0);
 
+  // Vírgula decimal: é pt-BR, e o HTML já escreve assim. Enquanto esta linha
+  // dizia "28.6%" e o HTML dizia "28,6%", as duas partes da mesma mensagem
+  // divergiam de novo — pelo separador, dessa vez.
+  const taxaEscrita = t.taxa === null ? '' : `${String(t.taxa).replace('.', ',')}% de comparecimento`;
+
   const resumo = [
     t.convocados > 0 ? `${t.convocados} convocados` : '',
     t.convocados > 0 ? `${t.compareceram} compareceram` : '',
-    t.taxa !== null ? `${t.taxa}% de comparecimento` : '',
+    taxaEscrita,
     t.contratados ? plural(t.contratados, 'contratado', 'contratados') : '',
     convocadosAConfirmar > 0
       ? `${convocadosAConfirmar} ${convocadosAConfirmar === 1 ? 'convocado' : 'convocados'} a confirmar`
@@ -142,10 +147,15 @@ export function montarEmailSelecoes(dia: string, selecoes: Selecao[]): EmailSele
     if (n > 0) motivos.set(m, (motivos.get(m) || 0) + n);
   }));
 
-  const html = montarHtml({ dia, realizadas, agendadas, totais: t, convocadosAConfirmar, motivos });
+  const html = montarHtml({ dia, realizadas, agendadas, totais: t, taxa: taxaEscrita, convocadosAConfirmar, motivos });
 
+  // ⚠️ Abre com o MESMO título do HTML ("Resumo do dia"), e não com um título
+  // próprio. Enquanto esta parte dizia "SGPC — Seleções do dia" e o HTML dizia
+  // "Resumo do dia", as duas alternativas da mesma mensagem anunciavam coisas
+  // diferentes — e mostrar uma coisa a um leitor e outra a outro é justamente
+  // o que um filtro de phishing procura. Ver o comentário de `montarHtml`.
   const texto = [
-    `SGPC — Seleções do dia ${dia}`,
+    `Resumo do dia - ${dia}`,
     resumo,
     '',
     ...[...realizadas, ...agendadas].map(s => {
@@ -155,6 +165,7 @@ export function montarEmailSelecoes(dia: string, selecoes: Selecao[]): EmailSele
       return `- ${s.cargo} · ${s.sede || 's/ sede'} · ${s.responsavel || 's/ responsável'}: ${n}`;
     }),
     agendadas.length ? `\n${plural(agendadas.length, 'seleção sem confirmação', 'seleções sem confirmação')} de presença.` : '',
+    '\nEnviado automaticamente pelo SGPC. Para mudar quem recebe: Painel Admin → Notificações.',
   ].filter(Boolean).join('\n');
 
   return { assunto, html, texto, vale: true };
@@ -179,15 +190,39 @@ export function montarEmailSelecoes(dia: string, selecoes: Selecao[]): EmailSele
  *     que soma — em vez de uma frase solta com pontinhos no topo. A taxa fica
  *     embaixo do total de compareceram, que é exatamente o que ela mede.
  *  3. O código de vaga é partido em dois <span>, e NÃO vai dentro de link —
- *     ver o comentário de `refVaga`, que conta por que a primeira tentativa
- *     (envolver em <a>) fez o Gmail marcar o e-mail como perigoso. A <meta>
- *     format-detection cobre o iOS, que usa outro detector.
+ *     ver o comentário de `refVaga`.
+ *
+ * ⚠️ E TRÊS COISAS QUE NÃO ESTÃO AQUI, de propósito.
+ *
+ * Em 22 e 23/09 o Gmail carimbou este e-mail com a tarja vermelha "Esta
+ * mensagem pode ser perigosa". Não era autenticação: SPF, DKIM e DMARC deram
+ * PASS nos três. Era o corpo — e o corpo só tinha mudado na redesenhada.
+ * Sobraram três suspeitos, todos padrões que classificador de phishing pesa:
+ *
+ *  a. TEXTO ESCONDIDO. Os rótulos de coluna do celular viviam em <span> com
+ *     `display:none` no desktop. Texto que está no HTML e o leitor não vê é
+ *     dos sinais mais antigos de mensagem maliciosa. Saiu — e com ele foi o
+ *     empilhamento no celular, que dependia de media query. O preço é a tabela
+ *     apertada em tela pequena; é menos ruim que um e-mail que ninguém abre.
+ *  b. COMENTÁRIO EM HTML. Comentário viaja dentro da mensagem e some da vista.
+ *     Toda explicação daqui em diante é comentário de código, nunca de HTML.
+ *  c. AS DUAS PARTES DIVERGINDO. O texto puro abria com "SGPC — Seleções do
+ *     dia" enquanto o HTML dizia "Resumo do dia". Divergência entre as partes
+ *     text/plain e text/html é sinal clássico: é como se esconde de um leitor
+ *     o que se mostra ao outro. As duas passaram a dizer a mesma coisa.
+ *
+ * Por isso também não há mais <!doctype>, <head> nem <style>: o formato que
+ * nunca foi marcado era uma <div> com estilo inline, e voltamos a ele. Se a
+ * tarja insistir mesmo assim, a causa está fora do corpo e a investigação
+ * recomeça — mas não por aqui.
  */
 function montarHtml(d: {
   dia: string;
   realizadas: Selecao[];
   agendadas: Selecao[];
   totais: ReturnType<typeof totaisDeSelecoes>;
+  /** Já escrita, com vírgula decimal — vem pronta para as duas partes dizerem igual. */
+  taxa: string;
   convocadosAConfirmar: number;
   motivos: Map<string, number>;
 }): string {
@@ -202,17 +237,6 @@ function montarHtml(d: {
   const rotulo = `font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${TINTA3}`;
   const celNum = `padding:12px 8px;text-align:right;font-size:16px;color:${TINTA};${TNUM};border-bottom:1px solid ${HAIRLINE}`;
 
-  /**
-   * Rótulo que só aparece no celular.
-   *
-   * No telefone a tabela deixa de ser tabela: as células viram blocos empilhados
-   * (a 375px, quatro colunas espremiam "Auxiliar de Serviços Gerais" em três
-   * linhas e a taxa vazava da célula). Empilhado, o número perde o cabeçalho que
-   * o explicava — então cada um carrega o próprio rótulo, escondido no desktop.
-   * É `display:none` invertido por media query porque cliente de e-mail não tem
-   * `::before` confiável, que seria o caminho normal.
-   */
-  const rot = (texto: string) => `<span class="sgpc-rot">${texto}</span>`;
 
   /**
    * Números de vaga — SEM link, e partidos em dois <span>.
@@ -253,86 +277,49 @@ function montarHtml(d: {
     const feita = ehRealizada(s);
     const pendente = `<span style="color:${TINTA3};font-size:13px">a confirmar</span>`;
     return `<tr>
-      <td class="sgpc-c" style="padding:12px 8px;border-bottom:1px solid ${HAIRLINE};vertical-align:top">
+      <td style="padding:12px 8px;border-bottom:1px solid ${HAIRLINE};vertical-align:top">
         <div style="font-size:14px;font-weight:700;color:${TINTA};line-height:1.3">${escapar(s.cargo)}</div>
         <div style="font-size:12px;color:${TINTA2};margin-top:3px;line-height:1.4">
           ${escapar(s.sede || 'sem sede')} <span style="color:${HAIRLINE}">·</span> ${escapar(s.responsavel || 'sem responsável')}
         </div>
         ${refVaga(s)}
       </td>
-      <td class="sgpc-n" style="${celNum}">${rot('Convocados')}${s.convocados || 0}</td>
-      <td class="sgpc-n" style="${celNum}">${rot('Compareceram')}${feita ? s.compareceram || 0 : pendente}</td>
-      <td class="sgpc-n sgpc-fim" style="${celNum}">${rot('Ausentes')}${feita ? s.ausentes || 0 : pendente}</td>
+      <td style="${celNum}">${s.convocados || 0}</td>
+      <td style="${celNum}">${feita ? s.compareceram || 0 : pendente}</td>
+      <td style="${celNum}">${feita ? s.ausentes || 0 : pendente}</td>
     </tr>`;
   };
 
   const t = d.totais;
-  // Vírgula decimal: é pt-BR. O "28.6%" de antes era defeito, não estilo.
-  const taxa = t.taxa === null ? '' : `${String(t.taxa).replace('.', ',')}% de comparecimento`;
+  const taxa = d.taxa;
   const celTotal = `padding:12px 8px;text-align:right;font-size:17px;font-weight:700;color:${TINTA};${TNUM};border-top:2px solid ${TINTA}`;
 
   const th = (texto: string, alinha: 'left' | 'right') =>
     `<th align="${alinha}" style="padding:0 8px 8px;${rotulo};border-bottom:1px solid ${TINTA}">${texto}</th>`;
 
-  return `<!doctype html>
-<html lang="pt-BR">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- Impede o iOS de transformar o código de vaga em link de telefone. -->
-<meta name="format-detection" content="telephone=no,date=no,address=no,email=no">
-<meta name="color-scheme" content="light">
-<meta name="supported-color-schemes" content="light">
-<title>Seleções de ${escapar(d.dia)}</title>
-<style>
-  /* No desktop o cabeçalho da tabela já nomeia as colunas. */
-  .sgpc-rot { display: none; }
-  @media only screen and (max-width:620px) {
-    .sgpc-folha { padding: 24px 18px !important; }
-    .sgpc-data  { font-size: 26px !important; }
-    /* A tabela deixa de ser tabela: quatro colunas não cabem em 375px. */
-    .sgpc-cab { display: none !important; }
-    .sgpc-c, .sgpc-n {
-      display: block !important; width: 100% !important;
-      text-align: left !important; border-bottom: 0 !important;
-      padding: 2px 0 !important; font-size: 15px !important;
-    }
-    .sgpc-c { padding-top: 14px !important; }
-    .sgpc-fim { padding-bottom: 14px !important; border-bottom: 1px solid #DDE0E6 !important; }
-    .sgpc-rot {
-      display: inline-block !important; min-width: 124px;
-      font-size: 11px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .08em; color: #5F6169;
-    }
-    /* Empilhado, a borda de topo de cada célula do total viraria três réguas
-       pretas seguidas. A régua é uma só, na linha que abre o bloco. */
-    .sgpc-total .sgpc-n { border-top: 0 !important; }
-  }
-</style>
-</head>
-<body style="margin:0;padding:0;background:${CANVAS}">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${CANVAS};border-collapse:collapse">
-<tr><td align="center" style="padding:24px 12px">
+  return `<div style="background:${CANVAS};padding:24px 12px">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse">
+<tr><td align="center">
 
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:100%;max-width:600px;background:${PAPEL};border:1px solid ${HAIRLINE};border-collapse:collapse">
-<tr><td class="sgpc-folha" style="padding:32px 28px;font-family:${FONTE};color:${TINTA}">
+<tr><td style="padding:32px 28px;font-family:${FONTE};color:${TINTA}">
 
-  <h1 class="sgpc-data" style="margin:0;font-size:32px;font-weight:700;letter-spacing:-.02em;line-height:1.05;color:${TINTA}">Resumo do dia</h1>
+  <h1 style="margin:0;font-size:32px;font-weight:700;letter-spacing:-.02em;line-height:1.05;color:${TINTA}">Resumo do dia</h1>
   <div style="margin-top:6px;font-size:15px;font-weight:700;color:${ACENTO};letter-spacing:-.01em;${TNUM}">${escapar(d.dia)}</div>
 
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-top:28px">
-    <thead class="sgpc-cab">
+    <thead>
       <tr>
         ${th('Cargo', 'left')}${th('Convocados', 'right')}${th('Compareceram', 'right')}${th('Ausentes', 'right')}
       </tr>
     </thead>
     <tbody>${[...d.realizadas, ...d.agendadas].map(linha).join('')}</tbody>
     <tfoot>
-      <tr class="sgpc-total">
-        <td class="sgpc-c" style="padding:12px 8px;border-top:2px solid ${TINTA};${rotulo};vertical-align:top;white-space:nowrap">Total do dia</td>
-        <td class="sgpc-n" style="${celTotal}">${rot('Convocados')}${t.convocados}</td>
-        <td class="sgpc-n" style="${celTotal}">${rot('Compareceram')}${t.compareceram}</td>
-        <td class="sgpc-n" style="${celTotal}">${rot('Ausentes')}${t.ausentes}</td>
+      <tr>
+        <td style="padding:12px 8px;border-top:2px solid ${TINTA};${rotulo};vertical-align:top;white-space:nowrap">Total do dia</td>
+        <td style="${celTotal}">${t.convocados}</td>
+        <td style="${celTotal}">${t.compareceram}</td>
+        <td style="${celTotal}">${t.ausentes}</td>
       </tr>
       ${taxa ? `<tr>
         <td colspan="4" align="right" style="padding:8px 8px 0;text-align:right;font-size:14px;font-weight:700;color:${ACENTO};letter-spacing:-.01em;${TNUM}">${taxa}</td>
@@ -365,8 +352,7 @@ function montarHtml(d: {
 
 </td></tr>
 </table>
-</body>
-</html>`;
+</div>`;
 }
 
 

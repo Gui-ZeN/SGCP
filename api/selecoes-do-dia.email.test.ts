@@ -83,9 +83,39 @@ describe('montarEmailSelecoes', () => {
     ]);
     expect(e.html).toContain('<span>21471</span><span>80880</span>');
     expect(e.html).not.toContain('>2147180880<');
-    // E o detector do iOS, que ignora a marcação, é desligado pela meta.
-    expect(e.html).toContain('name="format-detection"');
-    expect(e.html).toContain('telephone=no');
+  });
+
+  it('o corpo não esconde nada nem traz comentário — foi o que o Gmail marcou', () => {
+    // Em 22 e 23/09 veio a tarja "Esta mensagem pode ser perigosa" com SPF,
+    // DKIM e DMARC todos em PASS: era o corpo. Texto com `display:none` e
+    // comentário em HTML são dos padrões mais antigos de mensagem maliciosa, e
+    // os dois tinham entrado na redesenhada. Este teste é a cerca.
+    const e = montarEmailSelecoes(DIA, [sel({ convocados: 6, compareceram: 4, ausentes: 2 })]);
+    expect(e.html).not.toMatch(/display\s*:\s*none/i);
+    expect(e.html).not.toContain('<!--');
+    expect(e.html).not.toContain('<style');
+    // Link tem teste próprio logo acima, com a história dele.
+  });
+
+  it('as duas partes da mensagem anunciam a mesma coisa', () => {
+    // O texto puro abria com "SGPC — Seleções do dia" e o HTML com "Resumo do
+    // dia". Divergir entre text/plain e text/html é mostrar uma coisa a um
+    // leitor e outra a outro — sinal clássico para filtro de phishing.
+    const e = montarEmailSelecoes(DIA, [sel({ convocados: 6, compareceram: 4, ausentes: 2 })]);
+    expect(e.texto.split('\n')[0]).toBe(`Resumo do dia - ${DIA}`);
+    expect(e.texto.split('\n')[0]).toBe(e.assunto);
+    expect(e.html).toContain('Resumo do dia');
+  });
+
+  it('a taxa sai com vírgula decimal nas duas partes', () => {
+    // O texto dizia "28.6%" e o HTML "28,6%" — ponto decimal errado em pt-BR e,
+    // de quebra, mais uma divergência entre as duas partes da mensagem. A
+    // conversão passou a existir num lugar só e ser passada para o HTML.
+    const e = montarEmailSelecoes(DIA, [sel({ convocados: 21, compareceram: 6, ausentes: 15 })]);
+    expect(e.texto).toContain('28,6% de comparecimento');
+    expect(e.html).toContain('28,6% de comparecimento');
+    expect(e.texto).not.toContain('28.6');
+    expect(e.html).not.toContain('28.6');
   });
 
   it('soma os motivos de desistência do dia', () => {
