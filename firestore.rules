@@ -161,6 +161,16 @@ service cloud.firestore {
         && !('website' in d.keys());
     }
 
+    // Tarefa do "Meu dia": nome curto (é o rótulo no e-mail dos diretores).
+    function tarefaValida() {
+      let d = incoming();
+      return d.get('nome', '') is string
+        && d.get('nome', '').size() > 0
+        && d.get('nome', '').size() <= 60
+        && (!('arquivada' in d.keys()) || d.arquivada is bool)
+        && (!('ordem' in d.keys()) || d.ordem is int);
+    }
+
     // Validação do documento de usuário (escrita sempre grava o objeto completo).
     function isValidUsuario() {
       let d = incoming();
@@ -171,7 +181,10 @@ service cloud.firestore {
         // críptico) em vez de reprovar de forma limpa.
         && d.get('role', '') in ['Administrador', 'Coordenador', 'Analista', 'Visualizador']
         && (!('sede' in d.keys()) || d.sede is string)
-        && (!('unidade' in d.keys()) || d.unidade in ['colegio', 'universidade']);
+        && (!('unidade' in d.keys()) || d.unidade in ['colegio', 'universidade'])
+        // Nome de exibição: é o que aparece no assunto do e-mail de cada
+        // funcionário. Opcional — sem ele, o e-mail usa o endereço.
+        && (!('nome' in d.keys()) || (d.nome is string && d.nome.size() <= 120));
     }
 
     // =====================================================================
@@ -296,6 +309,47 @@ service cloud.firestore {
       allow write: if isEditor();
     }
 
+    // "Meu dia": quatro contagens que cada pessoa informa à mão, um documento
+    // por pessoa por dia (id = "{email}__{AAAA-MM-DD}").
+    //
+    // Cada um grava SÓ o próprio. O relato diário vai aos diretores com o nome
+    // da pessoa no assunto — ninguém pode inflar ou zerar o dia de um colega.
+    // A trava é dupla: o e-mail do documento tem que ser o de quem está logado,
+    // e o id tem que começar por esse mesmo e-mail (senão daria para gravar no
+    // id de outra pessoa com o próprio e-mail dentro).
+    match /diario/{diarioId} {
+      allow read: if isAppUser();
+      allow create, update: if isAppUser()
+        && incoming().get('email', '') == request.auth.token.email.lower()
+        && diarioId.split('__')[0] == request.auth.token.email.lower()
+        && incoming().get('data', '') is string
+        && incoming().get('data', '').matches('[0-9]{2}/[0-9]{2}/[0-9]{4}')
+        // Tarefa → quantidade. As regras não conseguem percorrer os valores de
+        // um mapa, então aqui trava-se o formato e o tamanho; o relato ignora
+        // sozinho o que não for número positivo (há teste disso).
+        && incoming().get('contagens', {}) is map
+        && incoming().get('contagens', {}).size() <= 60;
+      allow delete: if false;
+    }
+
+    // Lista de tarefas do "Meu dia" — da EQUIPE. Quem é do RH cria tarefa nova;
+    // Admin e Coordenador renomeiam e arquivam. Nunca se apaga: arquivada
+    // continua dando nome ao que já foi contado nela.
+    //
+    // As quatro padrão vivem no código e são renomeadas/arquivadas criando um
+    // documento com o MESMO id — por isso "criar" com esses ids, ou já
+    // arquivada, é só para Admin e Coordenador. Sem essa trava, qualquer um
+    // arquivaria uma tarefa padrão da equipe inteira por um atalho.
+    match /tarefasDiario/{tarefaId} {
+      allow read: if isAppUser();
+      allow create: if isEditor() && tarefaValida()
+        && (isAdmin() || isCoordenador()
+            || (!(tarefaId in ['atendimentos', 'testes', 'divulgacoes', 'acolhimentos'])
+                && incoming().get('arquivada', false) == false));
+      allow update: if (isAdmin() || isCoordenador()) && tarefaValida();
+      allow delete: if false;
+    }
+
     match /turnover/{turnoverId} {
       allow read: if isAppUser();
       allow write: if isEditor();
@@ -341,7 +395,12 @@ service cloud.firestore {
     //  preservar a integridade da trilha de auditoria.
     // =====================================================================
     match /logs/{logId} {
-      allow read: if isAdmin() || isCoordenador(); // Coordenador lê logs; o filtro por região é no app
+      // Admin e Coordenador leem tudo (o filtro por região é no app). Os demais
+      // leem SÓ as próprias linhas: é o que o "Meu dia" mostra como "do
+      // sistema" antes de a pessoa completar o relatório. Ninguém lê o log de
+      // um colega — a consulta da tela filtra por `usuario`, e a regra confere.
+      allow read: if isAdmin() || isCoordenador()
+        || (isAppUser() && resource.data.usuario == request.auth.token.email);
 
       allow create: if isEditor()
         && incoming().usuario is string

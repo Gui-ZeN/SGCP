@@ -12,9 +12,11 @@ export interface SystemLog {
   timestamp: string; // ISO String
   usuario: string; // Email of the user who performed the log
   acao: 'CRIOU' | 'ALTEROU' | 'EXCLUIU' | 'SINALIZOU'; 
-  modulo: 'Vagas' | 'Sedes' | 'Regiões' | 'Cargos' | 'Setores' | 'Usuários' | 'Treinamentos' | 'Experiências' | 'Entrevistas' | 'Turnover' | 'Integrações' | 'Consultas' | 'Organograma' | 'Resumo do Dia';
+  modulo: 'Vagas' | 'Sedes' | 'Regiões' | 'Cargos' | 'Setores' | 'Usuários' | 'Treinamentos' | 'Experiências' | 'Entrevistas' | 'Turnover' | 'Integrações' | 'Consultas' | 'Organograma' | 'Resumo do Dia' | 'Seleções';
   detalhes: string;
   regiao?: string; // região de quem realizou a ação — usada para escopar o histórico do Coordenador
+  /** Campos da ação, para o relato diário escrever frases. Ver `logAction`. */
+  ref?: Record<string, string | number>;
 }
 
 const LOCAL_STORAGE_KEY = 'ats_system_logs_fallback';
@@ -71,15 +73,27 @@ export function useLogs(currentUser: any, canSeeLogs: boolean = false, actorRegi
   };
 
   // Add a helper operation to write logs easily
+  /**
+   * @param opcoes.ref  os CAMPOS da ação (cargo, sede, números, nome do item).
+   *   É deles que o relato diário por pessoa monta as frases — o texto de
+   *   `detalhes` é para o histórico do Admin, e reaproveitá-lo no e-mail fez o
+   *   relatório "parecer log". Campo vazio é removido: o Firestore recusa
+   *   `undefined` e a gravação do log inteiro falharia por causa dele.
+   *   (Substitui o antigo `overrideUser`, que nenhuma chamada usava.)
+   */
   const logAction = async (
     acao: 'CRIOU' | 'ALTEROU' | 'EXCLUIU' | 'SINALIZOU',
     modulo: SystemLog['modulo'],
     detalhes: string,
-    overrideUser?: string
+    opcoes: { ref?: Record<string, string | number | undefined | null> } = {}
   ) => {
     // Determine current user performing the action
-    const email = overrideUser || currentUser?.email || 'sistema';
+    const email = currentUser?.email || 'sistema';
     const timestamp = new Date().toISOString();
+
+    const ref = Object.fromEntries(
+      Object.entries(opcoes.ref || {}).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    ) as Record<string, string | number>;
 
     const novoLog: Omit<SystemLog, 'id'> = {
       timestamp,
@@ -87,7 +101,8 @@ export function useLogs(currentUser: any, canSeeLogs: boolean = false, actorRegi
       acao,
       modulo,
       detalhes,
-      regiao: actorRegiao || ''
+      regiao: actorRegiao || '',
+      ...(Object.keys(ref).length ? { ref } : {}),
     };
 
     if (isFirebaseEnabled && db) {

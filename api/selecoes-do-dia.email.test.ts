@@ -1,293 +1,179 @@
 import { describe, it, expect } from 'vitest';
-import { montarEmailSelecoes } from './selecoes-do-dia';
-import { ehRealizada, totaisDeSelecoes, codigosDasVagas } from '../src/utils/selecao';
-import type { Selecao } from '../src/types';
+import {
+  montarEmailPessoa, relatoPorPessoa,
+  type RelatoPessoa, type EntradaLog, type Diario, type Tarefa,
+} from './selecoes-do-dia';
+import { relatoPorPessoa as relatoDaTela } from '../src/utils/resumoDia';
 
-const DIA = '17/09/2026';
-const sel = (over: Partial<Selecao>): Selecao => ({
-  id: 'x', data: DIA, cargo: 'ASG', sede: 'DT', responsavel: 'Arlana',
-  origem: 'geral', convocados: 0, compareceram: 0, ausentes: 0, contratados: 0,
-  desistiram: 0, ...over,
+const DIA = '22/09/2026';
+
+const pessoa = (over: Partial<RelatoPessoa> = {}): RelatoPessoa => ({
+  email: 'arlana@christus.com.br',
+  nome: 'Arlana Gomes',
+  acoes: 4,
+  secoes: [
+    { titulo: 'Seleções', frases: ['Conduziu a seleção de ASG em Dionisio Torres: 3 convocados, 1 compareceu.'] },
+    { titulo: 'Também informou', frases: ['Atendimentos a colaboradores: 6.'] },
+  ],
+  acumulado: { mes: ['12 seleções conduzidas'], ano: ['40 seleções conduzidas'] },
+  ...over,
 });
 
-describe('montarEmailSelecoes', () => {
-  it('dia sem seleção não gera e-mail', () => {
-    const e = montarEmailSelecoes(DIA, []);
-    expect(e.vale).toBe(false);
-    expect(e.assunto).toBe('');
+describe('montarEmailPessoa', () => {
+  it('o assunto leva o nome — são vários e-mails no mesmo dia', () => {
+    // Um e-mail por pessoa, todos para os diretores: sem o nome no assunto,
+    // cinco "Resumo do dia - 22/09/2026" seriam indistinguíveis na caixa.
+    expect(montarEmailPessoa(DIA, pessoa()).assunto).toBe('Resumo do dia - 22/09/2026 - Arlana Gomes');
   });
 
-  it('dia de outra data não conta', () => {
-    expect(montarEmailSelecoes(DIA, [sel({ data: '16/09/2026', convocados: 9 })]).vale).toBe(false);
+  it('as frases do relato aparecem nas duas partes', () => {
+    const e = montarEmailPessoa(DIA, pessoa());
+    for (const parte of [e.html, e.texto]) {
+      expect(parte).toContain('Conduziu a seleção de ASG em Dionisio Torres: 3 convocados, 1 compareceu.');
+      expect(parte).toContain('Atendimentos a colaboradores: 6.');
+    }
   });
 
-  it('o assunto é fixo, e o número que importa fica no corpo', () => {
-    const e = montarEmailSelecoes(DIA, [
-      sel({ convocados: 8, compareceram: 5, ausentes: 3 }),
-      sel({ convocados: 4, compareceram: 4 }),
-    ]);
-    expect(e.assunto).toBe('Resumo do dia - 17/09/2026');
-    expect(e.html).toContain('75% de comparecimento');
+  it('o acumulado do mês e do ano vem no fim', () => {
+    const e = montarEmailPessoa(DIA, pessoa());
+    expect(e.texto).toContain('No mês: 12 seleções conduzidas');
+    expect(e.texto).toContain('No ano: 40 seleções conduzidas');
+    expect(e.html).toContain('12 seleções conduzidas');
   });
 
-  it('dia só com agendamento não anuncia "0 compareceram"', () => {
-    const e = montarEmailSelecoes(DIA, [sel({ status: 'agendado', convocados: 12 })]);
-    expect(e.vale).toBe(true);
-    expect(e.assunto).toBe('Resumo do dia - 17/09/2026');
-    expect(e.html).toContain('sem confirmação de presença');
+  it('quem só preencheu o "Meu dia" não aparece como "0 ações"', () => {
+    const e = montarEmailPessoa(DIA, pessoa({ acoes: 0 }));
+    expect(e.texto).toContain('Informado no "Meu dia"');
+    expect(e.texto).not.toMatch(/\b0 ações/);
   });
 
-  it('lista cargo, sede, responsável e os três números', () => {
-    const e = montarEmailSelecoes(DIA, [
-      sel({ cargo: 'Professor(a)', sede: 'BENFICA', responsavel: 'Diana', convocados: 6, compareceram: 6 }),
-    ]);
-    expect(e.html).toContain('Professor(a)');
-    expect(e.html).toContain('BENFICA');
-    expect(e.html).toContain('Diana');
-    // Cada número na SUA coluna. Antes os três vinham numa célula só ("6 / 6 / 0"),
-    // ilegível sem subir até o cabeçalho para decodificar a ordem.
-    expect(e.html).toContain('Convocados');
-    expect(e.html).toContain('Compareceram');
-    expect(e.html).toContain('Ausentes');
-    expect(e.html).toContain('>6</td>');
-    expect(e.html).toContain('>0</td>');
+  it('sem acumulado, não sai caixa vazia', () => {
+    const e = montarEmailPessoa(DIA, pessoa({ acumulado: { mes: [], ano: [] } }));
+    expect(e.texto).not.toContain('No mês');
+    expect(e.html).not.toContain('No mês');
   });
 
-  it('mostra os códigos das vagas atendidas', () => {
-    const e = montarEmailSelecoes(DIA, [
-      sel({ convocados: 20, compareceram: 9, vagaCodigos: [31, 1120] }),
-    ]);
-    expect(e.html).toContain('<span>3</span><span>1</span>');
-    expect(e.html).toContain('<span>11</span><span>20</span>');
+  it('escapa o que vem de texto livre', () => {
+    const e = montarEmailPessoa(DIA, pessoa({
+      nome: '<b>x</b>',
+      secoes: [{ titulo: 'Também informou', frases: ['<script>alert(1)</script>'] }],
+    }));
+    expect(e.html).not.toContain('<script>');
+    expect(e.html).toContain('&lt;script&gt;');
+    expect(e.html).not.toContain('<b>x</b>');
   });
+});
 
-  it('o e-mail não leva link nenhum — link falso fez o Gmail marcar como perigoso', () => {
-    // Em 23/09 a tarja vermelha "Esta mensagem pode ser perigosa" apareceu no
-    // primeiro envio depois de eu envolver o código de vaga num <a href="#">,
-    // para impedir o Gmail de ler 10 dígitos como telefone. Link cujo texto é
-    // um número e cujo destino é lugar nenhum é padrão de phishing. Enquanto
-    // não houver um destino de verdade, este e-mail não tem link.
-    const e = montarEmailSelecoes(DIA, [
-      sel({ convocados: 1, compareceram: 1, vagaCodigos: [2147180880] }),
-    ]);
+describe('as regras que custaram caro (22 e 23/09)', () => {
+  // A tarja vermelha "Esta mensagem pode ser perigosa" veio com SPF, DKIM e
+  // DMARC todos em PASS: era o corpo. Estes testes são a cerca.
+
+  it('o e-mail não leva link nenhum', () => {
+    const e = montarEmailPessoa(DIA, pessoa());
     expect(e.html).not.toContain('<a ');
     expect(e.html).not.toContain('href=');
   });
 
-  it('o código de vaga é partido, para o Gmail não ler como telefone', () => {
-    // Os códigos reais têm 10 dígitos (conferido no banco: todos têm). Dois nós
-    // de texto quebram a sequência para o detector sem sujar o que se copia —
-    // ao contrário do espaço de largura zero.
-    const e = montarEmailSelecoes(DIA, [
-      sel({ convocados: 1, compareceram: 1, vagaCodigos: [2147180880] }),
-    ]);
-    expect(e.html).toContain('<span>21471</span><span>80880</span>');
-    expect(e.html).not.toContain('>2147180880<');
-  });
-
-  it('o corpo não esconde nada nem traz comentário — foi o que o Gmail marcou', () => {
-    // Em 22 e 23/09 veio a tarja "Esta mensagem pode ser perigosa" com SPF,
-    // DKIM e DMARC todos em PASS: era o corpo. Texto com `display:none` e
-    // comentário em HTML são dos padrões mais antigos de mensagem maliciosa, e
-    // os dois tinham entrado na redesenhada. Este teste é a cerca.
-    const e = montarEmailSelecoes(DIA, [sel({ convocados: 6, compareceram: 4, ausentes: 2 })]);
+  it('não esconde nada, não traz <style> nem comentário', () => {
+    const e = montarEmailPessoa(DIA, pessoa());
     expect(e.html).not.toMatch(/display\s*:\s*none/i);
-    expect(e.html).not.toContain('<!--');
     expect(e.html).not.toContain('<style');
-    // Link tem teste próprio logo acima, com a história dele.
+    expect(e.html).not.toContain('<!--');
   });
 
-  it('as duas partes da mensagem anunciam a mesma coisa', () => {
-    // O texto puro abria com "SGPC — Seleções do dia" e o HTML com "Resumo do
-    // dia". Divergir entre text/plain e text/html é mostrar uma coisa a um
-    // leitor e outra a outro — sinal clássico para filtro de phishing.
-    const e = montarEmailSelecoes(DIA, [sel({ convocados: 6, compareceram: 4, ausentes: 2 })]);
-    expect(e.texto.split('\n')[0]).toBe(`Resumo do dia - ${DIA}`);
+  it('as duas partes anunciam a mesma coisa', () => {
+    // O texto puro abre com o assunto; o HTML, com o nome e o dia.
+    const e = montarEmailPessoa(DIA, pessoa());
     expect(e.texto.split('\n')[0]).toBe(e.assunto);
+    expect(e.html).toContain('Arlana Gomes');
     expect(e.html).toContain('Resumo do dia');
+    expect(e.html).toContain(DIA);
   });
 
-  it('a taxa sai com vírgula decimal nas duas partes', () => {
-    // O texto dizia "28.6%" e o HTML "28,6%" — ponto decimal errado em pt-BR e,
-    // de quebra, mais uma divergência entre as duas partes da mensagem. A
-    // conversão passou a existir num lugar só e ser passada para o HTML.
-    const e = montarEmailSelecoes(DIA, [sel({ convocados: 21, compareceram: 6, ausentes: 15 })]);
-    expect(e.texto).toContain('28,6% de comparecimento');
-    expect(e.html).toContain('28,6% de comparecimento');
-    expect(e.texto).not.toContain('28.6');
-    expect(e.html).not.toContain('28.6');
-  });
-
-  it('soma os motivos de desistência do dia', () => {
-    const e = montarEmailSelecoes(DIA, [
-      sel({ convocados: 5, compareceram: 2, motivos: { 'mora longe': 1 } }),
-      sel({ convocados: 5, compareceram: 3, motivos: { 'mora longe': 2, 'sem interesse': 1 } }),
-    ]);
-    expect(e.html).toContain('mora longe (3)');
-    expect(e.html).toContain('sem interesse (1)');
-  });
-
-  it('escapa o que vem do cadastro — cargo é texto livre', () => {
-    const e = montarEmailSelecoes(DIA, [
-      sel({ cargo: '<script>alert(1)</script>', convocados: 1, compareceram: 1 }),
-    ]);
-    expect(e.html).not.toContain('<script>');
-    expect(e.html).toContain('&lt;script&gt;');
-  });
-
-  it('a versão em texto puro tem o mesmo conteúdo essencial', () => {
-    const e = montarEmailSelecoes(DIA, [sel({ convocados: 8, compareceram: 5, ausentes: 3 })]);
-    expect(e.texto).toContain('8 convocados');
-    expect(e.texto).toContain('5 compareceram');
-    expect(e.texto).not.toContain('<');
-  });
-
-  it('agendada aparece depois das realizadas, e sem número de presença', () => {
-    const e = montarEmailSelecoes(DIA, [
-      sel({ status: 'agendado', cargo: 'AGENDADA', convocados: 3 }),
-      sel({ cargo: 'REALIZADA', convocados: 2, compareceram: 2 }),
-    ]);
-    expect(e.html.indexOf('REALIZADA')).toBeLessThan(e.html.indexOf('AGENDADA'));
-    // A agendada mostra quantos foram convocados e marca as outras duas colunas
-    // como pendentes. Zero ali seria mentira: a seleção ainda não aconteceu.
-    expect(e.html).toContain('>3</td>');
-    expect(e.html).toContain('a confirmar');
+  it('número longo sai partido, para o Gmail não ler como telefone', () => {
+    const e = montarEmailPessoa(DIA, pessoa({
+      secoes: [{ titulo: 'Vagas', frases: ['Abriu a vaga 2147180880.'] }],
+    }));
+    expect(e.html).toContain('<span>21471</span><span>80880</span>');
+    expect(e.html).not.toContain('2147180880');
+    // No texto puro não há detector para enganar: fica inteiro.
+    expect(e.texto).toContain('2147180880');
   });
 });
 
-
-describe('as regras duplicadas concordam com src/utils/selecao', () => {
-  // A funcao serverless nao pode importar de fora de `api/` (a Vercel nao
-  // empacota, so transpila). As tres regrinhas foram copiadas para la; este
-  // teste existe para elas nao divergirem em silencio.
-  const casos: Selecao[][] = [
-    [sel({ convocados: 10, compareceram: 4, ausentes: 6, desistiram: 2, contratados: 1 })],
-    [sel({ convocados: 8, compareceram: 5 }), sel({ status: 'agendado', convocados: 40 })],
-    [sel({ status: 'agendado', convocados: 3 })],
-    [],
-    [sel({ convocados: 3, compareceram: 1 })],
+describe('relato concorda com a tela', () => {
+  // A função da Vercel não pode importar de `src/` (ela transpila e não
+  // empacota — foi o disparo quebrado de 17/09). O relato existe duas vezes;
+  // este teste é o que impede as duas de divergirem em silêncio. O caso é
+  // rico de propósito: se só cobrisse o trivial, duas cópias diferentes
+  // passariam iguais.
+  const A = 'arlana@christus.com.br';
+  const J = 'jenifer@christus.com.br';
+  const log: EntradaLog[] = [
+    { timestamp: '2026-09-22T12:46:00.000Z', usuario: A, acao: 'ALTEROU', modulo: 'Seleções', detalhes: '',
+      ref: { cargo: 'AUXILIAR DE SERVIÇOS GERAIS', sede: 'DIONISIO TORRES', convocados: 3, compareceram: 0 } },
+    { timestamp: '2026-09-22T12:50:00.000Z', usuario: A, acao: 'CRIOU', modulo: 'Seleções', detalhes: '',
+      ref: { cargo: 'Aprendiz', sede: 'DT', data: '23/09/2026', convocados: 10 } },
+    { timestamp: '2026-09-22T13:00:00.000Z', usuario: A, acao: 'CRIOU', modulo: 'Vagas', detalhes: '',
+      ref: { cargo: 'ASG', sede: 'DOM LUÍS', quantidade: 30 } },
+    { timestamp: '2026-09-22T13:05:00.000Z', usuario: A, acao: 'ALTEROU', modulo: 'Vagas', detalhes: 'status' },
+    { timestamp: '2026-09-22T13:10:00.000Z', usuario: A, acao: 'CRIOU', modulo: 'Consultas',
+      detalhes: 'Consulta de "Maria" (Psiquiatria).' },
+    { timestamp: '2026-09-22T13:20:00.000Z', usuario: J, acao: 'CRIOU', modulo: 'Experiências', detalhes: '',
+      ref: { colaborador: 'Emilly Bastos' } },
+    { timestamp: '2026-09-22T13:30:00.000Z', usuario: J, acao: 'CRIOU', modulo: 'Vagas',
+      detalhes: 'Importação da planilha anual: 50 vaga(s).' },
+    { timestamp: '2026-09-22T13:40:00.000Z', usuario: J, acao: 'CRIOU', modulo: 'Vagas',
+      detalhes: 'Seleção agendada: ASG em DT, 22/09/2026 — 3 convocado(s).' },
+    { timestamp: '2026-09-23T02:30:00.000Z', usuario: J, acao: 'CRIOU', modulo: 'Resumo do Dia', detalhes: '',
+      ref: { titulo: 'Kits do Setembro Amarelo', detalhe: '120 kits' } },
+    { timestamp: '2026-09-05T13:00:00.000Z', usuario: A, acao: 'ALTEROU', modulo: 'Seleções', detalhes: '',
+      ref: { cargo: 'X', convocados: 2, compareceram: 2 } },
+    { timestamp: '2026-08-05T13:00:00.000Z', usuario: A, acao: 'ALTEROU', modulo: 'Seleções', detalhes: '',
+      ref: { cargo: 'Y', convocados: 2, compareceram: 1 } },
+  ];
+  const diarios: Diario[] = [
+    { email: A, data: DIA, contagens: { atendimentos: 6, testes: 1, tTel: 5 } },
+    { email: A, data: '10/09/2026', contagens: { atendimentos: 4 } },
+    { email: 'so-diario@christus.com.br', data: DIA, contagens: { acolhimentos: 2 } },
+  ];
+  const nomes = new Map([[A, 'Arlana Gomes']]);
+  // Uma tarefa criada pela equipe e uma padrão renomeada.
+  const tarefas: Tarefa[] = [
+    { id: 'tTel', nome: 'Entrevistas por telefone', ordem: 5 },
+    { id: 'testes', nome: 'Testes psicológicos' },
   ];
 
-  it('totaisDeSelecoes da o mesmo resultado nos dois lugares', () => {
-    casos.forEach(lista => {
-      const daApi = montarEmailSelecoes(DIA, lista);
-      const doApp = totaisDeSelecoes(lista);
-      // Ancorado no CORPO, não no assunto: o assunto virou fixo
-      // ("Resumo do dia - DD/MM/AAAA") a pedido do RH e não carrega número. Se
-      // este teste tivesse ido embora junto, as duas cópias da regra de totais
-      // voltariam a poder divergir sem ninguém ver.
-      if (doApp.convocados > 0) {
-        expect(daApi.texto).toContain(`${doApp.convocados} convocados`);
-        expect(daApi.texto).toContain(`${doApp.compareceram} compareceram`);
-        expect(daApi.html).toContain(`>${doApp.convocados}</td>`);
-        expect(daApi.html).toContain(`>${doApp.compareceram}</td>`);
-      }
-    });
+  it('o mesmo dado dá o mesmo relato nos dois lugares', () => {
+    expect(relatoPorPessoa(log, diarios, DIA, nomes, tarefas)).toEqual(relatoDaTela(log, diarios, DIA, nomes, tarefas));
   });
 
-  it('ehRealizada e codigosDasVagas seguem a mesma regra', () => {
-    expect(ehRealizada({} as any)).toBe(true);
-    expect(ehRealizada({ status: 'agendado' } as any)).toBe(false);
-    expect(codigosDasVagas({ vagaCodigos: [31, 1120] })).toEqual([31, 1120]);
-    expect(codigosDasVagas({ vagaCodigo: 24 })).toEqual([24]);
-    // e o e-mail imprime exatamente esses codigos
-    const e = montarEmailSelecoes(DIA, [sel({ convocados: 1, compareceram: 1, vagaCodigos: [31, 1120] })]);
-    expect(e.html).toContain('<span>3</span><span>1</span>');
-    expect(e.html).toContain('<span>11</span><span>20</span>');
-  });
-});
-
-describe('resumo nao contradiz a tabela', () => {
-  it('dia so com agendamento nao anuncia "0 convocados"', () => {
-    const e = montarEmailSelecoes(DIA, [sel({ status: 'agendado', convocados: 2 })]);
-    expect(e.texto).not.toContain('0 convocados');
-    expect(e.html).toContain('2 convocados a confirmar');
-  });
-
-  it('dia misto mostra o realizado E o que falta confirmar', () => {
-    const e = montarEmailSelecoes(DIA, [
-      sel({ convocados: 8, compareceram: 5 }),
-      sel({ status: 'agendado', convocados: 4 }),
+  it('e o relato é o esperado, não só igual', () => {
+    // Igualdade entre duas cópias erradas também passaria no teste de cima.
+    const r = relatoPorPessoa(log, diarios, DIA, nomes, tarefas);
+    expect(r.map(p => [p.nome, p.acoes])).toEqual([
+      ['Arlana Gomes', 5],
+      ['jenifer@christus.com.br', 4],
+      ['so-diario@christus.com.br', 0],
     ]);
-    // Os totais do realizado ficam no rodapé da tabela, alinhados sob as colunas
-    // que somam; o que ainda não aconteceu é dito por fora, em texto.
-    expect(e.html).toContain('>8</td>');
-    expect(e.html).toContain('>5</td>');
-    expect(e.html).toContain('4 convocados a confirmar');
-  });
-
-  it('dia so realizado nao inventa "a confirmar"', () => {
-    const e = montarEmailSelecoes(DIA, [sel({ convocados: 6, compareceram: 6 })]);
-    expect(e.html).not.toContain('a confirmar');
-  });
-});
-
-describe('atividades do dia', () => {
-  const ativ = (over: Partial<{ data: string; titulo: string; detalhe: string; responsavel: string; sede: string }> = {}) => ({
-    data: DIA, titulo: 'Montagem dos kits do Setembro Amarelo', ...over,
-  });
-
-  it('dia SÓ com atividade gera e-mail — a regra mudou', () => {
-    // Antes a regra era "dia sem SELEÇÃO não gera e-mail", e com ela um dia
-    // inteiro de força-tarefa em kits não chegava a quem só lê o e-mail.
-    const e = montarEmailSelecoes(DIA, [], [ativ()]);
-    expect(e.vale).toBe(true);
-    expect(e.assunto).toBe(`Resumo do dia - ${DIA}`);
-    expect(e.html).toContain('Montagem dos kits do Setembro Amarelo');
-    expect(e.texto).toContain('Montagem dos kits do Setembro Amarelo');
-  });
-
-  it('dia sem nada continua sem gerar e-mail', () => {
-    expect(montarEmailSelecoes(DIA, [], []).vale).toBe(false);
-    expect(montarEmailSelecoes(DIA, [], [ativ({ data: '01/01/2020' })]).vale).toBe(false);
-  });
-
-  it('dia só de atividade não mostra tabela de seleção zerada', () => {
-    // Cabeçalho de colunas com corpo vazio e "Total do dia 0 / 0 / 0" faz o
-    // e-mail parecer quebrado, e não vazio.
-    const e = montarEmailSelecoes(DIA, [], [ativ()]);
-    expect(e.html).not.toContain('Convocados');
-    expect(e.html).not.toContain('Total do dia');
-  });
-
-  it('atividade NÃO entra na contagem nem nos totais da seleção', () => {
-    // É a regra que motivou a coleção separada: atividade não tem convocado,
-    // e somada viraria uma seleção fantasma derrubando a taxa.
-    const comAmbos = montarEmailSelecoes(
-      DIA,
-      [sel({ convocados: 10, compareceram: 8, ausentes: 2 })],
-      [ativ(), ativ({ titulo: 'Visita à sede Benfica' })],
-    );
-    const soSelecao = montarEmailSelecoes(DIA, [sel({ convocados: 10, compareceram: 8, ausentes: 2 })]);
-    expect(comAmbos.html).toContain('80% de comparecimento');
-    expect(soSelecao.html).toContain('80% de comparecimento');
-    expect(comAmbos.html).toContain('Visita à sede Benfica');
-    expect(soSelecao.html).not.toContain('Visita à sede Benfica');
-  });
-
-  it('atividade de outro dia não aparece', () => {
-    const e = montarEmailSelecoes(DIA, [sel({ convocados: 2, compareceram: 2 })], [
-      ativ({ data: '16/09/2026', titulo: 'Coisa de ontem' }),
+    const arlana = r[0].secoes.flatMap(s => s.frases);
+    expect(arlana).toContain('Conduziu a seleção de Auxiliar de Serviços Gerais em Dionisio Torres: 3 convocados, nenhum compareceu.');
+    expect(arlana).toContain('Agendou para 23/09/2026 a seleção de Aprendiz em DT, com 10 convocados.');
+    expect(arlana).toContain('Abriu 30 vagas em Dom Luís: 30 de ASG.');
+    expect(arlana).toContain('Encaminhou 1 consulta de colaboradores.');
+    expect(JSON.stringify(r)).not.toContain('Psiquiatria');
+    expect(arlana).toContain('Entrevistas por telefone: 5.');
+    expect(arlana).toContain('Testes psicológicos: 1.');
+    expect(r[0].acumulado.mes).toEqual([
+      '2 seleções conduzidas', '30 vagas abertas',
+      'Atendimentos a colaboradores: 10', 'Testes psicológicos: 1', 'Entrevistas por telefone: 5',
     ]);
-    expect(e.html).not.toContain('Coisa de ontem');
-  });
+    expect(r[0].acumulado.ano[0]).toBe('3 seleções conduzidas');
 
-  it('escapa o título, que é texto livre', () => {
-    const e = montarEmailSelecoes(DIA, [], [ativ({ titulo: '<script>alert(1)</script>' })]);
-    expect(e.html).not.toContain('<script>');
-    expect(e.html).toContain('&lt;script&gt;');
-  });
-
-  it('detalhe e contexto são opcionais e não deixam sobra', () => {
-    // Sem responsável nem sede, a linha não pode sair com "()" vazio; sem
-    // detalhe, não pode terminar em dois-pontos pendurado.
-    const semNada = montarEmailSelecoes(DIA, [], [ativ()]);
-    const linha = semNada.texto.split('\n').find(l => l.startsWith('- '))!;
-    expect(linha).toBe('- Montagem dos kits do Setembro Amarelo');
-
-    const completa = montarEmailSelecoes(DIA, [], [
-      ativ({ detalhe: '120 kits', responsavel: 'Arlana', sede: 'DT' }),
-    ]);
-    expect(completa.texto).toContain('- Montagem dos kits do Setembro Amarelo (DT · Arlana): 120 kits');
+    const jenifer = r[1].secoes.flatMap(s => s.frases);
+    expect(jenifer).toContain('Iniciou o acompanhamento do período de experiência de Emilly Bastos.');
+    expect(jenifer).toContain('Importou 1 planilha para o sistema.');
+    expect(jenifer).toContain('Agendou 1 seleção.');
+    expect(jenifer).toContain('Kits do Setembro Amarelo — 120 kits.');
   });
 });

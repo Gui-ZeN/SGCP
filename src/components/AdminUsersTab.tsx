@@ -6,8 +6,8 @@ interface AdminUsersTabProps {
   usuarios: Usuario[];
   sedes: Sede[];
   currentUserEmail: string;
-  addUsuario: (email: string, role: UserRole, sede?: string) => Promise<void>;
-  updateUsuario: (id: string, email: string, role: UserRole, sede?: string) => Promise<void>;
+  addUsuario: (email: string, role: UserRole, sede?: string, nome?: string) => Promise<void>;
+  updateUsuario: (id: string, email: string, role: UserRole, sede?: string, nome?: string) => Promise<void>;
   deleteUsuario: (id: string) => Promise<void>;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
 }
@@ -22,6 +22,8 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   confirmAction
 }) => {
   const [userEmail, setUserEmail] = useState('');
+  // Nome de exibição: vai no assunto do e-mail diário de cada funcionário.
+  const [userNome, setUserNome] = useState('');
   const [userRole, setUserRole] = useState<UserRole>('Analista');
   const [userSede, setUserSede] = useState<string>('DT');
   const [busy, setBusy] = useState(false);
@@ -42,12 +44,13 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
     setBusy(true);
     try {
       if (editingUser) {
-        await updateUsuario(editingUser.id || editingUser.email, userEmail.toLowerCase().trim(), userRole, userRole === 'Visualizador' ? '' : userSede);
+        await updateUsuario(editingUser.id || editingUser.email, userEmail.toLowerCase().trim(), userRole, userRole === 'Visualizador' ? '' : userSede, userNome);
         setEditingUser(null);
       } else {
-        await addUsuario(userEmail.toLowerCase().trim(), userRole, userRole === 'Visualizador' ? '' : userSede);
+        await addUsuario(userEmail.toLowerCase().trim(), userRole, userRole === 'Visualizador' ? '' : userSede, userNome);
       }
       setUserEmail('');
+      setUserNome('');
       setUserRole('Analista');
       if (sedes && sedes.length > 0) {
         const hasDT = sedes.some(s => s.nome === 'DT');
@@ -64,6 +67,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   const startEdit = (u: Usuario) => {
     setEditingUser(u);
     setUserEmail(u.email);
+    setUserNome(u.nome || '');
     setUserRole(u.role);
     setUserSede(u.sede || 'DT');
   };
@@ -71,6 +75,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   const cancelEdit = () => {
     setEditingUser(null);
     setUserEmail('');
+    setUserNome('');
     setUserRole('Analista');
     if (sedes && sedes.length > 0) {
       const hasDT = sedes.some(s => s.nome === 'DT');
@@ -103,7 +108,23 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                 className="w-full text-xs px-3.5 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/10 focus:border-slate-800 outline-none bg-white font-medium"
               />
             </div>
-            
+
+            <div className="space-y-1">
+              <label htmlFor="usr-nome" className="text-xs font-bold text-slate-500 uppercase">Nome</label>
+              <input id="usr-nome"
+                type="text"
+                value={userNome}
+                onChange={(e) => setUserNome(e.target.value)}
+                placeholder="Como aparece no resumo diário"
+                maxLength={120}
+                autoComplete="off"
+                className="w-full text-xs px-3.5 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/10 focus:border-slate-800 outline-none bg-white font-medium"
+              />
+              <p className="text-[10px] text-slate-500 font-medium">
+                Vai no assunto do e-mail diário que os diretores recebem de cada pessoa. Sem nome, sai o e-mail.
+              </p>
+            </div>
+
             <div className="space-y-1">
               <label htmlFor="usr-papel-acesso" className="text-xs font-bold text-slate-500 uppercase">Papel / Acesso</label>
               <select id="usr-papel-acesso"
@@ -200,7 +221,12 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
               {usuarios.filter(u => u != null).map(u => (
                 <tr key={u.id || u.email || Math.random().toString()} className="hover:bg-slate-50/50 transition">
                   <td className="px-5 py-3.5 font-medium text-slate-700">
-                    {u.email || 'Sem E-mail'}
+                    {/* Nome em cima quando existe; sem ele, a linha avisa — é o
+                        que falta para o e-mail diário dessa pessoa sair com nome. */}
+                    {u.nome
+                      ? <span className="block font-bold text-slate-800">{u.nome}</span>
+                      : <span className="block text-[10px] font-bold uppercase tracking-wide text-amber-700">sem nome</span>}
+                    <span className="text-xs text-slate-600">{u.email || 'Sem E-mail'}</span>
                     {u.email && currentUserEmail && u.email.toLowerCase() === currentUserEmail.toLowerCase() && (
                       <span className="ml-2 text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md font-bold uppercase">atual</span>
                     )}

@@ -2,7 +2,13 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  *
- * Disparo do e-mail "Seleções do dia" — 18h de Fortaleza, pelo cron da Vercel.
+ * Disparo do "Resumo do dia" — 18h de Fortaleza, pelo cron da Vercel.
+ *
+ * UM e-mail por colaborador do RH que trabalhou no dia, todos para a lista de
+ * diretores configurada. É o relato do dia em frases — "Conduziu a seleção de
+ * ASG em Dionísio Torres: 3 convocados, 1 compareceu" —, montado a partir do
+ * log de auditoria e do "Meu dia" que a pessoa preenche. Desenho combinado na
+ * reunião de 22/09/2026 com a direção.
  *
  * VARIÁVEIS DE AMBIENTE (painel da Vercel; nenhuma entra no repositório):
  *   CRON_SECRET                 segredo que a Vercel envia no Authorization
@@ -17,9 +23,9 @@
  *     lista que o admin configurou.
  *
  * A conta de serviço é necessária porque o cron roda sem usuário logado: não há
- * token de ninguém para o Firestore autorizar. Precisa de LEITURA (selecoes,
- * config) e de ESCRITA em `config/notificacoes`, onde cada execução deixa o
- * registro do que fez — `roles/datastore.user`.
+ * token de ninguém para o Firestore autorizar. Precisa de LEITURA (logs,
+ * diario, usuarios, config) e de ESCRITA em `config/notificacoes`, onde cada
+ * execução deixa o registro do que fez — `roles/datastore.user`.
  */
 import crypto from 'node:crypto';
 import nodemailer from 'nodemailer';
@@ -34,375 +40,525 @@ import nodemailer from 'nodemailer';
  * enviar e sem ninguém notar — a evidência de um e-mail que não chega é
  * nenhuma.
  *
- * O preço é a duplicação das três regrinhas de seleção (realizada, códigos de
- * vaga, somatório). O teste `concorda com src/utils/selecao` fica de guarda
- * contra elas divergirem.
+ * O preço é a duplicação do relato por pessoa, que também vive em
+ * `src/utils/resumoDia.ts` para a tela. O teste `relato concorda com a tela`
+ * fica de guarda contra as duas cópias divergirem.
  */
 
-/** Um dia de seleção. Espelha `src/types.ts`, sem importar de fora. */
-interface Selecao {
-  id?: string;
-  data: string;
-  cargo: string;
-  sede?: string;
-  responsavel?: string;
-  origem?: string;
-  status?: 'agendado' | 'realizado';
-  convocados?: number;
-  compareceram?: number;
-  ausentes?: number;
-  contratados?: number;
-  desistiram?: number;
-  vagaCodigos?: number[];
-  vagaCodigo?: number;
-  motivos?: Record<string, number>;
+// ═══ O relato de cada pessoa ══════════════════════════════════════════════
+// CÓPIA de src/utils/resumoDia.ts, colada sem edição. Mudou lá, cola aqui de
+// novo — o teste `relato concorda com a tela` falha se as duas divergirem.
+export type Ref = Record<string, string | number | undefined>;
+
+export interface EntradaLog {
+  timestamp: string; // ISO, UTC
+  usuario: string;   // e-mail de quem fez
+  acao: string;      // CRIOU | ALTEROU | EXCLUIU | SINALIZOU
+  modulo: string;
+  detalhes: string;
+  /** Campos da ação. Ausente nos registros anteriores a 22/09/2026. */
+  ref?: Ref;
 }
 
-/** Registro SEM status conta como realizado — os importados da planilha. */
-const ehRealizada = (s: Selecao) => (s.status || 'realizado') === 'realizado';
-
-/** Lê a lista de vagas e cai no campo único dos registros antigos. */
-const codigosDasVagas = (s: Selecao): number[] =>
-  s.vagaCodigos?.length ? s.vagaCodigos
-    : (s.vagaCodigo === undefined || s.vagaCodigo === null ? [] : [s.vagaCodigo]);
-
-/** Soma só o que já aconteceu: agendado tem 0 e derrubaria a taxa. */
-function totaisDeSelecoes(selecoes: Selecao[]) {
-  const realizadas = selecoes.filter(ehRealizada);
-  const soma = (c: 'convocados' | 'compareceram' | 'ausentes' | 'desistiram' | 'contratados') =>
-    realizadas.reduce((t, s) => t + (s[c] || 0), 0);
-  const convocados = soma('convocados');
-  const compareceram = soma('compareceram');
-  return {
-    convocados, compareceram,
-    ausentes: soma('ausentes'),
-    desistiram: soma('desistiram'),
-    contratados: soma('contratados'),
-    aConfirmar: selecoes.length - realizadas.length,
-    taxa: convocados === 0 ? null : Math.round((compareceram / convocados) * 1000) / 10,
-  };
+/**
+ * Uma tarefa do "Meu dia" — o que o SGPC não registra sozinho.
+ *
+ * A lista é da EQUIPE, não de cada pessoa: qualquer uma cria uma tarefa nova
+ * e ela aparece para todas. Nome igual entre as pessoas é o que faz o
+ * acumulado somar — com listas individuais, "Atendimento", "atendimentos" e
+ * "Atend." virariam três tarefas. Arquivada some do formulário mas continua
+ * dando nome ao que já foi contado nela.
+ */
+export interface Tarefa {
+  id: string;
+  nome: string;
+  arquivada?: boolean;
+  /** Posição no formulário; sem ela, a ordem de criação. */
+  ordem?: number;
 }
 
-export interface EmailSelecoes {
+/**
+ * As quatro que nasceram da reunião de 22/09/2026 com a direção. Vivem no
+ * código para o formulário nunca abrir vazio; um documento com o MESMO id na
+ * coleção `tarefasDiario` renomeia ou arquiva a padrão.
+ */
+export const TAREFAS_PADRAO: Tarefa[] = [
+  { id: 'atendimentos', nome: 'Atendimentos a colaboradores', ordem: 1 },
+  { id: 'testes', nome: 'Testes psicológicos aplicados', ordem: 2 },
+  { id: 'divulgacoes', nome: 'Vagas divulgadas', ordem: 3 },
+  { id: 'acolhimentos', nome: 'Novos colaboradores acolhidos', ordem: 4 },
+];
+
+/** As padrão mescladas com as da equipe — o documento do banco vence. */
+export function listaDeTarefas(daEquipe: Tarefa[]): Tarefa[] {
+  const porId = new Map(TAREFAS_PADRAO.map(t => [t.id, t]));
+  for (const t of daEquipe) porId.set(t.id, { ...porId.get(t.id), ...t });
+  return [...porId.values()].sort((a, b) => (a.ordem ?? 999) - (b.ordem ?? 999) || a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/** O que a pessoa informou à mão num dia: tarefa → quantidade. */
+export interface Diario {
+  email: string;
+  data: string; // DD/MM/AAAA
+  contagens?: Record<string, number>;
+}
+
+export interface Secao { titulo: string; frases: string[] }
+
+export interface RelatoPessoa {
+  email: string;
+  /** Nome do cadastro de usuários; sem ele, o próprio e-mail. */
+  nome: string;
+  /** Ações registradas no sistema no dia. */
+  acoes: number;
+  secoes: Secao[];
+  /** "No mês" e "No ano": só o que é diferente de zero. */
+  acumulado: { mes: string[]; ano: string[] };
+}
+
+// ─── datas ──────────────────────────────────────────────────────────────────
+
+/** DD/MM/AAAA de um instante, no fuso de Fortaleza (UTC-3, sem verão). */
+export function diaEmFortaleza(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Fortaleza', day: '2-digit', month: '2-digit', year: 'numeric',
+  }).format(d);
+}
+
+const mesAno = (dia: string) => dia.slice(3);  // MM/AAAA
+const ano = (dia: string) => dia.slice(6);     // AAAA
+
+// ─── português ──────────────────────────────────────────────────────────────
+
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
+/** "A", "A e B", "A, B e C". */
+function enumerar(itens: string[]): string {
+  const limpos = itens.map(s => s.trim()).filter(Boolean);
+  if (limpos.length <= 1) return limpos[0] || '';
+  return `${limpos.slice(0, -1).join(', ')} e ${limpos[limpos.length - 1]}`;
+}
+
+/** Nomes demais viram "A, B, C e mais 4" — a frase não pode virar lista. */
+function enumerarComTeto(itens: string[], teto = 4): string {
+  const unicos = [...new Set(itens.map(s => s.trim()).filter(Boolean))];
+  if (unicos.length <= teto) return enumerar(unicos);
+  return `${unicos.slice(0, teto).join(', ')} e mais ${unicos.length - teto}`;
+}
+
+/** "DIONISIO TORRES" → "Dionisio Torres". Sigla curta (DT, BS) fica como está. */
+function titulo(t: unknown): string {
+  const s = String(t ?? '').trim();
+  if (!s || s.length <= 3) return s;
+  return s.toLowerCase().replace(/(^|[\s/(-])(\p{L})/gu, (_, sep, l) => sep + l.toUpperCase())
+    .replace(/\b(De|Da|Do|Das|Dos|E)\b/g, m => m.toLowerCase());
+}
+
+const txt = (r: Ref | undefined, k: string) => String(r?.[k] ?? '').trim();
+const num = (r: Ref | undefined, k: string) => {
+  const n = Number(r?.[k]);
+  return Number.isFinite(n) ? n : 0;
+};
+
+// ─── classificação ─────────────────────────────────────────────────────────
+
+/**
+ * A seleção só ganhou módulo próprio no log em 22/09/2026; antes ela ia como
+ * "Vagas", e só o começo do texto a distingue de uma alteração de vaga.
+ */
+function ehSelecao(e: EntradaLog): boolean {
+  if (e.modulo === 'Seleções') return true;
+  return e.modulo === 'Vagas' && /^(Seleção agendada|Presença confirmada)/.test(e.detalhes || '');
+}
+
+const CADASTROS = new Set(['Usuários', 'Sedes', 'Cargos', 'Setores', 'Regiões']);
+const ehImportacao = (e: EntradaLog) =>
+  e.ref?.tipo === 'importacao' || /^(Import|Importação)/.test(e.detalhes || '');
+
+// ─── as frases ─────────────────────────────────────────────────────────────
+
+function frasesDeSelecao(es: EntradaLog[], dia: string): string[] {
+  const frases: string[] = [];
+  const conduzidas = es.filter(e => e.acao === 'ALTEROU');
+  const agendadas = es.filter(e => e.acao === 'CRIOU');
+
+  for (const e of conduzidas) {
+    if (!e.ref) continue;
+    const conv = num(e.ref, 'convocados');
+    const comp = num(e.ref, 'compareceram');
+    const onde = txt(e.ref, 'sede') ? ` em ${titulo(e.ref.sede)}` : '';
+    // Zero de comparecimento é dito com todas as letras. Foi a queixa do
+    // primeiro relatório ("oito horas esperando três pessoas que não vieram"),
+    // e esconder isso não ajuda ninguém a resolver.
+    const quantos = comp === 0
+      ? `${plural(conv, 'convocado', 'convocados')}, nenhum compareceu`
+      : `${plural(conv, 'convocado', 'convocados')}, ${comp} ${comp === 1 ? 'compareceu' : 'compareceram'}`;
+    frases.push(`Conduziu a seleção de ${titulo(e.ref.cargo)}${onde}: ${quantos}.`);
+  }
+  const semRefConduzidas = conduzidas.filter(e => !e.ref).length;
+  if (semRefConduzidas) frases.push(`Registrou o comparecimento de ${plural(semRefConduzidas, 'seleção', 'seleções')}.`);
+
+  for (const e of agendadas) {
+    if (!e.ref) continue;
+    const quando = txt(e.ref, 'data') === dia ? 'para hoje' : `para ${txt(e.ref, 'data')}`;
+    const onde = txt(e.ref, 'sede') ? ` em ${titulo(e.ref.sede)}` : '';
+    frases.push(`Agendou ${quando} a seleção de ${titulo(e.ref.cargo)}${onde}, com ${plural(num(e.ref, 'convocados'), 'convocado', 'convocados')}.`);
+  }
+  const semRefAgendadas = agendadas.filter(e => !e.ref).length;
+  if (semRefAgendadas) frases.push(`Agendou ${plural(semRefAgendadas, 'seleção', 'seleções')}.`);
+  return frases;
+}
+
+function frasesDeVagas(es: EntradaLog[]): string[] {
+  const frases: string[] = [];
+  const abertas = es.filter(e => e.acao === 'CRIOU' && !ehImportacao(e));
+
+  // Agrupadas por sede: "Abriu 2 vagas em Dom Luís: Assistente de Tesouraria e ASG."
+  const porSede = new Map<string, { cargos: string[]; n: number }>();
+  let semRef = 0;
+  for (const e of abertas) {
+    if (!e.ref) { semRef++; continue; }
+    const sede = titulo(e.ref.sede);
+    const q = Math.max(1, num(e.ref, 'quantidade'));
+    const g = porSede.get(sede) || { cargos: [], n: 0 };
+    g.cargos.push(q > 1 ? `${q} de ${titulo(e.ref.cargo)}` : titulo(e.ref.cargo));
+    g.n += q;
+    porSede.set(sede, g);
+  }
+  for (const [sede, g] of porSede) {
+    frases.push(`Abriu ${plural(g.n, 'vaga', 'vagas')}${sede ? ` em ${sede}` : ''}: ${enumerarComTeto(g.cargos)}.`);
+  }
+  if (semRef) frases.push(`Abriu ${plural(semRef, 'vaga', 'vagas')}.`);
+
+  const alteradas = es.filter(e => e.acao === 'ALTEROU').length;
+  if (alteradas) frases.push(`Atualizou o andamento de ${plural(alteradas, 'vaga', 'vagas')}.`);
+  const removidas = es.filter(e => e.acao === 'EXCLUIU').length;
+  if (removidas) frases.push(`Removeu ${plural(removidas, 'vaga', 'vagas')}.`);
+  return frases;
+}
+
+/** Nomes das pessoas citadas nas entradas com ref; o resto só conta. */
+function comNomes(es: EntradaLog[], campo: string) {
+  return { nomes: es.map(e => txt(e.ref, campo)).filter(Boolean), semNome: es.filter(e => !txt(e.ref, campo)).length };
+}
+
+function frasesDePessoas(porModulo: Map<string, EntradaLog[]>): string[] {
+  const frases: string[] = [];
+  const doModulo = (m: string, acao: string) =>
+    (porModulo.get(m) || []).filter(e => e.acao === acao && !ehImportacao(e));
+
+  // Período de experiência (45 e 90 dias).
+  const exp = comNomes(doModulo('Experiências', 'CRIOU'), 'colaborador');
+  if (exp.nomes.length) frases.push(`Iniciou o acompanhamento do período de experiência de ${enumerarComTeto(exp.nomes)}.`);
+  if (exp.semNome) frases.push(`Iniciou ${plural(exp.semNome, 'acompanhamento', 'acompanhamentos')} de período de experiência.`);
+  const expAlt = doModulo('Experiências', 'ALTEROU').length;
+  if (expAlt) frases.push(`Registrou ${plural(expAlt, 'avaliação', 'avaliações')} de período de experiência.`);
+
+  const integ = comNomes(doModulo('Integrações', 'CRIOU'), 'colaborador');
+  if (integ.nomes.length) frases.push(`Registrou a integração de ${enumerarComTeto(integ.nomes)}.`);
+  if (integ.semNome) frases.push(`Registrou ${plural(integ.semNome, 'integração', 'integrações')} de novos colaboradores.`);
+
+  const desl = comNomes(doModulo('Entrevistas', 'CRIOU'), 'colaborador');
+  if (desl.nomes.length) frases.push(`Realizou a entrevista de desligamento de ${enumerarComTeto(desl.nomes)}.`);
+  if (desl.semNome) frases.push(`Realizou ${plural(desl.semNome, 'entrevista', 'entrevistas')} de desligamento.`);
+
+  const trein = doModulo('Treinamentos', 'CRIOU');
+  const temas = trein.map(e => txt(e.ref, 'tema')).filter(Boolean);
+  if (temas.length) frases.push(`Registrou ${temas.length === 1 ? 'o treinamento' : 'os treinamentos'} ${enumerarComTeto(temas.map(t => `“${t}”`))}.`);
+  const treinSem = trein.filter(e => !txt(e.ref, 'tema')).length;
+  if (treinSem) frases.push(`Registrou ${plural(treinSem, 'treinamento', 'treinamentos')}.`);
+
+  // ⚠️ Consulta leva nome e especialidade — dado de saúde. Só a contagem vai
+  // para o relato, nunca quem nem qual especialidade.
+  const cons = doModulo('Consultas', 'CRIOU').length;
+  if (cons) frases.push(`Encaminhou ${plural(cons, 'consulta', 'consultas')} de colaboradores.`);
+
+  if ((porModulo.get('Turnover') || []).some(e => e.acao === 'CRIOU')) {
+    frases.push('Lançou o balanço mensal de headcount e turnover.');
+  }
+  return frases;
+}
+
+/**
+ * Tudo que o relato não escreve por extenso vira uma frase de contagem por
+ * módulo, para nada que a pessoa fez sumir do e-mail.
+ */
+function frasesDeManutencao(porModulo: Map<string, EntradaLog[]>): string[] {
+  const frases: string[] = [];
+  const ajustes = (m: string) =>
+    (porModulo.get(m) || []).filter(e => e.acao !== 'CRIOU' || ehImportacao(e));
+
+  const pessoas = ['Experiências', 'Integrações', 'Entrevistas', 'Treinamentos', 'Consultas', 'Turnover'];
+  for (const m of pessoas) {
+    // Experiências ALTEROU já virou frase própria ("avaliações de experiência").
+    const n = ajustes(m).filter(e => !(m === 'Experiências' && e.acao === 'ALTEROU') && !ehImportacao(e)).length;
+    if (n) frases.push(`Atualizou ${plural(n, 'registro', 'registros')} de ${m.toLowerCase()}.`);
+  }
+
+  const imports = [...porModulo.values()].flat().filter(ehImportacao).length;
+  if (imports) frases.push(`Importou ${plural(imports, 'planilha', 'planilhas')} para o sistema.`);
+
+  const org = (porModulo.get('Organograma') || []).length;
+  if (org) frases.push(`Fez ${plural(org, 'ajuste', 'ajustes')} no organograma.`);
+
+  const cad = [...porModulo.entries()].filter(([m]) => CADASTROS.has(m)).reduce((t, [, es]) => t + es.length, 0);
+  if (cad) frases.push(`Fez ${plural(cad, 'ajuste', 'ajustes')} nos cadastros do sistema.`);
+  return frases;
+}
+
+/**
+ * "Atendimentos a colaboradores: 6." — nome da tarefa e a quantidade.
+ *
+ * Sem plural automático de propósito: a tarefa tem o nome que alguém da equipe
+ * digitou, e flexionar texto livre em português erra mais do que acerta.
+ */
+function frasesDasContagens(contagens: Record<string, number> | undefined, nomeDe: Map<string, string>): string[] {
+  const frases: string[] = [];
+  for (const [id, n] of Object.entries(contagens || {})) {
+    const q = Math.floor(Number(n)) || 0;
+    if (q <= 0) continue;
+    frases.push(`${nomeDe.get(id) || id}: ${q}.`);
+  }
+  return frases;
+}
+
+function frasesInformadas(diario: Diario | undefined, atividades: EntradaLog[], nomeDe: Map<string, string>): string[] {
+  const frases: string[] = frasesDasContagens(diario?.contagens, nomeDe);
+  for (const a of atividades.filter(a => a.acao === 'CRIOU')) {
+    const t = txt(a.ref, 'titulo');
+    const det = txt(a.ref, 'detalhe');
+    // Atividade antiga, sem ref: o texto do log ainda é a melhor descrição.
+    frases.push(t ? `${t}${det ? ` — ${det}` : ''}.` : (a.detalhes || '').replace(/^Atividade /, ''));
+  }
+  return frases;
+}
+
+/** O relato de UM dia de UMA pessoa, a partir das entradas dela nesse dia. */
+function secoesDoDia(entradas: EntradaLog[], dia: string, diario: Diario | undefined, nomeDe: Map<string, string>): Secao[] {
+  const porModulo = new Map<string, EntradaLog[]>();
+  for (const e of entradas) {
+    const m = ehSelecao(e) ? 'Seleções' : e.modulo;
+    if (!porModulo.has(m)) porModulo.set(m, []);
+    porModulo.get(m)!.push(e);
+  }
+  const secoes: Secao[] = [
+    { titulo: 'Seleções', frases: frasesDeSelecao(porModulo.get('Seleções') || [], dia) },
+    { titulo: 'Vagas', frases: frasesDeVagas((porModulo.get('Vagas') || []).filter(e => !ehImportacao(e))) },
+    { titulo: 'Pessoas', frases: frasesDePessoas(porModulo) },
+    { titulo: 'Também informou', frases: frasesInformadas(diario, porModulo.get('Resumo do Dia') || [], nomeDe) },
+    { titulo: 'Manutenção do sistema', frases: frasesDeManutencao(porModulo) },
+  ];
+  return secoes.filter(s => s.frases.length > 0);
+}
+
+// ─── acumulado ─────────────────────────────────────────────────────────────
+
+/** Contagens que valem somar num período — os marcos do trabalho, não os ajustes. */
+function marcos(entradas: EntradaLog[], diarios: Diario[], nomeDe: Map<string, string>): string[] {
+  const conta = (f: (e: EntradaLog) => boolean) => entradas.filter(f).length;
+  const vagas = entradas
+    .filter(e => e.modulo === 'Vagas' && e.acao === 'CRIOU' && !ehImportacao(e) && !ehSelecao(e))
+    .reduce((t, e) => t + Math.max(1, num(e.ref, 'quantidade')), 0);
+  const itens: [number, string, string][] = [
+    [conta(e => ehSelecao(e) && e.acao === 'ALTEROU'), 'seleção conduzida', 'seleções conduzidas'],
+    [vagas, 'vaga aberta', 'vagas abertas'],
+    [conta(e => e.modulo === 'Experiências' && e.acao === 'CRIOU' && !ehImportacao(e)), 'experiência iniciada', 'experiências iniciadas'],
+    [conta(e => e.modulo === 'Integrações' && e.acao === 'CRIOU' && !ehImportacao(e)), 'integração', 'integrações'],
+    [conta(e => e.modulo === 'Entrevistas' && e.acao === 'CRIOU'), 'entrevista de desligamento', 'entrevistas de desligamento'],
+    [conta(e => e.modulo === 'Treinamentos' && e.acao === 'CRIOU' && !ehImportacao(e)), 'treinamento', 'treinamentos'],
+  ];
+  const doSistema = itens.filter(([n]) => n > 0).map(([n, um, varios]) => plural(n, um, varios));
+
+  // As tarefas da equipe somam pelo id, e aparecem como "Nome: total" — o
+  // mesmo formato da frase do dia. Ordem: a da lista, não a do banco.
+  const somaPorTarefa = new Map<string, number>();
+  for (const d of diarios) {
+    for (const [id, n] of Object.entries(d.contagens || {})) {
+      const q = Math.floor(Number(n)) || 0;
+      if (q > 0) somaPorTarefa.set(id, (somaPorTarefa.get(id) || 0) + q);
+    }
+  }
+  const ordemDasTarefas = [...nomeDe.keys()];
+  const informadas = [...somaPorTarefa.entries()]
+    .sort(([a], [b]) => (ordemDasTarefas.indexOf(a) + 1 || 999) - (ordemDasTarefas.indexOf(b) + 1 || 999))
+    .map(([id, total]) => `${nomeDe.get(id) || id}: ${total}`);
+
+  return [...doSistema, ...informadas];
+}
+
+// ─── entrada ───────────────────────────────────────────────────────────────
+
+/**
+ * @param logs      o log do ANO até o dia (o acumulado precisa dele); a função
+ *                  recorta o dia, o mês e o ano por conta própria
+ * @param diarios   o que cada pessoa informou à mão, do ano
+ * @param dia       DD/MM/AAAA no fuso de Fortaleza
+ * @param nomes     e-mail (minúsculo) → nome de exibição
+ * @param tarefas   a lista da equipe (sem as padrão: a função as acrescenta).
+ *                  Arquivadas entram também — dão nome ao que já foi contado.
+ */
+export function relatoPorPessoa(
+  logs: EntradaLog[],
+  diarios: Diario[],
+  dia: string,
+  nomes: Map<string, string> = new Map(),
+  tarefas: Tarefa[] = [],
+): RelatoPessoa[] {
+  const quem = (e: string) => (e || '').trim().toLowerCase();
+  const doAno = logs.filter(e => quem(e.usuario) && ano(diaEmFortaleza(e.timestamp)) === ano(dia));
+  const nomeDe = new Map(listaDeTarefas(tarefas).map(t => [t.id, t.nome]));
+
+  // Quem aparece no dia: mexeu no sistema OU informou algo no "Meu dia".
+  const pessoasDoDia = new Set<string>();
+  for (const e of logs) if (quem(e.usuario) && diaEmFortaleza(e.timestamp) === dia) pessoasDoDia.add(quem(e.usuario));
+  for (const d of diarios) {
+    const informou = Object.values(d.contagens || {}).some(n => (Math.floor(Number(n)) || 0) > 0);
+    if (d.data === dia && informou) pessoasDoDia.add(quem(d.email));
+  }
+
+  const resultado: RelatoPessoa[] = [];
+  for (const email of pessoasDoDia) {
+    const minhas = doAno.filter(e => quem(e.usuario) === email);
+    const noDia = minhas.filter(e => diaEmFortaleza(e.timestamp) === dia);
+    const noMes = minhas.filter(e => mesAno(diaEmFortaleza(e.timestamp)) === mesAno(dia) && ordem(diaEmFortaleza(e.timestamp)) <= ordem(dia));
+    const noAnoAteHoje = minhas.filter(e => ordem(diaEmFortaleza(e.timestamp)) <= ordem(dia));
+    const meusDiarios = diarios.filter(d => quem(d.email) === email && ano(d.data) === ano(dia) && ordem(d.data) <= ordem(dia));
+
+    resultado.push({
+      email,
+      nome: (nomes.get(email) || '').trim() || email,
+      acoes: noDia.length,
+      secoes: secoesDoDia(noDia, dia, meusDiarios.find(d => d.data === dia), nomeDe),
+      acumulado: {
+        mes: marcos(noMes, meusDiarios.filter(d => mesAno(d.data) === mesAno(dia)), nomeDe),
+        ano: marcos(noAnoAteHoje, meusDiarios, nomeDe),
+      },
+    });
+  }
+
+  // Quem mais fez primeiro; empate, ordem alfabética — estável entre dias.
+  return resultado.sort((a, b) => b.acoes - a.acoes || a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/** DD/MM/AAAA → AAAAMMDD, para comparar datas como texto. */
+function ordem(dia: string): string {
+  const [d, m, a] = dia.split('/');
+  return `${a}${m}${d}`;
+}
+
+// ═══ O e-mail de UMA pessoa ═════════════════════════════════════════════════
+
+export interface EmailPessoa {
   assunto: string;
   html: string;
   /** Alternativa em texto puro — quem lê no relógio ou bloqueia HTML. */
   texto: string;
-  /** false quando não há nada no dia e o e-mail não deve ser enviado. */
-  vale: boolean;
 }
 
 const escapar = (t: string) =>
   String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
-const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
-
-/** O que o RH fez no dia e não foi seleção. Espelha `src/hooks/useAtividades`. */
-interface Atividade {
-  id?: string;
-  data: string;
-  titulo: string;
-  detalhe?: string;
-  responsavel?: string;
-  sede?: string;
-}
-
 /**
- * @param dia   DD/MM/AAAA — o dia do resumo
- * @param selecoes  já escopadas por unidade por quem chama
- * @param atividades  o que o RH fez fora das seleções, já escopadas também
+ * Sequência longa de dígitos partida em dois <span>.
+ *
+ * O Gmail transforma 10 dígitos seguidos em link de telefone (os códigos de
+ * vaga do banco têm 10). Envolver em <a> resolvia — e fez o e-mail inteiro ser
+ * marcado como perigoso em 22/09, porque link cujo texto é número e cujo
+ * destino é lugar nenhum é padrão de phishing. Dois nós de texto quebram a
+ * sequência sem link nenhum, e sem caractere invisível no que se copia.
  */
-export function montarEmailSelecoes(
-  dia: string,
-  selecoes: Selecao[],
-  atividades: Atividade[] = [],
-): EmailSelecoes {
-  const doDia = selecoes.filter(s => (s.data || '').trim() === dia);
-  const atividadesDoDia = atividades.filter(a => (a.data || '').trim() === dia);
-  const realizadas = doDia.filter(ehRealizada);
-  const agendadas = doDia.filter(s => !ehRealizada(s));
-  const t = totaisDeSelecoes(doDia);
-
-  // Dia sem NADA registrado não gera e-mail. Um aviso diário que na maior parte
-  // dos dias diz "nada aconteceu" é o caminho mais curto para o filtro de
-  // lixeira. Antes a regra era "sem SELEÇÃO", e com ela um dia inteiro de
-  // força-tarefa em kits não chegava a quem só lê o e-mail.
-  if (doDia.length === 0 && atividadesDoDia.length === 0) {
-    return { assunto: '', html: '', texto: '', vale: false };
-  }
-
-  // Convocados AGENDADOS entram no resumo por fora do total: `totaisDeSelecoes`
-  // só conta o realizado (senão um dia que não chegou derruba a taxa), mas
-  // anunciar "0 convocados" com 2 na tabela logo abaixo é a folha se
-  // contradizendo. Medido em 21/09/2026, num dia só com agendamento.
-  const convocadosAConfirmar = doDia
-    .filter(s => !ehRealizada(s))
-    .reduce((soma, s) => soma + (s.convocados || 0), 0);
-
-  // Vírgula decimal: é pt-BR, e o HTML já escreve assim. Enquanto esta linha
-  // dizia "28.6%" e o HTML dizia "28,6%", as duas partes da mesma mensagem
-  // divergiam de novo — pelo separador, dessa vez.
-  const taxaEscrita = t.taxa === null ? '' : `${String(t.taxa).replace('.', ',')}% de comparecimento`;
-
-  const resumo = [
-    t.convocados > 0 ? `${t.convocados} convocados` : '',
-    t.convocados > 0 ? `${t.compareceram} compareceram` : '',
-    taxaEscrita,
-    t.contratados ? plural(t.contratados, 'contratado', 'contratados') : '',
-    convocadosAConfirmar > 0
-      ? `${convocadosAConfirmar} ${convocadosAConfirmar === 1 ? 'convocado' : 'convocados'} a confirmar`
-      : '',
-  ].filter(Boolean).join(' · ');
-
-  // Assunto fixo, só variando a data — pedido do RH. Antes era
-  // "Seleções de DD/MM/AAAA — X de Y compareceram". O número que importa saiu
-  // daqui e vive no corpo; na caixa de entrada um dia se distingue do outro
-  // só pela data.
-  const assunto = `Resumo do dia - ${dia}`;
-
-  const motivos = new Map<string, number>();
-  doDia.forEach(s => Object.entries(s.motivos || {}).forEach(([m, n]) => {
-    if (n > 0) motivos.set(m, (motivos.get(m) || 0) + n);
-  }));
-
-  const html = montarHtml({
-    dia, realizadas, agendadas, totais: t, taxa: taxaEscrita,
-    convocadosAConfirmar, motivos, atividades: atividadesDoDia,
+const partirNumerosLongos = (html: string) =>
+  html.replace(/\d{8,}/g, n => {
+    const corte = Math.ceil(n.length / 2);
+    return `<span>${n.slice(0, corte)}</span><span>${n.slice(corte)}</span>`;
   });
 
-  // ⚠️ Abre com o MESMO título do HTML ("Resumo do dia"), e não com um título
-  // próprio. Enquanto esta parte dizia "SGPC — Seleções do dia" e o HTML dizia
-  // "Resumo do dia", as duas alternativas da mesma mensagem anunciavam coisas
-  // diferentes — e mostrar uma coisa a um leitor e outra a outro é justamente
-  // o que um filtro de phishing procura. Ver o comentário de `montarHtml`.
-  const texto = [
-    `Resumo do dia - ${dia}`,
-    resumo,
-    '',
-    ...[...realizadas, ...agendadas].map(s => {
-      const n = ehRealizada(s)
-        ? `${s.convocados || 0} convocados, ${s.compareceram || 0} compareceram, ${s.ausentes || 0} ausentes`
-        : `${s.convocados || 0} convocados, presença a confirmar`;
-      return `- ${s.cargo} · ${s.sede || 's/ sede'} · ${s.responsavel || 's/ responsável'}: ${n}`;
-    }),
-    agendadas.length ? `\n${plural(agendadas.length, 'seleção sem confirmação', 'seleções sem confirmação')} de presença.` : '',
-    // As atividades entram numa lista PRÓPRIA, nunca no meio das seleções: a
-    // linha de seleção traz três números, a de atividade não traz nenhum, e
-    // misturadas viram uma tabela em que metade das colunas está vazia.
-    // "Outras" só quando houve seleção antes; sozinho, o "outras" sugere um
-    // primeiro bloco que não existe.
-    atividadesDoDia.length
-      ? `\n${doDia.length ? 'Outras atividades do dia:' : 'Atividades do dia:'}`
-      : '',
-    ...atividadesDoDia.map(a => {
-      const quem = (a.responsavel || '').trim();
-      const onde = (a.sede || '').trim();
-      const detalhe = (a.detalhe || '').trim();
-      const contexto = [onde, quem].filter(Boolean).join(' · ');
-      return `- ${a.titulo}${contexto ? ` (${contexto})` : ''}${detalhe ? `: ${detalhe}` : ''}`;
-    }),
-    '\nEnviado automaticamente pelo SGPC. Para mudar quem recebe: Painel Admin → Notificações.',
-  ].filter(Boolean).join('\n');
-
-  return { assunto, html, texto, vale: true };
-}
-
 /**
- * O corpo em HTML, no sistema visual do próprio SGPC.
+ * O relato de uma pessoa, no sistema visual do próprio SGPC.
  *
- * Paleta e regras vêm de `src/styles/swiss.css` (tema Suíço da aplicação):
- * fio de 1px no lugar de sombra, números tabulares, UM acento cobalto, zero
- * gradiente. O e-mail antes usava Arial e um cinza qualquer — parecia de outro
- * produto. Aqui não dá para importar a Hanken Grotesk (cliente de e-mail não
- * carrega fonte externa de forma confiável), então a pilha cai na grotesca do
- * sistema; é a única concessão da tipografia.
+ * Paleta de `src/styles/swiss.css`: fio de 1px, UM acento cobalto, zero
+ * gradiente. A fonte cai na grotesca do sistema porque cliente de e-mail não
+ * carrega fonte externa com confiança.
  *
- * Três decisões que vieram de defeito observado no Gmail, não de gosto:
+ * ⚠️ AS REGRAS QUE CUSTARAM CARO, e que valem para todo e-mail daqui:
  *
- *  1. Os três números saíram de uma célula só (`11 / 5 / 6`, indecifrável sem
- *     consultar o cabeçalho) para três colunas com rótulo inteiro. O cabeçalho
- *     abreviado "CONV. / COMP. / AUS." quebrava em três linhas.
- *  2. O total virou linha do RODAPÉ da mesma tabela, alinhado sob as colunas
- *     que soma — em vez de uma frase solta com pontinhos no topo. A taxa fica
- *     embaixo do total de compareceram, que é exatamente o que ela mede.
- *  3. O código de vaga é partido em dois <span>, e NÃO vai dentro de link —
- *     ver o comentário de `refVaga`.
- *
- * ⚠️ E TRÊS COISAS QUE NÃO ESTÃO AQUI, de propósito.
- *
- * Em 22 e 23/09 o Gmail carimbou este e-mail com a tarja vermelha "Esta
- * mensagem pode ser perigosa". Não era autenticação: SPF, DKIM e DMARC deram
- * PASS nos três. Era o corpo — e o corpo só tinha mudado na redesenhada.
- * Sobraram três suspeitos, todos padrões que classificador de phishing pesa:
- *
- *  a. TEXTO ESCONDIDO. Os rótulos de coluna do celular viviam em <span> com
- *     `display:none` no desktop. Texto que está no HTML e o leitor não vê é
- *     dos sinais mais antigos de mensagem maliciosa. Saiu — e com ele foi o
- *     empilhamento no celular, que dependia de media query. O preço é a tabela
- *     apertada em tela pequena; é menos ruim que um e-mail que ninguém abre.
- *  b. COMENTÁRIO EM HTML. Comentário viaja dentro da mensagem e some da vista.
- *     Toda explicação daqui em diante é comentário de código, nunca de HTML.
- *  c. AS DUAS PARTES DIVERGINDO. O texto puro abria com "SGPC — Seleções do
- *     dia" enquanto o HTML dizia "Resumo do dia". Divergência entre as partes
- *     text/plain e text/html é sinal clássico: é como se esconde de um leitor
- *     o que se mostra ao outro. As duas passaram a dizer a mesma coisa.
- *
- * Por isso também não há mais <!doctype>, <head> nem <style>: o formato que
- * nunca foi marcado era uma <div> com estilo inline, e voltamos a ele. Se a
- * tarja insistir mesmo assim, a causa está fora do corpo e a investigação
- * recomeça — mas não por aqui.
+ * Em 22 e 23/09 o Gmail carimbou a mensagem com a tarja vermelha "Esta
+ * mensagem pode ser perigosa" com SPF, DKIM e DMARC todos em PASS — era o
+ * corpo. Por isso este HTML NUNCA tem:
+ *  - link (<a>): link falso foi o primeiro suspeito, e o e-mail não precisa;
+ *  - texto escondido (display:none) nem <style>: texto que está no HTML e o
+ *    leitor não vê é dos sinais mais antigos de mensagem maliciosa;
+ *  - comentário em HTML: viaja dentro da mensagem e some da vista.
+ * E o texto puro diz EXATAMENTE o mesmo que o HTML, começando pelo assunto:
+ * divergir entre as partes text/plain e text/html é mostrar uma coisa a um
+ * leitor e outra a outro. Há teste para cada uma dessas.
  */
-function montarHtml(d: {
-  dia: string;
-  realizadas: Selecao[];
-  agendadas: Selecao[];
-  totais: ReturnType<typeof totaisDeSelecoes>;
-  /** Já escrita, com vírgula decimal — vem pronta para as duas partes dizerem igual. */
-  taxa: string;
-  convocadosAConfirmar: number;
-  atividades: Atividade[];
-  motivos: Map<string, number>;
-}): string {
-  // Tokens do tema Suíço (src/styles/swiss.css). Literais porque e-mail não
-  // tem custom property com suporte decente — mas os valores são os mesmos.
+export function montarEmailPessoa(dia: string, p: RelatoPessoa): EmailPessoa {
+  // O nome no assunto: com um e-mail por pessoa, cinco mensagens com o mesmo
+  // "Resumo do dia - 22/09/2026" seriam indistinguíveis na caixa de entrada.
+  const assunto = `Resumo do dia - ${dia} - ${p.nome}`;
+  const subtitulo = p.acoes > 0
+    ? `${p.acoes} ${p.acoes === 1 ? 'ação registrada' : 'ações registradas'} no sistema`
+    : 'Informado no "Meu dia"';
+
+  // ── texto puro ────────────────────────────────────────────────────────────
+  const linhas: string[] = [assunto, subtitulo];
+  for (const s of p.secoes) {
+    linhas.push('', s.titulo.toUpperCase());
+    for (const f of s.frases) linhas.push(`• ${f}`);
+  }
+  if (p.acumulado.mes.length || p.acumulado.ano.length) {
+    linhas.push('');
+    if (p.acumulado.mes.length) linhas.push(`No mês: ${p.acumulado.mes.join(' · ')}`);
+    if (p.acumulado.ano.length) linhas.push(`No ano: ${p.acumulado.ano.join(' · ')}`);
+  }
+  linhas.push('', 'Enviado automaticamente pelo SGPC. Para mudar quem recebe: Painel Admin → Notificações.');
+  const texto = linhas.join('\n');
+
+  // ── HTML ──────────────────────────────────────────────────────────────────
   const PAPEL = '#FFFFFF', CANVAS = '#ECEDF0', TINTA = '#1A1B1F';
   const HAIRLINE = '#DDE0E6', TINTA2 = '#45474D', TINTA3 = '#5F6169';
   const ACENTO = '#1B4DD8';
   const FONTE = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
   const TNUM = "font-variant-numeric:tabular-nums;font-feature-settings:'tnum'";
-
   const rotulo = `font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${TINTA3}`;
-  const celNum = `padding:12px 8px;text-align:right;font-size:16px;color:${TINTA};${TNUM};border-bottom:1px solid ${HAIRLINE}`;
 
-
-  /**
-   * Números de vaga — SEM link, e partidos em dois <span>.
-   *
-   * ⚠️ A primeira tentativa foi envolver o código num `<a href="#">`, que é a
-   * receita conhecida contra o Gmail transformar 10 dígitos em link de
-   * telefone. Custou caro: em 23/09 o Gmail marcou o e-mail inteiro com a
-   * tarja vermelha "Esta mensagem pode ser perigosa". Um link cujo texto é um
-   * número e cujo destino é lugar nenhum é justamente o padrão que o
-   * classificador de phishing procura, e até então o e-mail não tinha link
-   * algum. Trocamos um número azul por uma mensagem que ninguém abre.
-   *
-   * O corte em dois <span> separa os dígitos em dois nós de texto, o que
-   * costuma bastar para o detector de telefone não enxergar a sequência — e,
-   * ao contrário do espaço de largura zero, não injeta caractere invisível no
-   * que a pessoa copia. Se ainda assim o Gmail pintar de azul, é só cosmético:
-   * nunca mais vale um link falso aqui dentro.
-   */
-  const refVaga = (s: Selecao) => {
-    const cods = codigosDasVagas(s);
-    if (!cods.length) return '';
-    const numeros = cods.map(c => {
-      const texto = String(c);
-      const corte = Math.ceil(texto.length / 2);
-      return `<span>${texto.slice(0, corte)}</span><span>${texto.slice(corte)}</span>`;
-    }).join(` <span style="color:${HAIRLINE}">·</span> `);
-    return `<div style="font-size:11px;color:${TINTA3};margin-top:3px;${TNUM}">
-      ${cods.length === 1 ? 'Vaga' : 'Vagas'} ${numeros}
-    </div>`;
-  };
-
-  // O cargo NÃO leva etiqueta de pendente: as duas células de presença já dizem
-  // "a confirmar", e empilhadas no celular a etiqueta quebrava no meio da
-  // palavra ("· A / CONFIRMAR"). Dizer duas vezes custou legibilidade.
-  //
-  // Comentário de código, não de HTML: comentário HTML viaja dentro do e-mail.
-  const linha = (s: Selecao) => {
-    const feita = ehRealizada(s);
-    const pendente = `<span style="color:${TINTA3};font-size:13px">a confirmar</span>`;
-    return `<tr>
-      <td style="padding:12px 8px;border-bottom:1px solid ${HAIRLINE};vertical-align:top">
-        <div style="font-size:14px;font-weight:700;color:${TINTA};line-height:1.3">${escapar(s.cargo)}</div>
-        <div style="font-size:12px;color:${TINTA2};margin-top:3px;line-height:1.4">
-          ${escapar(s.sede || 'sem sede')} <span style="color:${HAIRLINE}">·</span> ${escapar(s.responsavel || 'sem responsável')}
-        </div>
-        ${refVaga(s)}
-      </td>
-      <td style="${celNum}">${s.convocados || 0}</td>
-      <td style="${celNum}">${feita ? s.compareceram || 0 : pendente}</td>
-      <td style="${celNum}">${feita ? s.ausentes || 0 : pendente}</td>
-    </tr>`;
-  };
-
-  const t = d.totais;
-  const taxa = d.taxa;
-  const celTotal = `padding:12px 8px;text-align:right;font-size:17px;font-weight:700;color:${TINTA};${TNUM};border-top:2px solid ${TINTA}`;
-
-  const th = (texto: string, alinha: 'left' | 'right') =>
-    `<th align="${alinha}" style="padding:0 8px 8px;${rotulo};border-bottom:1px solid ${TINTA}">${texto}</th>`;
-
-  // Dia só de atividade não leva a tabela: cabeçalho de colunas com corpo vazio
-  // e "Total do dia 0 / 0 / 0" faz o e-mail parecer quebrado, não vazio.
-  const semSelecoes = d.realizadas.length === 0 && d.agendadas.length === 0;
-
-  /* As atividades vêm numa LISTA, e não em linhas da tabela de seleções. A
-     linha de seleção é três números; a de atividade não é número nenhum.
-     Juntas, metade das colunas fica vazia em cada linha — e, pior, a atividade
-     passaria a ser contada como seleção do dia. */
-  const listaAtividades = d.atividades.length === 0 ? '' : `
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-top:${semSelecoes ? 28 : 24}px;border-top:1px solid ${HAIRLINE}">
-    <tr><td style="padding:16px 8px 0">
-      <div style="${rotulo}">${semSelecoes ? 'Atividades do dia' : 'Também no dia'}</div>
-      ${d.atividades.map(a => {
-        const contexto = [a.sede, a.responsavel].map(x => (x || '').trim()).filter(Boolean).join(' · ');
-        return `<div style="margin-top:10px">
-          <div style="font-size:13px;font-weight:700;color:${TINTA};line-height:1.35">${escapar(a.titulo)}</div>
-          ${a.detalhe ? `<div style="font-size:12px;color:${TINTA2};margin-top:2px;line-height:1.45">${escapar(a.detalhe)}</div>` : ''}
-          ${contexto ? `<div style="font-size:11px;color:${TINTA3};margin-top:2px">${escapar(contexto)}</div>` : ''}
-        </div>`;
-      }).join('')}
+  const secaoHtml = (s: Secao) => `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-top:22px;border-top:1px solid ${HAIRLINE}">
+    <tr><td style="padding:14px 0 0">
+      <div style="${rotulo}">${escapar(s.titulo)}</div>
+      ${s.frases.map(f => `
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-top:8px">
+        <tr>
+          <td valign="top" style="width:16px;padding:0;font-size:14px;line-height:1.45;color:${ACENTO}">•</td>
+          <td valign="top" style="padding:0;font-size:14px;line-height:1.45;color:${TINTA}">${partirNumerosLongos(escapar(f))}</td>
+        </tr>
+      </table>`).join('')}
     </td></tr>
   </table>`;
 
-  return `<div style="background:${CANVAS};padding:24px 12px">
+  const acumuladoHtml = (p.acumulado.mes.length || p.acumulado.ano.length) ? `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-top:26px;background:#F4F5F7">
+    <tr><td style="padding:14px 16px">
+      ${p.acumulado.mes.length ? `<div style="font-size:12px;line-height:1.55;color:${TINTA2};${TNUM}"><strong style="color:${TINTA}">No mês:</strong> ${escapar(p.acumulado.mes.join(' · '))}</div>` : ''}
+      ${p.acumulado.ano.length ? `<div style="font-size:12px;line-height:1.55;color:${TINTA2};margin-top:4px;${TNUM}"><strong style="color:${TINTA}">No ano:</strong> ${escapar(p.acumulado.ano.join(' · '))}</div>` : ''}
+    </td></tr>
+  </table>` : '';
+
+  const html = `<div style="background:${CANVAS};padding:24px 12px">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse">
 <tr><td align="center">
 
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:100%;max-width:600px;background:${PAPEL};border:1px solid ${HAIRLINE};border-collapse:collapse">
 <tr><td style="padding:32px 28px;font-family:${FONTE};color:${TINTA}">
 
-  <h1 style="margin:0;font-size:32px;font-weight:700;letter-spacing:-.02em;line-height:1.05;color:${TINTA}">Resumo do dia</h1>
-  <div style="margin-top:6px;font-size:15px;font-weight:700;color:${ACENTO};letter-spacing:-.01em;${TNUM}">${escapar(d.dia)}</div>
-
-  ${semSelecoes ? '' : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-top:28px">
-    <thead>
-      <tr>
-        ${th('Cargo', 'left')}${th('Convocados', 'right')}${th('Compareceram', 'right')}${th('Ausentes', 'right')}
-      </tr>
-    </thead>
-    <tbody>${[...d.realizadas, ...d.agendadas].map(linha).join('')}</tbody>
-    <tfoot>
-      <tr>
-        <td style="padding:12px 8px;border-top:2px solid ${TINTA};${rotulo};vertical-align:top;white-space:nowrap">Total do dia</td>
-        <td style="${celTotal}">${t.convocados}</td>
-        <td style="${celTotal}">${t.compareceram}</td>
-        <td style="${celTotal}">${t.ausentes}</td>
-      </tr>
-      ${taxa ? `<tr>
-        <td colspan="4" align="right" style="padding:8px 8px 0;text-align:right;font-size:14px;font-weight:700;color:${ACENTO};letter-spacing:-.01em;${TNUM}">${taxa}</td>
-      </tr>` : ''}
-    </tfoot>
-  </table>`}
-
-  ${d.convocadosAConfirmar > 0 ? `<p style="margin:20px 0 0;font-size:13px;color:${TINTA2};line-height:1.5">
-    <strong style="color:${TINTA}">${d.convocadosAConfirmar} ${d.convocadosAConfirmar === 1 ? 'convocado' : 'convocados'} a confirmar</strong>
-    em ${plural(d.agendadas.length, 'seleção ainda sem confirmação de presença', 'seleções ainda sem confirmação de presença')}.
-  </p>` : ''}
-
-  ${d.motivos.size ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-top:24px;border-top:1px solid ${HAIRLINE}">
-    <tr><td style="padding:16px 8px 0">
-      <div style="${rotulo}">Desistências</div>
-      <div style="font-size:13px;color:${TINTA2};margin-top:6px;line-height:1.6">${
-        [...d.motivos.entries()].sort((a, b) => b[1] - a[1])
-          .map(([m, n]) => `${escapar(m)} (${n})`)
-          .join(` <span style="color:${HAIRLINE}">·</span> `)
-      }</div>
-    </td></tr>
-  </table>` : ''}
-  ${listaAtividades}
+  <h1 style="margin:0;font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1.05;color:${TINTA}">${escapar(p.nome)}</h1>
+  <div style="margin-top:6px;font-size:14px;font-weight:700;color:${ACENTO};letter-spacing:-.01em;${TNUM}">Resumo do dia · ${escapar(dia)}</div>
+  <div style="margin-top:4px;font-size:12px;font-weight:600;color:${TINTA3};${TNUM}">${escapar(subtitulo)}</div>
+  ${p.secoes.map(secaoHtml).join('')}
+  ${acumuladoHtml}
 
   <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid ${HAIRLINE};font-size:11px;color:${TINTA3};line-height:1.6">
     Enviado automaticamente pelo SGPC. Para mudar quem recebe: Painel Admin → Notificações.
@@ -414,9 +570,9 @@ function montarHtml(d: {
 </td></tr>
 </table>
 </div>`;
+
+  return { assunto, html, texto };
 }
-
-
 
 const PROJETO = 'project-312a1a63-026e-4dfa-91c';
 const BANCO = 'ai-studio-2b395015-7429-44d1-83dd-233de9cd3c47';
@@ -526,8 +682,7 @@ async function tokenDeAcesso(): Promise<string> {
   return json.access_token;
 }
 
-const txt = (d: any, campo: string) => d?.fields?.[campo]?.stringValue ?? '';
-const num = (d: any, campo: string) => Number(d?.fields?.[campo]?.integerValue ?? d?.fields?.[campo]?.doubleValue ?? 0);
+const campoTexto = (d: any, campo: string) => d?.fields?.[campo]?.stringValue ?? '';
 
 async function lerColecao(colecao: string, token: string): Promise<any[]> {
   const docs: any[] = [];
@@ -542,6 +697,89 @@ async function lerColecao(colecao: string, token: string): Promise<any[]> {
     pageToken = j.nextPageToken || '';
   } while (pageToken);
   return docs;
+}
+
+/**
+ * O log do ANO até o fim do dia, filtrado NO BANCO.
+ *
+ * O ano inteiro e não só o dia: o relato leva o acumulado do mês e do ano da
+ * pessoa. Ainda assim é filtro no banco — nada de anos anteriores nem do que
+ * veio depois. `timestamp` é ISO em UTC, e ISO compara como texto na ordem
+ * certa — daí o filtro por faixa de texto.
+ *
+ * O dia de Fortaleza começa às 03:00 UTC (UTC-3, sem horário de verão desde
+ * 2019). `relatoPorPessoa` confere dia, mês e ano de novo por conta própria;
+ * este filtro é economia, não é a regra.
+ */
+async function lerLogDoAno(dia: string, token: string): Promise<EntradaLog[]> {
+  const [d, m, a] = dia.split('/');
+  const inicio = new Date(`${a}-01-01T03:00:00.000Z`);
+  const fim = new Date(new Date(`${a}-${m}-${d}T03:00:00.000Z`).getTime() + 24 * 3600 * 1000);
+  const filtro = (op: string, valor: string) => ({
+    fieldFilter: { field: { fieldPath: 'timestamp' }, op, value: { stringValue: valor } },
+  });
+  const r = await fetch(`${BASE}:runQuery`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: 'logs' }],
+        where: {
+          compositeFilter: {
+            op: 'AND',
+            filters: [
+              filtro('GREATER_THAN_OR_EQUAL', inicio.toISOString()),
+              filtro('LESS_THAN', fim.toISOString()),
+            ],
+          },
+        },
+      },
+    }),
+  });
+  const j: any = await r.json();
+  if (!Array.isArray(j)) throw new Error(`logs: ${j?.error?.message || 'resposta inesperada'}`);
+  return j
+    .filter((x: any) => x.document)
+    .map((x: any) => ({
+      timestamp: campoTexto(x.document, 'timestamp'),
+      usuario: campoTexto(x.document, 'usuario'),
+      acao: campoTexto(x.document, 'acao'),
+      modulo: campoTexto(x.document, 'modulo'),
+      detalhes: campoTexto(x.document, 'detalhes'),
+      ref: lerMapa(x.document?.fields?.ref),
+    }));
+}
+
+/** Um mapa do Firestore (REST) em objeto simples. Ausente → undefined. */
+function lerMapa(campo: any): Ref | undefined {
+  const fields = campo?.mapValue?.fields;
+  if (!fields) return undefined;
+  return Object.fromEntries(Object.entries(fields).map(([k, v]: [string, any]) => [
+    k,
+    v.stringValue ?? (v.integerValue !== undefined ? Number(v.integerValue) : v.doubleValue),
+  ]));
+}
+
+const campoNumero = (d: any, campo: string) =>
+  Number(d?.fields?.[campo]?.integerValue ?? d?.fields?.[campo]?.doubleValue ?? 0);
+
+/** O "Meu dia" de todo mundo — coleção pequena, um documento por pessoa por dia. */
+async function lerDiarios(token: string): Promise<Diario[]> {
+  return (await lerColecao('diario', token)).map(d => ({
+    email: campoTexto(d, 'email'),
+    data: campoTexto(d, 'data'),
+    contagens: lerMapa(d.fields?.contagens) as Record<string, number> | undefined,
+  }));
+}
+
+/** A lista da equipe, inclusive arquivadas — elas nomeiam o que já foi contado. */
+async function lerTarefas(token: string): Promise<Tarefa[]> {
+  return (await lerColecao('tarefasDiario', token)).map(d => ({
+    id: d.name.split('/').pop(),
+    nome: campoTexto(d, 'nome'),
+    arquivada: d.fields?.arquivada?.booleanValue === true,
+    ...(d.fields?.ordem ? { ordem: campoNumero(d, 'ordem') } : {}),
+  }));
 }
 
 /**
@@ -627,43 +865,26 @@ export default async function handler(req: any, res: any) {
     }
 
     const dia = hojeEmFortaleza();
-    const selecoes: Selecao[] = (await lerColecao('selecoes', token)).map(d => ({
-      id: d.name.split('/').pop(),
-      data: txt(d, 'data'),
-      cargo: txt(d, 'cargo'),
-      sede: txt(d, 'sede'),
-      responsavel: txt(d, 'responsavel'),
-      origem: (txt(d, 'origem') || 'geral') as Selecao['origem'],
-      status: (txt(d, 'status') || undefined) as Selecao['status'],
-      convocados: num(d, 'convocados'),
-      compareceram: num(d, 'compareceram'),
-      ausentes: num(d, 'ausentes'),
-      contratados: num(d, 'contratados'),
-      desistiram: num(d, 'desistiram'),
-      vagaCodigos: (d.fields?.vagaCodigos?.arrayValue?.values || []).map((v: any) => Number(v.integerValue ?? v.doubleValue ?? 0)),
-      motivos: Object.fromEntries(
-        Object.entries(d.fields?.motivos?.mapValue?.fields || {})
-          .map(([k, v]: any) => [k, Number(v.integerValue ?? v.doubleValue ?? 0)])
-      ),
-    }));
 
-    const atividades: Atividade[] = (await lerColecao('atividades', token)).map(d => ({
-      id: d.name.split('/').pop(),
-      data: txt(d, 'data'),
-      titulo: txt(d, 'titulo'),
-      detalhe: txt(d, 'detalhe'),
-      responsavel: txt(d, 'responsavel'),
-      sede: txt(d, 'sede'),
-    }));
+    // Nome de exibição de cada e-mail. O log só guarda o endereço; sem nome
+    // cadastrado, o assunto sai com o próprio endereço, que ainda é melhor que
+    // pular a pessoa.
+    const nomes = new Map<string, string>(
+      (await lerColecao('usuarios', token))
+        .map(d => [campoTexto(d, 'email').trim().toLowerCase(), campoTexto(d, 'nome').trim()] as [string, string])
+        .filter(([email, nome]) => email && nome)
+    );
 
-    const email = montarEmailSelecoes(dia, selecoes, atividades);
-    // Dia sem NADA registrado não vira e-mail: aviso que quase sempre diz "nada
-    // aconteceu" ensina o destinatário a ignorar o remetente. Dia que teve só
-    // atividade SAI — houve trabalho e o resumo tem o que contar.
-    if (!email.vale) {
+    const pessoas = relatoPorPessoa(
+      await lerLogDoAno(dia, token), await lerDiarios(token), dia, nomes, await lerTarefas(token),
+    );
+
+    // Dia em que ninguém registrou nada não vira e-mail: aviso que quase
+    // sempre diz "nada aconteceu" ensina o destinatário a ignorar o remetente.
+    if (pessoas.length === 0) {
       // Registrado mesmo sem enviar: é o que separa "não houve nada" de
       // "quebrou". Sem essa linha, os dois parecem iguais de fora.
-      await registrarDisparo(token, { quando, dia, enviado: false, motivo: 'nada registrado neste dia' });
+      await registrarDisparo(token, { quando, dia, enviado: false, motivo: 'nada registrado por ninguém neste dia' });
       return res.status(200).json({ enviado: false, motivo: `nada registrado em ${dia}` });
     }
 
@@ -671,32 +892,49 @@ export default async function handler(req: any, res: any) {
       service: 'gmail',
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_APP_PASSWORD },
     });
-    try {
-      await transporte.sendMail({
-        from: `SGPC <${process.env.SMTP_USER}>`,
-        to: lista,
-        subject: email.assunto,
-        text: email.texto,
-        html: email.html,
-      });
-    } catch (e: any) {
-      // A falha do SMTP é registrada ANTES de subir: é o caso em que o RH
-      // precisa saber que houve tentativa, e o motivo (senha de app recusada,
-      // caixa cheia, Gmail bloqueando).
+
+    // UM e-mail por pessoa, todos para a MESMA lista (os diretores). A trava 2
+    // segue de pé: quem aparece no log é o ASSUNTO do e-mail, nunca o
+    // destinatário — o disparo não manda nada para endereço que não esteja na
+    // lista configurada.
+    //
+    // Uma falha não derruba as outras: se o terceiro e-mail falhar, os
+    // diretores ainda recebem os outros quatro, e o registro diz qual faltou.
+    const falhas: string[] = [];
+    for (const p of pessoas) {
+      const email = montarEmailPessoa(dia, p);
+      try {
+        await transporte.sendMail({
+          from: `SGPC <${process.env.SMTP_USER}>`,
+          to: lista,
+          subject: email.assunto,
+          text: email.texto,
+          html: email.html,
+        });
+      } catch (e: any) {
+        falhas.push(`${p.nome}: ${String(e?.message || e).slice(0, 80)}`);
+      }
+    }
+
+    const enviados = pessoas.length - falhas.length;
+    if (enviados === 0) {
+      // Todos falharam: quase sempre é a senha de app ou o Gmail bloqueando, e
+      // o motivo do primeiro já diz qual.
       await registrarDisparo(token, {
         quando, dia, enviado: false,
-        motivo: `falha no envio: ${String(e?.message || e).slice(0, 140)}`,
+        motivo: `falha no envio: ${falhas[0].slice(0, 140)}`,
       });
-      throw e;
+      throw new Error(falhas[0]);
     }
 
     await registrarDisparo(token, {
       quando, dia, enviado: true,
-      motivo: 'enviado',
+      motivo: falhas.length ? `${falhas.length} de ${pessoas.length} falharam — ${falhas.join('; ').slice(0, 140)}` : 'enviado',
+      emails: enviados,
+      pessoas: pessoas.length,
       destinatarios: lista.length,
-      assunto: email.assunto,
     });
-    return res.status(200).json({ enviado: true, dia, destinatarios: lista.length, assunto: email.assunto });
+    return res.status(200).json({ enviado: true, dia, emails: enviados, pessoas: pessoas.length, destinatarios: lista.length, falhas });
   } catch (e: any) {
     console.error('[selecoes-do-dia]', e?.message || e);
     return res.status(500).json({ erro: 'falha ao enviar', detalhe: String(e?.message || e).slice(0, 200) });

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import type { Selecao, Vaga, Integracao, Entrevista, Consulta, Experiencia } from '../types';
 import type { Sede } from '../hooks/useMetadata';
 import type { Atividade } from '../hooks/useAtividades';
+import { relatoPorPessoa, TAREFAS_PADRAO, type EntradaLog, type Diario, type Tarefa } from '../utils/resumoDia';
 import { siglaCanonica } from '../utils/unidade';
 import { montarAgendaDoDia, resumoDeOutrosModulos } from '../utils/agenda';
 import { formatDateBR, toISOInput, dataISOLocal } from '../utils/date';
@@ -10,7 +11,7 @@ import {
   validarAgendamento, validarConfirmacao, camposDaConfirmacao,
 } from '../utils/selecao';
 import {
-  Users, ChevronLeft, ChevronRight, PlusCircle, X, CalendarClock, AlertTriangle, Trash2, Pencil, ClipboardList,
+  Users, ChevronLeft, ChevronRight, ChevronDown, PlusCircle, X, CalendarClock, AlertTriangle, Trash2, Pencil, ClipboardList,
 } from 'lucide-react';
 
 /**
@@ -43,6 +44,28 @@ interface SelecoesSectionProps {
   atualizarAtividade?: (id: string, campos: Partial<Atividade>) => Promise<void>;
   removerAtividade?: (id: string) => Promise<void>;
   confirmAction?: (titulo: string, mensagem: string, onConfirm: () => void | Promise<void>) => void;
+  /**
+   * O log de auditoria — tudo que cada pessoa fez no sistema. Só chega aqui
+   * para Administrador e Coordenador (é o que as regras deixam ler), e já vem
+   * recortado pela região do Coordenador. Ausente = o bloco não aparece.
+   */
+  logs?: EntradaLog[];
+  /** Para trocar o e-mail do log pelo nome de quem fez. */
+  usuarios?: { email: string; nome?: string }[];
+  /** "Meu dia" de todo mundo — as quatro contagens informadas à mão. */
+  diarios?: Diario[];
+  /** Grava o "Meu dia" de QUEM ESTÁ LOGADO. Ausente = sem o card. */
+  salvarMeuDia?: (data: string, contagens: Record<string, number>) => Promise<void>;
+  /** A lista de tarefas da equipe (padrão + criadas), inclusive arquivadas. */
+  tarefas?: Tarefa[];
+  /** Qualquer pessoa do RH cria tarefa nova. Ausente = sem o campo. */
+  criarTarefa?: (nome: string) => Promise<void>;
+  /** Renomear/arquivar — só Admin e Coordenador. Ausente = sem "Gerenciar". */
+  ajustarTarefa?: (id: string, campos: { nome?: string; arquivada?: boolean }) => Promise<void>;
+  /** E-mail de quem está logado — para achar o próprio "Meu dia". */
+  emailAtual?: string;
+  /** As linhas do log de quem está logado: o "do sistema" do formulário. */
+  meuLog?: EntradaLog[];
   vagas: Vaga[];
   integracoes: Integracao[];
   entrevistas: Entrevista[];
@@ -73,6 +96,8 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
   const {
     agendarSelecao, confirmarSelecao, sedes = [], sedePadrao = '', responsavelPadrao = '',
     atividades = [], adicionarAtividade, atualizarAtividade, removerAtividade, confirmAction,
+    logs, usuarios = [], diarios = [], salvarMeuDia, emailAtual = '', meuLog = [],
+    tarefas = TAREFAS_PADRAO, criarTarefa, ajustarTarefa,
     ...fontes
   } = props;
   const [diaISO, setDiaISO] = useState(() => dataISOLocal());
@@ -185,6 +210,121 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
       setSalvandoAtiv(false);
     }
   };
+
+  /**
+   * O relato do dia de cada pessoa — a MESMA regra do e-mail das 18h
+   * (`relatoPorPessoa`), para a tela e o e-mail nunca contarem histórias
+   * diferentes sobre o mesmo dia.
+   */
+  const pessoasDoDia = useMemo(() => {
+    if (!logs) return null;
+    const nomes = new Map(
+      usuarios
+        .filter(u => u.email && u.nome)
+        .map(u => [u.email.trim().toLowerCase(), (u.nome || '').trim()] as [string, string])
+    );
+    return relatoPorPessoa(logs, diarios, dia, nomes, tarefas);
+  }, [logs, usuarios, diarios, dia]);
+
+  // ── "Meu dia" ───────────────────────────────────────────────────────────────
+  // Poucos números e pronto: foi o combinado com a direção ("não queria que o
+  // RH passasse uma hora preenchendo papel"). Abre com o que já foi salvo no
+  // dia que está na tela, então dá para corrigir ontem sem refazer nada.
+  const meuDiarioSalvo = useMemo(
+    () => diarios.find(d => d.data === dia && d.email.trim().toLowerCase() === emailAtual.trim().toLowerCase()),
+    [diarios, dia, emailAtual]
+  );
+  /** As tarefas que aparecem no formulário. Arquivada só sai daqui. */
+  const tarefasAtivas = useMemo(() => tarefas.filter(t => !t.arquivada), [tarefas]);
+  const salvas = meuDiarioSalvo?.contagens || {};
+  const [meuDia, setMeuDia] = useState<Record<string, number>>({});
+  const [salvandoMeuDia, setSalvandoMeuDia] = useState(false);
+  const [avisoMeuDia, setAvisoMeuDia] = useState('');
+  // Troca de dia (ou chegada do dado do banco) recarrega o formulário. A chave
+  // em texto evita recarregar a cada render por um objeto novo e igual.
+  const chaveSalvas = JSON.stringify(salvas);
+  React.useEffect(() => {
+    setMeuDia({ ...salvas });
+    setAvisoMeuDia('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dia, chaveSalvas]);
+
+  const qtd = (id: string) => meuDia[id] || 0;
+  const mudar = (id: string, n: number) => setMeuDia(m => ({ ...m, [id]: Math.max(0, Math.min(999, Math.floor(n) || 0)) }));
+  const mudouMeuDia = [...new Set([...Object.keys(meuDia), ...Object.keys(salvas)])]
+    .some(id => (meuDia[id] || 0) !== (salvas[id] || 0));
+
+  // Tarefa nova (qualquer pessoa do RH) e ajustes (Admin/Coordenador).
+  const [novaTarefa, setNovaTarefa] = useState('');
+  const [erroTarefa, setErroTarefa] = useState('');
+  const [gerenciando, setGerenciando] = useState(false);
+  const criarTarefaAgora = async () => {
+    if (!criarTarefa || !novaTarefa.trim()) return;
+    setErroTarefa('');
+    try {
+      await criarTarefa(novaTarefa);
+      setNovaTarefa('');
+    } catch (e: any) {
+      setErroTarefa(e?.message || String(e));
+    }
+  };
+
+  /**
+   * A prévia do e-mail DELA, ao vivo. Usa a mesma função do disparo das 18h,
+   * com as contagens ainda não salvas no lugar das salvas — o que se vê aqui é
+   * o que o diretor vai ler, se ela salvar agora.
+   */
+  const minhaPrevia = useMemo(() => {
+    const eu = emailAtual.trim().toLowerCase();
+    if (!eu) return null;
+    const outrosDias = diarios.filter(d => d.email.trim().toLowerCase() === eu && d.data !== dia);
+    const rascunho: Diario = { email: eu, data: dia, contagens: meuDia };
+    const meuNome = usuarios.find(u => u.email?.trim().toLowerCase() === eu)?.nome || '';
+    const [r] = relatoPorPessoa(meuLog, [...outrosDias, rascunho], dia, new Map(meuNome ? [[eu, meuNome]] : []), tarefas);
+    return r || null;
+  }, [meuLog, diarios, meuDia, dia, emailAtual, usuarios, tarefas]);
+
+  // O "do sistema" é o relato sem o que ela mesma informou — é a parte travada.
+  const doSistema = (minhaPrevia?.secoes || []).filter(s => s.titulo !== 'Também informou');
+
+  // "Algo mais": vira uma atividade do dia (mesma coleção da lista de baixo),
+  // e com isso entra no relato pelo log, como qualquer outra coisa que ela fez.
+  const [algoMais, setAlgoMais] = useState('');
+  const [salvandoAlgo, setSalvandoAlgo] = useState(false);
+  const adicionarAlgoMais = async () => {
+    const titulo = algoMais.trim();
+    if (!titulo || !adicionarAtividade) return;
+    setSalvandoAlgo(true);
+    try {
+      await adicionarAtividade({ titulo, data: dia, sede: filtroSede === 'TODAS' ? (sedePadrao || '') : filtroSede, responsavel: responsavelPadrao || '' });
+      setAlgoMais('');
+    } finally {
+      setSalvandoAlgo(false);
+    }
+  };
+
+  const salvarMeuDiaAgora = async () => {
+    if (!salvarMeuDia) return;
+    setSalvandoMeuDia(true);
+    setAvisoMeuDia('');
+    try {
+      // Todas as tarefas ativas vão, inclusive zeradas: o banco mescla, e uma
+      // que baixou para 0 e não fosse enviada ficaria com o número antigo.
+      const todas = Object.fromEntries(tarefasAtivas.map(t => [t.id, qtd(t.id)]));
+      await salvarMeuDia(dia, { ...meuDia, ...todas });
+      setAvisoMeuDia('Salvo.');
+    } catch (e: any) {
+      setAvisoMeuDia(`Não foi possível salvar: ${e?.message || e}`);
+    } finally {
+      setSalvandoMeuDia(false);
+    }
+  };
+  const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const alternarPessoa = (email: string) => setAbertos(a => {
+    const novo = new Set(a);
+    novo.has(email) ? novo.delete(email) : novo.add(email);
+    return novo;
+  });
 
   const apagarAtividade = (a: Atividade) => {
     if (!removerAtividade) return;
@@ -383,10 +523,10 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
         <div>
           <h2 className="text-xl font-bold text-slate-850 flex items-center gap-2">
             <Users className="w-6 h-6 text-indigo-500" />
-            Seleções
+            Resumo do Dia
           </h2>
           <p className="text-sm text-slate-500 font-medium mt-1">
-            O dia de seleção, nas mesmas colunas da planilha do RH.
+            As seleções do dia, nas colunas da planilha do RH, e o seu "Meu dia" — que vira o e-mail das 18h.
           </p>
         </div>
 
@@ -752,6 +892,304 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
           </ul>
         )}
       </div>
+
+      {/* Meu dia — o formulário do relatório diário, combinado com a direção em
+          22/09/2026: ela aponta, o sistema molda o texto. Em cima, o que o SGPC
+          já registrou dela — TRAVADO: se um número estiver errado, corrige-se na
+          própria seleção ou vaga, e o e-mail acompanha; assim o relatório nunca
+          contradiz o sistema. Depois, o que o sistema não vê. Ao lado, o e-mail
+          dela montando ao vivo. Se ela não abrir isto até as 18h, o e-mail sai
+          só com o que o sistema registrou. */}
+      {salvarMeuDia && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div className="flex items-center justify-between gap-3 mb-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+              Meu dia · {dia}
+            </p>
+            {meuDiarioSalvo && !mudouMeuDia && (
+              <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">salvo</span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 font-medium mb-4">
+            Confira o que o sistema já registrou e complete com o que ele não vê. O texto ao lado é o que os diretores recebem às 18h.
+          </p>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* ── o formulário ─────────────────────────────────────────── */}
+            <div className="space-y-4 min-w-0">
+              <div>
+                <p className="text-[11px] font-bold text-slate-700 mb-1.5">Do sistema</p>
+                {doSistema.length === 0 ? (
+                  <p className="text-xs text-slate-500 font-medium border border-dashed border-slate-200 rounded-xl px-3 py-2.5">
+                    Nada registrado por você no sistema em {dia} ainda.
+                  </p>
+                ) : (
+                  <div className="border border-slate-200 rounded-xl bg-slate-50/70 px-3 py-2.5 space-y-2">
+                    {doSistema.map(s => (
+                      <div key={s.titulo}>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{s.titulo}</p>
+                        {s.frases.map((f, i) => (
+                          <p key={i} className="text-xs text-slate-700 leading-relaxed">{f}</p>
+                        ))}
+                      </div>
+                    ))}
+                    <p className="text-[10px] text-slate-500 font-medium pt-1 border-t border-slate-200">
+                      Travado: para corrigir um número, ajuste na própria seleção ou vaga.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <p className="text-[11px] font-bold text-slate-700">O que o sistema não vê</p>
+                  {ajustarTarefa && (
+                    <button
+                      type="button"
+                      onClick={() => setGerenciando(g => !g)}
+                      className="text-[10px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-800 cursor-pointer"
+                    >
+                      {gerenciando ? 'Concluir' : 'Gerenciar tarefas'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Gerenciar (Admin/Coordenador): renomear e arquivar. Arquivar,
+                    nunca apagar — a arquivada ainda nomeia o que já foi contado. */}
+                {gerenciando && ajustarTarefa ? (
+                  <div className="border border-slate-200 rounded-xl divide-y divide-slate-100">
+                    {tarefas.map(t => (
+                      <div key={t.id} className="flex items-center gap-2 px-3 py-2">
+                        <input
+                          defaultValue={t.nome}
+                          aria-label={`Nome da tarefa ${t.nome}`}
+                          maxLength={60}
+                          disabled={t.arquivada}
+                          onBlur={e => {
+                            const nome = e.target.value.trim();
+                            if (nome && nome !== t.nome) ajustarTarefa(t.id, { nome });
+                          }}
+                          className={`flex-1 min-w-0 text-xs font-semibold bg-transparent outline-none border-b border-transparent focus:border-slate-400 ${t.arquivada ? 'text-slate-400 line-through' : 'text-slate-800'}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => ajustarTarefa(t.id, { arquivada: !t.arquivada })}
+                          className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-800 cursor-pointer"
+                        >
+                          {t.arquivada ? 'Reativar' : 'Arquivar'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {tarefasAtivas.map(t => (
+                      <label key={t.id} className="block border border-slate-200 rounded-xl p-2.5 cursor-text focus-within:border-slate-800">
+                        <span className="block text-[11px] font-bold text-slate-700 leading-snug min-h-[2.2em]">{t.nome}</span>
+                        <span className="flex items-center gap-1.5 mt-1">
+                          <button
+                            type="button"
+                            aria-label={`Menos em ${t.nome}`}
+                            onClick={() => mudar(t.id, qtd(t.id) - 1)}
+                            className="w-7 h-7 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold cursor-pointer"
+                          >−</button>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            max={999}
+                            aria-label={t.nome}
+                            value={qtd(t.id)}
+                            onChange={e => mudar(t.id, Number(e.target.value))}
+                            className="w-full min-w-0 text-center text-base font-bold tabular-nums text-slate-900 outline-none bg-transparent"
+                          />
+                          <button
+                            type="button"
+                            aria-label={`Mais em ${t.nome}`}
+                            onClick={() => mudar(t.id, qtd(t.id) + 1)}
+                            className="w-7 h-7 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold cursor-pointer"
+                          >+</button>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {/* Tarefa nova — de qualquer pessoa do RH, para a equipe toda. */}
+                {criarTarefa && !gerenciando && (
+                  <div className="mt-2">
+                    <div className="flex gap-2">
+                      <input
+                        aria-label="Nova tarefa da equipe"
+                        className={campoCls}
+                        placeholder="Nova tarefa — ex.: Conferência de ponto"
+                        maxLength={60}
+                        value={novaTarefa}
+                        onChange={e => { setNovaTarefa(e.target.value); setErroTarefa(''); }}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); criarTarefaAgora(); } }}
+                      />
+                      <button
+                        type="button"
+                        onClick={criarTarefaAgora}
+                        disabled={!novaTarefa.trim()}
+                        className="shrink-0 px-3 rounded-xl border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                      >
+                        Criar
+                      </button>
+                    </div>
+                    {erroTarefa
+                      ? <p role="alert" className="text-[11px] font-semibold text-rose-700 mt-1">{erroTarefa}</p>
+                      : <p className="text-[10px] text-slate-500 font-medium mt-1">Aparece para toda a equipe do RH.</p>}
+                  </div>
+                )}
+              </div>
+
+              {adicionarAtividade && (
+                <div>
+                  <label htmlFor="algo-mais" className="block text-[11px] font-bold text-slate-700 mb-1.5">Algo mais</label>
+                  <div className="flex gap-2">
+                    <input
+                      id="algo-mais"
+                      className={campoCls}
+                      placeholder="Montagem dos kits do Setembro Amarelo, 120 kits"
+                      value={algoMais}
+                      onChange={e => setAlgoMais(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); adicionarAlgoMais(); } }}
+                    />
+                    <button
+                      onClick={adicionarAlgoMais}
+                      disabled={salvandoAlgo || !algoMais.trim()}
+                      className="shrink-0 px-3 rounded-xl border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                    >
+                      {salvandoAlgo ? '...' : 'Adicionar'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3">
+                {avisoMeuDia && (
+                  <span role="status" className={`text-[11px] font-bold ${avisoMeuDia === 'Salvo.' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    {avisoMeuDia}
+                  </span>
+                )}
+                <button
+                  onClick={salvarMeuDiaAgora}
+                  disabled={salvandoMeuDia || !mudouMeuDia}
+                  className="px-4 py-2 rounded-xl bg-slate-900 text-white text-[11px] font-bold uppercase tracking-wider hover:bg-slate-800 disabled:opacity-40 cursor-pointer"
+                >
+                  {salvandoMeuDia ? 'Salvando...' : 'Salvar contagens'}
+                </button>
+              </div>
+            </div>
+
+            {/* ── a prévia do e-mail ───────────────────────────────────── */}
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold text-slate-700 mb-1.5">Como os diretores recebem</p>
+              <div className="rounded-xl bg-slate-100/80 p-4">
+                {!minhaPrevia || minhaPrevia.secoes.length === 0 ? (
+                  <p className="text-xs text-slate-500 font-medium">
+                    Nada para contar em {dia} ainda. Sem nada registrado, o seu e-mail não sai hoje.
+                  </p>
+                ) : (
+                  <div className="bg-white rounded-lg border border-slate-200 p-4">
+                    <p className="text-base font-bold text-slate-900 leading-tight">{minhaPrevia.nome}</p>
+                    <p className="text-xs font-bold text-indigo-700 mt-0.5">Resumo do dia · {dia}</p>
+                    {minhaPrevia.secoes.map(s => (
+                      <div key={s.titulo} className="mt-3 pt-2.5 border-t border-slate-100">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{s.titulo}</p>
+                        {s.frases.map((f, i) => (
+                          <p key={i} className="text-xs text-slate-800 leading-relaxed">• {f}</p>
+                        ))}
+                      </div>
+                    ))}
+                    {(minhaPrevia.acumulado.mes.length > 0 || minhaPrevia.acumulado.ano.length > 0) && (
+                      <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-[11px] text-slate-600 font-medium space-y-0.5">
+                        {minhaPrevia.acumulado.mes.length > 0 && <p><strong className="text-slate-700">No mês:</strong> {minhaPrevia.acumulado.mes.join(' · ')}</p>}
+                        {minhaPrevia.acumulado.ano.length > 0 && <p><strong className="text-slate-700">No ano:</strong> {minhaPrevia.acumulado.ano.join(' · ')}</p>}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {mudouMeuDia && (
+                  <p className="text-[10px] text-amber-700 font-bold mt-2">
+                    A prévia já mostra as contagens novas — salve para elas irem no e-mail.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* No sistema — o relato de cada pessoa, o MESMO que vai no e-mail das
+          18h (mesma função). Só existe para quem pode ler o log
+          (Administrador e Coordenador). */}
+      {pessoasDoDia && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 text-slate-400" />
+            No sistema em {dia}
+          </p>
+
+          {pessoasDoDia.length === 0 ? (
+            <p className="text-xs text-slate-500 font-medium">Nada registrado por ninguém neste dia.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {pessoasDoDia.map(p => {
+                const aberto = abertos.has(p.email);
+                const semNome = p.nome === p.email;
+                return (
+                  <li key={p.email} className="py-2.5 first:pt-0 last:pb-0">
+                    <button
+                      onClick={() => alternarPessoa(p.email)}
+                      aria-expanded={aberto}
+                      className="w-full flex items-center justify-between gap-3 text-left cursor-pointer group"
+                    >
+                      <span className="min-w-0 flex items-center gap-2">
+                        {aberto ? <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                        <span className="min-w-0">
+                          <span className={`block text-sm font-bold truncate ${semNome ? 'text-slate-600' : 'text-slate-800'}`}>{p.nome}</span>
+                          {semNome && (
+                            // O e-mail das 18h sai com este mesmo texto no assunto.
+                            <span className="block text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                              sem nome no cadastro de usuários
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs font-bold text-slate-500 tabular-nums group-hover:text-slate-800">
+                        {p.acoes} {p.acoes === 1 ? 'ação' : 'ações'} no sistema
+                      </span>
+                    </button>
+
+                    {aberto && (
+                      <div className="mt-3 ml-5.5 space-y-3">
+                        {p.secoes.map(s => (
+                          <div key={s.titulo}>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{s.titulo}</p>
+                            <ul className="space-y-0.5">
+                              {s.frases.map((f, i) => (
+                                <li key={i} className="text-xs text-slate-700 leading-relaxed">{f}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                        {(p.acumulado.mes.length > 0 || p.acumulado.ano.length > 0) && (
+                          <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-600 font-medium space-y-0.5">
+                            {p.acumulado.mes.length > 0 && <p><strong className="text-slate-700">No mês:</strong> {p.acumulado.mes.join(' · ')}</p>}
+                            {p.acumulado.ano.length > 0 && <p><strong className="text-slate-700">No ano:</strong> {p.acumulado.ano.join(' · ')}</p>}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
 
       {proximas.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">

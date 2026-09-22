@@ -18,6 +18,7 @@ import {
   collection,
   onSnapshot,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   doc,
@@ -56,6 +57,12 @@ export interface UseFirestoreCollectionResult<T> {
   setItems: Dispatch<SetStateAction<T[]>>;
   create: (body: Omit<T, 'id'>) => Promise<void>;
   update: (id: string, fields: Partial<T>) => Promise<void>;
+  /**
+   * Cria com id escolhido, ou mescla se já existir. Para registro de id
+   * determinístico ("um por pessoa por dia"): `update` falha em documento que
+   * ainda não existe, e `create` sortearia um id novo a cada gravação.
+   */
+  upsert: (id: string, fields: Partial<T>) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -164,6 +171,25 @@ export function useFirestoreCollection<T extends { id: string }>(
     }
   };
 
+  const upsert = async (id: string, fields: Partial<T>) => {
+    if (usingFirebase && db) {
+      try {
+        const payload: any = { ...fields };
+        delete payload.id;
+        await setDoc(doc(db, collectionName, id), stripUndefinedFields(payload), { merge: true });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `${collectionName}/${id}`);
+      }
+    } else {
+      const existe = items.some(it => it.id === id);
+      const updated = applySort(existe
+        ? items.map(it => (it.id === id ? { ...it, ...fields } : it))
+        : [...items, { ...(fields as any), id } as T]);
+      setItems(updated);
+      cache(updated);
+    }
+  };
+
   const remove = async (id: string) => {
     if (usingFirebase && db) {
       try {
@@ -178,5 +204,5 @@ export function useFirestoreCollection<T extends { id: string }>(
     }
   };
 
-  return { items, loading, usingFirebase, setItems, create, update, remove };
+  return { items, loading, usingFirebase, setItems, create, update, upsert, remove };
 }

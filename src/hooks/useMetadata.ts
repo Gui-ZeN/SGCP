@@ -29,6 +29,12 @@ export type UserRole = 'Administrador' | 'Coordenador' | 'Analista' | 'Visualiza
 export interface Usuario {
   id: string; // email or unique id
   email: string;
+  /**
+   * Nome de exibição. É o que vai no assunto do e-mail diário de cada
+   * funcionário — o log de auditoria só guarda o e-mail, e "napa14@…" no
+   * assunto não diz aos diretores de quem é aquele resumo.
+   */
+  nome?: string;
   role: UserRole;
   sede?: string;
   unidade?: 'colegio' | 'universidade'; // denormalizada da região da sede (usada pelas rules p/ escopar o Coordenador)
@@ -349,7 +355,7 @@ export function useMetadata(currentUser: any) {
     return (s?.regiao || '').toLowerCase() === 'universidade' ? 'universidade' : 'colegio';
   };
 
-  const addUsuario = async (email: string, role: UserRole, sede?: string) => {
+  const addUsuario = async (email: string, role: UserRole, sede?: string, nome?: string) => {
     const cleanEmail = email.trim();
     if (!cleanEmail) return;
 
@@ -357,6 +363,7 @@ export function useMetadata(currentUser: any) {
       try {
         await setDoc(doc(db, 'usuarios', cleanEmail), {
           email: cleanEmail,
+          nome: (nome || '').trim(),
           role,
           sede: sede || '',
           unidade: unidadeDaSede(sede)
@@ -368,6 +375,7 @@ export function useMetadata(currentUser: any) {
       const newUser: Usuario = {
         id: `local_user_${Date.now()}`,
         email: cleanEmail,
+        nome: (nome || '').trim(),
         role,
         sede: sede || '',
         unidade: unidadeDaSede(sede)
@@ -392,27 +400,30 @@ export function useMetadata(currentUser: any) {
     }
   };
 
-  const updateUsuario = async (id: string, email: string, role: UserRole, sede?: string) => {
+  const updateUsuario = async (id: string, email: string, role: UserRole, sede?: string, nome?: string) => {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) return;
+
+    // `nome` só entra quando veio. Ausente, NÃO vira string vazia: quem chamar
+    // sem ele (um ajuste de papel em lote, por exemplo) não pode apagar o nome
+    // que o RH digitou — é o nome que vai no assunto do e-mail diário.
+    const dados = {
+      email: cleanEmail,
+      role,
+      sede: sede || '',
+      unidade: unidadeDaSede(sede),
+      ...(nome !== undefined ? { nome: nome.trim() } : {}),
+    };
 
     if (usingFirebase && db) {
       try {
         if (id !== cleanEmail) {
           await deleteDoc(doc(db, 'usuarios', id));
-          await setDoc(doc(db, 'usuarios', cleanEmail), {
-            email: cleanEmail,
-            role,
-            sede: sede || '',
-            unidade: unidadeDaSede(sede)
-          });
+          await setDoc(doc(db, 'usuarios', cleanEmail), dados);
         } else {
-          await setDoc(doc(db, 'usuarios', id), {
-            email: cleanEmail,
-            role,
-            sede: sede || '',
-            unidade: unidadeDaSede(sede)
-          });
+          // `merge`: sem ele o setDoc SUBSTITUI o documento, e um campo não
+          // mandado nesta chamada (o nome) seria apagado em silêncio.
+          await setDoc(doc(db, 'usuarios', id), dados, { merge: true });
         }
       } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `usuarios/${id}`);
@@ -420,7 +431,7 @@ export function useMetadata(currentUser: any) {
     } else {
       const updated = usuarios.map(u => {
         if (u.id === id || u.email === id) {
-          return { ...u, email: cleanEmail, role, sede: sede || '', unidade: unidadeDaSede(sede) };
+          return { ...u, ...dados };
         }
         return u;
       });

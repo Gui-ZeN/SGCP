@@ -20,8 +20,7 @@
  */
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
-import { montarEmailSelecoes, lerContaDeServico } from '../api/selecoes-do-dia';
-import type { Selecao } from '../src/types';
+import { montarEmailPessoa, relatoPorPessoa, lerContaDeServico, type EntradaLog, type Diario, type Tarefa } from '../api/selecoes-do-dia';
 
 dotenv.config();
 
@@ -128,7 +127,10 @@ async function lerColecao(colecao: string): Promise<any[]> {
 
 console.log('\n4. Leitura do Firestore');
 let configs: any[] = [];
-let selecoesDocs: any[] = [];
+let logsDocs: any[] = [];
+let usuariosDocs: any[] = [];
+let diarioDocs: any[] = [];
+let tarefasDocs: any[] = [];
 try {
   configs = await lerColecao('config');
   ok(`config lida (${configs.length} documentos)`);
@@ -138,15 +140,26 @@ try {
   process.exit(1);
 }
 try {
-  selecoesDocs = await lerColecao('selecoes');
-  ok(`selecoes lida (${selecoesDocs.length} registros)`);
+  logsDocs = await lerColecao('logs');
+  ok(`log de auditoria lido (${logsDocs.length} registros)`);
+  usuariosDocs = await lerColecao('usuarios');
+  ok(`usuários lidos (${usuariosDocs.length})`);
+  diarioDocs = await lerColecao('diario');
+  ok(`"Meu dia" lido (${diarioDocs.length} registros)`);
+  tarefasDocs = await lerColecao('tarefasDiario');
+  ok(`tarefas da equipe lidas (${tarefasDocs.length} além das 4 padrão)`);
 } catch (e: any) {
-  falha(`não leu selecoes: ${e?.message || e}`);
+  falha(`não leu log/usuários/diário: ${e?.message || e}`);
   process.exit(1);
 }
 
 const txt = (d: any, c: string) => d?.fields?.[c]?.stringValue ?? '';
 const num = (d: any, c: string) => Number(d?.fields?.[c]?.integerValue ?? d?.fields?.[c]?.doubleValue ?? 0);
+const mapa = (campo: any) => {
+  const f = campo?.mapValue?.fields;
+  return f ? Object.fromEntries(Object.entries(f).map(([k, v]: [string, any]) =>
+    [k, v.stringValue ?? (v.integerValue !== undefined ? Number(v.integerValue) : v.doubleValue)])) : undefined;
+};
 
 console.log('\n5. Destinatários');
 const notif = configs.find(d => d.name.endsWith('/notificacoes'));
@@ -159,29 +172,42 @@ else if (!lista.length) falha('a lista de destinatários está vazia');
 else ok(`${lista.length} destinatário(s): ${lista.join(', ')}`);
 if (!ativo) console.log('  AVISO o disparo está DESLIGADO na configuração — nada seria enviado às 18h.');
 
-console.log('\n6. Conteúdo do dia');
-const selecoes: Selecao[] = selecoesDocs.map(d => ({
-  id: d.name.split('/').pop(),
-  data: txt(d, 'data'), cargo: txt(d, 'cargo'), sede: txt(d, 'sede'),
-  responsavel: txt(d, 'responsavel'),
-  origem: (txt(d, 'origem') || 'geral') as Selecao['origem'],
-  status: (txt(d, 'status') || undefined) as Selecao['status'],
-  convocados: num(d, 'convocados'), compareceram: num(d, 'compareceram'),
-  ausentes: num(d, 'ausentes'), contratados: num(d, 'contratados'),
-  desistiram: num(d, 'desistiram'),
-  vagaCodigos: (d.fields?.vagaCodigos?.arrayValue?.values || []).map((v: any) => Number(v.integerValue ?? 0)),
-  motivos: Object.fromEntries(Object.entries(d.fields?.motivos?.mapValue?.fields || {})
-    .map(([k, v]: any) => [k, Number(v.integerValue ?? 0)])),
+console.log('\n6. Conteúdo do dia — um e-mail por pessoa');
+// O log inteiro, filtrado aqui: é diagnóstico, não precisa economizar leitura
+// como a função da Vercel economiza.
+const logs: EntradaLog[] = logsDocs.map(d => ({
+  timestamp: txt(d, 'timestamp'), usuario: txt(d, 'usuario'),
+  acao: txt(d, 'acao'), modulo: txt(d, 'modulo'), detalhes: txt(d, 'detalhes'),
+  ref: mapa(d.fields?.ref),
 }));
-const email = montarEmailSelecoes(DIA, selecoes);
-if (!email.vale) {
-  console.log(`  Nenhuma seleção em ${DIA} — nesse caso a função NÃO envia e-mail (de propósito).`);
-  console.log('  Para ver o conteúdo, rode com --dia DD/MM/AAAA num dia que tenha seleção.');
+const diarios: Diario[] = diarioDocs.map(d => ({
+  email: txt(d, 'email'), data: txt(d, 'data'),
+  contagens: mapa(d.fields?.contagens) as Record<string, number> | undefined,
+}));
+const tarefas: Tarefa[] = tarefasDocs.map(d => ({
+  id: d.name.split('/').pop(), nome: txt(d, 'nome'),
+  arquivada: d.fields?.arquivada?.booleanValue === true,
+  ...(d.fields?.ordem ? { ordem: num(d, 'ordem') } : {}),
+}));
+const nomes = new Map<string, string>(
+  usuariosDocs
+    .map(d => [txt(d, 'email').trim().toLowerCase(), txt(d, 'nome').trim()] as [string, string])
+    .filter(([e, n]) => e && n)
+);
+const pessoas = relatoPorPessoa(logs, diarios, DIA, nomes, tarefas);
+if (!pessoas.length) {
+  console.log(`  Nada registrado em ${DIA} — nesse caso a função NÃO envia (de propósito).`);
+  console.log('  Para ver o conteúdo, rode com --dia DD/MM/AAAA num dia com movimento.');
 } else {
-  ok(`assunto: ${email.assunto}`);
-  console.log('\n--- prévia em texto ---');
-  console.log(email.texto);
-  console.log('--- fim da prévia ---');
+  ok(`${pessoas.length} pessoa(s) → ${pessoas.length} e-mail(s)`);
+  const semNome = pessoas.filter(p => p.nome === p.email).length;
+  if (semNome) console.log(`  AVISO ${semNome} sem nome no cadastro de Usuários — o assunto sai com o e-mail.`);
+  for (const p of pessoas) {
+    const e = montarEmailPessoa(DIA, p);
+    console.log(`\n--- ${e.assunto} ---`);
+    console.log(e.texto);
+  }
+  console.log('\n--- fim das prévias ---');
 }
 
 if (!ENVIAR) {
@@ -190,22 +216,30 @@ if (!ENVIAR) {
 }
 
 console.log('\n7. Envio');
-if (!email.vale) { console.log('  nada a enviar neste dia.'); process.exit(0); }
+if (!pessoas.length) { console.log('  nada a enviar neste dia.'); process.exit(0); }
 if (!lista.length) { falha('sem destinatários, não envio'); process.exit(1); }
 const { default: nodemailer } = await import('nodemailer');
+const transporte = nodemailer.createTransport({
+  service: 'gmail',
+  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_APP_PASSWORD },
+});
 try {
-  const transporte = nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_APP_PASSWORD },
-  });
   await transporte.verify();
   ok('o Gmail aceitou a senha de app');
-  const info = await transporte.sendMail({
-    from: `SGPC <${process.env.SMTP_USER}>`,
-    to: lista, subject: email.assunto, text: email.texto, html: email.html,
-  });
-  ok(`enviado para ${lista.length} destinatário(s) — id ${info.messageId}`);
 } catch (e: any) {
-  falha(`o envio falhou: ${e?.message || e}`);
+  falha(`o Gmail recusou: ${e?.message || e}`);
   console.log('        senha de APP (16 letras), não a senha da conta; e a conta precisa de 2FA ativo.');
+  process.exit(1);
+}
+for (const p of pessoas) {
+  const e = montarEmailPessoa(DIA, p);
+  try {
+    const info = await transporte.sendMail({
+      from: `SGPC <${process.env.SMTP_USER}>`,
+      to: lista, subject: e.assunto, text: e.texto, html: e.html,
+    });
+    ok(`${e.assunto} — id ${info.messageId}`);
+  } catch (err: any) {
+    falha(`${e.assunto}: ${err?.message || err}`);
+  }
 }

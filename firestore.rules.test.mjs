@@ -21,6 +21,10 @@ import {
   getDoc,
   setDoc,
   deleteDoc,
+  collection,
+  query,
+  where,
+  getDocs,
 } from "firebase/firestore";
 
 const PROJECT_ID = "sgcp-rules-test";
@@ -93,6 +97,7 @@ async function seed() {
     // sede legada sem o campo `regiao`: a regra nao pode ESTOURAR por causa disso
     await setDoc(doc(db, "sedes", "sLegada"), { nome: "ANTIGA" });
     await setDoc(doc(db, "logs", "l1"), { timestamp: "t", usuario: "x", acao: "CRIOU", modulo: "Vagas", detalhes: "d" });
+    await setDoc(doc(db, "logs", "lDoAnalista"), { timestamp: "t", usuario: ANALISTA_EMAIL, acao: "CRIOU", modulo: "Vagas", detalhes: "d" });
     await setDoc(doc(db, "funcionarios", "fn1"), { nome: "Ana", dataNascimento: "24/06/1990", sede: "DT" });
     await setDoc(doc(db, "vagas", "uni-1"), { codigo: 9001, vaga: "NPJ", status: "ABERTA", origem: "planilha-universidade" });
     await setDoc(doc(db, "vagas", "uni-del"), { codigo: 9009, vaga: "Del", status: "ABERTA", origem: "planilha-universidade" });
@@ -311,6 +316,20 @@ test("logs: leitura por não-admin é negada", () =>
 
 test("logs: leitura por admin é permitida", () =>
   assertSucceeds(getDoc(doc(ctx.user(ADMIN_EMAIL), "logs", "l1"))));
+
+// O "Meu dia" mostra o que a pessoa fez no sistema: ela precisa ler as
+// PRÓPRIAS linhas do log — e só elas.
+test("logs: pessoa lê a própria linha do log", () =>
+  assertSucceeds(getDoc(doc(ctx.user(ANALISTA_EMAIL), "logs", "lDoAnalista"))));
+
+test("logs: consulta filtrada pelo próprio e-mail é permitida", () =>
+  assertSucceeds(getDocs(query(collection(ctx.user(ANALISTA_EMAIL), "logs"), where("usuario", "==", ANALISTA_EMAIL)))));
+
+test("logs: consulta pelo e-mail de um colega é negada", () =>
+  assertFails(getDocs(query(collection(ctx.user(ANALISTA_EMAIL), "logs"), where("usuario", "==", "x")))));
+
+test("logs: consulta sem filtro (o log inteiro) continua negada para analista", () =>
+  assertFails(getDocs(collection(ctx.user(ANALISTA_EMAIL), "logs"))));
 
 test("logs: analista pode criar log válido", () =>
   assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "logs", "l2"), { timestamp: "t", usuario: ANALISTA_EMAIL, acao: "CRIOU", modulo: "Vagas", detalhes: "d" })));
@@ -544,6 +563,85 @@ test("atividades: usuario verificado le", () =>
 
 test("atividades: anonimo NAO pode criar", () =>
   assertFails(setDoc(doc(ctx.unauth(), "atividades", "a3"), atividadeValida)));
+
+// --- diario ("Meu dia": cada pessoa grava SO o proprio) ---------------------
+const diarioDe = (email, over = {}) => Object.assign(
+  { email, data: "22/09/2026", contagens: { atendimentos: 6, testes: 1, t_nova: 3 } }, over);
+const idDiario = (email) => `${email}__2026-09-22`;
+
+test("diario: pessoa grava o proprio dia", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "diario", idDiario(ANALISTA_EMAIL)), diarioDe(ANALISTA_EMAIL))));
+
+test("diario: NAO grava o dia de um colega (email de outro no documento)", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "diario", idDiario(VIEWER_EMAIL)), diarioDe(VIEWER_EMAIL))));
+
+test("diario: NAO grava no id de um colega com o proprio email dentro", () =>
+  // A segunda trava: sem ela, bastava trocar o id para sobrescrever o colega.
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "diario", idDiario(VIEWER_EMAIL)), diarioDe(ANALISTA_EMAIL))));
+
+test("diario: nem o admin grava o dia de outra pessoa", () =>
+  assertFails(setDoc(doc(ctx.user(ADMIN_EMAIL), "diario", idDiario(ANALISTA_EMAIL)), diarioDe(ANALISTA_EMAIL))));
+
+// As contagens viraram mapa (tarefa → quantidade) quando a lista de tarefas
+// passou a ser da equipe. Regra não percorre valores de mapa: o banco trava
+// formato e tamanho, e o relato ignora valor que não for número positivo.
+test("diario: contagens que nao sao mapa sao recusadas", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "diario", idDiario(ANALISTA_EMAIL)), diarioDe(ANALISTA_EMAIL, { contagens: "6 atendimentos" }))));
+
+test("diario: mapa de contagens gigante e' recusado", () => {
+  const enorme = Object.fromEntries(Array.from({ length: 61 }, (_, i) => [`t${i}`, 1]));
+  return assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "diario", idDiario(ANALISTA_EMAIL)), diarioDe(ANALISTA_EMAIL, { contagens: enorme })));
+});
+
+// --- tarefasDiario (lista da EQUIPE) -------------------------------------------
+test("tarefas: analista cria tarefa nova para a equipe", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "tarefasDiario", "tNova"), { nome: "Entrevistas por telefone", ordem: 5, arquivada: false })));
+
+test("tarefas: analista NAO arquiva por atalho (criar ja arquivada)", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "tarefasDiario", "tArq"), { nome: "X", arquivada: true })));
+
+test("tarefas: analista NAO mexe numa tarefa padrao", () =>
+  // As padrão vivem no código; criar o id delas no banco é renomear/arquivar.
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "tarefasDiario", "testes"), { nome: "Outro nome" })));
+
+test("tarefas: coordenador arquiva uma tarefa padrao", () =>
+  assertSucceeds(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "tarefasDiario", "testes"), { nome: "Testes psicológicos aplicados", arquivada: true })));
+
+test("tarefas: analista NAO renomeia tarefa existente", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "tarefasDiario", "tNova"), { nome: "Renomeada", ordem: 5 })));
+
+test("tarefas: nome vazio ou longo demais e' recusado", async () => {
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "tarefasDiario", "tVazia"), { nome: "" }));
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "tarefasDiario", "tLonga"), { nome: "x".repeat(61) }));
+});
+
+test("tarefas: ninguem apaga (a arquivada ainda nomeia o historico)", () =>
+  assertFails(deleteDoc(doc(ctx.user(ADMIN_EMAIL), "tarefasDiario", "tNova"))));
+
+test("tarefas: visualizador NAO cria", () =>
+  assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "tarefasDiario", "tViewer"), { nome: "Y" })));
+
+test("diario: data fora do formato e' recusada", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "diario", idDiario(ANALISTA_EMAIL)), diarioDe(ANALISTA_EMAIL, { data: "2026-09-22" }))));
+
+test("diario: ninguem apaga (o historico alimenta o acumulado)", () =>
+  assertFails(deleteDoc(doc(ctx.user(ANALISTA_EMAIL), "diario", idDiario(ANALISTA_EMAIL)))));
+
+test("diario: anonimo NAO le", () =>
+  assertFails(getDoc(doc(ctx.unauth(), "diario", idDiario(ANALISTA_EMAIL)))));
+
+// --- usuarios: nome de exibicao (vai no assunto do e-mail diario) ------------
+test("usuarios: admin grava nome de exibicao", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "novo@empresa.com"),
+    { email: "novo@empresa.com", role: "Analista", sede: "DT", nome: "Arlana Gomes" })));
+
+test("usuarios: nome que nao e' texto e' recusado", () =>
+  assertFails(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "novo2@empresa.com"),
+    { email: "novo2@empresa.com", role: "Analista", sede: "DT", nome: 42 })));
+
+test("usuarios: nome acima de 120 caracteres e' recusado", () =>
+  assertFails(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "novo3@empresa.com"),
+    { email: "novo3@empresa.com", role: "Analista", sede: "DT", nome: "x".repeat(121) })));
 
 // --- organograma: caixas do desenho (nome + cargo = dado interno) -----------
 const noOrganograma = { nome: "Ana Silva", cargo: "COORDENADOR(A)", sede: "DIONISIO TORRES" };

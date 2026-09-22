@@ -22,6 +22,9 @@ import { useConsultas } from './hooks/useConsultas';
 import { useFuncionarios } from './hooks/useFuncionarios';
 import { useOrganograma } from './hooks/useOrganograma';
 import { useAtividades } from './hooks/useAtividades';
+import { useDiario } from './hooks/useDiario';
+import { useMeuLog } from './hooks/useMeuLog';
+import { useTarefasDiario } from './hooks/useTarefasDiario';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Bandeirinhas } from './components/Bandeirinhas';
 import { BootLoader } from './components/BootLoader';
@@ -275,6 +278,9 @@ export default function App() {
   );
 
   const { atividades, adicionarAtividade, atualizarAtividade, removerAtividade } = useAtividades(user);
+  const { diarios, salvarMeuDia } = useDiario(user);
+  const meuLog = useMeuLog(user);
+  const { tarefas: tarefasDiario, criarTarefa, ajustarTarefa } = useTarefasDiario(user);
 
   // Atividade segue o MESMO escopo por unidade das seleções: aparecem na mesma
   // tela e no mesmo e-mail, e uma escapando do recorte mostraria a Universidade
@@ -331,7 +337,10 @@ export default function App() {
   const wrappedAdicionarAtividade = (dados: any) =>
     executeWithLoading('Registrando atividade...', async () => {
       await adicionarAtividade(dados);
-      await logAction('CRIOU', 'Resumo do Dia', `Atividade "${dados.titulo}" registrada em ${dados.data}.`);
+      // O detalhe vai junto: o resumo diário por pessoa é montado a partir do
+      // log, e sem ele o "120 kits; faltam 30" só existiria na tela.
+      await logAction('CRIOU', 'Resumo do Dia', `Atividade "${dados.titulo}" registrada em ${dados.data}${dados.detalhe ? ` — ${dados.detalhe}` : ''}.`,
+        { ref: { titulo: dados.titulo, detalhe: dados.detalhe } });
     });
   const wrappedAtualizarAtividade = (id: string, campos: any) =>
     executeWithLoading('Salvando atividade...', async () => {
@@ -361,13 +370,18 @@ export default function App() {
   const wrappedAgendarSelecao = (dados: any) =>
     executeWithLoading("Agendando seleção...", async () => {
       await addSelecao(dados);
-      await logAction('CRIOU', 'Vagas', `Seleção agendada: ${dados.cargo} em ${dados.sede}, ${dados.data} — ${dados.convocados} convocado(s).`);
+      // Módulo PRÓPRIO, e não 'Vagas': o resumo diário conta alterações de vaga
+      // numa linha só ("12 vagas alteradas"), e seleção ali dentro sumiria na
+      // contagem — justamente o "5 de 11 compareceram", que é o que interessa.
+      await logAction('CRIOU', 'Seleções', `Seleção agendada: ${dados.cargo} em ${dados.sede}, ${dados.data} — ${dados.convocados} convocado(s).`,
+        { ref: { cargo: dados.cargo, sede: dados.sede, data: dados.data, convocados: dados.convocados } });
     });
   const wrappedConfirmarSelecao = (id: string, campos: any) =>
     executeWithLoading("Confirmando presença...", async () => {
       const alvo = selecoes.find(s => s.id === id);
       await updateSelecao(id, campos);
-      await logAction('ALTEROU', 'Vagas', `Presença confirmada na seleção de ${alvo?.cargo || id} (${alvo?.data}): ${campos.compareceram} de ${alvo?.convocados} compareceram.`);
+      await logAction('ALTEROU', 'Seleções', `Presença confirmada na seleção de ${alvo?.cargo || id} (${alvo?.data}): ${campos.compareceram} de ${alvo?.convocados} compareceram.`,
+        { ref: { cargo: alvo?.cargo, sede: alvo?.sede, data: alvo?.data, convocados: alvo?.convocados, compareceram: campos.compareceram } });
     });
 
   // Painel admin do Coordenador: vê/gerencia só a UNIDADE dele (Colégio OU
@@ -438,6 +452,7 @@ export default function App() {
           quantas > 1
             ? `${quantas} vagas "${vagaInput.vaga}" (Sede: ${vagaInput.sede || selectedSede}) abertas de uma vez.`
             : `Vaga "${vagaInput.vaga}" (Sede: ${vagaInput.sede || selectedSede}) cadastrada.`,
+          { ref: { cargo: vagaInput.vaga, sede: vagaInput.sede || selectedSede, quantidade: quantas } },
         );
       },
     );
@@ -448,7 +463,8 @@ export default function App() {
     executeWithLoading("Aceitando requisição e criando vaga...", async () => {
       await addVaga(requisicaoParaVaga(req) as any); // conversão pura e testada (utils/requisicao)
       await updateRequisicao(req.id, { status: 'aceita', decididaEm: new Date().toISOString(), decididaPor: user?.email || 'sistema' });
-      await logAction('CRIOU', 'Vagas', `Vaga "${req.cargo}" criada a partir de requisição (gestor: ${req.gestorSolicitante}).`);
+      await logAction('CRIOU', 'Vagas', `Vaga "${req.cargo}" criada a partir de requisição (gestor: ${req.gestorSolicitante}).`,
+        { ref: { cargo: req.cargo, sede: req.sede } });
       notify('Requisição aceita — vaga criada!', 'success');
     });
 
@@ -456,7 +472,8 @@ export default function App() {
   const wrappedAddIntegracao = (i: any) =>
     executeWithLoading("Registrando integração...", async () => {
       await addIntegracao(i);
-      await logAction('CRIOU', 'Integrações', `Integração de "${i.nome}" (${i.sede}) registrada.`);
+      await logAction('CRIOU', 'Integrações', `Integração de "${i.nome}" (${i.sede}) registrada.`,
+        { ref: { colaborador: i.nome, sede: i.sede } });
     });
   const wrappedUpdateIntegracao = (id: string, f: any) =>
     executeWithLoading("Atualizando integração...", async () => {
@@ -473,6 +490,8 @@ export default function App() {
   const wrappedAddConsulta = (c: any) =>
     executeWithLoading("Registrando consulta...", async () => {
       await addConsulta(c);
+      // Sem `ref` de propósito: consulta é dado de saúde, e o relato diário
+      // que vai aos diretores só pode dizer QUANTAS, nunca de quem nem qual.
       await logAction('CRIOU', 'Consultas', `Consulta de "${c.funcionario}" (${c.especialidade}) solicitada em ${c.dataSolicitacao}.`);
     });
   const wrappedUpdateConsulta = (id: string, campos: any) =>
@@ -582,7 +601,8 @@ export default function App() {
   const wrappedAddTreinamento = (input: any) => 
     executeWithLoading("Sincronizando registro de treinamento...", async () => {
       await addTreinamento(input);
-      await logAction('CRIOU', 'Treinamentos', `Treinamento sobre "${input.tema || ''}" registrado na unidade "${input.unidade || ''}".`);
+      await logAction('CRIOU', 'Treinamentos', `Treinamento sobre "${input.tema || ''}" registrado na unidade "${input.unidade || ''}".`,
+        { ref: { tema: input.tema, unidade: input.unidade } });
     });
 
   const wrappedDeleteTreinamento = (id: string) => 
@@ -602,7 +622,8 @@ export default function App() {
   const wrappedAddExperiencia = (input: any) => 
     executeWithLoading("Gravando acompanhamento de experiência...", async () => {
       await addExperiencia(input);
-      await logAction('CRIOU', 'Experiências', `Acompanhamento de experiência criado para o colaborador "${input.colaborador}" (Setor: ${input.setor || ''}).`);
+      await logAction('CRIOU', 'Experiências', `Acompanhamento de experiência criado para o colaborador "${input.colaborador}" (Setor: ${input.setor || ''}).`,
+        { ref: { colaborador: input.colaborador, setor: input.setor } });
     });
 
   const wrappedUpdateExperiencia = (id: string, updatedFields: any) => 
@@ -626,7 +647,8 @@ export default function App() {
   const wrappedAddEntrevista = (input: any) => 
     executeWithLoading("Registrando entrevista de desligamento...", async () => {
       await addEntrevista(input);
-      await logAction('CRIOU', 'Entrevistas', `Entrevista de desligamento de "${input.colaborador}" ("${input.funcao || ''}") registrada.`);
+      await logAction('CRIOU', 'Entrevistas', `Entrevista de desligamento de "${input.colaborador}" ("${input.funcao || ''}") registrada.`,
+        { ref: { colaborador: input.colaborador, funcao: input.funcao } });
     });
 
   const wrappedDeleteEntrevista = (id: string) => 
@@ -663,15 +685,15 @@ export default function App() {
       await logAction('ALTEROU', 'Turnover', `Balanço de Headcount/Turnover para o mês "${updatedFields.mesAno || turn?.mesAno || id}" atualizado.`);
     });
 
-  const wrappedAddUsuario = (email: string, role: UserRole, sede?: string) => 
+  const wrappedAddUsuario = (email: string, role: UserRole, sede?: string, nome?: string) =>
     executeWithLoading("Cadastrando novo perfil de usuário autorizado...", async () => {
-      await addUsuario(email, role, sede);
+      await addUsuario(email, role, sede, nome);
       await logAction('CRIOU', 'Usuários', `Usuário "${email}" convidado como "${role}" na unidade "${sede || 'DT'}".`);
     });
 
-  const wrappedUpdateUsuario = (id: string, email: string, role: UserRole, sede?: string) => 
+  const wrappedUpdateUsuario = (id: string, email: string, role: UserRole, sede?: string, nome?: string) =>
     executeWithLoading("Atualizando dados do usuário...", async () => {
-      await updateUsuario(id, email, role, sede);
+      await updateUsuario(id, email, role, sede, nome);
       await logAction('ALTEROU', 'Usuários', `Dados do usuário "${email}" atualizados para papel "${role}" e sede "${sede || 'DT'}".`);
     });
 
@@ -1584,6 +1606,20 @@ export default function App() {
               agendarSelecao={canManageModules ? wrappedAgendarSelecao : undefined}
               confirmarSelecao={canManageModules ? wrappedConfirmarSelecao : undefined}
               atividades={scopedAtividades}
+              // Log só para quem as regras deixam ler; para os demais o bloco
+              // "No sistema" simplesmente não aparece.
+              logs={isAdmin || isCoord ? logs : undefined}
+              usuarios={usuarios}
+              diarios={diarios}
+              // Visualizador não tem "Meu dia": não faz o trabalho que ele conta.
+              salvarMeuDia={canManageModules ? salvarMeuDia : undefined}
+              emailAtual={user?.email || ''}
+              meuLog={meuLog}
+              tarefas={tarefasDiario}
+              criarTarefa={canManageModules ? criarTarefa : undefined}
+              // Renomear e arquivar mexem na lista de TODO o RH: só quem
+              // coordena. A regra do banco confere a mesma coisa.
+              ajustarTarefa={isAdmin || isCoord ? ajustarTarefa : undefined}
               adicionarAtividade={canManageModules ? wrappedAdicionarAtividade : undefined}
               atualizarAtividade={canManageModules ? wrappedAtualizarAtividade : undefined}
               removerAtividade={canManageModules ? wrappedRemoverAtividade : undefined}

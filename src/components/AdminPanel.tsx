@@ -41,8 +41,8 @@ interface AdminPanelProps {
   logs: SystemLog[];
   vagas?: Vaga[];                            // diagnóstico de setores (aba Setores)
   onPadronizarSetores?: () => Promise<void>; // padroniza o setor das vagas p/ o cadastro
-  addUsuario: (email: string, role: UserRole, sede?: string) => Promise<void>;
-  updateUsuario: (id: string, email: string, role: UserRole, sede?: string) => Promise<void>;
+  addUsuario: (email: string, role: UserRole, sede?: string, nome?: string) => Promise<void>;
+  updateUsuario: (id: string, email: string, role: UserRole, sede?: string, nome?: string) => Promise<void>;
   deleteUsuario: (id: string) => Promise<void>;
   addSede: (nome: string, regiao: string, sigla?: string) => Promise<void>;
   updateSede: (id: string, nome: string, regiao: string, sigla?: string) => Promise<void>;
