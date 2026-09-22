@@ -10,7 +10,7 @@ import {
   validarAgendamento, validarConfirmacao, camposDaConfirmacao,
 } from '../utils/selecao';
 import {
-  Users, ChevronLeft, ChevronRight, PlusCircle, X, CalendarClock, AlertTriangle, Trash2, ClipboardList,
+  Users, ChevronLeft, ChevronRight, PlusCircle, X, CalendarClock, AlertTriangle, Trash2, Pencil, ClipboardList,
 } from 'lucide-react';
 
 /**
@@ -40,6 +40,7 @@ interface SelecoesSectionProps {
    */
   atividades?: Atividade[];
   adicionarAtividade?: (dados: Omit<Atividade, 'id'>) => Promise<void>;
+  atualizarAtividade?: (id: string, campos: Partial<Atividade>) => Promise<void>;
   removerAtividade?: (id: string) => Promise<void>;
   confirmAction?: (titulo: string, mensagem: string, onConfirm: () => void | Promise<void>) => void;
   vagas: Vaga[];
@@ -71,7 +72,7 @@ function somarDias(iso: string, dias: number): string {
 export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
   const {
     agendarSelecao, confirmarSelecao, sedes = [], sedePadrao = '', responsavelPadrao = '',
-    atividades = [], adicionarAtividade, removerAtividade, confirmAction,
+    atividades = [], adicionarAtividade, atualizarAtividade, removerAtividade, confirmAction,
     ...fontes
   } = props;
   const [diaISO, setDiaISO] = useState(() => dataISOLocal());
@@ -126,31 +127,57 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
     );
   }, [atividades, dia, filtroSede, sedes]);
 
-  const [formAtiv, setFormAtiv] = useState<{ titulo: string; detalhe: string; responsavel: string } | null>(null);
+  // `editandoAtiv` guarda o id quando é edição, e null quando é registro novo.
+  // O formulário é o MESMO nos dois casos: dois formulários iguais lado a lado
+  // divergem no primeiro campo que alguém acrescentar em só um deles.
+  const [formAtiv, setFormAtiv] = useState<
+    { id: string | null; titulo: string; detalhe: string; responsavel: string } | null
+  >(null);
   const [salvandoAtiv, setSalvandoAtiv] = useState(false);
   const [erroAtiv, setErroAtiv] = useState('');
 
   const abrirAtividade = () => {
     setErroAtiv('');
-    setFormAtiv({ titulo: '', detalhe: '', responsavel: responsavelPadrao });
+    setFormAtiv({ id: null, titulo: '', detalhe: '', responsavel: responsavelPadrao });
+  };
+
+  const editarAtividade = (a: Atividade) => {
+    setErroAtiv('');
+    setFormAtiv({
+      id: a.id,
+      titulo: a.titulo || '',
+      detalhe: a.detalhe || '',
+      responsavel: a.responsavel || '',
+    });
   };
 
   const salvarAtividade = async () => {
-    if (!formAtiv || !adicionarAtividade) return;
+    if (!formAtiv) return;
     const titulo = formAtiv.titulo.trim();
     if (!titulo) return setErroAtiv('Escreva o que foi feito.');
     setSalvandoAtiv(true);
     setErroAtiv('');
     try {
-      await adicionarAtividade({
-        data: dia,
+      const campos = {
         titulo,
-        detalhe: formAtiv.detalhe.trim() || undefined,
-        responsavel: formAtiv.responsavel.trim() || undefined,
-        // A sede do filtro, e não a do usuário: quem está olhando Benfica
-        // registrando uma atividade está registrando a atividade de Benfica.
-        sede: filtroSede === 'TODAS' ? (sedePadrao || undefined) : filtroSede,
-      });
+        // `|| ''` e não `|| undefined`: apagar o detalhe tem que APAGAR. Com
+        // undefined o campo é omitido da gravação e o texto antigo fica lá.
+        detalhe: formAtiv.detalhe.trim() || '',
+        responsavel: formAtiv.responsavel.trim() || '',
+      };
+      if (formAtiv.id) {
+        // Data e sede não entram na edição: mudar o dia de uma atividade é
+        // movê-la para outro dia, e isso é registrar de novo lá.
+        if (atualizarAtividade) await atualizarAtividade(formAtiv.id, campos);
+      } else if (adicionarAtividade) {
+        await adicionarAtividade({
+          ...campos,
+          data: dia,
+          // A sede do filtro, e não a do usuário: quem está olhando Benfica
+          // registrando uma atividade está registrando a atividade de Benfica.
+          sede: filtroSede === 'TODAS' ? (sedePadrao || '') : filtroSede,
+        });
+      }
       setFormAtiv(null);
     } catch (e: any) {
       setErroAtiv(`Não foi possível salvar: ${e?.message || e}`);
@@ -676,7 +703,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                 disabled={salvandoAtiv}
                 className="px-4 py-2 rounded-xl bg-slate-900 text-white text-[11px] font-bold uppercase tracking-wider hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
               >
-                {salvandoAtiv ? 'Salvando...' : 'Registrar'}
+                {salvandoAtiv ? 'Salvando...' : formAtiv.id ? 'Salvar' : 'Registrar'}
               </button>
             </div>
           </div>
@@ -700,15 +727,26 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                     </p>
                   )}
                 </div>
-                {removerAtividade && (
-                  <button
-                    onClick={() => apagarAtividade(a)}
-                    aria-label={`Remover ${a.titulo}`}
-                    className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                <span className="flex items-center gap-0.5 shrink-0">
+                  {atualizarAtividade && (
+                    <button
+                      onClick={() => editarAtividade(a)}
+                      aria-label={`Editar ${a.titulo}`}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  {removerAtividade && (
+                    <button
+                      onClick={() => apagarAtividade(a)}
+                      aria-label={`Remover ${a.titulo}`}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </span>
               </li>
             ))}
           </ul>

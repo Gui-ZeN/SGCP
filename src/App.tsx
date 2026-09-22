@@ -274,7 +274,7 @@ export default function App() {
     [selecoes, sedes, selectedSede, ehAdminPleno]
   );
 
-  const { atividades, adicionarAtividade, removerAtividade } = useAtividades(user);
+  const { atividades, adicionarAtividade, atualizarAtividade, removerAtividade } = useAtividades(user);
 
   // Atividade segue o MESMO escopo por unidade das seleções: aparecem na mesma
   // tela e no mesmo e-mail, e uma escapando do recorte mostraria a Universidade
@@ -332,6 +332,11 @@ export default function App() {
     executeWithLoading('Registrando atividade...', async () => {
       await adicionarAtividade(dados);
       await logAction('CRIOU', 'Resumo do Dia', `Atividade "${dados.titulo}" registrada em ${dados.data}.`);
+    });
+  const wrappedAtualizarAtividade = (id: string, campos: any) =>
+    executeWithLoading('Salvando atividade...', async () => {
+      await atualizarAtividade(id, campos);
+      await logAction('ALTEROU', 'Resumo do Dia', `Atividade "${campos.titulo}" editada.`);
     });
   const wrappedRemoverAtividade = (id: string) =>
     executeWithLoading('Removendo atividade...', async () => {
@@ -1580,6 +1585,7 @@ export default function App() {
               confirmarSelecao={canManageModules ? wrappedConfirmarSelecao : undefined}
               atividades={scopedAtividades}
               adicionarAtividade={canManageModules ? wrappedAdicionarAtividade : undefined}
+              atualizarAtividade={canManageModules ? wrappedAtualizarAtividade : undefined}
               removerAtividade={canManageModules ? wrappedRemoverAtividade : undefined}
               confirmAction={askConfirmation}
             />
