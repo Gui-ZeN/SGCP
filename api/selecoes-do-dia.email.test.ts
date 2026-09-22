@@ -221,3 +221,73 @@ describe('resumo nao contradiz a tabela', () => {
     expect(e.html).not.toContain('a confirmar');
   });
 });
+
+describe('atividades do dia', () => {
+  const ativ = (over: Partial<{ data: string; titulo: string; detalhe: string; responsavel: string; sede: string }> = {}) => ({
+    data: DIA, titulo: 'Montagem dos kits do Setembro Amarelo', ...over,
+  });
+
+  it('dia SÓ com atividade gera e-mail — a regra mudou', () => {
+    // Antes a regra era "dia sem SELEÇÃO não gera e-mail", e com ela um dia
+    // inteiro de força-tarefa em kits não chegava a quem só lê o e-mail.
+    const e = montarEmailSelecoes(DIA, [], [ativ()]);
+    expect(e.vale).toBe(true);
+    expect(e.assunto).toBe(`Resumo do dia - ${DIA}`);
+    expect(e.html).toContain('Montagem dos kits do Setembro Amarelo');
+    expect(e.texto).toContain('Montagem dos kits do Setembro Amarelo');
+  });
+
+  it('dia sem nada continua sem gerar e-mail', () => {
+    expect(montarEmailSelecoes(DIA, [], []).vale).toBe(false);
+    expect(montarEmailSelecoes(DIA, [], [ativ({ data: '01/01/2020' })]).vale).toBe(false);
+  });
+
+  it('dia só de atividade não mostra tabela de seleção zerada', () => {
+    // Cabeçalho de colunas com corpo vazio e "Total do dia 0 / 0 / 0" faz o
+    // e-mail parecer quebrado, e não vazio.
+    const e = montarEmailSelecoes(DIA, [], [ativ()]);
+    expect(e.html).not.toContain('Convocados');
+    expect(e.html).not.toContain('Total do dia');
+  });
+
+  it('atividade NÃO entra na contagem nem nos totais da seleção', () => {
+    // É a regra que motivou a coleção separada: atividade não tem convocado,
+    // e somada viraria uma seleção fantasma derrubando a taxa.
+    const comAmbos = montarEmailSelecoes(
+      DIA,
+      [sel({ convocados: 10, compareceram: 8, ausentes: 2 })],
+      [ativ(), ativ({ titulo: 'Visita à sede Benfica' })],
+    );
+    const soSelecao = montarEmailSelecoes(DIA, [sel({ convocados: 10, compareceram: 8, ausentes: 2 })]);
+    expect(comAmbos.html).toContain('80% de comparecimento');
+    expect(soSelecao.html).toContain('80% de comparecimento');
+    expect(comAmbos.html).toContain('Visita à sede Benfica');
+    expect(soSelecao.html).not.toContain('Visita à sede Benfica');
+  });
+
+  it('atividade de outro dia não aparece', () => {
+    const e = montarEmailSelecoes(DIA, [sel({ convocados: 2, compareceram: 2 })], [
+      ativ({ data: '16/09/2026', titulo: 'Coisa de ontem' }),
+    ]);
+    expect(e.html).not.toContain('Coisa de ontem');
+  });
+
+  it('escapa o título, que é texto livre', () => {
+    const e = montarEmailSelecoes(DIA, [], [ativ({ titulo: '<script>alert(1)</script>' })]);
+    expect(e.html).not.toContain('<script>');
+    expect(e.html).toContain('&lt;script&gt;');
+  });
+
+  it('detalhe e contexto são opcionais e não deixam sobra', () => {
+    // Sem responsável nem sede, a linha não pode sair com "()" vazio; sem
+    // detalhe, não pode terminar em dois-pontos pendurado.
+    const semNada = montarEmailSelecoes(DIA, [], [ativ()]);
+    const linha = semNada.texto.split('\n').find(l => l.startsWith('- '))!;
+    expect(linha).toBe('- Montagem dos kits do Setembro Amarelo');
+
+    const completa = montarEmailSelecoes(DIA, [], [
+      ativ({ detalhe: '120 kits', responsavel: 'Arlana', sede: 'DT' }),
+    ]);
+    expect(completa.texto).toContain('- Montagem dos kits do Setembro Amarelo (DT · Arlana): 120 kits');
+  });
+});

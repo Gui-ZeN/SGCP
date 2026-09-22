@@ -1,4 +1,9 @@
 {
+  "_comentario_emuladores": "Porta própria porque a 8080 é o padrão de TODO projeto Firebase: com o emulador do Cromos aberto, `npm run test:rules` morria em 'port taken' e os testes de regra simplesmente não rodavam. Porta fixa evita a disputa sem ninguém ter que fechar nada.",
+  "emulators": {
+    "firestore": { "port": 8089 },
+    "ui": { "enabled": false }
+  },
   "firestore": [
     {
       "database": "ai-studio-2b395015-7429-44d1-83dd-233de9cd3c47",

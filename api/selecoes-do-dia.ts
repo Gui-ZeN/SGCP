@@ -97,19 +97,37 @@ const escapar = (t: string) =>
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
+/** O que o RH fez no dia e não foi seleção. Espelha `src/hooks/useAtividades`. */
+interface Atividade {
+  id?: string;
+  data: string;
+  titulo: string;
+  detalhe?: string;
+  responsavel?: string;
+  sede?: string;
+}
+
 /**
  * @param dia   DD/MM/AAAA — o dia do resumo
  * @param selecoes  já escopadas por unidade por quem chama
+ * @param atividades  o que o RH fez fora das seleções, já escopadas também
  */
-export function montarEmailSelecoes(dia: string, selecoes: Selecao[]): EmailSelecoes {
+export function montarEmailSelecoes(
+  dia: string,
+  selecoes: Selecao[],
+  atividades: Atividade[] = [],
+): EmailSelecoes {
   const doDia = selecoes.filter(s => (s.data || '').trim() === dia);
+  const atividadesDoDia = atividades.filter(a => (a.data || '').trim() === dia);
   const realizadas = doDia.filter(ehRealizada);
   const agendadas = doDia.filter(s => !ehRealizada(s));
   const t = totaisDeSelecoes(doDia);
 
-  // Dia sem seleção NÃO gera e-mail. Um aviso diário que na maior parte dos
-  // dias diz "nada aconteceu" é o caminho mais curto para o filtro de lixeira.
-  if (doDia.length === 0) {
+  // Dia sem NADA registrado não gera e-mail. Um aviso diário que na maior parte
+  // dos dias diz "nada aconteceu" é o caminho mais curto para o filtro de
+  // lixeira. Antes a regra era "sem SELEÇÃO", e com ela um dia inteiro de
+  // força-tarefa em kits não chegava a quem só lê o e-mail.
+  if (doDia.length === 0 && atividadesDoDia.length === 0) {
     return { assunto: '', html: '', texto: '', vale: false };
   }
 
@@ -147,7 +165,10 @@ export function montarEmailSelecoes(dia: string, selecoes: Selecao[]): EmailSele
     if (n > 0) motivos.set(m, (motivos.get(m) || 0) + n);
   }));
 
-  const html = montarHtml({ dia, realizadas, agendadas, totais: t, taxa: taxaEscrita, convocadosAConfirmar, motivos });
+  const html = montarHtml({
+    dia, realizadas, agendadas, totais: t, taxa: taxaEscrita,
+    convocadosAConfirmar, motivos, atividades: atividadesDoDia,
+  });
 
   // ⚠️ Abre com o MESMO título do HTML ("Resumo do dia"), e não com um título
   // próprio. Enquanto esta parte dizia "SGPC — Seleções do dia" e o HTML dizia
@@ -165,6 +186,21 @@ export function montarEmailSelecoes(dia: string, selecoes: Selecao[]): EmailSele
       return `- ${s.cargo} · ${s.sede || 's/ sede'} · ${s.responsavel || 's/ responsável'}: ${n}`;
     }),
     agendadas.length ? `\n${plural(agendadas.length, 'seleção sem confirmação', 'seleções sem confirmação')} de presença.` : '',
+    // As atividades entram numa lista PRÓPRIA, nunca no meio das seleções: a
+    // linha de seleção traz três números, a de atividade não traz nenhum, e
+    // misturadas viram uma tabela em que metade das colunas está vazia.
+    // "Outras" só quando houve seleção antes; sozinho, o "outras" sugere um
+    // primeiro bloco que não existe.
+    atividadesDoDia.length
+      ? `\n${doDia.length ? 'Outras atividades do dia:' : 'Atividades do dia:'}`
+      : '',
+    ...atividadesDoDia.map(a => {
+      const quem = (a.responsavel || '').trim();
+      const onde = (a.sede || '').trim();
+      const detalhe = (a.detalhe || '').trim();
+      const contexto = [onde, quem].filter(Boolean).join(' · ');
+      return `- ${a.titulo}${contexto ? ` (${contexto})` : ''}${detalhe ? `: ${detalhe}` : ''}`;
+    }),
     '\nEnviado automaticamente pelo SGPC. Para mudar quem recebe: Painel Admin → Notificações.',
   ].filter(Boolean).join('\n');
 
@@ -224,6 +260,7 @@ function montarHtml(d: {
   /** Já escrita, com vírgula decimal — vem pronta para as duas partes dizerem igual. */
   taxa: string;
   convocadosAConfirmar: number;
+  atividades: Atividade[];
   motivos: Map<string, number>;
 }): string {
   // Tokens do tema Suíço (src/styles/swiss.css). Literais porque e-mail não
@@ -297,6 +334,29 @@ function montarHtml(d: {
   const th = (texto: string, alinha: 'left' | 'right') =>
     `<th align="${alinha}" style="padding:0 8px 8px;${rotulo};border-bottom:1px solid ${TINTA}">${texto}</th>`;
 
+  // Dia só de atividade não leva a tabela: cabeçalho de colunas com corpo vazio
+  // e "Total do dia 0 / 0 / 0" faz o e-mail parecer quebrado, não vazio.
+  const semSelecoes = d.realizadas.length === 0 && d.agendadas.length === 0;
+
+  /* As atividades vêm numa LISTA, e não em linhas da tabela de seleções. A
+     linha de seleção é três números; a de atividade não é número nenhum.
+     Juntas, metade das colunas fica vazia em cada linha — e, pior, a atividade
+     passaria a ser contada como seleção do dia. */
+  const listaAtividades = d.atividades.length === 0 ? '' : `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-top:${semSelecoes ? 28 : 24}px;border-top:1px solid ${HAIRLINE}">
+    <tr><td style="padding:16px 8px 0">
+      <div style="${rotulo}">${semSelecoes ? 'Atividades do dia' : 'Também no dia'}</div>
+      ${d.atividades.map(a => {
+        const contexto = [a.sede, a.responsavel].map(x => (x || '').trim()).filter(Boolean).join(' · ');
+        return `<div style="margin-top:10px">
+          <div style="font-size:13px;font-weight:700;color:${TINTA};line-height:1.35">${escapar(a.titulo)}</div>
+          ${a.detalhe ? `<div style="font-size:12px;color:${TINTA2};margin-top:2px;line-height:1.45">${escapar(a.detalhe)}</div>` : ''}
+          ${contexto ? `<div style="font-size:11px;color:${TINTA3};margin-top:2px">${escapar(contexto)}</div>` : ''}
+        </div>`;
+      }).join('')}
+    </td></tr>
+  </table>`;
+
   return `<div style="background:${CANVAS};padding:24px 12px">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse">
 <tr><td align="center">
@@ -307,7 +367,7 @@ function montarHtml(d: {
   <h1 style="margin:0;font-size:32px;font-weight:700;letter-spacing:-.02em;line-height:1.05;color:${TINTA}">Resumo do dia</h1>
   <div style="margin-top:6px;font-size:15px;font-weight:700;color:${ACENTO};letter-spacing:-.01em;${TNUM}">${escapar(d.dia)}</div>
 
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-top:28px">
+  ${semSelecoes ? '' : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-top:28px">
     <thead>
       <tr>
         ${th('Cargo', 'left')}${th('Convocados', 'right')}${th('Compareceram', 'right')}${th('Ausentes', 'right')}
@@ -325,7 +385,7 @@ function montarHtml(d: {
         <td colspan="4" align="right" style="padding:8px 8px 0;text-align:right;font-size:14px;font-weight:700;color:${ACENTO};letter-spacing:-.01em;${TNUM}">${taxa}</td>
       </tr>` : ''}
     </tfoot>
-  </table>
+  </table>`}
 
   ${d.convocadosAConfirmar > 0 ? `<p style="margin:20px 0 0;font-size:13px;color:${TINTA2};line-height:1.5">
     <strong style="color:${TINTA}">${d.convocadosAConfirmar} ${d.convocadosAConfirmar === 1 ? 'convocado' : 'convocados'} a confirmar</strong>
@@ -342,6 +402,7 @@ function montarHtml(d: {
       }</div>
     </td></tr>
   </table>` : ''}
+  ${listaAtividades}
 
   <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid ${HAIRLINE};font-size:11px;color:${TINTA3};line-height:1.6">
     Enviado automaticamente pelo SGPC. Para mudar quem recebe: Painel Admin → Notificações.
@@ -586,14 +647,24 @@ export default async function handler(req: any, res: any) {
       ),
     }));
 
-    const email = montarEmailSelecoes(dia, selecoes);
-    // Dia sem seleção não vira e-mail: aviso que quase sempre diz "nada
-    // aconteceu" ensina o destinatário a ignorar o remetente.
+    const atividades: Atividade[] = (await lerColecao('atividades', token)).map(d => ({
+      id: d.name.split('/').pop(),
+      data: txt(d, 'data'),
+      titulo: txt(d, 'titulo'),
+      detalhe: txt(d, 'detalhe'),
+      responsavel: txt(d, 'responsavel'),
+      sede: txt(d, 'sede'),
+    }));
+
+    const email = montarEmailSelecoes(dia, selecoes, atividades);
+    // Dia sem NADA registrado não vira e-mail: aviso que quase sempre diz "nada
+    // aconteceu" ensina o destinatário a ignorar o remetente. Dia que teve só
+    // atividade SAI — houve trabalho e o resumo tem o que contar.
     if (!email.vale) {
-      // Registrado mesmo sem enviar: é o que separa "não houve seleção" de
+      // Registrado mesmo sem enviar: é o que separa "não houve nada" de
       // "quebrou". Sem essa linha, os dois parecem iguais de fora.
-      await registrarDisparo(token, { quando, dia, enviado: false, motivo: 'nenhuma seleção neste dia' });
-      return res.status(200).json({ enviado: false, motivo: `sem seleções em ${dia}` });
+      await registrarDisparo(token, { quando, dia, enviado: false, motivo: 'nada registrado neste dia' });
+      return res.status(200).json({ enviado: false, motivo: `nada registrado em ${dia}` });
     }
 
     const transporte = nodemailer.createTransport({

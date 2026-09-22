@@ -289,6 +289,13 @@ service cloud.firestore {
       allow write: if isEditor();
     }
 
+    // O que o RH fez no dia e não foi seleção. Mesma permissão das seleções:
+    // aparecem lado a lado na mesma tela, e quem registra uma registra a outra.
+    match /atividades/{atividadeId} {
+      allow read: if isAppUser();
+      allow write: if isEditor();
+    }
+
     match /turnover/{turnoverId} {
       allow read: if isAppUser();
       allow write: if isEditor();

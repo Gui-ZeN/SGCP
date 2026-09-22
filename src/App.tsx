@@ -21,6 +21,7 @@ import { useIntegracoes } from './hooks/useIntegracoes';
 import { useConsultas } from './hooks/useConsultas';
 import { useFuncionarios } from './hooks/useFuncionarios';
 import { useOrganograma } from './hooks/useOrganograma';
+import { useAtividades } from './hooks/useAtividades';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Bandeirinhas } from './components/Bandeirinhas';
 import { BootLoader } from './components/BootLoader';
@@ -273,6 +274,16 @@ export default function App() {
     [selecoes, sedes, selectedSede, ehAdminPleno]
   );
 
+  const { atividades, adicionarAtividade, removerAtividade } = useAtividades(user);
+
+  // Atividade segue o MESMO escopo por unidade das seleções: aparecem na mesma
+  // tela e no mesmo e-mail, e uma escapando do recorte mostraria a Universidade
+  // para quem só responde pelo Colégio.
+  const scopedAtividades = useMemo(
+    () => escoparListaPorUnidade(atividades, a => a.sede, sedes, selectedSede, ehAdminPleno),
+    [atividades, sedes, selectedSede, ehAdminPleno]
+  );
+
   // Turnover é o único módulo cujo registro NÃO tem sede — o escopo sai do campo
   // `unidade` do próprio lançamento. Registro sem unidade é legado consolidado
   // (as duas juntas): só o Administrador pleno o vê, porque exibi-lo para uma
@@ -315,6 +326,18 @@ export default function App() {
     executeWithLoading('Adicionando ao organograma...', async () => {
       await adicionarNo(dados);
       await logAction('CRIOU', 'Organograma', `"${dados.nome}"${dados.cargo ? ` (${dados.cargo})` : ''} entrou no organograma.`);
+    });
+
+  const wrappedAdicionarAtividade = (dados: any) =>
+    executeWithLoading('Registrando atividade...', async () => {
+      await adicionarAtividade(dados);
+      await logAction('CRIOU', 'Resumo do Dia', `Atividade "${dados.titulo}" registrada em ${dados.data}.`);
+    });
+  const wrappedRemoverAtividade = (id: string) =>
+    executeWithLoading('Removendo atividade...', async () => {
+      const alvo = atividades.find(a => a.id === id);
+      await removerAtividade(id);
+      await logAction('EXCLUIU', 'Resumo do Dia', `Atividade "${alvo?.titulo || id}" removida${alvo?.data ? ` de ${alvo.data}` : ''}.`);
     });
   const wrappedAtualizarNo = (id: string, campos: any) =>
     executeWithLoading('Salvando organograma...', async () => {
@@ -1059,7 +1082,7 @@ export default function App() {
               {activeTab === 'requisicoes' && 'Requisições de Vaga'}
               {activeTab === 'integracao' && 'Treinamento de Integração'}
               {activeTab === 'consultas' && 'Consultas'}
-              {activeTab === 'selecoes' && 'Seleções'}
+              {activeTab === 'selecoes' && 'Resumo do Dia'}
               {activeTab === 'organograma' && 'Organograma'}
               {activeTab === 'admin' && 'Painel Administrativo'}
             </p>
@@ -1208,7 +1231,7 @@ export default function App() {
                   }`}
                 >
                   <Users className="w-4 h-4 shrink-0 text-indigo-500" />
-                  <span className="flex-1 text-left">Seleções</span>
+                  <span className="flex-1 text-left">Resumo do Dia</span>
                 </button>
               )}
             </div>
@@ -1555,6 +1578,10 @@ export default function App() {
               responsavelPadrao={user?.displayName || ''}
               agendarSelecao={canManageModules ? wrappedAgendarSelecao : undefined}
               confirmarSelecao={canManageModules ? wrappedConfirmarSelecao : undefined}
+              atividades={scopedAtividades}
+              adicionarAtividade={canManageModules ? wrappedAdicionarAtividade : undefined}
+              removerAtividade={canManageModules ? wrappedRemoverAtividade : undefined}
+              confirmAction={askConfirmation}
             />
           )}
 

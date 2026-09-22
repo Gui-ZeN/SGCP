@@ -526,6 +526,25 @@ test("selecoes: usuario verificado le", () =>
 test("selecoes: anonimo NAO pode criar (nao e' formulario publico)", () =>
   assertFails(setDoc(doc(ctx.unauth(), "selecoes", "s3"), selecaoValida)));
 
+// --- atividades (o que o RH fez no dia e nao foi selecao) -------------------
+const atividadeValida = { data: "22/09/2026", titulo: "Montagem dos kits do Setembro Amarelo",
+  detalhe: "120 kits", responsavel: "Arlana", sede: "DIONISIO TORRES" };
+
+test("atividades: leitura SEM auth e' negada", () =>
+  assertFails(getDoc(doc(ctx.unauth(), "atividades", "a1"))));
+
+test("atividades: analista pode criar", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "atividades", "a1"), atividadeValida)));
+
+test("atividades: visualizador NAO pode criar", () =>
+  assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "atividades", "a2"), atividadeValida)));
+
+test("atividades: usuario verificado le", () =>
+  assertSucceeds(getDoc(doc(ctx.user(VIEWER_EMAIL), "atividades", "a1"))));
+
+test("atividades: anonimo NAO pode criar", () =>
+  assertFails(setDoc(doc(ctx.unauth(), "atividades", "a3"), atividadeValida)));
+
 // --- organograma: caixas do desenho (nome + cargo = dado interno) -----------
 const noOrganograma = { nome: "Ana Silva", cargo: "COORDENADOR(A)", sede: "DIONISIO TORRES" };
 

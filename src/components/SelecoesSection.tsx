@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { Selecao, Vaga, Integracao, Entrevista, Consulta, Experiencia } from '../types';
 import type { Sede } from '../hooks/useMetadata';
+import type { Atividade } from '../hooks/useAtividades';
 import { siglaCanonica } from '../utils/unidade';
 import { montarAgendaDoDia, resumoDeOutrosModulos } from '../utils/agenda';
 import { formatDateBR, toISOInput, dataISOLocal } from '../utils/date';
@@ -9,11 +10,12 @@ import {
   validarAgendamento, validarConfirmacao, camposDaConfirmacao,
 } from '../utils/selecao';
 import {
-  Users, ChevronLeft, ChevronRight, PlusCircle, X, CalendarClock, AlertTriangle,
+  Users, ChevronLeft, ChevronRight, PlusCircle, X, CalendarClock, AlertTriangle, Trash2, ClipboardList,
 } from 'lucide-react';
 
 /**
- * Seleções — o dia de seleção no formato da planilha que o RH já preenche.
+ * Resumo do dia — o dia de seleção no formato da planilha que o RH já preenche,
+ * MAIS o que a equipe fez fora das seleções.
  *
  * Substituiu a Agenda beta a pedido do RH: as abas QUANTI da planilha de
  * Seleções JÁ são a agenda deles, dia a dia, e repetir isso numa tela de
@@ -23,9 +25,23 @@ import {
  *
  * O que a Agenda mostrava além de seleção (integração, desligamento, vaga,
  * prazo de experiência) não sumiu: virou a linha de contexto no topo do dia.
+ *
+ * As ATIVIDADES são o registro do que não cabe em nenhum módulo — montar os
+ * kits do Setembro Amarelo, força-tarefa de documentação. Vivem em coleção
+ * própria e aparecem em bloco próprio: juntas na leitura, nunca somadas aos
+ * números da seleção.
  */
 interface SelecoesSectionProps {
   selecoes: Selecao[];
+  /**
+   * O que o RH fez no dia e não foi seleção. Lista SEPARADA de propósito:
+   * atividade não tem cargo, vaga nem comparecimento, e somada às seleções
+   * viraria uma linha de colunas vazias contada como seleção do dia.
+   */
+  atividades?: Atividade[];
+  adicionarAtividade?: (dados: Omit<Atividade, 'id'>) => Promise<void>;
+  removerAtividade?: (id: string) => Promise<void>;
+  confirmAction?: (titulo: string, mensagem: string, onConfirm: () => void | Promise<void>) => void;
   vagas: Vaga[];
   integracoes: Integracao[];
   entrevistas: Entrevista[];
@@ -53,7 +69,11 @@ function somarDias(iso: string, dias: number): string {
 }
 
 export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
-  const { agendarSelecao, confirmarSelecao, sedes = [], sedePadrao = '', responsavelPadrao = '', ...fontes } = props;
+  const {
+    agendarSelecao, confirmarSelecao, sedes = [], sedePadrao = '', responsavelPadrao = '',
+    atividades = [], adicionarAtividade, removerAtividade, confirmAction,
+    ...fontes
+  } = props;
   const [diaISO, setDiaISO] = useState(() => dataISOLocal());
   const hojeISO = dataISOLocal();
 
@@ -92,6 +112,59 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
     [fontes.selecoes, dia, naSede]
   );
   const totais = useMemo(() => totaisDeSelecoes(doDia), [doDia]);
+
+  /**
+   * Atividades do dia. Usa o MESMO filtro de sede da tabela: um filtro que
+   * esconde metade da tela e deixa a outra metade passar é pior que nenhum.
+   * Atividade sem sede aparece sempre — é trabalho da equipe toda.
+   */
+  const atividadesDoDia = useMemo(() => {
+    const alvo = filtroSede === 'TODAS' ? null : siglaCanonica(sedes, filtroSede);
+    return atividades.filter(a =>
+      (a.data || '').trim() === dia &&
+      (!alvo || !(a.sede || '').trim() || siglaCanonica(sedes, a.sede) === alvo)
+    );
+  }, [atividades, dia, filtroSede, sedes]);
+
+  const [formAtiv, setFormAtiv] = useState<{ titulo: string; detalhe: string; responsavel: string } | null>(null);
+  const [salvandoAtiv, setSalvandoAtiv] = useState(false);
+  const [erroAtiv, setErroAtiv] = useState('');
+
+  const abrirAtividade = () => {
+    setErroAtiv('');
+    setFormAtiv({ titulo: '', detalhe: '', responsavel: responsavelPadrao });
+  };
+
+  const salvarAtividade = async () => {
+    if (!formAtiv || !adicionarAtividade) return;
+    const titulo = formAtiv.titulo.trim();
+    if (!titulo) return setErroAtiv('Escreva o que foi feito.');
+    setSalvandoAtiv(true);
+    setErroAtiv('');
+    try {
+      await adicionarAtividade({
+        data: dia,
+        titulo,
+        detalhe: formAtiv.detalhe.trim() || undefined,
+        responsavel: formAtiv.responsavel.trim() || undefined,
+        // A sede do filtro, e não a do usuário: quem está olhando Benfica
+        // registrando uma atividade está registrando a atividade de Benfica.
+        sede: filtroSede === 'TODAS' ? (sedePadrao || undefined) : filtroSede,
+      });
+      setFormAtiv(null);
+    } catch (e: any) {
+      setErroAtiv(`Não foi possível salvar: ${e?.message || e}`);
+    } finally {
+      setSalvandoAtiv(false);
+    }
+  };
+
+  const apagarAtividade = (a: Atividade) => {
+    if (!removerAtividade) return;
+    const acao = () => removerAtividade(a.id);
+    if (confirmAction) confirmAction('Remover atividade', `Remover "${a.titulo}" do dia ${dia}?`, acao);
+    else acao();
+  };
 
   /** O resto do RH no mesmo dia — contexto, não lista. */
   const contexto = useMemo(
@@ -527,6 +600,118 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+
+      {/* Também no dia — o que a equipe fez fora das seleções.
+          Bloco PRÓPRIO, e não linhas na tabela acima: atividade não tem cargo,
+          convocados nem comparecimento, e misturada viraria uma linha de
+          colunas vazias contada como seleção do dia. */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
+            <ClipboardList className="w-3.5 h-3.5 text-slate-400" />
+            Também no dia
+          </p>
+          {adicionarAtividade && !formAtiv && (
+            <button
+              onClick={abrirAtividade}
+              className="px-3 py-1.5 rounded-xl border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-50 cursor-pointer inline-flex items-center gap-1.5 transition"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              Registrar atividade
+            </button>
+          )}
+        </div>
+
+        {formAtiv && (
+          <div className="border border-slate-200 rounded-xl p-4 mb-3 space-y-3 bg-slate-50/60">
+            <div>
+              <label htmlFor="ativ-titulo" className={rotuloCls}>O que foi feito</label>
+              <input
+                id="ativ-titulo"
+                className={campoCls}
+                autoFocus
+                placeholder="Ex.: Montagem dos kits do Setembro Amarelo"
+                value={formAtiv.titulo}
+                onChange={e => setFormAtiv(f => f && { ...f, titulo: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="ativ-detalhe" className={rotuloCls}>Detalhe (opcional)</label>
+                <input
+                  id="ativ-detalhe"
+                  className={campoCls}
+                  placeholder="Ex.: 120 kits; faltam 30 para Benfica"
+                  value={formAtiv.detalhe}
+                  onChange={e => setFormAtiv(f => f && { ...f, detalhe: e.target.value })}
+                />
+              </div>
+              <div>
+                <label htmlFor="ativ-resp" className={rotuloCls}>Responsável (opcional)</label>
+                <input
+                  id="ativ-resp"
+                  className={campoCls}
+                  placeholder="Vazio = equipe toda"
+                  value={formAtiv.responsavel}
+                  onChange={e => setFormAtiv(f => f && { ...f, responsavel: e.target.value })}
+                />
+              </div>
+            </div>
+            {erroAtiv && (
+              <p role="alert" className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+                {erroAtiv}
+              </p>
+            )}
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => { setFormAtiv(null); setErroAtiv(''); }}
+                className="px-3 py-2 rounded-xl text-[11px] font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarAtividade}
+                disabled={salvandoAtiv}
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-[11px] font-bold uppercase tracking-wider hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
+              >
+                {salvandoAtiv ? 'Salvando...' : 'Registrar'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {atividadesDoDia.length === 0 ? (
+          <p className="text-xs text-slate-500 font-medium">
+            Nada registrado além das seleções em {dia}.
+            {adicionarAtividade && ' Use "Registrar atividade" para o que a equipe fez fora delas.'}
+          </p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {atividadesDoDia.map(a => (
+              <li key={a.id} className="flex items-start justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-800">{a.titulo}</p>
+                  {a.detalhe && <p className="text-xs text-slate-600 font-medium mt-0.5">{a.detalhe}</p>}
+                  {(a.sede || a.responsavel) && (
+                    <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                      {[a.sede, a.responsavel].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
+                </div>
+                {removerAtividade && (
+                  <button
+                    onClick={() => apagarAtividade(a)}
+                    aria-label={`Remover ${a.titulo}`}
+                    className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
