@@ -14,16 +14,18 @@
  * a tela sugere os nomes de quem ocupa aquele cargo. Sugestão, não vínculo.
  */
 import { useFirestoreCollection } from './useFirestoreCollection';
+import type { NoOrganograma } from '../utils/organograma';
 
-export interface NoOrganogramaDoc {
+/**
+ * O documento gravado é o nó, sem nada a mais.
+ *
+ * ⚠️ Era uma cópia campo a campo de `NoOrganograma`, e as duas divergiram na
+ * primeira vez que um campo novo apareceu (`turno`): o tipo de domínio já
+ * tinha, este não, e o `tsc` só reclamou na tela que usava os dois. Herdar
+ * mantém uma definição só — o nó é o mesmo objeto dos dois lados.
+ */
+export interface NoOrganogramaDoc extends NoOrganograma {
   id: string;
-  nome: string;
-  cargo?: string;
-  sede?: string;
-  /** Recorte do desenho: Infra, Pedagógico, Administrativo… um por setor. */
-  setor?: string;
-  /** id de outro nó. Vazio = topo do desenho. */
-  respondeA?: string;
 }
 
 export function useOrganograma(currentUser: any, enabled = true) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { montarArvore, profundidade, descendentes, type NoOrganograma } from './organograma';
+import { montarArvore, profundidade, descendentes, iniciais, admissaoDoQuadro, type NoOrganograma } from './organograma';
 
 const no = (id: string, respondeA?: string, over: Partial<NoOrganograma> = {}): NoOrganograma =>
   ({ id, nome: id.toUpperCase(), cargo: 'Cargo', ...over, respondeA });
@@ -144,5 +144,58 @@ describe('recorte por setor', () => {
       new Set(['x'])
     );
     expect(orfaos.map(o => o.nome)).toEqual(['X']);
+  });
+});
+
+describe('iniciais', () => {
+  it('primeira letra do nome e do sobrenome', () => {
+    expect(iniciais('Josenir Oliveira')).toBe('JO');
+    expect(iniciais('Emanuelle Cristine')).toBe('EC');
+  });
+
+  it('partícula não vira inicial', () => {
+    // "Reinaldo do Nascimento" com RD ao lado do nome por extenso parece defeito.
+    expect(iniciais('Reinaldo do Nascimento')).toBe('RN');
+    expect(iniciais('Maria das Graças Silva')).toBe('MS');
+  });
+
+  it('nome único usa as duas primeiras letras', () => {
+    expect(iniciais('Madonna')).toBe('MA');
+  });
+
+  it('vazio não quebra o cartão', () => {
+    expect(iniciais('')).toBe('?');
+    expect(iniciais(undefined)).toBe('?');
+    expect(iniciais('   ')).toBe('?');
+  });
+});
+
+describe('admissaoDoQuadro', () => {
+  const quadro = [
+    { nome: 'Josenir Oliveira', admissao: '23/01/2023' },
+    { nome: 'José Silva', admissao: '01/01/2020' },
+    { nome: 'Jose Silva', admissao: '02/02/2021' },
+    { nome: 'Sem Data', admissao: '' },
+  ];
+
+  it('acha pelo nome, ignorando acento e caixa', () => {
+    expect(admissaoDoQuadro(quadro, 'josenir oliveira')).toBe('23/01/2023');
+    expect(admissaoDoQuadro(quadro, 'JOSENIR   OLIVEIRA')).toBe('23/01/2023');
+  });
+
+  it('quem não está no quadro simplesmente não tem admissão', () => {
+    // Posição vaga e gente de fora do quadro precisam caber no desenho.
+    expect(admissaoDoQuadro(quadro, 'Vaga em aberto')).toBe('');
+    expect(admissaoDoQuadro(quadro, '')).toBe('');
+  });
+
+  it('nome repetido devolve vazio em vez de escolher um', () => {
+    // "José" e "Jose" normalizam para o mesmo: mostrar a data de um dos dois
+    // seria inventar qual deles está no desenho.
+    expect(admissaoDoQuadro(quadro, 'José Silva')).toBe('');
+  });
+
+  it('cadastro sem data não inventa data', () => {
+    expect(admissaoDoQuadro(quadro, 'Sem Data')).toBe('');
   });
 });

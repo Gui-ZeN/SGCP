@@ -22,6 +22,12 @@ export interface NoOrganograma {
   sede?: string;
   /** Recorte do desenho: cada setor tem o seu organograma. */
   setor?: string;
+  /**
+   * Diurno / Noturno / ADM. Digitado pelo RH: não existe no quadro do Cromos
+   * nem em lugar nenhum do sistema — conferido no banco antes de criar o campo.
+   * Vazio é normal e o cartão simplesmente não mostra a linha.
+   */
+  turno?: string;
   /** id do superior. Vazio = está no topo. */
   respondeA?: string;
 }
@@ -128,4 +134,48 @@ export function descendentes(raizes: ArvoreNo[], id: string): Set<string> {
   const descer = (item: ArvoreNo) => item.filhos.forEach(f => { saco.add(f.no.id); descer(f); });
   if (alvo) descer(alvo);
   return saco;
+}
+
+/** Partículas que não contam como sobrenome para as iniciais. */
+const PARTICULAS = new Set(['do', 'da', 'de', 'dos', 'das', 'e', 'di', 'du']);
+
+/**
+ * As duas letras que ocupam o lugar da foto no cartão.
+ *
+ * "Reinaldo do Nascimento" tem que dar RN, não RD: partícula não é sobrenome, e
+ * um cartão com "RD" ao lado do nome escrito por extenso parece defeito.
+ */
+export function iniciais(nome?: string): string {
+  const partes = String(nome || '')
+    .trim()
+    .split(/\s+/)
+    .filter(p => p && !PARTICULAS.has(p.toLowerCase()));
+  if (partes.length === 0) return '?';
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+}
+
+const semAcento = (t?: string) =>
+  String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+
+/**
+ * A data de admissão de quem está no cartão, procurada no quadro pelo nome.
+ *
+ * ⚠️ SUGESTÃO, nunca amarra. O organograma aceita posição vaga, gente de fora do
+ * quadro e nome digitado com outra grafia — nesses casos simplesmente não há
+ * admissão para mostrar, e o cartão fica sem a linha. Amarrar o desenho ao
+ * cadastro foi o erro da primeira versão do organograma.
+ *
+ * Nome repetido no quadro (dois "José Silva") devolve vazio de propósito:
+ * mostrar a admissão de um deles seria inventar qual dos dois está no desenho.
+ */
+export function admissaoDoQuadro(
+  quadro: { nome: string; admissao?: string }[],
+  nome?: string,
+): string {
+  const alvo = semAcento(nome);
+  if (!alvo) return '';
+  const achados = quadro.filter(f => semAcento(f.nome) === alvo);
+  if (achados.length !== 1) return '';
+  return (achados[0].admissao || '').trim();
 }

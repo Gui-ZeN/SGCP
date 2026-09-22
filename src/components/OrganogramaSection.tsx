@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import type { Funcionario } from '../types';
 import type { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import type { NoOrganogramaDoc } from '../hooks/useOrganograma';
-import { montarArvore, profundidade, descendentes, type ArvoreNo } from '../utils/organograma';
+import { montarArvore, profundidade, descendentes, iniciais, admissaoDoQuadro, type ArvoreNo } from '../utils/organograma';
 import {
   Network, Plus, X, Pencil, Trash2, Printer, ChevronDown, ChevronRight, UserPlus, AlertTriangle,
 } from 'lucide-react';
@@ -43,7 +43,7 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
   const [editando, setEditando] = useState<NoOrganogramaDoc | null>(null);
   const [novoSob, setNovoSob] = useState<NoOrganogramaDoc | null>(null);
   const [abrindo, setAbrindo] = useState(false);
-  const [form, setForm] = useState({ nome: '', cargo: '', sede: '', setor: '', respondeA: '' });
+  const [form, setForm] = useState({ nome: '', cargo: '', sede: '', setor: '', turno: '', respondeA: '' });
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
@@ -129,6 +129,9 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
       // O subordinado nasce no setor do chefe; sem chefe, no setor que está
       // aberto na tela. Fora isso, a caixa sumiria do recorte ao ser criada.
       setor: sob?.setor || (setorAtivo.startsWith('__') ? '' : setorAtivo),
+      // Turno nasce vazio mesmo tendo chefe: o subordinado noturno de um chefe
+      // diurno e o caso comum, nao a excecao.
+      turno: '',
       respondeA: sob?.id || '',
     });
     setErro('');
@@ -140,7 +143,7 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
     setNovoSob(null);
     setForm({
       nome: n.nome || '', cargo: n.cargo || '', sede: n.sede || '',
-      setor: n.setor || '', respondeA: n.respondeA || '',
+      setor: n.setor || '', turno: n.turno || '', respondeA: n.respondeA || '',
     });
     setErro('');
     setAbrindo(true);
@@ -153,6 +156,7 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
       cargo: form.cargo.trim() || undefined,
       sede: form.sede.trim() || undefined,
       setor: form.setor.trim() || undefined,
+      turno: form.turno.trim() || undefined,
       respondeA: form.respondeA || undefined,
     };
     setSalvando(true);
@@ -229,6 +233,11 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
     const temFilhos = item.filhos.length > 0;
     const alvo = arrastandoSobre === no.id;
     const saindo = arrastando === no.id;
+    const admissao = admissaoDoQuadro(funcionarios, no.nome);
+    // Só a fileira de FOLHAS quebra em várias linhas. Quebrar um nível com ramos
+    // embaixo jogaria um ramo debaixo do outro e sugeriria hierarquia que não
+    // existe — ver o comentário de `.org-t-folhas` no index.css.
+    const soFolhas = temFilhos && item.filhos.every(f => f.filhos.length === 0);
 
     return (
       <li>
@@ -248,99 +257,85 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
             e.stopPropagation(); // senão o drop sobe e desfaz o vínculo recém-criado
             soltarSobre(e.dataTransfer.getData('text/plain') || arrastando || '', no.id);
           }}
-          className={`org-caixa group grid grid-cols-1 sm:grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2 transition ${
+          className={`org-cartao org-caixa group relative ${
             podeEditar ? 'cursor-grab active:cursor-grabbing' : ''
-          } ${
-            alvo ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200'
-          } ${saindo ? 'opacity-40' : ''} ${
-            // O topo é um bloco sólido: num desenho em que tudo tem o mesmo
-            // peso, a hierarquia existe só pela indentação e o olho não recebe
-            // ajuda nenhuma. Uma única caixa em tinta cheia dá o "aqui começa".
-            item.nivel === 1 ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white'
+          } ${alvo ? 'ring-2 ring-indigo-300 border-indigo-400' : ''} ${saindo ? 'opacity-40' : ''} ${
+            // O topo em tinta cheia: num desenho em que tudo pesa igual, o olho
+            // não recebe ajuda nenhuma para achar onde a hierarquia começa.
+            item.nivel === 1 ? 'org-topo' : ''
           }`}
         >
-          <span className="min-w-0 flex items-baseline gap-2">
-            {temFilhos ? (
-              <button
-                onClick={() => alternarRecolhido(no.id)}
-                aria-label={recolhido ? `Expandir equipe de ${no.nome}` : `Recolher equipe de ${no.nome}`}
-                aria-expanded={!recolhido}
-                title={`${item.filhos.length} ${item.filhos.length === 1 ? 'pessoa responde' : 'pessoas respondem'} a ${no.nome}`}
-                className={`shrink-0 self-center inline-flex items-center gap-0.5 rounded px-1 py-0.5 -ml-1 text-[10px] font-bold tabular-nums cursor-pointer no-print ${
-                  item.nivel === 1
-                    ? 'text-white/80 hover:bg-white/10'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                {recolhido ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                {item.filhos.length}
-              </button>
-            ) : (
-              <span className="w-1 h-1 rounded-full bg-slate-300 shrink-0 self-center" aria-hidden="true" />
-            )}
+          {/* O lugar da foto. Hoje as iniciais; no dia em que houver imagem ela
+              entra aqui, no mesmo quadrado, sem mexer no resto. */}
+          <span className="org-foto" aria-hidden="true">{iniciais(no.nome)}</span>
 
-            <span className="min-w-0">
-              <span className={`block truncate font-bold ${
-                item.nivel === 1 ? 'text-[15px] text-white' : item.nivel === 2 ? 'text-[13px] text-slate-850' : 'text-[13px] text-slate-800'
-              }`}>
-                {no.nome}
-              </span>
-              {no.cargo && (
-                /* Cargo em LINHA PRÓPRIA: inline, ele começava onde o nome
-                   terminava, e a coluna do meio ficava esfarrapada entre irmãos. */
-                <span className={`block truncate text-[11px] font-semibold ${
-                  item.nivel === 1 ? 'text-white/70' : 'text-slate-600'
-                }`}>
-                  {no.cargo}
-                </span>
-              )}
-            </span>
-          </span>
-
-          {/* Em tela estreita esta coluna cai para baixo: na mesma linha, os
-              três botões comiam o nome e sobrava "Camila N...". */}
-          <span className="flex items-center gap-2 shrink-0 justify-self-end">
+          <span className="min-w-0">
+            <span className="org-nome">{no.nome}</span>
+            {no.cargo && <span className="org-cargo">{no.cargo}</span>}
+            {/* Turno e admissão só existem quando há o que dizer: linha em
+                branco num cartão é pior que linha ausente. */}
+            {no.turno && <span className="org-meta">Turno {no.turno}</span>}
+            {admissao && <span className="org-meta">Admissão {admissao}</span>}
             {no.sede && (
-              <span className={`text-[10px] font-semibold uppercase tracking-wider hidden sm:inline ${
-                item.nivel === 1 ? 'text-white/60' : 'text-slate-500'
-              }`}>
+              <span className={`org-meta uppercase tracking-wider ${item.nivel === 1 ? '' : 'text-slate-400'}`}>
                 {no.sede}
               </span>
             )}
-
-            {podeEditar && (
-              /* Em toque não existe hover: sem isto, tablet nunca via os botões. */
-              <span className="org-acoes flex items-center gap-0.5 no-print">
-                <button onClick={() => abrirNovo(no)} aria-label={`Adicionar subordinado a ${no.nome}`}
-                  title="Adicionar subordinado"
-                  className={`w-7 h-7 flex items-center justify-center rounded cursor-pointer ${
-                    item.nivel === 1 ? 'text-white/70 hover:bg-white/10' : 'text-slate-500 hover:bg-slate-100'
-                  }`}>
-                  <UserPlus className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => abrirEdicao(no)} aria-label={`Editar ${no.nome}`}
-                  className={`w-7 h-7 flex items-center justify-center rounded cursor-pointer ${
-                    item.nivel === 1 ? 'text-white/70 hover:bg-white/10' : 'text-slate-500 hover:bg-slate-100'
-                  }`}>
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => remover(no)} aria-label={`Remover ${no.nome}`}
-                  className={`w-7 h-7 flex items-center justify-center rounded cursor-pointer ${
-                    item.nivel === 1 ? 'text-white/70 hover:bg-rose-500/20' : 'text-slate-500 hover:bg-rose-50 hover:text-rose-600'
-                  }`}>
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </span>
-            )}
           </span>
+
+          {/* Contador da equipe: recolhe o ramo. Fica na quina de cima, fora do
+              texto — no cartão novo não há mais a coluna lateral de antes. */}
+          {temFilhos && (
+            <button
+              onClick={() => alternarRecolhido(no.id)}
+              aria-label={recolhido ? `Expandir equipe de ${no.nome}` : `Recolher equipe de ${no.nome}`}
+              aria-expanded={!recolhido}
+              title={`${item.filhos.length} ${item.filhos.length === 1 ? 'pessoa responde' : 'pessoas respondem'} a ${no.nome}`}
+              className={`absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-bold tabular-nums cursor-pointer no-print ${
+                item.nivel === 1
+                  ? 'bg-slate-800 border-slate-700 text-white/80'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {recolhido ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {item.filhos.length}
+            </button>
+          )}
+
+          {podeEditar && (
+            /* Em toque não existe hover: sem isto, tablet nunca via os botões. */
+            <span className={`org-acoes no-print absolute top-1 right-1 flex items-center gap-0.5 rounded-md ${
+              item.nivel === 1 ? 'bg-slate-800/90' : 'bg-white/90'
+            }`}>
+              <button onClick={() => abrirNovo(no)} aria-label={`Adicionar subordinado a ${no.nome}`}
+                title="Adicionar subordinado"
+                className={`w-6 h-6 flex items-center justify-center rounded cursor-pointer ${
+                  item.nivel === 1 ? 'text-white/70 hover:bg-white/10' : 'text-slate-500 hover:bg-slate-100'
+                }`}>
+                <UserPlus className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => abrirEdicao(no)} aria-label={`Editar ${no.nome}`}
+                className={`w-6 h-6 flex items-center justify-center rounded cursor-pointer ${
+                  item.nivel === 1 ? 'text-white/70 hover:bg-white/10' : 'text-slate-500 hover:bg-slate-100'
+                }`}>
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => remover(no)} aria-label={`Remover ${no.nome}`}
+                className={`w-6 h-6 flex items-center justify-center rounded cursor-pointer ${
+                  item.nivel === 1 ? 'text-white/70 hover:bg-rose-500/20' : 'text-slate-500 hover:bg-rose-50 hover:text-rose-600'
+                }`}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          )}
         </div>
 
         {temFilhos && !recolhido && (
-          <ul className="org-l">
+          <ul className={soFolhas ? 'org-t-folhas' : undefined}>
             {item.filhos.slice(0, mostrarTodos.has(no.id) ? undefined : LIMITE_VISIVEL)
               .map(f => <Caixa key={f.no.id} item={f} />)}
             {item.filhos.length > LIMITE_VISIVEL && (
-              <li className="pl-[22px]">
+              <li className="org-t-extra">
                 <button
                   onClick={() => setMostrarTodos(m => {
                     const novo = new Set(m);
@@ -479,7 +474,10 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
               onDragOver={e => { if (arrastando) e.preventDefault(); }}
               onDrop={e => { e.preventDefault(); soltarNoTopo(e.dataTransfer.getData('text/plain') || arrastando || ''); }}
             >
-              <ul className="org-l">
+              {/* Vários topos ficam um EMBAIXO do outro, não lado a lado: são
+                  árvores separadas, e alinhá-las na mesma fileira sugeriria
+                  irmandade entre pessoas que não se respondem. */}
+              <ul className="org-t space-y-8">
                 {raizes.map(item => <Caixa key={item.no.id} item={item} />)}
               </ul>
             </div>
@@ -555,6 +553,24 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
                     {sedes.map(s => <option key={s.nome} value={s.nome} />)}
                   </datalist>
                 </div>
+              </div>
+
+              {/* Turno: lista fechada, e não texto livre. Digitado à mão, o
+                  mesmo turno vira "Noturno", "noturno" e "NOT" em três caixas
+                  do mesmo desenho — e aí o cartão deixa de alinhar. */}
+              <div>
+                <label htmlFor="org-turno" className={rotuloCls}>Turno (opcional)</label>
+                <select
+                  id="org-turno"
+                  className={`${campoCls} cursor-pointer`}
+                  value={form.turno}
+                  onChange={e => setForm(f => ({ ...f, turno: e.target.value }))}
+                >
+                  <option value="">Sem turno</option>
+                  <option value="Diurno">Diurno</option>
+                  <option value="Noturno">Noturno</option>
+                  <option value="ADM">ADM</option>
+                </select>
               </div>
 
               {editando && (
