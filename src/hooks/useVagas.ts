@@ -22,6 +22,7 @@ import {
 } from '../lib/firebase';
 import type { ImportableVaga } from '../lib/spreadsheetImport';
 import { resolverSetor } from '../utils/setor';
+import { codigosSequenciais } from '../utils/vaga';
 import { stripUndefinedFields } from '../lib/firestoreData';
 
 const LOCAL_STORAGE_KEY = 'ats_vagas_fallback';
@@ -111,35 +112,75 @@ export function useVagas(user?: any) {
       .finally(() => setLoading(false));
   };
 
-  // Add a new vacancy (Full-Stack CRUD supporting both online Firestore and Local Fallback)
-  const addVaga = async (vagaInput: Omit<Vaga, 'id' | 'codigo'>) => {
-    const nextCodigo = vagas.length > 0 ? Math.max(...vagas.map(v => v.codigo)) + 1 : 1001;
-    
-    const novaVaga: Omit<Vaga, 'id'> = {
-      codigo: nextCodigo,
+  /**
+   * Abre UMA vaga, ou várias iguais de uma vez.
+   *
+   * ⚠️ Não dá para repetir `addVagas(x, 1)` num laço para abrir 30. O código
+   * sai de `Math.max` sobre o estado `vagas`, e esse estado só muda quando o
+   * onSnapshot volta do Firestore — as 30 chamadas leriam o mesmo máximo e
+   * nasceriam com o MESMO código. Por isso a quantidade entra aqui dentro, onde
+   * a numeração acontece uma vez só para o lote inteiro.
+   *
+   * Existe porque abrir 30 vagas de temporário preenchendo o formulário 30
+   * vezes é, nas palavras da Coordenadora, "um rojão". Cada posição continua
+   * sendo um registro próprio: mantém seu aprovado, sua conclusão e seu SLA, e
+   * nenhum indicador do painel muda de significado.
+   */
+  const addVagas = async (vagaInput: Omit<Vaga, 'id' | 'codigo'>, quantidade = 1) => {
+    const quantas = Math.max(1, Math.floor(quantidade) || 1);
+    const comPadroes: Omit<Vaga, 'id' | 'codigo'> = {
       ...vagaInput,
       ano: vagaInput.ano || new Date().getFullYear(),
       // Marca o início da etapa atual na criação, p/ o "dias nesta etapa" começar do 0.
       etapaDesde: vagaInput.etapaDesde || dataISOLocal(),
     };
+    return gravarVagasNumerando(
+      Array.from({ length: quantas }, () => ({ ...comPadroes })),
+      'vagas',
+    );
+  };
+
+  const addVaga = async (vagaInput: Omit<Vaga, 'id' | 'codigo'>) => {
+    await addVagas(vagaInput, 1);
+  };
+
+  /**
+   * Numera e grava um conjunto de vagas de uma vez.
+   *
+   * writeBatch em blocos de 450: com `Promise.all(addDoc)` a importação de 355
+   * linhas vira 355 requisições soltas, que foi o que travou a importação de
+   * experiências antes. Serve tanto a abertura em lote quanto a importação
+   * anual — a numeração sequencial é o problema que as duas têm em comum.
+   */
+  const gravarVagasNumerando = async (
+    novas: Omit<Vaga, 'id' | 'codigo'>[],
+    rotuloDoErro: string,
+  ): Promise<number> => {
+    if (novas.length === 0) return 0;
+    const codigos = codigosSequenciais(vagas, novas.length);
+    const comCodigo = novas.map((v, i) => ({ ...v, codigo: codigos[i] }));
 
     if (usingFirebase && db) {
       try {
-        const vagasCollection = collection(db, 'vagas');
-        await addDoc(vagasCollection, stripUndefinedFields(novaVaga as any));
+        for (let i = 0; i < comCodigo.length; i += 450) {
+          const batch = writeBatch(db);
+          comCodigo.slice(i, i + 450).forEach(item => {
+            batch.set(doc(collection(db, 'vagas')), stripUndefinedFields(item as any));
+          });
+          await batch.commit();
+        }
       } catch (error) {
-        handleFirestoreError(error, OperationType.CREATE, 'vagas');
+        handleFirestoreError(error, OperationType.CREATE, rotuloDoErro);
+        return 0;
       }
     } else {
-      // Local fallback CRUD
-      const newlyCreated: Vaga = {
-        id: `local_new_${Date.now()}_${nextCodigo}`,
-        ...novaVaga as Vaga
-      };
-      const updatedList = [newlyCreated, ...vagas];
-      setVagas(updatedList);
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedList));
+      const locais = comCodigo.map((v, i) => ({ id: `local_vaga_${Date.now()}_${i}`, ...v } as Vaga));
+      const lista = [...locais, ...vagas].sort((a, b) => b.codigo - a.codigo);
+      setVagas(lista);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(lista));
     }
+
+    return comCodigo.length;
   };
 
   // Update an existing vacancy's details or status
@@ -292,40 +333,11 @@ export function useVagas(user?: any) {
    * Separado do `importVagas`: aquele deduplica por `codigo`, que a planilha
    * anual não tem — a decisão do que entra já foi tomada por
    * `planejarImportacao` (dedup por contagem contra o que existe). Aqui só
-   * numeramos e gravamos.
-   *
-   * writeBatch em blocos de 450: com `Promise.all(addDoc)` a importação de 355
-   * linhas vira 355 requisições soltas, que foi o que travou a importação de
-   * experiências antes.
+   * numeramos e gravamos — e quem numera e grava é `gravarVagasNumerando`,
+   * compartilhado com a abertura em lote.
    */
-  const importarVagasAnuais = async (novas: Omit<Vaga, 'id' | 'codigo'>[]): Promise<number> => {
-    if (novas.length === 0) return 0;
-
-    let proximoCodigo = (vagas.length > 0 ? Math.max(...vagas.map(v => v.codigo)) : 1000) + 1;
-    const comCodigo = novas.map(v => ({ ...v, codigo: proximoCodigo++ }));
-
-    if (usingFirebase && db) {
-      try {
-        for (let i = 0; i < comCodigo.length; i += 450) {
-          const batch = writeBatch(db);
-          comCodigo.slice(i, i + 450).forEach(item => {
-            batch.set(doc(collection(db, 'vagas')), stripUndefinedFields(item as any));
-          });
-          await batch.commit();
-        }
-      } catch (error) {
-        handleFirestoreError(error, OperationType.CREATE, 'vagas/importAnual');
-        return 0;
-      }
-    } else {
-      const locais = comCodigo.map((v, i) => ({ id: `local_vaga_anual_${Date.now()}_${i}`, ...v } as Vaga));
-      const lista = [...locais, ...vagas].sort((a, b) => b.codigo - a.codigo);
-      setVagas(lista);
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(lista));
-    }
-
-    return comCodigo.length;
-  };
+  const importarVagasAnuais = (novas: Omit<Vaga, 'id' | 'codigo'>[]): Promise<number> =>
+    gravarVagasNumerando(novas, 'vagas/importAnual');
 
   return {
     vagas,
@@ -333,6 +345,7 @@ export function useVagas(user?: any) {
     usingFirebase,
     errorMessage,
     addVaga,
+    addVagas,
     updateVaga,
     deleteVaga,
     importVagas,

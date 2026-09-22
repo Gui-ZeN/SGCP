@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getDiasEmAberto, getSlaInfo, isPausedOrSuspended, normalizeEtapa, statusForEtapa } from './vaga';
+import { codigosSequenciais, getDiasEmAberto, getSlaInfo, isPausedOrSuspended, normalizeEtapa, statusForEtapa } from './vaga';
 import type { Vaga } from '../types';
 
 const vaga = (p: Partial<Vaga>) => p as Vaga;
@@ -95,5 +95,33 @@ describe('getDiasEmAberto (com congelamento de pausa)', () => {
   });
   it('solicitação inválida → 0', () => {
     expect(getDiasEmAberto(vaga({ status: 'ABERTA', solicitacao: '' }))).toBe(0);
+  });
+});
+
+describe('codigosSequenciais', () => {
+  it('continua de onde o banco parou', () => {
+    expect(codigosSequenciais([{ codigo: 1007 }, { codigo: 1003 }], 1)).toEqual([1008]);
+  });
+
+  it('um lote de 30 sai com 30 códigos DIFERENTES e seguidos', () => {
+    // O defeito que este teste segura: chamar "abre uma vaga" 30 vezes num laço
+    // lê o mesmo máximo nas 30 vezes (o estado só muda quando o snapshot volta)
+    // e cria 30 vagas com o mesmo código. Foi o caso real da Coordenadora,
+    // abrindo 30 temporários de lojinha.
+    const codigos = codigosSequenciais([{ codigo: 2000 }], 30);
+    expect(codigos).toHaveLength(30);
+    expect(new Set(codigos).size).toBe(30);
+    expect(codigos[0]).toBe(2001);
+    expect(codigos[29]).toBe(2030);
+  });
+
+  it('banco vazio começa em 1001', () => {
+    expect(codigosSequenciais([], 2)).toEqual([1001, 1002]);
+  });
+
+  it('quantidade inválida não inventa vaga', () => {
+    expect(codigosSequenciais([{ codigo: 5 }], 0)).toEqual([]);
+    expect(codigosSequenciais([{ codigo: 5 }], -3)).toEqual([]);
+    expect(codigosSequenciais([{ codigo: 5 }], NaN)).toEqual([]);
   });
 });

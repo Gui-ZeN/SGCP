@@ -91,7 +91,7 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', 'swiss');
     try { localStorage.setItem('sgcp_theme', 'swiss'); } catch (e) {}
   }, []);
-  const { vagas, loading, usingFirebase, errorMessage, addVaga, updateVaga, deleteVaga, importVagas, importarVagasAnuais, padronizarSetores } = useVagas(user);
+  const { vagas, loading, usingFirebase, errorMessage, addVaga, addVagas, updateVaga, deleteVaga, importVagas, importarVagasAnuais, padronizarSetores } = useVagas(user);
   const [toast, setToast] = useState<{ message: string, type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
   const [triggerAddModal, setTriggerAddModal] = useState(0);
   // Vaga focada a partir do Home (alerta de SLA) → filtra o Quadro de Vagas por ela.
@@ -395,11 +395,25 @@ export default function App() {
   };
 
   // Wrapped operations for automatic loading states, error notifications and audit logging
-  const wrappedAddVaga = (vagaInput: any) => 
-    executeWithLoading("Cadastrando nova vaga no SGPC...", async () => {
-      await addVaga(vagaInput);
-      await logAction('CRIOU', 'Vagas', `Vaga "${vagaInput.vaga}" (Sede: ${vagaInput.sede || selectedSede}) cadastrada.`);
-    });
+  //
+  // A quantidade entra no log: 30 vagas abertas de uma vez precisam deixar UMA
+  // linha que diz 30, senão a auditoria mostra uma abertura onde houve trinta.
+  const wrappedAddVaga = (vagaInput: any, quantidade = 1) => {
+    const quantas = Math.max(1, Math.floor(quantidade) || 1);
+    return executeWithLoading(
+      quantas > 1 ? `Abrindo ${quantas} vagas no SGPC...` : 'Cadastrando nova vaga no SGPC...',
+      async () => {
+        await addVagas(vagaInput, quantas);
+        await logAction(
+          'CRIOU',
+          'Vagas',
+          quantas > 1
+            ? `${quantas} vagas "${vagaInput.vaga}" (Sede: ${vagaInput.sede || selectedSede}) abertas de uma vez.`
+            : `Vaga "${vagaInput.vaga}" (Sede: ${vagaInput.sede || selectedSede}) cadastrada.`,
+        );
+      },
+    );
+  };
     
   // Requisições: aceitar cria a vaga (campos extras vão pras observações); recusar registra o motivo.
   const handleAceitarRequisicao = (req: any) =>

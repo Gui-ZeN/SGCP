@@ -10,7 +10,8 @@ import { PlusCircle, FileText, CheckCircle } from 'lucide-react';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 
 interface AddVacancyFormProps {
-  addVaga: (vaga: Omit<Vaga, 'id' | 'codigo'>) => Promise<void>;
+  /** `quantidade` abre N posições iguais de uma vez — ver `addVagas` em useVagas. */
+  addVaga: (vaga: Omit<Vaga, 'id' | 'codigo'>, quantidade?: number) => Promise<void>;
   onSuccess: () => void;
   sedes?: Sede[];
   cargos?: Cargo[];
@@ -39,6 +40,11 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
 
   const getTodayISO = () => toISOInput(new Date());
   const [solicitacao, setSolicitacao] = useState(getTodayISO());
+
+  // Texto, não número: <input type="number"> controlado com estado numérico não
+  // deixa a pessoa apagar para redigitar (o campo volta a 1 no meio da edição).
+  const [quantidade, setQuantidade] = useState('1');
+  const quantas = Math.max(1, Math.min(200, Math.floor(Number(quantidade)) || 1));
 
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -81,7 +87,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
         ano: inputYear,
         categoria: 'Seleções Gerais',
         categoriaMotivo: finalMotivo.includes('Aumento') ? 'Aumento de Quadro' : (finalMotivo.includes('Outros') ? 'Outros' : 'Substituição')
-      });
+      }, quantas);
 
       setDone(true);
       setTimeout(() => {
@@ -92,6 +98,9 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
         setMotivoOutro('');
         setFuncionarioSubstituido('');
         setObservacoes('');
+        // Volta para 1: um lote de 30 é exceção, e deixar o 30 ali faria a
+        // próxima abertura distraída virar mais 30 vagas.
+        setQuantidade('1');
         onSuccess();
       }, 1500);
     } catch (err) {
@@ -203,6 +212,32 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
                   <option key={c.id} value={c.nome} />
                 ))}
               </datalist>
+
+              {/* Quantidade mora colada ao Cargo porque é "quantas DESTE cargo",
+                  e não um atributo solto da vaga. Cada posição continua virando
+                  um registro próprio — o campo poupa digitação, não altera o
+                  significado de nada no painel. */}
+              <div className="mt-3">
+                <label htmlFor="form-quantidade" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                  Quantidade de vagas
+                </label>
+                <input
+                  id="form-quantidade"
+                  type="number"
+                  min={1}
+                  max={200}
+                  inputMode="numeric"
+                  className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors"
+                  value={quantidade}
+                  onChange={(e) => setQuantidade(e.target.value)}
+                  aria-describedby="form-quantidade-ajuda"
+                />
+                <p id="form-quantidade-ajuda" className="text-[11px] text-slate-500 font-medium mt-1.5 ml-1 leading-relaxed">
+                  {quantas > 1
+                    ? `Abre ${quantas} vagas iguais, cada uma com seu código e seu acompanhamento.`
+                    : 'Deixe 1 para uma vaga. Para um lote (ex.: temporários), informe quantas.'}
+                </p>
+              </div>
             </div>
 
             {/* Requester Solicitor */}
@@ -366,7 +401,9 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
               className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-55 text-white text-sm font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-orange-500/25 cursor-pointer transition active:scale-[0.98]"
             >
               <PlusCircle className="w-4.5 h-4.5" />
-              {busy ? "Salvando..." : "Abrir Vaga"}
+              {/* O botão diz o número: "Abrir Vaga" com 30 no campo esconderia
+                  que o clique cria trinta registros. */}
+              {busy ? 'Salvando...' : quantas > 1 ? `Abrir ${quantas} Vagas` : 'Abrir Vaga'}
             </button>
           </div>
         </form>

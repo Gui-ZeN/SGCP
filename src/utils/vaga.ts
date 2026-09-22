@@ -164,3 +164,20 @@ export function diasNestaEtapa(vaga: Vaga): number {
   }
   return getDiasEmAberto(vaga);
 }
+
+/**
+ * Os códigos das próximas `quantidade` vagas, em sequência.
+ *
+ * ⚠️ Existe porque abrir um lote chamando o "abre uma vaga" N vezes num laço
+ * gera N vagas com o MESMO código: o próximo código sai de `Math.max` sobre a
+ * lista carregada, e essa lista só muda quando o Firestore devolve o snapshot —
+ * bem depois das N chamadas terem lido o mesmo máximo. Numerar o lote inteiro
+ * de uma vez, aqui, é o que impede isso.
+ *
+ * A base 1000 (primeiro código = 1001) é a do banco desde a importação inicial.
+ */
+export function codigosSequenciais(existentes: { codigo: number }[], quantidade: number): number[] {
+  const quantas = Math.max(0, Math.floor(quantidade) || 0);
+  const maior = existentes.length > 0 ? Math.max(...existentes.map(v => v.codigo || 0)) : 1000;
+  return Array.from({ length: quantas }, (_, i) => maior + 1 + i);
+}
