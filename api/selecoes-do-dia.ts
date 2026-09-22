@@ -216,6 +216,35 @@ function hojeEmFortaleza(): string {
 }
 
 /**
+ * Lê a conta de serviço do ambiente e garante que ela TEM o que vai ser usado.
+ *
+ * ⚠️ Em 21/09 o disparo morreu com "Cannot read properties of undefined
+ * (reading 'replace')". O `JSON.parse` tinha funcionado — só que devolveu uma
+ * STRING, não o objeto: o valor foi colado com aspas em volta, então era um
+ * JSON dentro de um JSON. `client_email` e `private_key` viravam `undefined` e
+ * o estouro só acontecia 20 linhas adiante, numa mensagem sem relação nenhuma
+ * com a causa. Daí as duas defesas: a segunda passada, que recupera o caso, e a
+ * conferência dos campos, que nomeia o que falta quando não é esse o caso.
+ *
+ * Nada do valor entra na mensagem de erro — ali dentro está a chave privada.
+ */
+export function lerContaDeServico(bruto: string | undefined): { client_email: string; private_key: string } {
+  if (!bruto) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON ausente');
+  let conta: any;
+  try {
+    conta = JSON.parse(bruto);
+    if (typeof conta === 'string') conta = JSON.parse(conta);
+  } catch {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não é JSON válido — cole o arquivo .json inteiro da conta de serviço, sem aspas em volta');
+  }
+  const faltando = ['client_email', 'private_key'].filter(c => typeof conta?.[c] !== 'string' || !conta[c]);
+  if (faltando.length) {
+    throw new Error(`GOOGLE_SERVICE_ACCOUNT_JSON não parece uma conta de serviço: falta ${faltando.join(' e ')}`);
+  }
+  return conta;
+}
+
+/**
  * Token de acesso a partir da conta de serviço, assinando o JWT à mão.
  *
  * São 20 linhas de `node:crypto` em vez de arrastar `google-auth-library` e
@@ -223,9 +252,7 @@ function hojeEmFortaleza(): string {
  * chamada. Menos peso no cold start e menos superfície para auditar.
  */
 async function tokenDeAcesso(): Promise<string> {
-  const bruto = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!bruto) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON ausente');
-  const conta = JSON.parse(bruto);
+  const conta = lerContaDeServico(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
 
   const agora = Math.floor(Date.now() / 1000);
   const base64url = (o: unknown) =>
