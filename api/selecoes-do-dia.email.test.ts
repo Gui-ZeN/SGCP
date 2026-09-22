@@ -44,14 +44,36 @@ describe('montarEmailSelecoes', () => {
     expect(e.html).toContain('Professor(a)');
     expect(e.html).toContain('BENFICA');
     expect(e.html).toContain('Diana');
-    expect(e.html).toContain('6 / 6 / 0');
+    // Cada número na SUA coluna. Antes os três vinham numa célula só ("6 / 6 / 0"),
+    // ilegível sem subir até o cabeçalho para decodificar a ordem.
+    expect(e.html).toContain('Convocados');
+    expect(e.html).toContain('Compareceram');
+    expect(e.html).toContain('Ausentes');
+    expect(e.html).toContain('>6</td>');
+    expect(e.html).toContain('>0</td>');
   });
 
   it('mostra os códigos das vagas atendidas', () => {
     const e = montarEmailSelecoes(DIA, [
       sel({ convocados: 20, compareceram: 9, vagaCodigos: [31, 1120] }),
     ]);
-    expect(e.html).toContain('#31 #1120');
+    expect(e.html).toContain('>31</a>');
+    expect(e.html).toContain('>1120</a>');
+  });
+
+  it('código de vaga vai dentro de link — senão o Gmail acha que é telefone', () => {
+    // Os códigos reais têm 10 dígitos (conferido no banco: todos têm). O Gmail
+    // transforma qualquer sequência de 10 dígitos em link de telefone — azul,
+    // sublinhado, e discando se alguém tocar no celular. Texto já dentro de um
+    // <a> não é re-detectado; é a única defesa que funciona no Gmail web.
+    const e = montarEmailSelecoes(DIA, [
+      sel({ convocados: 1, compareceram: 1, vagaCodigos: [2147180880] }),
+    ]);
+    expect(e.html).toContain('<a href="#"');
+    expect(e.html).toMatch(/<a href="#"[^>]*>2147180880<\/a>/);
+    // E o detector do iOS, que ignora o <a>, é desligado pela meta.
+    expect(e.html).toContain('name="format-detection"');
+    expect(e.html).toContain('telephone=no');
   });
 
   it('soma os motivos de desistência do dia', () => {
@@ -84,7 +106,10 @@ describe('montarEmailSelecoes', () => {
       sel({ cargo: 'REALIZADA', convocados: 2, compareceram: 2 }),
     ]);
     expect(e.html.indexOf('REALIZADA')).toBeLessThan(e.html.indexOf('AGENDADA'));
-    expect(e.html).toContain('3 / — / —');
+    // A agendada mostra quantos foram convocados e marca as outras duas colunas
+    // como pendentes. Zero ali seria mentira: a seleção ainda não aconteceu.
+    expect(e.html).toContain('>3</td>');
+    expect(e.html).toContain('a confirmar');
   });
 });
 
@@ -119,7 +144,8 @@ describe('as regras duplicadas concordam com src/utils/selecao', () => {
     expect(codigosDasVagas({ vagaCodigo: 24 })).toEqual([24]);
     // e o e-mail imprime exatamente esses codigos
     const e = montarEmailSelecoes(DIA, [sel({ convocados: 1, compareceram: 1, vagaCodigos: [31, 1120] })]);
-    expect(e.html).toContain('#31 #1120');
+    expect(e.html).toContain('>31</a>');
+    expect(e.html).toContain('>1120</a>');
   });
 });
 
@@ -135,8 +161,10 @@ describe('resumo nao contradiz a tabela', () => {
       sel({ convocados: 8, compareceram: 5 }),
       sel({ status: 'agendado', convocados: 4 }),
     ]);
-    expect(e.html).toContain('8 convocados');
-    expect(e.html).toContain('5 compareceram');
+    // Os totais do realizado ficam no rodapé da tabela, alinhados sob as colunas
+    // que somam; o que ainda não aconteceu é dito por fora, em texto.
+    expect(e.html).toContain('>8</td>');
+    expect(e.html).toContain('>5</td>');
     expect(e.html).toContain('4 convocados a confirmar');
   });
 

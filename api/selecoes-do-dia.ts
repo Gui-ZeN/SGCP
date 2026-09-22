@@ -135,55 +135,12 @@ export function montarEmailSelecoes(dia: string, selecoes: Selecao[]): EmailSele
     ? `Seleções de ${dia} — ${t.compareceram} de ${t.convocados} compareceram`
     : `Seleções de ${dia} — ${plural(agendadas.length, 'seleção agendada', 'seleções agendadas')}`;
 
-  const linha = (s: Selecao) => {
-    const vagas = codigosDasVagas(s).map(c => `#${c}`).join(' ');
-    const numeros = ehRealizada(s)
-      ? `${s.convocados || 0} / ${s.compareceram || 0} / ${s.ausentes || 0}`
-      : `${s.convocados || 0} / — / —`;
-    return `<tr>
-      <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#1e293b">
-        <strong>${escapar(s.cargo)}</strong>${vagas ? ` <span style="color:#64748b">${escapar(vagas)}</span>` : ''}
-      </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#334155">${escapar(s.sede || '—')}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#334155">${escapar(s.responsavel || '—')}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#1e293b;text-align:right;white-space:nowrap">${numeros}</td>
-    </tr>`;
-  };
-
   const motivos = new Map<string, number>();
   doDia.forEach(s => Object.entries(s.motivos || {}).forEach(([m, n]) => {
     if (n > 0) motivos.set(m, (motivos.get(m) || 0) + n);
   }));
 
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;color:#1e293b">
-  <p style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#64748b;margin:0 0 4px">SGPC · Seleções do dia</p>
-  <h1 style="font-size:20px;margin:0 0 2px">${escapar(dia)}</h1>
-  <p style="font-size:14px;color:#334155;margin:0 0 16px"><strong>${escapar(resumo)}</strong></p>
-
-  <table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;border:1px solid #e2e8f0">
-    <thead>
-      <tr style="background:#f8fafc">
-        <th align="left" style="padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#475569;border-bottom:1px solid #e2e8f0">Cargo</th>
-        <th align="left" style="padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#475569;border-bottom:1px solid #e2e8f0">Sede</th>
-        <th align="left" style="padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#475569;border-bottom:1px solid #e2e8f0">Responsável</th>
-        <th align="right" style="padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#475569;border-bottom:1px solid #e2e8f0">Conv. / Comp. / Aus.</th>
-      </tr>
-    </thead>
-    <tbody>${[...realizadas, ...agendadas].map(linha).join('')}</tbody>
-  </table>
-
-  ${agendadas.length ? `<p style="font-size:13px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin:14px 0 0">
-    ${plural(agendadas.length, 'seleção ainda sem confirmação de presença', 'seleções ainda sem confirmação de presença')}.
-  </p>` : ''}
-
-  ${motivos.size ? `<p style="font-size:12px;color:#475569;margin:14px 0 0">
-    <strong>Desistências:</strong> ${[...motivos.entries()].sort((a, b) => b[1] - a[1]).map(([m, n]) => `${escapar(m)} (${n})`).join(' · ')}
-  </p>` : ''}
-
-  <p style="font-size:11px;color:#94a3b8;margin:20px 0 0">
-    Enviado automaticamente pelo SGPC. Para mudar quem recebe: Painel Admin → Notificações.
-  </p>
-</div>`;
+  const html = montarHtml({ dia, realizadas, agendadas, totais: t, convocadosAConfirmar, motivos });
 
   const texto = [
     `SGPC — Seleções do dia ${dia}`,
@@ -199,6 +156,197 @@ export function montarEmailSelecoes(dia: string, selecoes: Selecao[]): EmailSele
   ].filter(Boolean).join('\n');
 
   return { assunto, html, texto, vale: true };
+}
+
+/**
+ * O corpo em HTML, no sistema visual do próprio SGPC.
+ *
+ * Paleta e regras vêm de `src/styles/swiss.css` (tema Suíço da aplicação):
+ * fio de 1px no lugar de sombra, números tabulares, UM acento cobalto, zero
+ * gradiente. O e-mail antes usava Arial e um cinza qualquer — parecia de outro
+ * produto. Aqui não dá para importar a Hanken Grotesk (cliente de e-mail não
+ * carrega fonte externa de forma confiável), então a pilha cai na grotesca do
+ * sistema; é a única concessão da tipografia.
+ *
+ * Três decisões que vieram de defeito observado no Gmail, não de gosto:
+ *
+ *  1. Os três números saíram de uma célula só (`11 / 5 / 6`, indecifrável sem
+ *     consultar o cabeçalho) para três colunas com rótulo inteiro. O cabeçalho
+ *     abreviado "CONV. / COMP. / AUS." quebrava em três linhas.
+ *  2. O total virou linha do RODAPÉ da mesma tabela, alinhado sob as colunas
+ *     que soma — em vez de uma frase solta com pontinhos no topo. A taxa fica
+ *     embaixo do total de compareceram, que é exatamente o que ela mede.
+ *  3. Código de vaga vai dentro de <a>: são 10 dígitos, e o Gmail transforma
+ *     qualquer sequência de 10 dígitos em link de telefone — azul, sublinhado
+ *     e discando se alguém tocar no celular. Texto já dentro de um link não é
+ *     re-detectado. A <meta> cobre o iOS, que usa outro detector.
+ */
+function montarHtml(d: {
+  dia: string;
+  realizadas: Selecao[];
+  agendadas: Selecao[];
+  totais: ReturnType<typeof totaisDeSelecoes>;
+  convocadosAConfirmar: number;
+  motivos: Map<string, number>;
+}): string {
+  // Tokens do tema Suíço (src/styles/swiss.css). Literais porque e-mail não
+  // tem custom property com suporte decente — mas os valores são os mesmos.
+  const PAPEL = '#FFFFFF', CANVAS = '#ECEDF0', TINTA = '#1A1B1F';
+  const HAIRLINE = '#DDE0E6', TINTA2 = '#45474D', TINTA3 = '#5F6169';
+  const ACENTO = '#1B4DD8';
+  const FONTE = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
+  const TNUM = "font-variant-numeric:tabular-nums;font-feature-settings:'tnum'";
+
+  const rotulo = `font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${TINTA3}`;
+  const celNum = `padding:12px 8px;text-align:right;font-size:16px;color:${TINTA};${TNUM};border-bottom:1px solid ${HAIRLINE}`;
+
+  /**
+   * Rótulo que só aparece no celular.
+   *
+   * No telefone a tabela deixa de ser tabela: as células viram blocos empilhados
+   * (a 375px, quatro colunas espremiam "Auxiliar de Serviços Gerais" em três
+   * linhas e a taxa vazava da célula). Empilhado, o número perde o cabeçalho que
+   * o explicava — então cada um carrega o próprio rótulo, escondido no desktop.
+   * É `display:none` invertido por media query porque cliente de e-mail não tem
+   * `::before` confiável, que seria o caminho normal.
+   */
+  const rot = (texto: string) => `<span class="sgpc-rot">${texto}</span>`;
+
+  /** Números de vaga dentro de <a>: ver decisão 3 no comentário acima. */
+  const refVaga = (s: Selecao) => {
+    const cods = codigosDasVagas(s);
+    if (!cods.length) return '';
+    const links = cods.map(c =>
+      `<a href="#" style="color:${TINTA3};text-decoration:none" target="_blank">${c}</a>`
+    ).join(` <span style="color:${HAIRLINE}">·</span> `);
+    return `<div style="font-size:11px;color:${TINTA3};margin-top:3px;${TNUM}">
+      ${cods.length === 1 ? 'Vaga' : 'Vagas'} ${links}
+    </div>`;
+  };
+
+  // O cargo NÃO leva etiqueta de pendente: as duas células de presença já dizem
+  // "a confirmar", e empilhadas no celular a etiqueta quebrava no meio da
+  // palavra ("· A / CONFIRMAR"). Dizer duas vezes custou legibilidade.
+  //
+  // Comentário de código, não de HTML: comentário HTML viaja dentro do e-mail.
+  const linha = (s: Selecao) => {
+    const feita = ehRealizada(s);
+    const pendente = `<span style="color:${TINTA3};font-size:13px">a confirmar</span>`;
+    return `<tr>
+      <td class="sgpc-c" style="padding:12px 8px;border-bottom:1px solid ${HAIRLINE};vertical-align:top">
+        <div style="font-size:14px;font-weight:700;color:${TINTA};line-height:1.3">${escapar(s.cargo)}</div>
+        <div style="font-size:12px;color:${TINTA2};margin-top:3px;line-height:1.4">
+          ${escapar(s.sede || 'sem sede')} <span style="color:${HAIRLINE}">·</span> ${escapar(s.responsavel || 'sem responsável')}
+        </div>
+        ${refVaga(s)}
+      </td>
+      <td class="sgpc-n" style="${celNum}">${rot('Convocados')}${s.convocados || 0}</td>
+      <td class="sgpc-n" style="${celNum}">${rot('Compareceram')}${feita ? s.compareceram || 0 : pendente}</td>
+      <td class="sgpc-n sgpc-fim" style="${celNum}">${rot('Ausentes')}${feita ? s.ausentes || 0 : pendente}</td>
+    </tr>`;
+  };
+
+  const t = d.totais;
+  // Vírgula decimal: é pt-BR. O "28.6%" de antes era defeito, não estilo.
+  const taxa = t.taxa === null ? '' : `${String(t.taxa).replace('.', ',')}% de comparecimento`;
+  const celTotal = `padding:12px 8px;text-align:right;font-size:17px;font-weight:700;color:${TINTA};${TNUM};border-top:2px solid ${TINTA}`;
+
+  const th = (texto: string, alinha: 'left' | 'right') =>
+    `<th align="${alinha}" style="padding:0 8px 8px;${rotulo};border-bottom:1px solid ${TINTA}">${texto}</th>`;
+
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Impede o iOS de transformar o código de vaga em link de telefone. -->
+<meta name="format-detection" content="telephone=no,date=no,address=no,email=no">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Seleções de ${escapar(d.dia)}</title>
+<style>
+  /* No desktop o cabeçalho da tabela já nomeia as colunas. */
+  .sgpc-rot { display: none; }
+  @media only screen and (max-width:620px) {
+    .sgpc-folha { padding: 24px 18px !important; }
+    .sgpc-data  { font-size: 26px !important; }
+    /* A tabela deixa de ser tabela: quatro colunas não cabem em 375px. */
+    .sgpc-cab { display: none !important; }
+    .sgpc-c, .sgpc-n {
+      display: block !important; width: 100% !important;
+      text-align: left !important; border-bottom: 0 !important;
+      padding: 2px 0 !important; font-size: 15px !important;
+    }
+    .sgpc-c { padding-top: 14px !important; }
+    .sgpc-fim { padding-bottom: 14px !important; border-bottom: 1px solid #DDE0E6 !important; }
+    .sgpc-rot {
+      display: inline-block !important; min-width: 124px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: #5F6169;
+    }
+    /* Empilhado, a borda de topo de cada célula do total viraria três réguas
+       pretas seguidas. A régua é uma só, na linha que abre o bloco. */
+    .sgpc-total .sgpc-n { border-top: 0 !important; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background:${CANVAS}">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${CANVAS};border-collapse:collapse">
+<tr><td align="center" style="padding:24px 12px">
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:100%;max-width:600px;background:${PAPEL};border:1px solid ${HAIRLINE};border-collapse:collapse">
+<tr><td class="sgpc-folha" style="padding:32px 28px;font-family:${FONTE};color:${TINTA}">
+
+  <h1 class="sgpc-data" style="margin:0;font-size:32px;font-weight:700;letter-spacing:-.02em;line-height:1.05;color:${TINTA}">Resumo do dia</h1>
+  <div style="margin-top:6px;font-size:15px;font-weight:700;color:${ACENTO};letter-spacing:-.01em;${TNUM}">${escapar(d.dia)}</div>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-top:28px">
+    <thead class="sgpc-cab">
+      <tr>
+        ${th('Cargo', 'left')}${th('Convocados', 'right')}${th('Compareceram', 'right')}${th('Ausentes', 'right')}
+      </tr>
+    </thead>
+    <tbody>${[...d.realizadas, ...d.agendadas].map(linha).join('')}</tbody>
+    <tfoot>
+      <tr class="sgpc-total">
+        <td class="sgpc-c" style="padding:12px 8px;border-top:2px solid ${TINTA};${rotulo};vertical-align:top;white-space:nowrap">Total do dia</td>
+        <td class="sgpc-n" style="${celTotal}">${rot('Convocados')}${t.convocados}</td>
+        <td class="sgpc-n" style="${celTotal}">${rot('Compareceram')}${t.compareceram}</td>
+        <td class="sgpc-n" style="${celTotal}">${rot('Ausentes')}${t.ausentes}</td>
+      </tr>
+      ${taxa ? `<tr>
+        <td colspan="4" align="right" style="padding:8px 8px 0;text-align:right;font-size:14px;font-weight:700;color:${ACENTO};letter-spacing:-.01em;${TNUM}">${taxa}</td>
+      </tr>` : ''}
+    </tfoot>
+  </table>
+
+  ${d.convocadosAConfirmar > 0 ? `<p style="margin:20px 0 0;font-size:13px;color:${TINTA2};line-height:1.5">
+    <strong style="color:${TINTA}">${d.convocadosAConfirmar} ${d.convocadosAConfirmar === 1 ? 'convocado' : 'convocados'} a confirmar</strong>
+    em ${plural(d.agendadas.length, 'seleção ainda sem confirmação de presença', 'seleções ainda sem confirmação de presença')}.
+  </p>` : ''}
+
+  ${d.motivos.size ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;margin-top:24px;border-top:1px solid ${HAIRLINE}">
+    <tr><td style="padding:16px 8px 0">
+      <div style="${rotulo}">Desistências</div>
+      <div style="font-size:13px;color:${TINTA2};margin-top:6px;line-height:1.6">${
+        [...d.motivos.entries()].sort((a, b) => b[1] - a[1])
+          .map(([m, n]) => `${escapar(m)} (${n})`)
+          .join(` <span style="color:${HAIRLINE}">·</span> `)
+      }</div>
+    </td></tr>
+  </table>` : ''}
+
+  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid ${HAIRLINE};font-size:11px;color:${TINTA3};line-height:1.6">
+    Enviado automaticamente pelo SGPC. Para mudar quem recebe: Painel Admin → Notificações.
+  </p>
+
+</td></tr>
+</table>
+
+</td></tr>
+</table>
+</body>
+</html>`;
 }
 
 
