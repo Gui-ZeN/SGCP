@@ -178,10 +178,10 @@ export function montarEmailSelecoes(dia: string, selecoes: Selecao[]): EmailSele
  *  2. O total virou linha do RODAPÉ da mesma tabela, alinhado sob as colunas
  *     que soma — em vez de uma frase solta com pontinhos no topo. A taxa fica
  *     embaixo do total de compareceram, que é exatamente o que ela mede.
- *  3. Código de vaga vai dentro de <a>: são 10 dígitos, e o Gmail transforma
- *     qualquer sequência de 10 dígitos em link de telefone — azul, sublinhado
- *     e discando se alguém tocar no celular. Texto já dentro de um link não é
- *     re-detectado. A <meta> cobre o iOS, que usa outro detector.
+ *  3. O código de vaga é partido em dois <span>, e NÃO vai dentro de link —
+ *     ver o comentário de `refVaga`, que conta por que a primeira tentativa
+ *     (envolver em <a>) fez o Gmail marcar o e-mail como perigoso. A <meta>
+ *     format-detection cobre o iOS, que usa outro detector.
  */
 function montarHtml(d: {
   dia: string;
@@ -214,15 +214,33 @@ function montarHtml(d: {
    */
   const rot = (texto: string) => `<span class="sgpc-rot">${texto}</span>`;
 
-  /** Números de vaga dentro de <a>: ver decisão 3 no comentário acima. */
+  /**
+   * Números de vaga — SEM link, e partidos em dois <span>.
+   *
+   * ⚠️ A primeira tentativa foi envolver o código num `<a href="#">`, que é a
+   * receita conhecida contra o Gmail transformar 10 dígitos em link de
+   * telefone. Custou caro: em 23/09 o Gmail marcou o e-mail inteiro com a
+   * tarja vermelha "Esta mensagem pode ser perigosa". Um link cujo texto é um
+   * número e cujo destino é lugar nenhum é justamente o padrão que o
+   * classificador de phishing procura, e até então o e-mail não tinha link
+   * algum. Trocamos um número azul por uma mensagem que ninguém abre.
+   *
+   * O corte em dois <span> separa os dígitos em dois nós de texto, o que
+   * costuma bastar para o detector de telefone não enxergar a sequência — e,
+   * ao contrário do espaço de largura zero, não injeta caractere invisível no
+   * que a pessoa copia. Se ainda assim o Gmail pintar de azul, é só cosmético:
+   * nunca mais vale um link falso aqui dentro.
+   */
   const refVaga = (s: Selecao) => {
     const cods = codigosDasVagas(s);
     if (!cods.length) return '';
-    const links = cods.map(c =>
-      `<a href="#" style="color:${TINTA3};text-decoration:none" target="_blank">${c}</a>`
-    ).join(` <span style="color:${HAIRLINE}">·</span> `);
+    const numeros = cods.map(c => {
+      const texto = String(c);
+      const corte = Math.ceil(texto.length / 2);
+      return `<span>${texto.slice(0, corte)}</span><span>${texto.slice(corte)}</span>`;
+    }).join(` <span style="color:${HAIRLINE}">·</span> `);
     return `<div style="font-size:11px;color:${TINTA3};margin-top:3px;${TNUM}">
-      ${cods.length === 1 ? 'Vaga' : 'Vagas'} ${links}
+      ${cods.length === 1 ? 'Vaga' : 'Vagas'} ${numeros}
     </div>`;
   };
 

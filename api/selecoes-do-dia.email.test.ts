@@ -57,21 +57,33 @@ describe('montarEmailSelecoes', () => {
     const e = montarEmailSelecoes(DIA, [
       sel({ convocados: 20, compareceram: 9, vagaCodigos: [31, 1120] }),
     ]);
-    expect(e.html).toContain('>31</a>');
-    expect(e.html).toContain('>1120</a>');
+    expect(e.html).toContain('<span>3</span><span>1</span>');
+    expect(e.html).toContain('<span>11</span><span>20</span>');
   });
 
-  it('código de vaga vai dentro de link — senão o Gmail acha que é telefone', () => {
-    // Os códigos reais têm 10 dígitos (conferido no banco: todos têm). O Gmail
-    // transforma qualquer sequência de 10 dígitos em link de telefone — azul,
-    // sublinhado, e discando se alguém tocar no celular. Texto já dentro de um
-    // <a> não é re-detectado; é a única defesa que funciona no Gmail web.
+  it('o e-mail não leva link nenhum — link falso fez o Gmail marcar como perigoso', () => {
+    // Em 23/09 a tarja vermelha "Esta mensagem pode ser perigosa" apareceu no
+    // primeiro envio depois de eu envolver o código de vaga num <a href="#">,
+    // para impedir o Gmail de ler 10 dígitos como telefone. Link cujo texto é
+    // um número e cujo destino é lugar nenhum é padrão de phishing. Enquanto
+    // não houver um destino de verdade, este e-mail não tem link.
     const e = montarEmailSelecoes(DIA, [
       sel({ convocados: 1, compareceram: 1, vagaCodigos: [2147180880] }),
     ]);
-    expect(e.html).toContain('<a href="#"');
-    expect(e.html).toMatch(/<a href="#"[^>]*>2147180880<\/a>/);
-    // E o detector do iOS, que ignora o <a>, é desligado pela meta.
+    expect(e.html).not.toContain('<a ');
+    expect(e.html).not.toContain('href=');
+  });
+
+  it('o código de vaga é partido, para o Gmail não ler como telefone', () => {
+    // Os códigos reais têm 10 dígitos (conferido no banco: todos têm). Dois nós
+    // de texto quebram a sequência para o detector sem sujar o que se copia —
+    // ao contrário do espaço de largura zero.
+    const e = montarEmailSelecoes(DIA, [
+      sel({ convocados: 1, compareceram: 1, vagaCodigos: [2147180880] }),
+    ]);
+    expect(e.html).toContain('<span>21471</span><span>80880</span>');
+    expect(e.html).not.toContain('>2147180880<');
+    // E o detector do iOS, que ignora a marcação, é desligado pela meta.
     expect(e.html).toContain('name="format-detection"');
     expect(e.html).toContain('telephone=no');
   });
@@ -150,8 +162,8 @@ describe('as regras duplicadas concordam com src/utils/selecao', () => {
     expect(codigosDasVagas({ vagaCodigo: 24 })).toEqual([24]);
     // e o e-mail imprime exatamente esses codigos
     const e = montarEmailSelecoes(DIA, [sel({ convocados: 1, compareceram: 1, vagaCodigos: [31, 1120] })]);
-    expect(e.html).toContain('>31</a>');
-    expect(e.html).toContain('>1120</a>');
+    expect(e.html).toContain('<span>3</span><span>1</span>');
+    expect(e.html).toContain('<span>11</span><span>20</span>');
   });
 });
 
