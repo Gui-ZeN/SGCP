@@ -216,27 +216,55 @@ function hojeEmFortaleza(): string {
 }
 
 /**
+ * Uma impressão digital do valor que NÃO revela o valor.
+ *
+ * O conteúdo da variável é a chave privada: não pode aparecer em log nenhum.
+ * Mas "não é JSON válido" sozinho não diz em que camada está o defeito, e foi
+ * exatamente isso que fez a gente ir e voltar. Tamanho, primeiro caractere e a
+ * presença de quebra de linha crua identificam o problema sem entregar nada.
+ */
+function digital(v: string): string {
+  const primeiro = v.trim()[0] ?? '(vazio)';
+  return `${v.length} caracteres, começa com «${primeiro}»${/[\n\r]/.test(v) ? ', contém quebra de linha crua' : ''}`;
+}
+
+/**
  * Lê a conta de serviço do ambiente e garante que ela TEM o que vai ser usado.
  *
- * ⚠️ Em 21/09 o disparo morreu com "Cannot read properties of undefined
- * (reading 'replace')". O `JSON.parse` tinha funcionado — só que devolveu uma
- * STRING, não o objeto: o valor foi colado com aspas em volta, então era um
- * JSON dentro de um JSON. `client_email` e `private_key` viravam `undefined` e
- * o estouro só acontecia 20 linhas adiante, numa mensagem sem relação nenhuma
- * com a causa. Daí as duas defesas: a segunda passada, que recupera o caso, e a
- * conferência dos campos, que nomeia o que falta quando não é esse o caso.
+ * ⚠️ Esta função existe por causa de quatro dias de disparo quebrado.
  *
- * Nada do valor entra na mensagem de erro — ali dentro está a chave privada.
+ * Em 21/09 morreu em "Cannot read properties of undefined (reading 'replace')":
+ * o `JSON.parse` funcionou mas devolveu uma STRING, não o objeto — o valor
+ * estava com aspas em volta, um JSON dentro de outro. Em 22/09, com o parse
+ * duplo já no ar, o de dentro também falhou: sinal de `private_key` com quebra
+ * de linha de verdade, que é JSON inválido (o arquivo traz `\n` escapado, e
+ * copiar e colar desfaz esse escape).
+ *
+ * Daí o base64 ser o caminho recomendado: é uma linha só, sem aspas e sem
+ * quebra, então não existe o que o copiar-e-colar possa estragar. Os outros
+ * formatos continuam aceitos para não quebrar quem já está configurado.
  */
-export function lerContaDeServico(bruto: string | undefined): { client_email: string; private_key: string } {
-  if (!bruto) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON ausente');
+export function lerContaDeServico(bruto: string | undefined): { client_email: string; private_key: string; project_id?: string } {
+  if (!bruto || !bruto.trim()) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON ausente');
+  const valor = bruto.trim();
+  const dica = 'Recomendado: gravar o valor em base64 (uma linha, nada a escapar) — `base64 -w0 conta.json`.';
+
   let conta: any;
-  try {
-    conta = JSON.parse(bruto);
-    if (typeof conta === 'string') conta = JSON.parse(conta);
-  } catch {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não é JSON válido — cole o arquivo .json inteiro da conta de serviço, sem aspas em volta');
+  if (valor[0] === '{') {
+    try { conta = JSON.parse(valor); }
+    catch { throw new Error(`GOOGLE_SERVICE_ACCOUNT_JSON começa como objeto mas não é JSON válido (${digital(valor)}). Quase sempre é a private_key com quebra de linha real em vez de \\n. ${dica}`); }
+  } else if (valor[0] === '"') {
+    let interno: unknown;
+    try { interno = JSON.parse(valor); }
+    catch { throw new Error(`GOOGLE_SERVICE_ACCOUNT_JSON está entre aspas e nem as aspas fecham direito (${digital(valor)}). ${dica}`); }
+    try { conta = JSON.parse(String(interno)); }
+    catch { throw new Error(`GOOGLE_SERVICE_ACCOUNT_JSON está entre aspas, e o que está dentro não é JSON (${digital(valor)}). Tire as aspas de fora, ou melhor: ${dica}`); }
+  } else {
+    // Sem `{` nem `"`: só pode ser base64. Se não for, a mensagem diz isso.
+    try { conta = JSON.parse(Buffer.from(valor, 'base64').toString('utf-8')); }
+    catch { throw new Error(`GOOGLE_SERVICE_ACCOUNT_JSON não é objeto JSON, nem JSON entre aspas, nem base64 de um JSON (${digital(valor)}). ${dica}`); }
   }
+
   const faltando = ['client_email', 'private_key'].filter(c => typeof conta?.[c] !== 'string' || !conta[c]);
   if (faltando.length) {
     throw new Error(`GOOGLE_SERVICE_ACCOUNT_JSON não parece uma conta de serviço: falta ${faltando.join(' e ')}`);

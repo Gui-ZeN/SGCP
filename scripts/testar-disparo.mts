@@ -20,7 +20,7 @@
  */
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
-import { montarEmailSelecoes } from '../api/selecoes-do-dia';
+import { montarEmailSelecoes, lerContaDeServico } from '../api/selecoes-do-dia';
 import type { Selecao } from '../src/types';
 
 dotenv.config();
@@ -62,15 +62,14 @@ if (ENVIAR && (!process.env.SMTP_USER || !process.env.SMTP_APP_PASSWORD)) {
 if (!temSA) process.exit(1);
 
 console.log('\n2. Conta de serviço');
-let conta: any;
+// Mesma leitura da função da Vercel, de propósito: em 21 e 22/09 o disparo
+// quebrou aqui, e um diagnóstico que aceita o que a produção recusa (ou o
+// contrário) é pior que nenhum.
+let conta: { client_email: string; private_key: string; project_id?: string };
 try {
-  conta = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON!);
-} catch {
-  falha('o JSON não é válido — cole o arquivo inteiro, entre aspas simples se o shell reclamar');
-  process.exit(1);
-}
-if (!conta.client_email || !conta.private_key) {
-  falha('falta client_email ou private_key no JSON');
+  conta = lerContaDeServico(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+} catch (e: any) {
+  falha(e?.message || String(e));
   process.exit(1);
 }
 ok(`identidade: ${conta.client_email}`);
