@@ -131,10 +131,11 @@ export function montarEmailSelecoes(dia: string, selecoes: Selecao[]): EmailSele
       : '',
   ].filter(Boolean).join(' · ');
 
-  // Assunto fixo, só variando a data — pedido do RH. O número que importa
-  // (quantos de quantos compareceram) saiu daqui e vive no corpo; quem varre a
-  // caixa de entrada agora distingue um dia do outro só pela data.
-  const assunto = `Resumo do dia - dia ${dia}`;
+  // Assunto fixo, só variando a data — pedido do RH. Antes era
+  // "Seleções de DD/MM/AAAA — X de Y compareceram". O número que importa saiu
+  // daqui e vive no corpo; na caixa de entrada um dia se distingue do outro
+  // só pela data.
+  const assunto = `Resumo do dia - ${dia}`;
 
   const motivos = new Map<string, number>();
   doDia.forEach(s => Object.entries(s.motivos || {}).forEach(([m, n]) => {

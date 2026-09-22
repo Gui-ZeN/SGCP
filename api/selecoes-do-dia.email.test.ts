@@ -21,19 +21,19 @@ describe('montarEmailSelecoes', () => {
     expect(montarEmailSelecoes(DIA, [sel({ data: '16/09/2026', convocados: 9 })]).vale).toBe(false);
   });
 
-  it('o assunto traz o número que importa', () => {
+  it('o assunto é fixo, e o número que importa fica no corpo', () => {
     const e = montarEmailSelecoes(DIA, [
       sel({ convocados: 8, compareceram: 5, ausentes: 3 }),
       sel({ convocados: 4, compareceram: 4 }),
     ]);
-    expect(e.assunto).toBe('Resumo do dia - dia 17/09/2026');
+    expect(e.assunto).toBe('Resumo do dia - 17/09/2026');
     expect(e.html).toContain('75% de comparecimento');
   });
 
   it('dia só com agendamento não anuncia "0 compareceram"', () => {
     const e = montarEmailSelecoes(DIA, [sel({ status: 'agendado', convocados: 12 })]);
     expect(e.vale).toBe(true);
-    expect(e.assunto).toBe('Resumo do dia - dia 17/09/2026');
+    expect(e.assunto).toBe('Resumo do dia - 17/09/2026');
     expect(e.html).toContain('sem confirmação de presença');
   });
 
@@ -130,8 +130,8 @@ describe('as regras duplicadas concordam com src/utils/selecao', () => {
     casos.forEach(lista => {
       const daApi = montarEmailSelecoes(DIA, lista);
       const doApp = totaisDeSelecoes(lista);
-      // Ancorado no CORPO, não no assunto: o assunto virou fixo ("Resumo do dia
-      // - dia DD/MM/AAAA") a pedido do RH e não carrega mais número nenhum. Se
+      // Ancorado no CORPO, não no assunto: o assunto virou fixo
+      // ("Resumo do dia - DD/MM/AAAA") a pedido do RH e não carrega número. Se
       // este teste tivesse ido embora junto, as duas cópias da regra de totais
       // voltariam a poder divergir sem ninguém ver.
       if (doApp.convocados > 0) {
