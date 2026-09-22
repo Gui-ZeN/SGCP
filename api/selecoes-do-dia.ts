@@ -131,9 +131,10 @@ export function montarEmailSelecoes(dia: string, selecoes: Selecao[]): EmailSele
       : '',
   ].filter(Boolean).join(' · ');
 
-  const assunto = t.convocados > 0
-    ? `Seleções de ${dia} — ${t.compareceram} de ${t.convocados} compareceram`
-    : `Seleções de ${dia} — ${plural(agendadas.length, 'seleção agendada', 'seleções agendadas')}`;
+  // Assunto fixo, só variando a data — pedido do RH. O número que importa
+  // (quantos de quantos compareceram) saiu daqui e vive no corpo; quem varre a
+  // caixa de entrada agora distingue um dia do outro só pela data.
+  const assunto = `Resumo do dia - dia ${dia}`;
 
   const motivos = new Map<string, number>();
   doDia.forEach(s => Object.entries(s.motivos || {}).forEach(([m, n]) => {
