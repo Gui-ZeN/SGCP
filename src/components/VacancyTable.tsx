@@ -138,8 +138,10 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
   // New visual and process UI states
   const [viewMode, setViewMode] = useState<'kanban' | 'tabela' | 'grade'>('kanban');
-  // Agrupamento do Kanban: 'status' (atual, padrão) ou 'etapa' (novo funil). Toggle.
-  const [kanbanGroupBy, setKanbanGroupBy] = useState<'status' | 'etapa'>('status');
+  // Agrupamento do Kanban. Abre POR ETAPA: é a visão que responde "onde esta
+  // vaga está travando", que é a pergunta de quem está tocando as Seleções. Por
+  // status continua a um clique, para quem quer o retrato administrativo.
+  const [kanbanGroupBy, setKanbanGroupBy] = useState<'status' | 'etapa'>('etapa');
   const [showConcluidasEtapa, setShowConcluidasEtapa] = useState(false);
   const [selectedDetailsVaga, setSelectedDetailsVaga] = useState<Vaga | null>(null);
   const [showColumnManager, setShowColumnManager] = useState(false);
@@ -1034,16 +1036,6 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
             <button
-              onClick={() => setKanbanGroupBy('status')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase cursor-pointer transition ${
-                kanbanGroupBy === 'status' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="Colunas por status da vaga (visão atual)"
-            >
-              <Workflow className="w-3.5 h-3.5 text-slate-500" />
-              <span>Por status</span>
-            </button>
-            <button
               onClick={() => setKanbanGroupBy('etapa')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase cursor-pointer transition ${
                 kanbanGroupBy === 'etapa' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
@@ -1052,6 +1044,16 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
             >
               <Layers className="w-3.5 h-3.5 text-orange-500" />
               <span>Por etapa</span>
+            </button>
+            <button
+              onClick={() => setKanbanGroupBy('status')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase cursor-pointer transition ${
+                kanbanGroupBy === 'status' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Colunas por status da vaga: o retrato administrativo (aberta, pausada, concluída)"
+            >
+              <Workflow className="w-3.5 h-3.5 text-slate-500" />
+              <span>Por status</span>
             </button>
           </div>
           {kanbanGroupBy === 'etapa' && (
