@@ -35,7 +35,11 @@ const ORDEM_MES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set'
 /** Motivo gravado pelo import vem em minúsculas: só a primeira letra sobe. */
 const frase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-export const AbaSelecoes: React.FC<{ selecoes: Selecao[]; sedes: Sede[]; periodo: Periodo }> = ({ selecoes, sedes }) => {
+export const AbaSelecoes: React.FC<{
+  selecoes: Selecao[]; sedes: Sede[]; periodo: Periodo;
+  /** Vagas do setor Pedagógico fechadas no período (Quadro) — estimativa de contratações. */
+  fechadasPedagogico?: number;
+}> = ({ selecoes, sedes, fechadasPedagogico = 0 }) => {
   const { C, grade, eixo, cursorBarra, cursorLinha, legenda } = useEixos();
   const COR = { geral: C.primary, pedagogico: C.amber };
   const [modo, setModo] = useState<Modo>('ambos');
@@ -46,6 +50,8 @@ export const AbaSelecoes: React.FC<{ selecoes: Selecao[]; sedes: Sede[]; periodo
   const porMes = useMemo(() => selecaoPorMes(lista), [lista]);
   const porSede = useMemo(() => funilPorChave(lista, s => siglaDaSede(sedes, s.sede) || 'Sem sede').slice(0, 12), [lista, sedes]);
   const porCargo = useMemo(() => funilPorChave(lista, s => s.cargo).slice(0, 10), [lista]);
+  // Pedagógico sem coluna CONTRATADO: estimativa pelas vagas fechadas no Quadro.
+  const estimativa = recorte === 'pedagogico' && !ind.contratacao && fechadasPedagogico > 0 ? fechadasPedagogico : null;
   const motivos = useMemo(() => motivosDesistencia(doRecorte(lista, 'geral')), [lista]);
   const totalMotivos = motivos.reduce((t, m) => t + m.total, 0);
 
@@ -85,7 +91,7 @@ export const AbaSelecoes: React.FC<{ selecoes: Selecao[]; sedes: Sede[]; periodo
       </div>
 
       {modo === 'comparar' ? (
-        <Comparativo geral={geral} ped={ped} mesAMes={mesAMes} COR={COR} />
+        <Comparativo geral={geral} ped={ped} mesAMes={mesAMes} COR={COR} fechadasPedagogico={fechadasPedagogico} />
       ) : ind.eventos === 0 ? (
         <Painel titulo="Seleções"><Vazio>Nenhuma seleção realizada neste recorte.</Vazio></Painel>
       ) : (
@@ -95,13 +101,26 @@ export const AbaSelecoes: React.FC<{ selecoes: Selecao[]; sedes: Sede[]; periodo
             <Kpi rotulo="Compareceram" valor={num(ind.compareceram)} detalhe={`${ind.taxaComparecimento}% dos convocados`} />
             <Kpi rotulo="Ausentes" valor={num(ind.ausentes)} tom={ind.taxaAusencia >= 50 ? 'atencao' : 'neutro'} detalhe={`${ind.taxaAusencia}% dos convocados`} />
             <Kpi rotulo="Desistências" valor={num(ind.desistiram)} />
-            <Kpi rotulo="Contratados" valor={ind.contratacao ? num(ind.contratacao.contratados) : '—'}
-              detalhe={ind.contratacao ? (recorte === 'ambos' ? 'só a base Geral registra' : `${ind.contratacao.conversaoPresentes}% de quem compareceu`) : SEM_REGISTRO} />
-            <Kpi rotulo="Convocações por contratação" valor={ind.contratacao?.convocadosPorContratacao != null ? dec(ind.contratacao.convocadosPorContratacao) : '—'}
-              detalhe={ind.contratacao ? 'base Geral' : SEM_REGISTRO} />
+            {estimativa !== null ? (
+              <>
+                <Kpi rotulo="Contratados (estimativa)" valor={`≈ ${num(estimativa)}`}
+                  detalhe="vagas pedagógicas fechadas no Quadro" />
+                <Kpi rotulo="Convocações por contratação" valor={`≈ ${dec(ind.convocados / estimativa)}`}
+                  detalhe="estimativa pelas vagas fechadas" />
+              </>
+            ) : (
+              <>
+                <Kpi rotulo="Contratados" valor={ind.contratacao ? num(ind.contratacao.contratados) : '—'}
+                  detalhe={ind.contratacao ? (recorte === 'ambos' ? 'só a base Geral registra' : `${ind.contratacao.conversaoPresentes}% de quem compareceu`) : SEM_REGISTRO} />
+                <Kpi rotulo="Convocações por contratação" valor={ind.contratacao?.convocadosPorContratacao != null ? dec(ind.contratacao.convocadosPorContratacao) : '—'}
+                  detalhe={ind.contratacao ? 'base Geral' : SEM_REGISTRO} />
+              </>
+            )}
           </div>
 
-          {recorte === 'pedagogico' && <Nota>A planilha pedagógica não registra contratações nem motivo de desistência — por isso esses indicadores ficam sem valor aqui.</Nota>}
+          {recorte === 'pedagogico' && <Nota>{estimativa !== null
+            ? 'A planilha pedagógica não registra contratações: o número vem das vagas do setor Pedagógico fechadas no Quadro no período (cada vaga fechada = uma contratação). Motivo de desistência segue sem registro.'
+            : 'A planilha pedagógica não registra contratações nem motivo de desistência — por isso esses indicadores ficam sem valor aqui.'}</Nota>}
           {ind.inconsistentes > 0 && (
             <Nota>Em {ind.inconsistentes} dos {ind.eventos} dias, convocados ≠ compareceram + ausentes na planilha. As taxas usam os convocados como registrados.</Nota>
           )}
@@ -186,7 +205,8 @@ const Comparativo: React.FC<{
   geral: IndicadoresSelecao; ped: IndicadoresSelecao;
   mesAMes: { mes: string; convGeral: number; convPed: number; taxaGeral: number | null; taxaPed: number | null }[];
   COR: { geral: string; pedagogico: string };
-}> = ({ geral, ped, mesAMes, COR }) => {
+  fechadasPedagogico: number;
+}> = ({ geral, ped, mesAMes, COR, fechadasPedagogico }) => {
   const { grade, eixo, cursorBarra, cursorLinha, legenda } = useEixos();
   const linhas: [string, string, string][] = [
     ['Dias de seleção', num(geral.eventos), num(ped.eventos)],
@@ -196,8 +216,8 @@ const Comparativo: React.FC<{
     ['Desistências', num(geral.desistiram), num(ped.desistiram)],
     ['Comparecimento', `${geral.taxaComparecimento}%`, `${ped.taxaComparecimento}%`],
     ['Ausência', `${geral.taxaAusencia}%`, `${ped.taxaAusencia}%`],
-    ['Contratados', geral.contratacao ? num(geral.contratacao.contratados) : '—', SEM_REGISTRO],
-    ['Convocações por contratação', geral.contratacao?.convocadosPorContratacao != null ? dec(geral.contratacao.convocadosPorContratacao) : '—', SEM_REGISTRO],
+    ['Contratados', geral.contratacao ? num(geral.contratacao.contratados) : '—', fechadasPedagogico ? `≈ ${num(fechadasPedagogico)} (vagas fechadas)` : SEM_REGISTRO],
+    ['Convocações por contratação', geral.contratacao?.convocadosPorContratacao != null ? dec(geral.contratacao.convocadosPorContratacao) : '—', fechadasPedagogico ? `≈ ${dec(ped.convocados / fechadasPedagogico)}` : SEM_REGISTRO],
   ];
   const marca = (cor: string) => <span className="inline-block w-2.5 h-2.5 rounded-sm mr-1.5 align-[-1px]" style={{ background: cor }} aria-hidden="true" />;
   return (

@@ -24,6 +24,7 @@ import type { Sede } from '../hooks/useMetadata';
 import { SLA_META_DIAS } from '../constants/hr';
 import { getDiasEmAberto } from '../utils/vaga';
 import { estaAtrasada } from '../utils/selecao';
+import { normalizeKey } from '../lib/spreadsheetImport';
 import { indicadoresSelecao, taxaTurnover } from '../utils/indicadores';
 import { formatDateBR, dataISOLocal } from '../utils/date';
 import {
@@ -114,6 +115,13 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
       turnover: turnover.filter(t => noPeriodo(periodo, anoMesDeMesAno(t.mesAno))),
     };
   }, [vagas, selecoes, treinamentos, experiencias, integracoes, entrevistas, turnover, daSede, periodo]);
+
+  // Estimativa de contratações do Pedagógico: a planilha pedagógica não tem a
+  // coluna CONTRATADO, mas o Quadro tem as vagas do setor fechadas no período.
+  const fechadasPedagogico = useMemo(() => f.vagas.filter(v =>
+    (v.status || '').toUpperCase() === 'FECHADA' && noPeriodo(periodo, anoMes(v.conclusao))
+    && normalizeKey(v.setor) === 'pedagogico').length,
+  [f.vagas, periodo]);
 
   // ── visão geral ──────────────────────────────────────────────────────────
   const geral = useMemo(() => {
@@ -237,7 +245,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
       <div role="tabpanel" id={`painel-${aba}`} aria-labelledby={`aba-${aba}`}>
         {aba === 'geral' && <AbaVisaoGeral atencao={geral.atencao} temas={geral.temas} irPara={setAba} />}
         {aba === 'vagas' && <AbaVagas vagas={f.vagas} sedes={sedes} periodo={periodo} />}
-        {aba === 'selecoes' && <AbaSelecoes selecoes={f.selecoes} sedes={sedes} periodo={periodo} />}
+        {aba === 'selecoes' && <AbaSelecoes selecoes={f.selecoes} sedes={sedes} periodo={periodo} fechadasPedagogico={fechadasPedagogico} />}
         {aba === 'pessoas' && (
           <div className="space-y-8">
             <AbaPessoas treinamentos={f.treinamentos} experiencias={f.experiencias} experienciasEmCurso={f.experienciasSede}
