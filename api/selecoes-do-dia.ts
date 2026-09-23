@@ -173,6 +173,10 @@ function ehSelecao(e: EntradaLog): boolean {
   return e.modulo === 'Vagas' && /^(Seleção agendada|Presença confirmada)/.test(e.detalhes || '');
 }
 
+/**
+ * Configurar usuário, sede ou cargo é manutenção do sistema, não trabalho do RH
+ * para a direção ler — fica fora do relato, e não faz ninguém "trabalhar no dia".
+ */
 const CADASTROS = new Set(['Usuários', 'Sedes', 'Cargos', 'Setores', 'Regiões']);
 const ehImportacao = (e: EntradaLog) =>
   e.ref?.tipo === 'importacao' || /^(Import|Importação)/.test(e.detalhes || '');
@@ -302,9 +306,6 @@ function frasesDeManutencao(porModulo: Map<string, EntradaLog[]>): string[] {
 
   const org = (porModulo.get('Organograma') || []).length;
   if (org) frases.push(`Fez ${plural(org, 'ajuste', 'ajustes')} no organograma.`);
-
-  const cad = [...porModulo.entries()].filter(([m]) => CADASTROS.has(m)).reduce((t, [, es]) => t + es.length, 0);
-  if (cad) frases.push(`Fez ${plural(cad, 'ajuste', 'ajustes')} nos cadastros do sistema.`);
   return frases;
 }
 
@@ -407,6 +408,7 @@ export function relatoPorPessoa(
   tarefas: Tarefa[] = [],
 ): RelatoPessoa[] {
   const quem = (e: string) => (e || '').trim().toLowerCase();
+  logs = logs.filter(e => !CADASTROS.has(e.modulo));
   const doAno = logs.filter(e => quem(e.usuario) && ano(diaEmFortaleza(e.timestamp)) === ano(dia));
   const nomeDe = new Map(listaDeTarefas(tarefas).map(t => [t.id, t.nome]));
 

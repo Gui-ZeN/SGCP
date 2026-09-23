@@ -88,6 +88,15 @@ describe('o relato é frase, não linha de log', () => {
     expect(f).toContain('Importou 1 planilha para o sistema.');
   });
 
+  it('ajuste de cadastro não entra no relato — nem conta como dia trabalhado', () => {
+    // Configurar usuário, sede ou cargo não é trabalho do RH para a direção ler.
+    const cad = ['Usuários', 'Sedes', 'Cargos', 'Setores', 'Regiões'].map(modulo => e({ modulo, acao: 'ALTEROU' }));
+    expect(relato(cad)).toEqual([]);
+    const r = relato([...cad, e({})]);
+    expect(r[0].acoes).toBe(1);
+    expect(r[0].secoes.flatMap(s => s.frases)).toEqual(['Atualizou o andamento de 1 vaga.']);
+  });
+
   it('registro antigo, sem campos, ainda entra como contagem', () => {
     // Antes de 22/09 o log não gravava `ref`; nada do que a pessoa fez some.
     const f = frases([
