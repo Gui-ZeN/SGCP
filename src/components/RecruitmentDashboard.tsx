@@ -1,83 +1,42 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Indicadores — repaginado em 23/09/2026, a pedido do RH ("visualmente muito
+ * fracos", filtro de sede "todo bugado").
+ *
+ * Decisões:
+ *  - leitor = o RH no dia a dia: primeiro o que precisa de ação, depois o
+ *    detalhe por tema;
+ *  - ABAS por tema (Visão geral · Vagas · Seleções · Pessoas · Clima &
+ *    Turnover) no lugar dos 12 blocos em sequência;
+ *  - SEDE e PERÍODO valem para todos os módulos (antes só para vagas), com a
+ *    sede resolvida pelo cadastro (utils/filtroIndicadores): o filtro antigo
+ *    comparava texto cru e escondia as vagas "DIONISIO TORRES" ao escolher "DT";
+ *  - tema Suíço refinado: as peças em ./indicadores/ui.
+ *
+ * O nome do componente ficou `RecruitmentDashboard` para o App não mudar.
  */
-
-import React, { useState, useMemo } from 'react';
-import { Vaga, Treinamento, Experiencia, Entrevista, Turnover, Integracao, Selecao } from '../types';
+import React, { useMemo, useState } from 'react';
+import { Printer } from 'lucide-react';
+import type { Vaga, Treinamento, Experiencia, Entrevista, Turnover, Integracao, Selecao } from '../types';
+import type { Sede } from '../hooks/useMetadata';
 import { SLA_META_DIAS } from '../constants/hr';
-import { ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa } from '../utils/vaga';
+import { getDiasEmAberto } from '../utils/vaga';
+import { estaAtrasada } from '../utils/selecao';
+import { indicadoresSelecao, taxaTurnover } from '../utils/indicadores';
+import { formatDateBR, dataISOLocal } from '../utils/date';
+import {
+  opcoesDeSede, naSede, siglaDaSede, anoMes, anoMesDeMesAno, noPeriodo, anosDosDados, rotuloDoPeriodo,
+  MESES_LONGOS, type Periodo,
+} from '../utils/filtroIndicadores';
 import { RelatorioIndicadores } from './RelatorioSection';
-import { taxaPresencaPorCargo, taxaTurnover, funilSelecao, funilPorChave } from '../utils/indicadores';
-import { useCoresGrafico } from '../hooks/useCoresGrafico';
-import { Sede } from '../hooks/useMetadata';
-import { TabelaDoGrafico } from './TabelaDoGrafico';
-import { acharSede, siglaCanonica } from '../utils/unidade';
-import { 
-  ResponsiveContainer, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  PieChart, 
-  Pie, 
-  Cell,
-  CartesianGrid,
-  Legend,
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  LabelList
-} from 'recharts';
-import { 
-  Briefcase, 
-  CheckCircle, 
-  Clock, 
-  TrendingUp,
-  GraduationCap,
-  Users,
-  Target,
-  LogOut,
-  Star,
-  MapPin,
-  SmilePlus,
-  AlertTriangle,
-  Award,
-  Filter,
-  ChevronRight,
-  FileText,
-  UserCheck,
-  AlertCircle,
-  HelpCircle,
-  DollarSign,
-  Printer
-} from 'lucide-react';
-
-// --- Tema de gráficos: a paleta vem dos DESIGN TOKENS (useCoresGrafico), então
-// os gráficos acompanham o tema e as campanhas junto com o resto do sistema.
-// (Antes havia duas paletas fixas; a "atual" ficou inalcançável quando o tema
-// passou a ser só o Suíço, e a suíça chumbava o cobalto — gráficos continuavam
-// azuis durante a campanha.)
-
-const ChartTooltip: React.FC<any> = ({ active, payload, label, suffix = '' }) => {
-  if (!active || !payload || !payload.length) return null;
-  return (
-    <div className="bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl shadow-lg px-3 py-2">
-      {label !== undefined && label !== '' && (
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">{label}</p>
-      )}
-      {payload.map((p: any, i: number) => (
-        <div key={i} className="flex items-center gap-2 text-[11px] font-bold text-slate-600">
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color || p.fill }} />
-          <span>{p.name}</span>
-          <span className="ml-auto pl-4 text-slate-900 font-black">{p.value}{suffix}</span>
-        </div>
-      ))}
-    </div>
-  );
-};
+import { AbaVisaoGeral, type AbaId, type ItemDeAtencao, type ResumoDoTema } from './indicadores/AbaVisaoGeral';
+import { AbaVagas } from './indicadores/AbaVagas';
+import { AbaSelecoes } from './indicadores/AbaSelecoes';
+import { AbaPessoas, avaliacoesAVencer, LIMITE_ATRASO_DIAS } from './indicadores/AbaPessoas';
+import { AbaClima } from './indicadores/AbaClima';
+import { num, dec, pct } from './indicadores/ui';
 
 interface RecruitmentDashboardProps {
   vagas: Vaga[];
@@ -90,1305 +49,211 @@ interface RecruitmentDashboardProps {
   sedes?: Sede[];
   userSede?: string;
   isAdmin?: boolean;
-  /** Eventos de seleção (abas QUANTI). Agregados — não se ligam a uma vaga. */
+  /** Dias de seleção (abas QUANTI + os lançados no sistema). */
   selecoes?: Selecao[];
 }
 
+const ABAS: { id: AbaId; rotulo: string }[] = [
+  { id: 'geral', rotulo: 'Visão geral' },
+  { id: 'vagas', rotulo: 'Vagas' },
+  { id: 'selecoes', rotulo: 'Seleções' },
+  { id: 'pessoas', rotulo: 'Pessoas' },
+  { id: 'clima', rotulo: 'Clima & Turnover' },
+];
+const EM_ANDAMENTO = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO'];
+
+const campoFiltro = 'text-sm bg-white border border-slate-200 rounded-lg pl-3 pr-8 py-2 font-semibold text-slate-800 outline-none focus:border-slate-800 cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed';
+
 export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
-  vagas,
-  treinamentos = [],
-  experiencias = [],
-  entrevistas = [],
-  turnover = [],
-  integracoes = [],
-  mostrarIntegracao = false,
-  sedes = [],
-  selecoes = [],
-  userSede,
-  isAdmin = false
+  vagas, treinamentos = [], experiencias = [], entrevistas = [], turnover = [], integracoes = [],
+  mostrarIntegracao = false, sedes = [], selecoes = [], userSede, isAdmin = false,
 }) => {
-  const CHART = useCoresGrafico();
-  const BAR_CURSOR = { fill: CHART.primary, fillOpacity: 0.06 } as const;
+  const [aba, setAba] = useState<AbaId>('geral');
 
-  // Casam por nome OU sigla (acharSede), como o resto do sistema já faz. Antes
-  // casavam só por nome, e "DT" nunca era reconhecida como DIONISIO TORRES.
-  const getSedeLabel = (nome: string) => {
-    const matched = acharSede(sedes || [], nome);
-    return matched && matched.sigla ? `${matched.nome} (${matched.sigla})` : nome;
-  };
+  // ── filtros ──────────────────────────────────────────────────────────────
+  // Quem não é admin vê a própria sede (como antes), já pela sigla do cadastro.
+  const sedeTravada = !isAdmin && !!userSede;
+  const [sede, setSede] = useState<string | null>(() => (sedeTravada ? siglaDaSede(sedes, userSede) || userSede! : null));
+  const opcoes = useMemo(() => opcoesDeSede(sedes, [
+    ...vagas.map(v => v.sede), ...selecoes.map(s => s.sede), ...treinamentos.map(t => t.unidade),
+    ...experiencias.map(e => e.sede), ...integracoes.map(i => i.sede), ...entrevistas.map(e => e.unidade),
+  ]), [sedes, vagas, selecoes, treinamentos, experiencias, integracoes, entrevistas]);
 
-  const getSedeSigla = (nome: string) => siglaCanonica(sedes || [], nome);
-
-  // --- Estados de Filtros Interativos ---
-  const [selectedSede, setSelectedSede] = useState<string>(() => {
-    return !isAdmin && userSede ? userSede : 'TODAS';
-  });
-  const [selectedSetor, setSelectedSetor] = useState<string>('TODOS');
-  const [selectedAno, setSelectedAno] = useState<string>('TODOS');
-
+  const anos = useMemo(() => anosDosDados([
+    ...vagas.map(v => v.solicitacao), ...selecoes.map(s => s.data), ...treinamentos.map(t => t.dataInicio), ...turnover.map(t => t.mesAno),
+  ]), [vagas, selecoes, treinamentos, turnover]);
+  const anoAtual = new Date().getFullYear();
+  // Abre no ano corrente (ou no mais recente com dado): é o que o RH olha.
+  const [periodo, setPeriodoBruto] = useState<Periodo>(() => ({ ano: anos.includes(anoAtual) ? anoAtual : (anos[0] ?? null), mes: null }));
+  // Os dados chegam do Firestore DEPOIS do primeiro render: sem isto, o ano
+  // padrão nascia de uma lista vazia e a tela abria em "todo o período". Só
+  // enquanto a pessoa não escolheu nada.
+  const escolheuPeriodo = React.useRef(false);
+  const setPeriodo: typeof setPeriodoBruto = v => { escolheuPeriodo.current = true; setPeriodoBruto(v); };
   React.useEffect(() => {
-    if (!isAdmin && userSede) {
-      setSelectedSede(userSede);
-    }
-  }, [userSede, isAdmin]);
+    if (escolheuPeriodo.current || !anos.length) return;
+    const padrao = anos.includes(anoAtual) ? anoAtual : anos[0];
+    setPeriodoBruto(p => (p.ano === padrao ? p : { ano: padrao, mes: null }));
+  }, [anos, anoAtual]);
 
-  // --- Extração de Opções para Filtros ---
-  const listSedes = useMemo(() => {
-    const list = new Set<string>();
-    vagas.forEach(v => { if (v.sede) list.add(v.sede); });
-    
-    const sortedList = Array.from(list).sort((a, b) => {
-      if (userSede) {
-        if (a.toLowerCase() === userSede.toLowerCase()) return -1;
-        if (b.toLowerCase() === userSede.toLowerCase()) return 1;
-      }
-      return a.localeCompare(b);
-    });
-    
-    return ['TODAS', ...sortedList];
-  }, [vagas, userSede]);
-
-  const listSetores = useMemo(() => {
-    const list = new Set<string>();
-    vagas.forEach(v => { if (v.setor) list.add(v.setor); });
-    return ['TODOS', ...Array.from(list).sort()];
-  }, [vagas]);
-
-  const listAnos = useMemo(() => {
-    const list = new Set<string>();
-    vagas.forEach(v => { if (v.ano) list.add(String(v.ano)); });
-    return ['TODOS', ...Array.from(list).sort()];
-  }, [vagas]);
-
-  // --- Aplicação dos Filtros ---
-  const filteredVagas = useMemo(() => {
-    return vagas.filter(v => {
-      const matchSede = selectedSede === 'TODAS' || v.sede === selectedSede;
-      const matchSetor = selectedSetor === 'TODOS' || v.setor === selectedSetor;
-      const matchAno = selectedAno === 'TODOS' || String(v.ano) === selectedAno;
-      return matchSede && matchSetor && matchAno;
-    });
-  }, [vagas, selectedSede, selectedSetor, selectedAno]);
-
-  const filteredTreinamentos = useMemo(() => {
-    return treinamentos.filter(t => {
-      const matchSede = selectedSede === 'TODAS' || t.unidade === selectedSede;
-      // Treinamentos não possuem campo setor diretamente, filtramos por sede
-      return matchSede;
-    });
-  }, [treinamentos, selectedSede]);
-
-  const filteredExperiencias = useMemo(() => {
-    return experiencias.filter(e => {
-      const matchSetor = selectedSetor === 'TODOS' || e.setor === selectedSetor;
-      return matchSetor;
-    });
-  }, [experiencias, selectedSetor]);
-
-  const filteredEntrevistas = useMemo(() => {
-    return entrevistas.filter(e => {
-      const matchSede = selectedSede === 'TODAS' || e.unidade === selectedSede;
-      const matchSetor = selectedSetor === 'TODOS' || e.funcao.toLowerCase().includes(selectedSetor.toLowerCase());
-      return matchSede && matchSetor;
-    });
-  }, [entrevistas, selectedSede, selectedSetor]);
-
-  // --- KPIs Principais (Baseados em dados filtrados) ---
-  const vagasAbertas = filteredVagas.filter(v => ['ABERTA', 'REABERTA'].includes(v.status.toUpperCase())).length;
-  const closedVagas = filteredVagas.filter(v => v.status.toUpperCase() === 'FECHADA' && v.tempoProcesso && v.tempoProcesso > 0);
-  const mediaSla = closedVagas.length > 0
-    ? Math.round(closedVagas.reduce((acc, curr) => acc + (curr.tempoProcesso || 0), 0) / closedVagas.length)
-    : 0;
-  // Denominador honesto do SLA: `tempoProcesso > 0` descarta as fechadas com
-  // tempo 0 (36 no banco em 27/08/2026) e o registro com valor negativo herdado
-  // da época do Excel. Sem mostrar quantas entraram, uma média sobre parte das
-  // fechadas é lida como se fosse sobre todas.
-  const totalFechadas = filteredVagas.filter(v => v.status.toUpperCase() === 'FECHADA').length;
-
-  const totalInvestidoTreinamento = filteredTreinamentos.reduce((acc, t) => acc + (t.valorInvestido || 0), 0);
-  const horasTotaisTreinamento = filteredTreinamentos.reduce((acc, t) => acc + (t.totalHorasFormacao || 0), 0);
-
-  const mediaClima = filteredEntrevistas.length > 0 
-    ? (filteredEntrevistas.reduce((acc, e) => acc + (e.notaClimaOrg || 0), 0) / filteredEntrevistas.length).toFixed(1) 
-    : '0.0';
-  // Turnover: o campo `taxaTurnoverGeral` que este KPI lia não existe no tipo,
-  // no banco nem em lugar nenhum do repositório — o card mostrava 0 fixo. Agora
-  // a taxa é calculada dos campos que existem, e o mês vem junto porque é uma
-  // taxa MENSAL.
-  //
-  // O rótulo de cobertura SEGUE o dado (`cobertura`) em vez de cravar "todas as
-  // unidades": o RH lança só o Colégio, então afirmar "todas" seria falso e
-  // ninguém teria como perceber olhando a tela. O card também não respeita o
-  // filtro de sede — o registro é mensal, não por sede.
-  const turnoverInfo = useMemo(() => taxaTurnover(turnover), [turnover]);
-  const COBERTURA_TURNOVER: Record<string, string> = {
-    colegio: 'Colégio',
-    universidade: 'Universidade',
-    ambas: 'Colégio + Universidade',
-    consolidado: 'unidade não informada',
-  };
-
-  // --- Vagas Status Chart Data ---
-  const statusData = useMemo(() => {
-    return [
-      { name: 'Em andamento', value: filteredVagas.filter(v => ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO'].includes(v.status.toUpperCase())).length, color: CHART.primary },
-      { name: 'Fechadas', value: filteredVagas.filter(v => v.status.toUpperCase() === 'FECHADA').length, color: CHART.emerald },
-      { name: 'Pausadas/Canc', value: filteredVagas.filter(v => ['PAUSADA', 'SUSPENSA'].includes(v.status.toUpperCase())).length, color: CHART.slate },
-    ];
-  }, [filteredVagas, CHART]);
-
-  // --- Vagas por Sede/Unidade (Top 6) ---
-  const sedeChartData = useMemo(() => {
-    // Agrupa pela sigla CANÔNICA, não pela string crua: senão "DT" e
-    // "DIONISIO TORRES" viram duas barras com o mesmo rótulo (relatório §3).
-    const counts: Record<string, number> = {};
-    filteredVagas.forEach(v => {
-      const key = siglaCanonica(sedes || [], v.sede) || 'Não informada';
-      counts[key] = (counts[key] || 0) + 1;
-    });
-    return Object.keys(counts)
-      .map(key => ({ name: key, quantidade: counts[key] }))
-      .sort((a, b) => b.quantidade - a.quantidade)
-      .slice(0, 6);
-  }, [filteredVagas, sedes]);
-
-  // --- SLA Médio por Setor (Análise de Gargalos) ---
-  const slaSetorChartData = useMemo(() => {
-    const sum: Record<string, number> = {};
-    const count: Record<string, number> = {};
-    filteredVagas.forEach(v => {
-      if (v.status.toUpperCase() === 'FECHADA' && v.tempoProcesso && v.tempoProcesso > 0) {
-        const s = v.setor || 'Outros';
-        sum[s] = (sum[s] || 0) + v.tempoProcesso;
-        count[s] = (count[s] || 0) + 1;
-      }
-    });
-    return Object.keys(sum)
-      .map(k => ({ name: k, sla: Math.round(sum[k] / count[k]) }))
-      .sort((a, b) => b.sla - a.sla)
-      .slice(0, 6);
-  }, [filteredVagas]);
-
-  // --- Funil de conversão de candidatos (chamou x veio x aprovou) ---
-  const funilData = useMemo(() => {
-    let chamados = 0, compareceram = 0, aprovados = 0;
-    filteredVagas.forEach(v => {
-      chamados += v.candChamados || 0;
-      compareceram += v.candCompareceram || 0;
-      aprovados += v.candAprovados || 0;
-    });
-    return { chamados, compareceram, aprovados };
-  }, [filteredVagas]);
-
-  const funilChartData = useMemo(() => ([
-    { name: 'Chamados', total: funilData.chamados },
-    { name: 'Compareceram', total: funilData.compareceram },
-    { name: 'Aprovados', total: funilData.aprovados }
-  ]), [funilData]);
-
-  // Quantas vagas de fato têm funil preenchido — é o denominador honesto do card.
-  const vagasComFunil = useMemo(
-    () => filteredVagas.filter(v => (v.candChamados || 0) > 0 || (v.candCompareceram || 0) > 0).length,
-    [filteredVagas]
-  );
-
-  const taxaComparecimento = funilData.chamados > 0 ? Math.round((funilData.compareceram / funilData.chamados) * 100) : 0;
-  const taxaAprovacao = funilData.compareceram > 0 ? Math.round((funilData.aprovados / funilData.compareceram) * 100) : 0;
-
-  // --- Taxa de Presença por cargo (deck pág. 7–8): convocados x presentes ---
-  const presencaCargoData = useMemo(
-    () => taxaPresencaPorCargo(filteredVagas).slice(0, 10),
-    [filteredVagas]
-  );
-
-  // --- Tempo médio por etapa (gargalos) — apenas vagas ativas (não fechadas) ---
-  const tempoEtapaData = useMemo(() => {
-    const sum: Record<string, number> = {};
-    const count: Record<string, number> = {};
-    const semEtapa: Record<string, number> = {};   // vagas que caíram no bucket sem etapa gravada
-    const semData: Record<string, number> = {};    // vagas sem etapaDesde (dias = tempo total em aberto)
-    filteredVagas.forEach(v => {
-      if (v.status.toUpperCase() === 'FECHADA') return;
-      const et = normalizeEtapa(v);
-      sum[et] = (sum[et] || 0) + diasNestaEtapa(v);
-      count[et] = (count[et] || 0) + 1;
-      // normalizeEtapa devolve 'Triagem' também quando a vaga não tem etapa
-      // nenhuma — é o fallback. Sem separar, "Triagem" parece o gargalo quando
-      // na verdade é o balde do desconhecido (relatório §3: 59 das 111 ativas).
-      if (!String(v.etapa || '').trim() && v.status.toUpperCase() !== 'DOCUMENTAÇÃO') {
-        semEtapa[et] = (semEtapa[et] || 0) + 1;
-      }
-      // Sem etapaDesde, diasNestaEtapa cai no tempo TOTAL em aberto e infla a
-      // média (relatório §9: só 28 das 111 ativas têm a data).
-      if (!String(v.etapaDesde || '').trim()) semData[et] = (semData[et] || 0) + 1;
-    });
-    return ETAPAS_FUNIL
-      .filter(et => count[et])
-      .map(et => ({
-        name: et,
-        dias: Math.round(sum[et] / count[et]),
-        qtd: count[et],
-        semEtapa: semEtapa[et] || 0,
-        semData: semData[et] || 0,
-      }));
-  }, [filteredVagas]);
-
-  // Totais para a legenda do gráfico de etapas — o número que diz o quanto dele
-  // é chute. Sem isto, o leitor não tem como saber.
-  // Funil de SELEÇÃO (abas QUANTI) — agregado, sem vínculo com vaga. Não é o
-  // mesmo funil do card acima: aquele vem dos campos preenchidos na vaga, este
-  // dos dias de seleção importados da planilha.
-  const funilSel = useMemo(() => funilSelecao(selecoes), [selecoes]);
-  const funilSelPorSede = useMemo(() => funilPorChave(selecoes, s => s.sede).slice(0, 10), [selecoes]);
-
-  /**
-   * Evolução mensal do quadro — a mesma leitura da tela de Turnover, trazida
-   * para os Indicadores porque é aqui que o RH olha. Ordena pelo próprio
-   * `mesAno` (a ordem que vem do onSnapshot não é cronológica) e soma os
-   * registros do mesmo mês, caso as duas unidades estejam lançadas.
-   */
-  const evolucaoTurnover = useMemo(() => {
-    const chave = (m?: string) => {
-      const p = /^(\d{2})\/(\d{4})$/.exec((m || '').trim());
-      return p ? Number(p[2]) * 12 + Number(p[1]) : -Infinity;
+  const daSede = useMemo(() => naSede(sedes, sede), [sedes, sede]);
+  const f = useMemo(() => {
+    const noP = (d?: string) => noPeriodo(periodo, anoMes(d));
+    const integSede = integracoes.filter(i => daSede(i.sede));
+    return {
+      vagas: vagas.filter(v => daSede(v.sede)),
+      selecoes: selecoes.filter(s => daSede(s.sede) && noP(s.data)),
+      selecoesSede: selecoes.filter(s => daSede(s.sede)),
+      treinamentos: treinamentos.filter(t => daSede(t.unidade) && noP(t.dataInicio)),
+      experiencias: experiencias.filter(e => daSede(e.sede) && noP(e.dataAdmissao)),
+      experienciasSede: experiencias.filter(e => daSede(e.sede)),
+      integracoes: integSede.filter(i => noP(i.admissao)),
+      integracoesSemData: integSede.filter(i => !anoMes(i.admissao)).length,
+      entrevistas: entrevistas.filter(e => daSede(e.unidade) && noP(e.dataEntrevista)),
+      // Turnover não tem sede: só o período.
+      turnover: turnover.filter(t => noPeriodo(periodo, anoMesDeMesAno(t.mesAno))),
     };
+  }, [vagas, selecoes, treinamentos, experiencias, integracoes, entrevistas, turnover, daSede, periodo]);
 
-    const porMes = new Map<string, { name: string; admissoes: number; pediramSair: number; foramDesligados: number; efetivo: number }>();
-    turnover.forEach(t => {
-      const mes = (t.mesAno || '').trim();
-      if (!mes) return;
-      const atual = porMes.get(mes) || { name: mes, admissoes: 0, pediramSair: 0, foramDesligados: 0, efetivo: 0 };
-      atual.admissoes += t.totalAdmissao || 0;
-      atual.pediramSair += t.pediramSair || 0;
-      atual.foramDesligados += t.foramDesligados || 0;
-      atual.efetivo += t.totalFuncionarios || 0;
-      porMes.set(mes, atual);
-    });
+  // ── visão geral ──────────────────────────────────────────────────────────
+  const geral = useMemo(() => {
+    const abertas = f.vagas.filter(v => EM_ANDAMENTO.includes((v.status || '').toUpperCase()));
+    const atrasadasVaga = abertas.map(v => ({ v, d: getDiasEmAberto(v) })).filter(x => x.d > SLA_META_DIAS).sort((a, b) => b.d - a.d);
+    const fechadas = f.vagas.filter(v => (v.status || '').toUpperCase() === 'FECHADA' && noPeriodo(periodo, anoMes(v.conclusao)));
+    const comTempo = fechadas.filter(v => (v.tempoProcesso || 0) > 0);
+    const tempo = comTempo.length ? Math.round(comTempo.reduce((t, v) => t + (v.tempoProcesso || 0), 0) / comTempo.length) : null;
 
-    return [...porMes.values()]
-      .sort((a, b) => chave(a.name) - chave(b.name))
-      .map(m => ({
-        ...m,
-        saidas: m.pediramSair + m.foramDesligados,
-        // Mesma fórmula rotulada no módulo Turnover — duas fórmulas sob a mesma
-        // palavra dariam dois números diferentes no mesmo sistema.
-        taxa: m.efetivo > 0
-          ? Number(((((m.admissoes + m.pediramSair + m.foramDesligados) / 2) / m.efetivo) * 100).toFixed(1))
-          : 0,
-      }));
-  }, [turnover]);
+    const sel = indicadoresSelecao(f.selecoes);
+    const hojeBR = formatDateBR(dataISOLocal());
+    const semConfirmar = f.selecoesSede.filter(s => estaAtrasada(s, hojeBR));
 
-  const etapaIncerteza = useMemo(() => ({
-    semEtapa: tempoEtapaData.reduce((s, l) => s + l.semEtapa, 0),
-    semData: tempoEtapaData.reduce((s, l) => s + l.semData, 0),
-    total: tempoEtapaData.reduce((s, l) => s + l.qtd, 0),
-  }), [tempoEtapaData]);
+    const aVencer = avaliacoesAVencer(f.experienciasSede, 7);
+    const atrasadasExp = aVencer.filter(x => x.dias < 0 && x.dias >= -LIMITE_ATRASO_DIAS);
+    const semDesfecho = aVencer.filter(x => x.dias < -LIMITE_ATRASO_DIAS).length;
+    const treinados = f.treinamentos.reduce((t, x) => t + (x.qtdRealizada || 0), 0);
+    const previstos = f.treinamentos.reduce((t, x) => t + (x.qtdPrevista || 0), 0);
+    const efetivados = f.experiencias.filter(e => e.status === 'EFETIVADO').length;
+    const pendInteg = f.integracoes.filter(i => i.status === 'Não realizado').length;
 
-  // --- Motivos de desistência (top) ---
-  const motivosDesistData = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredVagas.forEach(v => {
-      if (v.motivoDesistencia) counts[v.motivoDesistencia] = (counts[v.motivoDesistencia] || 0) + 1;
-    });
-    return Object.keys(counts)
-      .map(k => ({ name: k, total: counts[k] }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 6);
-  }, [filteredVagas]);
+    const turn = taxaTurnover(f.turnover);
+    const adm = f.turnover.reduce((t, x) => t + (x.totalAdmissao || 0), 0);
+    const saidas = f.turnover.reduce((t, x) => t + (x.pediramSair || 0) + (x.foramDesligados || 0), 0);
 
-  // --- Motivos de Abertura ---
-  const motivoVagaData = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredVagas.forEach(v => {
-      const s = v.categoriaMotivo || 'Outros';
-      counts[s] = (counts[s] || 0) + 1;
-    });
-    return Object.keys(counts)
-      .map(k => ({ name: k, total: counts[k] }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 4);
-  }, [filteredVagas]);
+    const atencao: ItemDeAtencao[] = [];
+    if (atrasadasExp.length) atencao.push({ id: 'exp-atrasada', gravidade: 'critico', aba: 'pessoas',
+      texto: `${atrasadasExp.length} avaliação(ões) de experiência atrasada(s)`,
+      detalhe: atrasadasExp.slice(0, 3).map(x => `${x.e.colaborador} (${x.marco}, ${-x.dias} d)`).join(' · ') });
+    if (atrasadasVaga.length) atencao.push({ id: 'vaga-prazo', gravidade: atrasadasVaga.length > 10 ? 'critico' : 'atencao', aba: 'vagas',
+      texto: `${atrasadasVaga.length} vaga(s) em aberto há mais de ${SLA_META_DIAS} dias`,
+      detalhe: atrasadasVaga.slice(0, 3).map(x => `#${x.v.codigo} ${x.v.vaga} · ${x.d} d`).join(' · ') });
+    if (semConfirmar.length) atencao.push({ id: 'sel-confirmar', gravidade: 'atencao', aba: 'selecoes',
+      texto: `${semConfirmar.length} seleção(ões) passaram sem confirmar quem compareceu`,
+      detalhe: 'Confirme na aba Resumo do Dia — até lá, ficam fora dos números.' });
+    if (semDesfecho) atencao.push({ id: 'exp-sem-desfecho', gravidade: 'atencao', aba: 'pessoas',
+      texto: `${semDesfecho} experiência(s) sem desfecho lançado há mais de ${LIMITE_ATRASO_DIAS} dias`,
+      detalhe: 'O prazo já passou faz tempo: é efetivar ou encerrar na aba Experiência.' });
+    const proximas = aVencer.filter(x => x.dias >= 0);
+    if (proximas.length) atencao.push({ id: 'exp-proximas', gravidade: 'atencao', aba: 'pessoas',
+      texto: `${proximas.length} avaliação(ões) de experiência nos próximos 7 dias`,
+      detalhe: proximas.slice(0, 3).map(x => `${x.e.colaborador} · ${x.dias === 0 ? 'hoje' : `em ${x.dias} d`}`).join(' · ') });
+    if (mostrarIntegracao && pendInteg) atencao.push({ id: 'integ', gravidade: 'atencao', aba: 'pessoas',
+      texto: `${pendInteg} integração(ões) pendente(s)`, detalhe: 'Admitidos no período que ainda não fizeram a integração.' });
+    if (previstos && pct(treinados, previstos) < 70) atencao.push({ id: 'trein', gravidade: 'atencao', aba: 'pessoas',
+      texto: `Aproveitamento dos treinamentos em ${pct(treinados, previstos)}%`, detalhe: `${num(treinados)} presentes de ${num(previstos)} previstos.` });
 
-  // --- Treinamentos Detalhado ---
-  const trTypeMap = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredTreinamentos.forEach(t => {
-      map[t.tipo] = (map[t.tipo] || 0) + 1;
-    });
-    return Object.keys(map).map(k => ({ name: k, total: map[k] }));
-  }, [filteredTreinamentos]);
-
-  const aproveitamentoTreinamento = useMemo(() => {
-    let presencaTot = 0, previsaoTot = 0;
-    filteredTreinamentos.forEach(t => {
-      presencaTot += t.qtdRealizada || 0;
-      previsaoTot += t.qtdPrevista || 0;
-    });
-    return previsaoTot > 0 ? Math.round((presencaTot / previsaoTot) * 100) : 0;
-  }, [filteredTreinamentos]);
-
-  // --- Entrevistas/Saídas ---
-  const motivosSaidaData = useMemo(() => {
-    const motivos: Record<string, number> = {};
-    filteredEntrevistas.forEach(e => {
-      if (e.motivoSaida) motivos[e.motivoSaida] = (motivos[e.motivoSaida] || 0) + 1;
-    });
-    return Object.keys(motivos)
-      .map(k => ({ name: k, total: motivos[k] }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 5);
-  }, [filteredEntrevistas]);
-
-  const dimensoesClima = useMemo(() => {
-    const countEnt = filteredEntrevistas.length || 1;
-    return [
-      { name: 'Remuneração', score: Number((filteredEntrevistas.reduce((a, e) => a + (e.notaSalario || 0), 0) / countEnt).toFixed(1)) },
-      { name: 'Melhoria/Crescimento', score: Number((filteredEntrevistas.reduce((a, e) => a + (e.notaCrescimento || 0), 0) / countEnt).toFixed(1)) },
-      { name: 'Treinamento', score: Number((filteredEntrevistas.reduce((a, e) => a + (e.notaTreinamento || 0), 0) / countEnt).toFixed(1)) },
-      { name: 'Rel. Colegas', score: Number((filteredEntrevistas.reduce((a, e) => a + (e.notaRelacionamentoColegas || 0), 0) / countEnt).toFixed(1)) },
-      { name: 'Rel. Gestão', score: Number((filteredEntrevistas.reduce((a, e) => a + (e.notaRelacionamentoChefia || 0), 0) / countEnt).toFixed(1)) },
+    const temas: ResumoDoTema[] = [
+      { aba: 'vagas', titulo: 'Vagas', principal: { valor: num(abertas.length), rotulo: 'em aberto agora' },
+        apoio: [{ valor: num(fechadas.length), rotulo: 'fechadas no período' }, { valor: tempo !== null ? `${tempo} d` : '—', rotulo: 'tempo médio de fechamento' }] },
+      { aba: 'selecoes', titulo: 'Seleções', principal: { valor: sel.convocados ? `${sel.taxaComparecimento}%` : '—', rotulo: 'dos convocados compareceram' },
+        apoio: [{ valor: num(sel.convocados), rotulo: 'convocados' }, { valor: sel.contratacao ? num(sel.contratacao.contratados) : '—', rotulo: 'contratados (Geral)' }] },
+      { aba: 'pessoas', titulo: 'Pessoas', principal: { valor: num(treinados), rotulo: 'pessoas treinadas' },
+        apoio: [{ valor: num(efetivados), rotulo: 'efetivados na experiência' }, { valor: num(atrasadasExp.length), rotulo: 'avaliações de experiência atrasadas' }] },
+      { aba: 'clima', titulo: 'Clima & Turnover', principal: { valor: turn.temDados ? `${dec(turn.taxa)}%` : '—', rotulo: turn.temDados ? `turnover de ${turn.mesAno}` : 'turnover (sem mês lançado)' },
+        apoio: [{ valor: num(adm), rotulo: 'admissões' }, { valor: num(saidas), rotulo: 'saídas' }] },
     ];
-  }, [filteredEntrevistas]);
+    return { atencao, temas };
+  }, [f, periodo, mostrarIntegracao]);
 
-  const taxaRetorno = useMemo(() => {
-    let voltariaSim = 0;
-    filteredEntrevistas.forEach(e => { if (['Sim', 'Talvez'].includes(e.voltaria)) voltariaSim++; });
-    return filteredEntrevistas.length > 0 ? Math.round((voltariaSim / filteredEntrevistas.length) * 100) : 0;
-  }, [filteredEntrevistas]);
-
-  // --- Headcount Admissions vs Exits Flow ---
-  /**
-   * Últimos 12 meses da série mensal, para o gráfico de movimentação.
-   *
-   * Antes: `turnover.map(...).slice(-6)` — que pegava 6 meses na ordem em que o
-   * onSnapshot entregou, NÃO os 6 mais recentes, e somava as duas saídas numa
-   * barra só. `evolucaoTurnover` já vem ordenado e com as saídas separadas.
-   */
-  const headcountFlowData = useMemo(
-    () => evolucaoTurnover.slice(-12).map(m => ({
-      mes: m.name,
-      'Admissões': m.admissoes,
-      'Pediram para sair': m.pediramSair,
-      'Foram desligados': m.foramDesligados,
-      efetivo: m.efetivo,
-      taxa: m.taxa,
-    })),
-    [evolucaoTurnover]
-  );
-
-  // --- Geração Automática de Insights Heurísticos (Rápidos / Offline) ---
-  const heuristicInsights = useMemo(() => {
-    const list: { type: 'danger' | 'warning' | 'success' | 'info'; text: string; title: string }[] = [];
-
-    // Check SLA Bottlenecks
-    if (mediaSla > SLA_META_DIAS) {
-      list.push({
-        type: 'danger',
-        title: 'Tempo de Fechamento Crítico (SLA)',
-        text: `O tempo médio atual de contratação de ${mediaSla} dias está acima da meta de ${SLA_META_DIAS} dias. Considere revisar as etapas de avaliação técnica.`
-      });
-    } else if (mediaSla > 0 && mediaSla <= SLA_META_DIAS) {
-      list.push({
-        type: 'success',
-        title: 'Excelente Eficiência no Recrutamento',
-        text: `O tempo médio de contratação é de apenas ${mediaSla} dias. A agilidade nas etapas de triagem e admissão mantém o pipeline altamente otimizado.`
-      });
-    }
-
-    // Check Clima Organizational Dimensões
-    dimensoesClima.forEach(dim => {
-      if (dim.score > 0 && dim.score < 3.2) {
-        list.push({
-          type: 'danger',
-          title: `Satisfação Baixa em: ${dim.name}`,
-          text: `A nota de ${dim.score}/5.0 indica insatisfação crítica. Este fator é um motivador primário no desligamento voluntário de colaboradores.`
-        });
-      } else if (dim.score >= 4.2) {
-        list.push({
-          type: 'success',
-          title: `Destaque Positivo em: ${dim.name}`,
-          text: `Colaboradores avaliaram este quesito com nota de ${dim.score}/5.0. Excelente fator de retenção orgânica de talentos.`
-        });
-      }
-    });
-
-    // Check Treinamento Aproveitamento
-    if (aproveitamentoTreinamento > 0 && aproveitamentoTreinamento < 70) {
-      list.push({
-        type: 'warning',
-        title: 'Evasão nos Treinamentos de Capacitação',
-        text: `O aproveitamento das turmas de T&D está em ${aproveitamentoTreinamento}%. Há uma discrepância expressiva entre colaboradores previstos e presentes.`
-      });
-    }
-
-    // Default insight if empty
-    if (list.length === 0) {
-      list.push({
-        type: 'info',
-        title: 'Indicadores Estáveis',
-        text: 'Não foram detectados desvios ou anomalias críticas no período analisado. O funil de contratação e as pontuações de clima operam em níveis saudáveis.'
-      });
-    }
-
-    return list;
-  }, [mediaSla, dimensoesClima, aproveitamentoTreinamento]);
+  const rotuloSede = sede ? (opcoes.find(o => o.valor === sede)?.rotulo || sede) : 'Todas as sedes';
 
   return (
     <div className="space-y-6">
-      
-      {/* --- CABEÇALHO --- */}
-      <div className="flex flex-col md:flex-row md:items-nowrap md:justify-between justify-start items-start gap-4 border-b border-slate-200 pb-5">
-        <div>
-          <h2 className="text-2xl font-black text-slate-850 tracking-tight flex items-center gap-2">
-            <TrendingUp className="w-6.5 h-6.5 text-indigo-600" />
-            <span>Indicadores de Gestão Corporativa</span>
-          </h2>
-          <p className="text-slate-500 text-sm font-semibold">Análise de recrutamento, SLA, clima de desligamentos, rotatividade e programas de capacitação.</p>
-        </div>
-
-        {/* Dynamic filters in horizontal list */}
-        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto mt-2 md:mt-0">
-          <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 py-1.5 px-3 rounded-2xl">
-            <Filter className="w-3.5 h-3.5 text-slate-500" />
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Filtros Ativos:</span>
-          </div>
-
-           {/* Sede Select */}
-          <div className="flex flex-col">
-            <label htmlFor="filter-sede-select" className="text-[9px] font-black text-slate-400 uppercase tracking-wider ml-1 mb-0.5">Sede</label>
-            <select id="filter-sede-select"
-              value={selectedSede}
-              onChange={(e) => setSelectedSede(e.target.value)}
-              className="text-xs bg-white border border-slate-250 py-1.5 px-3 rounded-xl font-bold text-slate-700 focus:border-indigo-500 focus:outline-none shadow-sm cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-            >
-              <option value="TODAS">Sede: Todas</option>
-              {listSedes.filter(s => s !== 'TODAS').map((s, idx) => (
-                <option key={idx} value={s}>{getSedeSigla(s)}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Setor Select */}
-          <div className="flex flex-col">
-            <label htmlFor="filter-setor-select" className="text-[9px] font-black text-slate-400 uppercase tracking-wider ml-1 mb-0.5">Setor</label>
-            <select id="filter-setor-select"
-              value={selectedSetor}
-              onChange={(e) => setSelectedSetor(e.target.value)}
-              className="text-xs bg-white border border-slate-250 py-1.5 px-3 rounded-xl font-bold text-slate-700 focus:border-indigo-500 focus:outline-none shadow-sm cursor-pointer"
-            >
-              <option value="TODOS">Setor: Todos</option>
-              {listSetores.filter(s => s !== 'TODOS').map((s, idx) => (
-                <option key={idx} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Ano Select */}
-          <div className="flex flex-col flex-wrap">
-            <label htmlFor="filter-ano-select" className="text-[9px] font-black text-slate-400 uppercase tracking-wider ml-1 mb-0.5">Ano</label>
-            <select id="filter-ano-select"
-              value={selectedAno}
-              onChange={(e) => setSelectedAno(e.target.value)}
-              className="text-xs bg-white border border-slate-250 py-1.5 px-3 rounded-xl font-bold text-slate-700 focus:border-indigo-500 focus:outline-none shadow-sm cursor-pointer"
-            >
-              <option value="TODOS">Ano: Todos</option>
-              {listAnos.filter(a => a !== 'TODOS').map((a, idx) => (
-                <option key={idx} value={a}>{a}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Exportar o relatório visual (impressão → salvar como PDF) */}
-          <div className="flex flex-col justify-end">
-            <button
-              onClick={() => window.print()}
-              className="no-print flex items-center gap-1.5 text-xs bg-slate-900 hover:bg-slate-800 text-white py-2 px-3.5 rounded-xl font-bold uppercase tracking-wider shadow-sm cursor-pointer transition"
-              title="Gerar PDF do relatório (via impressão do navegador)"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              Exportar PDF
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Capa do relatório — só aparece na impressão/PDF */}
-      <div className="print-only mb-6">
-        <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3">
-          <div>
-            <div className="text-2xl font-black text-slate-900 tracking-tight">Relatório de Indicadores · RH</div>
-            <div className="text-sm text-slate-500 font-semibold">
-              {selectedSede === 'TODAS' ? 'Todas as sedes' : getSedeSigla(selectedSede)}
-              {selectedAno !== 'TODOS' ? ` · ${selectedAno}` : ''}
-            </div>
-          </div>
-          <div className="text-right text-xs text-slate-500 font-semibold">
-            <div className="text-lg font-black text-[var(--sgpc-acento,#1B4DD8)]">SGPC</div>
-            Gerado em {new Date().toLocaleDateString('pt-BR')}
-          </div>
-        </div>
-      </div>
-
-      {/* --- CARDS DE PERFORMANCE OPERACIONAL --- */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        
-        {/* Card: Vagas Ativas */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition hover:shadow-md hover:border-slate-300 group">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">Vagas em Aberto</span>
-            <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <Briefcase className="w-4.5 h-4.5 text-orange-600" />
-            </div>
-          </div>
-          <div>
-            <h3 className="text-3xl font-black text-slate-800 tracking-tight">{vagasAbertas}</h3>
-            <p className="text-[11px] text-slate-500 font-bold mt-1.5 flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-              <span>
-                SLA médio: <span className="text-orange-600 font-extrabold">{mediaSla} dias</span>
-                {totalFechadas > 0 && (
-                  <span className="text-slate-400 font-semibold"> · {closedVagas.length} de {totalFechadas} fechadas</span>
-                )}
-              </span>
-            </p>
-          </div>
-        </div>
-
-        {/* Card: Turnover Mês */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition hover:shadow-md hover:border-slate-300 group">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">
-              Turnover {turnoverInfo.mesAno ? `· ${turnoverInfo.mesAno}` : 'do mês'}
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <LogOut className="w-4.5 h-4.5 text-rose-600" />
-            </div>
-          </div>
-          <div>
-            {turnoverInfo.temDados ? (
-              <>
-                <h3 className="text-3xl font-black text-slate-800 tracking-tight">
-                  {turnoverInfo.taxa.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}%
-                </h3>
-                <p className="text-[11px] text-slate-500 font-bold mt-1.5 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                  <span>
-                    <span className="text-slate-700 font-extrabold">{turnoverInfo.admissoes} admissões</span> e{' '}
-                    <span className="text-slate-700 font-extrabold">{turnoverInfo.saidas} saídas</span> em{' '}
-                    {turnoverInfo.totalFuncionarios} · {COBERTURA_TURNOVER[turnoverInfo.cobertura]}
-                  </span>
-                </p>
-              </>
-            ) : (
-              <>
-                <h3 className="text-3xl font-black text-slate-300 tracking-tight">—</h3>
-                <p className="text-[11px] text-slate-500 font-bold mt-1.5">
-                  Sem mês fechado em Turnover. Cadastre o mês para ver a taxa.
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Card: Clima Organizacional */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition hover:shadow-md hover:border-slate-300 group">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">Clima Organizacional</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <Star className="w-4.5 h-4.5 text-amber-500" />
-            </div>
-          </div>
-          <div>
-            <h3 className="text-3xl font-black text-slate-800 tracking-tight">{mediaClima} <span className="text-sm text-slate-400 font-semibold">/ 5.0</span></h3>
-            <p className="text-[11px] text-slate-500 font-bold mt-1.5 flex items-center gap-1">
-              <SmilePlus className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-              <span>Média e percepção de bem-estar</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Card: Investimento T&D */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden transition hover:shadow-md hover:border-slate-300 group">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">Investimento T&D</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <GraduationCap className="w-4.5 h-4.5 text-emerald-600" />
-            </div>
-          </div>
-          <div>
-            <h3 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">
-              {totalInvestidoTreinamento.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}
-            </h3>
-            <p className="text-[11px] text-slate-500 font-bold mt-1.5 flex items-center gap-1">
-              <Award className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span>{horasTotaisTreinamento.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} horas aplicadas de capacitação</span>
-            </p>
-          </div>
-        </div>
-
-      </div>
-
-
-      {/* --- DESTAQUES OPERACIONAIS --- */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
-        <div>
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-            <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-              <AlertInfoIcon className="w-4.5 h-4.5 text-indigo-500" />
-              Destaques Operacionais & Recomendações
-            </h4>
-            <span className="text-[9px] bg-indigo-50 text-indigo-650 px-2 py-0.5 rounded-full font-bold uppercase border border-indigo-150">On-The-Fly</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {heuristicInsights.map((ins, i) => (
-              <div key={i} className={`p-3.5 rounded-2xl border flex items-start gap-3 ${
-                ins.type === 'danger' ? 'bg-red-50/50 border-red-150/70' :
-                ins.type === 'warning' ? 'bg-amber-50/50 border-amber-150/70' :
-                ins.type === 'success' ? 'bg-emerald-50/50 border-emerald-150/70' :
-                'bg-slate-50/60 border-slate-200'
-              }`}>
-                <div className="mt-0.5 shrink-0">
-                  {ins.type === 'danger' && <AlertTriangle className="w-4 h-4 text-red-650" />}
-                  {ins.type === 'warning' && <AlertCircle className="w-4 h-4 text-amber-600" />}
-                  {ins.type === 'success' && <CheckCircle className="w-4 h-4 text-emerald-600" />}
-                  {ins.type === 'info' && <HelpCircle className="w-4 h-4 text-slate-500" />}
-                </div>
-                <div>
-                  <h5 className={`text-[11px] font-black leading-tight uppercase ${
-                    ins.type === 'danger' ? 'text-red-950' :
-                    ins.type === 'warning' ? 'text-amber-950' :
-                    ins.type === 'success' ? 'text-emerald-950' :
-                    'text-slate-800'
-                  }`}>
-                    {ins.title}
-                  </h5>
-                  <p className={`text-[10px] font-semibold leading-relaxed mt-1 ${
-                    ins.type === 'danger' ? 'text-red-900/80' :
-                    ins.type === 'warning' ? 'text-amber-900/80' :
-                    ins.type === 'success' ? 'text-emerald-900/80' :
-                    'text-slate-500'
-                  }`}>
-                    {ins.text}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="pt-4 border-t border-slate-100 mt-5">
-          <span className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wide leading-none">Análise baseada nos filtros de dados ativos</span>
-        </div>
-      </div>
-
-
-      {/* --- SEÇÃO GRAFICOS: RECRUTAMENTO --- */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
-        <h3 className="font-black text-slate-850 text-base mb-1.5 flex items-center gap-1.5">
-          <Briefcase className="w-5 h-5 text-indigo-600" />
-          <span>Métricas de Recrutamento e Seleção</span>
-        </h3>
-        <p className="text-slate-450 text-xs font-semibold mb-6 border-b border-slate-100 pb-3">Indicadores e gráficos de representatividade, distribuição e SLA de contratação.</p>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* Status de Vagas */}
-          <div className="lg:col-span-3 bg-slate-50/50 border border-slate-200 p-4 rounded-2xl flex flex-col justify-between">
-            <div>
-              <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-5 flex items-center gap-1.5">
-                <Target className="w-4 h-4 text-slate-400" />
-                Status Vagas
-              </h4>
-              <div className="h-44">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <PieChart>
-                    <Pie 
-                      data={statusData} 
-                      cx="50%" 
-                      cy="50%" 
-                      innerRadius={48} 
-                      outerRadius={68} 
-                      paddingAngle={3} 
-                      dataKey="value"
-                    >
-                      {statusData.map((e, idx) => <Cell key={idx} fill={e.color} stroke="transparent" />)}
-                    </Pie>
-                    <Tooltip content={(p: any) => <ChartTooltip {...p} suffix=" vagas" />} cursor={BAR_CURSOR} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="space-y-2 mt-4">
-               {statusData.map((e, i) => (
-                  <div key={i} className="flex justify-between items-center text-[11px] font-bold">
-                     <div className="flex items-center gap-2">
-                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.color }}></span>
-                       <span className="text-slate-650">{e.name}</span>
-                     </div>
-                     <span className="text-slate-800 font-extrabold">{e.value}</span>
-                  </div>
-               ))}
-            </div>
-          </div>
-
-          {/* Vagas por Unidade */}
-          <div className="lg:col-span-5 bg-slate-50/50 border border-slate-200 p-4 rounded-2xl flex flex-col">
-            <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-               <MapPin className="w-4 h-4 text-slate-400" />
-               Vagas por Unidade (Top 6)
-            </h4>
-            <p className="text-[10px] text-slate-400 font-extrabold uppercase mb-4">Volume total distribuído geograficamente</p>
-            <div className="h-56 mt-auto">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={sedeChartData} margin={{ top: 18, left: -10, right: 8, bottom: 0 }}>
-                  <CartesianGrid vertical={false} stroke={CHART.grade} />
-                  <XAxis dataKey="name" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={{ stroke: CHART.grade }} />
-                  <YAxis fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} />
-                  <Tooltip content={<ChartTooltip />} cursor={BAR_CURSOR} />
-                  <Bar dataKey="quantidade" fill={CHART.primary} radius={[4, 4, 0, 0]} barSize={36}>
-                    <LabelList dataKey="quantidade" position="top" fontSize={10} fill={CHART.rotulo} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <TabelaDoGrafico titulo="Vagas por Unidade" linhas={sedeChartData} colunas={[{ titulo: 'Unidade', valor: (l: any) => l.name }, { titulo: 'Vagas', valor: (l: any) => l.quantidade, numerica: true }]} />
-          </div>
-
-          {/* SLA Médio por Setor */}
-          <div className="lg:col-span-4 bg-slate-50/50 border border-slate-200 p-4 rounded-2xl flex flex-col">
-            <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-               <Clock className="w-4 h-4 text-slate-400" />
-               Tempo de Fechamento (SLA) por Setor
-            </h4>
-            <p className="text-[10px] text-slate-400 font-extrabold uppercase mb-4">Média de dias para fechamento em vagas concluídas</p>
-            <div className="h-56 mt-auto">
-              {slaSetorChartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart layout="vertical" data={slaSetorChartData} margin={{ top: 0, right: 28, left: 0, bottom: 0 }}>
-                    <CartesianGrid horizontal={false} stroke={CHART.grade} />
-                    <XAxis type="number" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} />
-                    <YAxis dataKey="name" type="category" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} width={80} />
-                    <Tooltip content={(p: any) => <ChartTooltip {...p} suffix=" dias" />} cursor={BAR_CURSOR} />
-                    <Bar dataKey="sla" fill={CHART.amber} radius={[0, 4, 4, 0]} barSize={14}>
-                      <LabelList dataKey="sla" position="right" fontSize={10} fill={CHART.rotulo} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center p-4">
-                  <Clock className="w-8 h-8 text-slate-350 mb-1.5" />
-                  <p className="text-[11px] text-slate-500 font-bold text-center">Nenhum dado de SLA fechado para exibir neste filtro.</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-
-      {/* --- SEÇÃO: FUNIL & GARGALOS DO RECRUTAMENTO --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-
-        {/* Funil de conversão de candidatos */}
-        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col">
-          <h4 className="font-black text-slate-800 text-base mb-1.5 flex items-center gap-1.5">
-            <Users className="w-5 h-5 text-indigo-600" />
-            <span>Funil de Candidatos</span>
-          </h4>
-          <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-1">Chamados → Compareceram → Aprovados</p>
-          {/* O funil só existe em 15% das vagas (relatório §9). Sem o
-              denominador, uma amostra pequena é lida como o total. */}
-          <p className="text-[10px] text-slate-400 font-semibold mb-3">
-            {vagasComFunil} de {filteredVagas.length} vagas registraram candidatos
+      {/* Cabeçalho: o que é, o recorte, e os filtros numa linha só */}
+      <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Indicadores</h2>
+          <p className="text-sm text-slate-500 font-medium mt-1">
+            {rotuloSede} · {rotuloDoPeriodo(periodo)}
           </p>
-          {funilData.chamados > 0 ? (
-            <>
-              <div className="h-40">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={funilChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid vertical={false} stroke={CHART.grade} />
-                    <XAxis dataKey="name" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} />
-                    <YAxis fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} allowDecimals={false} />
-                    <Tooltip content={(p: any) => <ChartTooltip {...p} />} cursor={BAR_CURSOR} />
-                    <Bar dataKey="total" name="Candidatos" fill={CHART.primary} radius={[4, 4, 0, 0]} barSize={42}>
-                      <LabelList dataKey="total" position="top" fontSize={11} fill={CHART.rotulo} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <TabelaDoGrafico titulo="Funil de candidatos" linhas={funilChartData} colunas={[{ titulo: 'Etapa', valor: (l: any) => l.name }, { titulo: 'Candidatos', valor: (l: any) => l.total, numerica: true }]} />
-              <TabelaDoGrafico titulo="SLA médio por setor" linhas={slaSetorChartData} colunas={[{ titulo: 'Setor', valor: (l: any) => l.name }, { titulo: 'Dias', valor: (l: any) => l.sla, numerica: true }]} />
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                <div className="bg-slate-50 rounded-xl p-2.5 text-center">
-                  <span className="block text-lg font-black text-emerald-600">{taxaComparecimento}%</span>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Comparecimento</span>
-                </div>
-                <div className="bg-slate-50 rounded-xl p-2.5 text-center">
-                  <span className="block text-lg font-black text-indigo-600">{taxaAprovacao}%</span>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Aprovação</span>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-[180px]">
-              <Users className="w-8 h-8 text-slate-350 mb-1.5" />
-              <p className="text-[11px] text-slate-500 font-bold text-center">Sem dados de funil. Preencha os números ao mover Triagem → Entrevista.</p>
-            </div>
-          )}
         </div>
-
-        {/* Tempo médio por etapa (gargalos) */}
-        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col">
-          <h4 className="font-black text-slate-800 text-base mb-1.5 flex items-center gap-1.5">
-            <Clock className="w-5 h-5 text-amber-600" />
-            <span>Tempo Médio por Etapa</span>
-          </h4>
-          <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-1">Onde o processo trava (dias, vagas ativas)</p>
-          {etapaIncerteza.total > 0 && (etapaIncerteza.semEtapa > 0 || etapaIncerteza.semData > 0) && (
-            <p className="text-[10px] text-slate-400 font-semibold mb-3 leading-snug">
-              {etapaIncerteza.semEtapa > 0 && (
-                <>{etapaIncerteza.semEtapa} de {etapaIncerteza.total} sem etapa gravada (contam como Triagem)</>
-              )}
-              {etapaIncerteza.semEtapa > 0 && etapaIncerteza.semData > 0 && ' · '}
-              {etapaIncerteza.semData > 0 && (
-                <>{etapaIncerteza.semData} sem data de etapa (usam o tempo total em aberto)</>
-              )}
-            </p>
-          )}
-          {tempoEtapaData.length > 0 ? (
-            <>
-              <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={tempoEtapaData} layout="vertical" margin={{ top: 4, right: 28, left: 0, bottom: 0 }}>
-                    <XAxis type="number" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} allowDecimals={false} />
-                    <YAxis dataKey="name" type="category" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} width={96} />
-                    <Tooltip content={(p: any) => <ChartTooltip {...p} suffix=" dias" />} cursor={BAR_CURSOR} />
-                    <Bar dataKey="dias" name="Média" fill={CHART.amber} radius={[0, 4, 4, 0]} barSize={16}>
-                      <LabelList dataKey="dias" position="right" fontSize={10} fill={CHART.rotulo} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <TabelaDoGrafico
-                titulo="Tempo médio por etapa"
-                linhas={tempoEtapaData}
-                colunas={[
-                  { titulo: 'Etapa', valor: (l: any) => l.name },
-                  { titulo: 'Vagas', valor: (l: any) => l.qtd, numerica: true },
-                  { titulo: 'Sem etapa', valor: (l: any) => l.semEtapa, numerica: true },
-                  { titulo: 'Dias', valor: (l: any) => l.dias, numerica: true },
-                ]}
-              />
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-[180px]">
-              <Clock className="w-8 h-8 text-slate-350 mb-1.5" />
-              <p className="text-[11px] text-slate-500 font-bold text-center">Nenhuma vaga ativa em etapa para medir neste filtro.</p>
-            </div>
-          )}
+        <div className="no-print flex flex-wrap items-end gap-2.5">
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-semibold text-slate-600">Sede</span>
+            <select value={sede ?? ''} disabled={sedeTravada} onChange={e => setSede(e.target.value || null)} className={campoFiltro}>
+              <option value="">Todas as sedes</option>
+              {opcoes.map(o => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-semibold text-slate-600">Ano</span>
+            <select value={periodo.ano ?? ''} onChange={e => setPeriodo({ ano: e.target.value ? Number(e.target.value) : null, mes: null })} className={campoFiltro}>
+              {anos.map(a => <option key={a} value={a}>{a}</option>)}
+              <option value="">Todo o período</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-semibold text-slate-600">Mês</span>
+            <select value={periodo.mes ?? ''} disabled={periodo.ano === null}
+              onChange={e => setPeriodo(p => ({ ...p, mes: e.target.value ? Number(e.target.value) : null }))} className={campoFiltro}>
+              <option value="">Ano inteiro</option>
+              {MESES_LONGOS.map((m, i) => <option key={m} value={i + 1}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>)}
+            </select>
+          </label>
+          <button onClick={() => window.print()} title="Gerar PDF (pela impressão do navegador)"
+            className="inline-flex items-center gap-1.5 h-[38px] px-3.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors">
+            <Printer className="w-4 h-4" aria-hidden="true" /> Exportar PDF
+          </button>
         </div>
+      </header>
 
-        {/* Motivos de desistência */}
-        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col">
-          <h4 className="font-black text-slate-800 text-base mb-1.5 flex items-center gap-1.5">
-            <AlertTriangle className="w-5 h-5 text-rose-600" />
-            <span>Motivos de Desistência</span>
-          </h4>
-          <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-4">Por que candidatos caem do processo</p>
-          {motivosDesistData.length > 0 ? (
-            <>
-              <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={motivosDesistData} layout="vertical" margin={{ top: 4, right: 28, left: 0, bottom: 0 }}>
-                    <XAxis type="number" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} allowDecimals={false} />
-                    <YAxis dataKey="name" type="category" fontSize={9} stroke={CHART.eixo} tickLine={false} axisLine={false} width={104} />
-                    <Tooltip content={(p: any) => <ChartTooltip {...p} />} cursor={BAR_CURSOR} />
-                    <Bar dataKey="total" name="Desistências" fill={CHART.rose} radius={[0, 4, 4, 0]} barSize={16}>
-                      <LabelList dataKey="total" position="right" fontSize={10} fill={CHART.rotulo} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <TabelaDoGrafico titulo="Motivos de desistência" linhas={motivosDesistData} colunas={[{ titulo: 'Motivo', valor: (l: any) => l.name }, { titulo: 'Vagas', valor: (l: any) => l.total, numerica: true }]} />
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-[180px]">
-              <CheckCircle className="w-8 h-8 text-emerald-400 mb-1.5" />
-              <p className="text-[11px] text-slate-500 font-bold text-center">Nenhuma desistência registrada neste filtro.</p>
-            </div>
-          )}
-        </div>
-
+      {/* Capa do PDF */}
+      <div className="print-only mb-2 border-b-2 border-slate-900 pb-3">
+        <div className="text-2xl font-bold text-slate-900">Indicadores · RH</div>
+        <div className="text-sm text-slate-500 font-semibold">{rotuloSede} · {rotuloDoPeriodo(periodo)} · gerado em {new Date().toLocaleDateString('pt-BR')}</div>
       </div>
 
-      {/* --- Funil de Seleção (planilha QUANTI): agregado, sem vínculo com vaga --- */}
-      {funilSel.eventos > 0 && (
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
-          <h4 className="font-black text-slate-800 text-base mb-1.5 flex items-center gap-1.5">
-            <Users className="w-5 h-5 text-indigo-600" />
-            <span>Funil de Seleção</span>
-          </h4>
-          <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-4">
-            {funilSel.eventos} dias de seleção importados · números por evento, não por vaga
-          </p>
+      <nav role="tablist" aria-label="Temas dos indicadores" className="no-print flex gap-1 overflow-x-auto border-b border-slate-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {ABAS.map(a => (
+          <button key={a.id} role="tab" type="button" aria-selected={aba === a.id} aria-controls={`painel-${a.id}`} id={`aba-${a.id}`}
+            onClick={() => setAba(a.id)}
+            className={`shrink-0 px-3.5 py-2.5 text-sm font-semibold border-b-2 -mb-px cursor-pointer transition-colors ${
+              aba === a.id ? 'border-[var(--sgpc-acento,#1B4DD8)] text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}>
+            {a.rotulo}
+          </button>
+        ))}
+      </nav>
 
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 mb-4">
-            {[
-              { n: funilSel.convocados, t: 'Convocados', cor: 'text-slate-800' },
-              { n: funilSel.compareceram, t: 'Compareceram', cor: 'text-emerald-600' },
-              { n: funilSel.ausentes, t: 'Ausentes', cor: 'text-rose-600' },
-              { n: funilSel.contratados, t: 'Contratados', cor: 'text-indigo-600' },
-              { n: funilSel.desistiram, t: 'Desistiram', cor: 'text-amber-600' },
-            ].map(c => (
-              <div key={c.t} className="bg-slate-50 rounded-xl p-3 text-center">
-                <span className={`block text-xl font-black ${c.cor}`}>{c.n}</span>
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{c.t}</span>
-              </div>
-            ))}
-          </div>
-
-          <p className="text-[11px] font-bold text-slate-600 mb-1">
-            Taxa de comparecimento: <span className="text-emerald-700 font-black">{funilSel.taxaComparecimento}%</span>
-            <span className="text-slate-400 font-semibold"> · {funilSel.compareceram} de {funilSel.convocados} convocados</span>
-            {funilSel.contratados > 0 && (
-              <span className="text-slate-400 font-semibold"> · contratação {funilSel.taxaContratacao}% dos presentes</span>
-            )}
-          </p>
-          {funilSel.inconsistentes > 0 && (
-            <p className="text-[10px] font-semibold text-amber-700 mb-3 flex items-start gap-1">
-              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
-              Em {funilSel.inconsistentes} dos {funilSel.eventos} dias, convocados ≠ compareceram + ausentes na planilha.
-              A taxa usa os convocados como registrados.
-            </p>
-          )}
-
-          {funilSelPorSede.length > 0 && (
-            <>
-              <div style={{ height: funilSelPorSede.length * 32 + 24 }}>
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={funilSelPorSede} layout="vertical" margin={{ top: 4, right: 46, left: 0, bottom: 0 }}>
-                    <CartesianGrid horizontal={false} stroke={CHART.grade} />
-                    <XAxis type="number" domain={[0, 100]} fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} />
-                    <YAxis dataKey="name" type="category" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} width={110} />
-                    <Tooltip
-                      cursor={BAR_CURSOR}
-                      content={(p: any) => {
-                        if (!p?.active || !p.payload?.length) return null;
-                        const d = p.payload[0].payload;
-                        return (
-                          <div className="bg-white border border-slate-200 rounded-xl shadow-lg px-3 py-2 text-[11px]">
-                            <div className="font-bold text-slate-800 mb-0.5">{d.name}</div>
-                            <div className="text-slate-600">Convocados: <b>{d.convocados}</b></div>
-                            <div className="text-slate-600">Compareceram: <b>{d.compareceram}</b></div>
-                            <div className="text-slate-600">Taxa: <b>{d.taxa}%</b></div>
-                          </div>
-                        );
-                      }}
-                    />
-                    <Bar dataKey="taxa" name="Comparecimento" fill={CHART.primary} radius={[0, 4, 4, 0]} barSize={16}>
-                      <LabelList dataKey="taxa" position="right" fontSize={10} fill={CHART.rotulo} formatter={(v: number) => `${v}%`} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <TabelaDoGrafico
-                titulo="Comparecimento por sede"
-                linhas={funilSelPorSede}
-                colunas={[
-                  { titulo: 'Sede', valor: (l: any) => l.name },
-                  { titulo: 'Convocados', valor: (l: any) => l.convocados, numerica: true },
-                  { titulo: 'Compareceram', valor: (l: any) => l.compareceram, numerica: true },
-                  { titulo: 'Taxa', valor: (l: any) => `${l.taxa}%`, numerica: true },
-                ]}
-              />
-            </>
-          )}
-        </div>
-      )}
-
-      {/* --- Taxa de Presença por Cargo (quem comparece ao chamado) --- */}
-      {presencaCargoData.length > 0 && (
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
-          <h4 className="font-black text-slate-800 text-base mb-1.5 flex items-center gap-1.5">
-            <UserCheck className="w-5 h-5 text-emerald-600" />
-            <span>Taxa de Presença por Cargo</span>
-          </h4>
-          <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-4">Convocados × presentes — quem comparece ao chamado (top 10)</p>
-          <div style={{ height: presencaCargoData.length * 34 + 24 }}>
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-              <BarChart data={presencaCargoData} layout="vertical" margin={{ top: 4, right: 46, left: 0, bottom: 0 }}>
-                <CartesianGrid horizontal={false} stroke={CHART.grade} />
-                <XAxis type="number" domain={[0, 100]} fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} />
-                <YAxis dataKey="cargo" type="category" fontSize={10} stroke={CHART.eixo} tickLine={false} axisLine={false} width={150} />
-                <Tooltip
-                  cursor={BAR_CURSOR}
-                  content={(p: any) => {
-                    if (!p?.active || !p.payload?.length) return null;
-                    const d = p.payload[0].payload;
-                    return (
-                      <div className="bg-white border border-slate-200 rounded-xl shadow-lg px-3 py-2 text-[11px]">
-                        <div className="font-bold text-slate-800 mb-0.5">{d.cargo}</div>
-                        <div className="text-slate-600">Convocados: <b>{d.convocados}</b></div>
-                        <div className="text-slate-600">Presentes: <b className="text-emerald-600">{d.presentes}</b> · Ausentes: <b className="text-amber-600">{d.ausentes}</b></div>
-                        <div className="text-slate-600">Presença: <b>{d.taxa}%</b></div>
-                      </div>
-                    );
-                  }}
-                />
-                <Bar dataKey="taxa" name="Presença" fill={CHART.primary} radius={[0, 4, 4, 0]} barSize={16}>
-                  <LabelList dataKey="taxa" position="right" fontSize={10} fill={CHART.rotulo} formatter={(v: number) => `${v}%`} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <TabelaDoGrafico titulo="Taxa de presença por cargo" linhas={presencaCargoData} colunas={[{ titulo: 'Cargo', valor: (l: any) => l.cargo }, { titulo: 'Convocados', valor: (l: any) => l.convocados, numerica: true }, { titulo: 'Presentes', valor: (l: any) => l.presentes, numerica: true }, { titulo: 'Taxa', valor: (l: any) => `${l.taxa}%`, numerica: true }]} />
-        </div>
-      )}
-
-      {/* --- SEÇÃO GRAFICOS: RECURSOS HUMANOS GERAL --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-
-        {/* Gráfico 1: Headcount Influx & Flow */}
-        <div className="lg:col-span-6 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
-          <div>
-            <h4 className="font-black text-slate-800 text-base mb-1.5 flex items-center gap-1.5">
-              <Users className="w-5 h-5 text-indigo-600" />
-              <span>Fluxo de Headcount & Turnover</span>
-            </h4>
-            <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-6">
-              Mês a mês: quem entrou, quem pediu para sair e quem foi desligado
-            </p>
-
-            <div className="h-60">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={headcountFlowData} margin={{ top: 10, left: -10, right: 8, bottom: 0 }}>
-                  <CartesianGrid vertical={false} stroke={CHART.grade} />
-                  <XAxis dataKey="mes" fontSize={10} stroke={CHART.eixo} tickLine={false} />
-                  <YAxis fontSize={10} stroke={CHART.eixo} tickLine={false} />
-                  <Tooltip content={<ChartTooltip />} cursor={BAR_CURSOR} />
-                  <Legend verticalAlign="top" height={36} iconSize={10} wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                  <Bar dataKey="Admissões" fill={CHART.emerald} radius={[4, 4, 0, 0]} barSize={14} />
-                  <Bar dataKey="Pediram para sair" fill={CHART.amber} radius={[4, 4, 0, 0]} barSize={14} />
-                  <Bar dataKey="Foram desligados" fill={CHART.rose} radius={[4, 4, 0, 0]} barSize={14} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <TabelaDoGrafico
-              titulo="Movimentação do quadro mês a mês"
-              linhas={headcountFlowData}
-              colunas={[
-                { titulo: 'Mês', valor: (l: any) => l.mes },
-                { titulo: 'Efetivo', valor: (l: any) => l.efetivo, numerica: true },
-                { titulo: 'Admissões', valor: (l: any) => l['Admissões'], numerica: true },
-                { titulo: 'Pediram sair', valor: (l: any) => l['Pediram para sair'], numerica: true },
-                { titulo: 'Desligados', valor: (l: any) => l['Foram desligados'], numerica: true },
-                { titulo: 'Turnover', valor: (l: any) => `${l.taxa}%`, numerica: true },
-              ]}
+      <div role="tabpanel" id={`painel-${aba}`} aria-labelledby={`aba-${aba}`}>
+        {aba === 'geral' && <AbaVisaoGeral atencao={geral.atencao} temas={geral.temas} irPara={setAba} />}
+        {aba === 'vagas' && <AbaVagas vagas={f.vagas} sedes={sedes} periodo={periodo} />}
+        {aba === 'selecoes' && <AbaSelecoes selecoes={f.selecoes} sedes={sedes} periodo={periodo} />}
+        {aba === 'pessoas' && (
+          <div className="space-y-8">
+            <AbaPessoas treinamentos={f.treinamentos} experiencias={f.experiencias} experienciasEmCurso={f.experienciasSede}
+              integracoes={f.integracoes} integracoesSemData={f.integracoesSemData} mostrarIntegracao={mostrarIntegracao}
+              sedes={sedes} periodo={periodo} />
+            {/* Cumprimento por sede, no formato do relatório mensal — tem o próprio filtro de mês. */}
+            <RelatorioIndicadores
+              integracoes={integracoes.filter(i => daSede(i.sede))}
+              treinamentos={treinamentos.filter(t => daSede(t.unidade))}
+              experiencias={experiencias.filter(e => daSede(e.sede))}
+              mostrarIntegracao={mostrarIntegracao}
             />
           </div>
-        </div>
-
-        {/* Gráfico 2: Pesquisa de Clima Detalhado */}
-        <div className="lg:col-span-6 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
-          <div>
-            <h4 className="font-black text-slate-800 text-base mb-1.5 flex items-center gap-1.5">
-              <SmilePlus className="w-5 h-5 text-indigo-600" />
-              <span>Avaliação de Satisfação e Clima Org.</span>
-            </h4>
-            <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wide mb-6">Feedback Coletado em Entrevistas de Desligamento (Nota 1-5)</p>
-
-            <div className="h-60">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart layout="vertical" data={dimensoesClima} margin={{ top: 0, right: 28, left: 8, bottom: 0 }}>
-                  <CartesianGrid horizontal={false} stroke={CHART.grade} />
-                  <XAxis type="number" domain={[0, 5]} fontSize={10} stroke={CHART.eixo} tickLine={false} />
-                  <YAxis dataKey="name" type="category" fontSize={10} stroke={CHART.eixo} tickLine={false} width={110} />
-                  <Tooltip content={(p: any) => <ChartTooltip {...p} suffix=" / 5.0" />} cursor={BAR_CURSOR} />
-                  <Bar dataKey="score" fill={CHART.emerald} radius={[0, 4, 4, 0]} barSize={14}>
-                    {dimensoesClima.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={entry.score >= 4.0 ? CHART.emerald : entry.score >= 3.0 ? CHART.amber : CHART.rose}
-                      />
-                    ))}
-                    <LabelList dataKey="score" position="right" fontSize={10} fill={CHART.rotulo} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <TabelaDoGrafico titulo="Dimensões do clima" linhas={dimensoesClima} colunas={[{ titulo: 'Dimensão', valor: (l: any) => l.name }, { titulo: 'Nota (1-5)', valor: (l: any) => l.score, numerica: true }]} />
-          </div>
-        </div>
-
+        )}
+        {aba === 'clima' && <AbaClima turnover={f.turnover} entrevistas={f.entrevistas} sedeFiltrada={!!sede} />}
       </div>
-
-
-      {/* --- SEÇÃO DE TREINAMENTO E INTEGRAÇÃO DE NOVOS COLABORADORES --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        
-        {/* Treinamentos de Equipe */}
-        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex justify-between items-center mb-1.5 pb-2 border-b border-slate-100">
-              <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
-                <GraduationCap className="w-5 h-5 text-indigo-600" />
-                Aproveitamento de Treinamentos
-              </h4>
-            </div>
-            
-            <div className="bg-slate-50 border border-slate-150 rounded-2xl p-4 flex items-center justify-between mb-4 mt-2">
-              <div>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Aproveitamento</span>
-                <h3 className="text-2xl font-black text-slate-800 mt-1">{aproveitamentoTreinamento}%</h3>
-                <span className="text-[9.5px] font-bold text-slate-500 mt-0.5 block">Presentes vs Planejado</span>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-150 flex items-center justify-center text-indigo-600">
-                <Award className="w-5 h-5" />
-              </div>
-            </div>
-
-            {trTypeMap.length > 0 ? (
-              <>
-                <div className="h-40">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                    <BarChart data={trTypeMap} margin={{ top: 18, left: -10, right: 8, bottom: 0 }}>
-                      <CartesianGrid vertical={false} stroke={CHART.grade} />
-                      <XAxis dataKey="name" fontSize={9} stroke={CHART.eixo} tickLine={false} />
-                      <YAxis fontSize={9} stroke={CHART.eixo} tickLine={false} />
-                      <Tooltip content={<ChartTooltip />} cursor={BAR_CURSOR} />
-                      <Bar dataKey="total" fill={CHART.primary} radius={[4, 4, 0, 0]} barSize={24}>
-                        <LabelList dataKey="total" position="top" fontSize={10} fill={CHART.rotulo} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <TabelaDoGrafico titulo="Treinamentos por tipo" linhas={trTypeMap} colunas={[{ titulo: 'Tipo', valor: (l: any) => l.name }, { titulo: 'Turmas', valor: (l: any) => l.total, numerica: true }]} />
-              </>
-            ) : (
-              <div className="h-40 flex flex-col items-center justify-center text-slate-400">
-                <GraduationCap className="w-8 h-8 text-slate-300 mb-1.5" />
-                <p className="text-[10px] font-bold">Nenhum treinamento nesta unidade.</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Motivos de Saída e Feedbacks */}
-        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
-          <div>
-            <h4 className="text-xs font-black text-slate-850 uppercase tracking-widest flex items-center gap-1.5 mb-1.5 border-b border-slate-100 pb-2">
-              <LogOut className="w-5 h-5 text-indigo-600" />
-              Pontos Críticos de Desligamento
-            </h4>
-            
-            <div className="bg-slate-50 border border-slate-150 rounded-2xl p-4 flex items-center justify-between mb-4 mt-2">
-              <div>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Grau de Recomendabilidade</span>
-                <h3 className="text-2xl font-black text-emerald-600 mt-1">{taxaRetorno}%</h3>
-                <span className="text-[9.5px] font-bold text-slate-500 mt-0.5 block">Voltariam a integrar a empresa</span>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-emerald-50 border border-emerald-150 flex items-center justify-center text-emerald-600">
-                <UserCheck className="w-5 h-5" />
-              </div>
-            </div>
-
-            <div className="space-y-3.5 mt-2">
-               {motivosSaidaData.map((m, i) => (
-                 <div key={i}>
-                    <div className="flex justify-between items-end mb-1 text-[11px] font-bold">
-                      <span className="text-slate-700 truncate max-w-[80%]" title={m.name}>{m.name}</span>
-                      <span className="text-[10px] text-slate-550 bg-slate-100 px-2 py-0.5 rounded-full">{m.total}</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                       <div className="h-full bg-rose-500 rounded-full" style={{ width: `${(m.total / (filteredEntrevistas.length || 1)) * 100}%` }}></div>
-                    </div>
-                 </div>
-               ))}
-               {motivosSaidaData.length === 0 && <p className="text-xs text-slate-400 text-center py-6 font-medium">Nenhuma entrevista no período analisado.</p>}
-            </div>
-          </div>
-        </div>
-
-        {/* Integração e Onboarding Experiências */}
-        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
-          <div>
-            <h4 className="text-xs font-black text-slate-850 uppercase tracking-widest flex items-center gap-1.5 mb-1.5 border-b border-slate-100 pb-2">
-              <Users className="w-5 h-5 text-indigo-600" />
-              Integração de Novos Talentos
-            </h4>
-
-            <p className="text-[10px] text-slate-450 font-extrabold uppercase mt-3 mb-3.5">Painel Período de Experiência (45 e 90 dias)</p>
-
-            <div className="space-y-3">
-              <div className="bg-slate-50/70 hover:bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center justify-between transition-colors">
-                <div>
-                  <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wide leading-none">Novos Integrantes Selecionados</h5>
-                  <h3 className="text-xl font-black text-slate-800 mt-2">{filteredExperiencias.length} <span className="text-xs text-slate-400 font-bold">colaboradores</span></h3>
-                </div>
-                <Users className="w-6 h-6 text-indigo-400 shrink-0" />
-              </div>
-
-              <div className="bg-slate-50/70 hover:bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center justify-between transition-colors">
-                <div>
-                  <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wide leading-none">Status de Retenção Ativa</h5>
-                  <h3 className="text-xl font-black text-emerald-600 mt-2">
-                    {filteredExperiencias.length > 0 
-                      ? Math.round((filteredExperiencias.filter(e => e.status === 'EFETIVADO').length / filteredExperiencias.length) * 100) 
-                      : 100}% <span className="text-[9.5px] text-slate-450 font-bold">efetivados</span>
-                  </h3>
-                </div>
-                <CheckCircle className="w-6 h-6 text-emerald-400 shrink-0" />
-              </div>
-
-              <div className="bg-slate-50/70 hover:bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center justify-between transition-colors">
-                <div>
-                  <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wide leading-none">Períodos Prorrogados/Ajustes</h5>
-                  <h3 className="text-xl font-black text-amber-500 mt-2">
-                    {filteredExperiencias.filter(e => e.status === 'PRORROGADO').length} <span className="text-xs text-slate-400 font-bold">em acompanhamento</span>
-                  </h3>
-                </div>
-                <AlertCircle className="w-6 h-6 text-amber-400 shrink-0" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Cumprimento por sede (Integração/Experiência/Treinamentos) — sai no Exportar PDF */}
-      <RelatorioIndicadores
-        integracoes={integracoes}
-        treinamentos={treinamentos}
-        experiencias={experiencias}
-        mostrarIntegracao={mostrarIntegracao}
-      />
-
     </div>
   );
 };
-
-// --- SUB-ÍCONES AUXILIARES LOCAIS ---
-const AlertInfoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <circle cx="12" cy="12" r="10" />
-    <line x1="12" y1="16" x2="12" y2="12" />
-    <line x1="12" y1="8" x2="12.01" y2="8" />
-  </svg>
-);
-
-const BrainCircuitIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M12 18h.01" />
-    <path d="M17 18h.01" />
-    <path d="M7 18h.01" />
-    <path d="M12 14h.01" />
-    <path d="M12 10h.01" />
-    <path d="M12 6h.01" />
-    <path d="M16 14h.5a2.5 2.5 0 0 0 2.5-2.5V10" />
-    <path d="M8 14h-.5A2.5 2.5 0 0 1 5 11.5V10" />
-    <circle cx="12" cy="12" r="10" />
-  </svg>
-);

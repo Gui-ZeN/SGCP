@@ -71,6 +71,11 @@ export function listaDeTarefas(daEquipe: Tarefa[]): Tarefa[] {
   return [...porId.values()].sort((a, b) => (a.ordem ?? 999) - (b.ordem ?? 999) || a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
+/** Quanto já foi contado na tarefa, somando todas as pessoas e dias. */
+export function totalContado(id: string, diarios: Pick<Diario, 'contagens'>[]): number {
+  return diarios.reduce((t, d) => t + Math.max(0, Math.floor(Number(d.contagens?.[id])) || 0), 0);
+}
+
 /** O que a pessoa informou à mão num dia: tarefa → quantidade. */
 export interface Diario {
   email: string;
@@ -158,10 +163,19 @@ const ehImportacao = (e: EntradaLog) =>
 
 // ─── as frases ─────────────────────────────────────────────────────────────
 
+/** Lançamentos do módulo Seleções que não são conduzir/agendar no dia. */
+const REGISTRO_DE_TELA = new Set(['edicao', 'lancamento']);
+
 function frasesDeSelecao(es: EntradaLog[], dia: string): string[] {
   const frases: string[] = [];
-  const conduzidas = es.filter(e => e.acao === 'ALTEROU');
-  const agendadas = es.filter(e => e.acao === 'CRIOU');
+  // Correção feita no módulo Seleções (cargo, setor, números da planilha): não
+  // é conduzir a seleção — sem separar, o e-mail diria "Conduziu" a cada ajuste.
+  // Idem para a seleção lançada DEPOIS do fato (a planilha no sistema): quem
+  // lança hoje a seleção de semana passada não a "conduziu" hoje.
+  const edicoes = es.filter(e => e.ref?.tipo === 'edicao').length;
+  const lancadas = es.filter(e => e.ref?.tipo === 'lancamento').length;
+  const conduzidas = es.filter(e => e.acao === 'ALTEROU' && !REGISTRO_DE_TELA.has(String(e.ref?.tipo)));
+  const agendadas = es.filter(e => e.acao === 'CRIOU' && !REGISTRO_DE_TELA.has(String(e.ref?.tipo)));
 
   for (const e of conduzidas) {
     if (!e.ref) continue;
@@ -187,6 +201,40 @@ function frasesDeSelecao(es: EntradaLog[], dia: string): string[] {
   }
   const semRefAgendadas = agendadas.filter(e => !e.ref).length;
   if (semRefAgendadas) frases.push(`Agendou ${plural(semRefAgendadas, 'seleção', 'seleções')}.`);
+  if (lancadas) frases.push(`Lançou ${plural(lancadas, 'seleção já realizada', 'seleções já realizadas')} no sistema.`);
+  if (edicoes) frases.push(`Corrigiu os dados de ${plural(edicoes, 'seleção', 'seleções')}.`);
+  return frases;
+}
+
+/**
+ * Candidatos lançados no dia, UMA frase por seleção. Cada candidato salvo é
+ * uma linha no log; uma frase por linha viraria lista de chamada no e-mail.
+ * ⚠️ Só a contagem: nome de candidato e resultado de teste psicológico nunca
+ * vão para o e-mail — o log só guarda cargo, data e o id do candidato.
+ */
+function frasesDeCandidatos(es: EntradaLog[]): string[] {
+  const porSelecao = new Map<string, { cargo: string; data: string; novos: Set<string>; resultados: Set<string> }>();
+  let semRef = 0;
+  for (const e of es) {
+    if (!e.ref) { semRef++; continue; }
+    const k = `${txt(e.ref, 'cargo')}|${txt(e.ref, 'data')}`;
+    const g = porSelecao.get(k) || { cargo: txt(e.ref, 'cargo'), data: txt(e.ref, 'data'), novos: new Set<string>(), resultados: new Set<string>() };
+    // Por candidato, não por linha: lançar e corrigir o resultado da mesma
+    // pessoa duas vezes é um resultado lançado, não dois.
+    const quem = txt(e.ref, 'candidato') || String(g.novos.size + g.resultados.size);
+    if (e.acao === 'CRIOU') g.novos.add(quem);
+    else if (e.acao === 'ALTEROU') g.resultados.add(quem);
+    porSelecao.set(k, g);
+  }
+  const frases: string[] = [];
+  for (const g of porSelecao.values()) {
+    const naSelecao = `na seleção de ${titulo(g.cargo)}${g.data ? ` de ${g.data}` : ''}`;
+    if (g.novos.size) frases.push(`Registrou ${plural(g.novos.size, 'candidato', 'candidatos')} ${naSelecao}.`);
+    // Quem acabou de ser registrado e já teve o resultado lançado conta uma vez.
+    const soResultado = [...g.resultados].filter(id => !g.novos.has(id)).length;
+    if (soResultado) frases.push(`Lançou o resultado de ${plural(soResultado, 'candidato', 'candidatos')} ${naSelecao}.`);
+  }
+  if (semRef) frases.push(`Atualizou ${plural(semRef, 'candidato', 'candidatos')} em seleções.`);
   return frases;
 }
 
@@ -294,8 +342,10 @@ function frasesDasContagens(contagens: Record<string, number> | undefined, nomeD
   const frases: string[] = [];
   for (const [id, n] of Object.entries(contagens || {})) {
     const q = Math.floor(Number(n)) || 0;
-    if (q <= 0) continue;
-    frases.push(`${nomeDe.get(id) || id}: ${q}.`);
+    // Contador APAGADO não tem mais nome: a contagem dele deixa de existir
+    // para o relato (antes o e-mail mostraria o id interno no lugar do nome).
+    if (q <= 0 || !nomeDe.has(id)) continue;
+    frases.push(`${nomeDe.get(id)}: ${q}.`);
   }
   return frases;
 }
@@ -320,7 +370,7 @@ function secoesDoDia(entradas: EntradaLog[], dia: string, diario: Diario | undef
     porModulo.get(m)!.push(e);
   }
   const secoes: Secao[] = [
-    { titulo: 'Seleções', frases: frasesDeSelecao(porModulo.get('Seleções') || [], dia) },
+    { titulo: 'Seleções', frases: [...frasesDeSelecao(porModulo.get('Seleções') || [], dia), ...frasesDeCandidatos(porModulo.get('Candidatos') || [])] },
     { titulo: 'Vagas', frases: frasesDeVagas((porModulo.get('Vagas') || []).filter(e => !ehImportacao(e))) },
     { titulo: 'Pessoas', frases: frasesDePessoas(porModulo) },
     { titulo: 'Também informou', frases: frasesInformadas(diario, porModulo.get('Resumo do Dia') || [], nomeDe) },
@@ -338,7 +388,7 @@ function marcos(entradas: EntradaLog[], diarios: Diario[], nomeDe: Map<string, s
     .filter(e => e.modulo === 'Vagas' && e.acao === 'CRIOU' && !ehImportacao(e) && !ehSelecao(e))
     .reduce((t, e) => t + Math.max(1, num(e.ref, 'quantidade')), 0);
   const itens: [number, string, string][] = [
-    [conta(e => ehSelecao(e) && e.acao === 'ALTEROU'), 'seleção conduzida', 'seleções conduzidas'],
+    [conta(e => ehSelecao(e) && e.acao === 'ALTEROU' && !REGISTRO_DE_TELA.has(String(e.ref?.tipo))), 'seleção conduzida', 'seleções conduzidas'],
     [vagas, 'vaga aberta', 'vagas abertas'],
     [conta(e => e.modulo === 'Experiências' && e.acao === 'CRIOU' && !ehImportacao(e)), 'experiência iniciada', 'experiências iniciadas'],
     [conta(e => e.modulo === 'Integrações' && e.acao === 'CRIOU' && !ehImportacao(e)), 'integração', 'integrações'],
@@ -353,7 +403,7 @@ function marcos(entradas: EntradaLog[], diarios: Diario[], nomeDe: Map<string, s
   for (const d of diarios) {
     for (const [id, n] of Object.entries(d.contagens || {})) {
       const q = Math.floor(Number(n)) || 0;
-      if (q > 0) somaPorTarefa.set(id, (somaPorTarefa.get(id) || 0) + q);
+      if (q > 0 && nomeDe.has(id)) somaPorTarefa.set(id, (somaPorTarefa.get(id) || 0) + q);
     }
   }
   const ordemDasTarefas = [...nomeDe.keys()];
@@ -383,7 +433,9 @@ export function relatoPorPessoa(
   tarefas: Tarefa[] = [],
 ): RelatoPessoa[] {
   const quem = (e: string) => (e || '').trim().toLowerCase();
-  logs = logs.filter(e => !CADASTROS.has(e.modulo));
+  // `sistema` é o autor de import e manutenção feitos fora da tela (e o que
+  // o app grava sem usuário logado): não é gente, não recebe relato.
+  logs = logs.filter(e => !CADASTROS.has(e.modulo) && quem(e.usuario) !== 'sistema');
   const doAno = logs.filter(e => quem(e.usuario) && ano(diaEmFortaleza(e.timestamp)) === ano(dia));
   const nomeDe = new Map(listaDeTarefas(tarefas).map(t => [t.id, t.nome]));
 
@@ -391,7 +443,7 @@ export function relatoPorPessoa(
   const pessoasDoDia = new Set<string>();
   for (const e of logs) if (quem(e.usuario) && diaEmFortaleza(e.timestamp) === dia) pessoasDoDia.add(quem(e.usuario));
   for (const d of diarios) {
-    const informou = Object.values(d.contagens || {}).some(n => (Math.floor(Number(n)) || 0) > 0);
+    const informou = Object.entries(d.contagens || {}).some(([id, n]) => nomeDe.has(id) && (Math.floor(Number(n)) || 0) > 0);
     if (d.data === dia && informou) pessoasDoDia.add(quem(d.email));
   }
 

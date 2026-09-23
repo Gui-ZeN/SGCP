@@ -324,3 +324,67 @@ export function motivosDesistencia(list: { motivos?: Record<string, number> }[])
     .filter(m => m.total > 0)
     .sort((a, b) => b.total - a.total);
 }
+
+/* ─────────── Geral × Pedagógico (as duas abas QUANTI da planilha) ─────────── */
+
+export type RecorteSelecao = 'geral' | 'pedagogico' | 'ambos';
+
+interface EventoComOrigem extends EventoSelecao {
+  origem?: string;
+  data?: string; // DD/MM/AAAA
+}
+
+/** Registro sem `origem` é Geral: o módulo nasceu só com a aba Geral. */
+const origemDe = (e: EventoComOrigem) => (e.origem === 'pedagogico' ? 'pedagogico' : 'geral');
+
+export function doRecorte<T extends EventoComOrigem>(list: T[], recorte: RecorteSelecao): T[] {
+  return recorte === 'ambos' ? list : list.filter(e => origemDe(e) === recorte);
+}
+
+export interface IndicadoresSelecao extends FunilSelecao {
+  /** ausentes / convocados, em %. */
+  taxaAusencia: number;
+  /**
+   * Só a base Geral registra contratação — a aba QUANTI Pedagógico não tem a
+   * coluna CONTRATADOS. `null` quando o recorte não tem Geral: mostrar 0 seria
+   * afirmar que ninguém foi contratado. Com as duas bases, as razões usam só
+   * os números da Geral, senão os convocados do Pedagógico inflariam o
+   * "custo" de cada contratação (mesma regra do dashboard executivo do RH).
+   */
+  contratacao: null | {
+    contratados: number;
+    /** convocados / contratados da Geral, 1 casa; null sem contratação. */
+    convocadosPorContratacao: number | null;
+    /** contratados / compareceram da Geral, em %. */
+    conversaoPresentes: number;
+  };
+}
+
+export function indicadoresSelecao(list: EventoComOrigem[]): IndicadoresSelecao {
+  const f = funilSelecao(list);
+  const geral = funilSelecao(doRecorte(list, 'geral'));
+  return {
+    ...f,
+    taxaAusencia: pct(f.ausentes, f.convocados),
+    contratacao: geral.eventos === 0 ? null : {
+      contratados: geral.contratados,
+      convocadosPorContratacao: geral.contratados > 0 ? Math.round((geral.convocados / geral.contratados) * 10) / 10 : null,
+      conversaoPresentes: pct(geral.contratados, geral.compareceram),
+    },
+  };
+}
+
+const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+/** Funil por mês da seleção — só os meses que têm seleção, em ordem. */
+export function selecaoPorMes(list: EventoComOrigem[]) {
+  const porMes = new Map<number, EventoComOrigem[]>();
+  list.forEach(e => {
+    const m = Number((e.data || '').slice(3, 5));
+    if (m >= 1 && m <= 12) (porMes.get(m) || porMes.set(m, []).get(m)!).push(e);
+  });
+  return [...porMes.keys()].sort((a, b) => a - b).map(m => {
+    const f = funilSelecao(porMes.get(m)!);
+    return { mes: MESES[m - 1], convocados: f.convocados, compareceram: f.compareceram, ausentes: f.ausentes, desistiram: f.desistiram, taxa: f.taxaComparecimento };
+  });
+}

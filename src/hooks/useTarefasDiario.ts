@@ -6,19 +6,20 @@
  * (`tarefasDiario/{id}`).
  *
  * Qualquer pessoa do RH cria uma tarefa nova direto do formulário, e ela passa
- * a aparecer para todas. Admin e Coordenador renomeiam ou arquivam. Nunca se
- * apaga: arquivada some do formulário mas continua dando nome ao que já foi
- * contado nela — sem isso o acumulado do mês perderia o rótulo dos números.
+ * a aparecer para todas. Admin e Coordenador renomeiam, arquivam e APAGAM.
+ * Arquivar some do formulário e mantém o histórico; apagar tira os números da
+ * tarefa do acumulado (o relato ignora contagem de tarefa que não existe mais,
+ * em vez de mostrar o id interno) — a tela avisa quantas contagens se perdem.
  *
  * As quatro padrão (`TAREFAS_PADRAO`) vivem no código; um documento com o
  * MESMO id aqui as renomeia ou arquiva.
  */
 import { useMemo } from 'react';
 import { useFirestoreCollection } from './useFirestoreCollection';
-import { listaDeTarefas, type Tarefa } from '../utils/resumoDia';
+import { listaDeTarefas, TAREFAS_PADRAO, type Tarefa } from '../utils/resumoDia';
 
 export function useTarefasDiario(currentUser: any, enabled = true) {
-  const { items, create, upsert } = useFirestoreCollection<Tarefa>({
+  const { items, create, upsert, remove } = useFirestoreCollection<Tarefa>({
     collectionName: 'tarefasDiario',
     localKey: 'sgcp_tarefas_diario_fallback',
     newLocalId: () => `local_tarefa_${Date.now()}`,
@@ -47,5 +48,11 @@ export function useTarefasDiario(currentUser: any, enabled = true) {
     await upsert(id, { nome: atual.nome, ordem: atual.ordem, ...campos });
   };
 
-  return { tarefas, criarTarefa, ajustarTarefa };
+  /** Apaga uma tarefa da equipe. As quatro padrão vivem no código e não se apagam. */
+  const apagarTarefa = async (id: string) => {
+    if (TAREFAS_PADRAO.some(t => t.id === id)) return;
+    await remove(id);
+  };
+
+  return { tarefas, criarTarefa, ajustarTarefa, apagarTarefa };
 }

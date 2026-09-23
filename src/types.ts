@@ -218,6 +218,10 @@ export interface Selecao {
   sede: string;
   responsavel: string;     // quem do RH conduziu
   origem: 'geral' | 'pedagogico';   // qual aba QUANTI originou
+  /** Setor que pediu (a aba GERAL da planilha tem a coluna). Opcional: o histórico importado não tem. */
+  setor?: string;
+  /** Gestor que pediu a seleção. Opcional, pelo mesmo motivo. */
+  gestor?: string;
   convocados: number;
   compareceram: number;
   ausentes: number;
@@ -250,10 +254,41 @@ export interface Selecao {
    */
   vagaIds?: string[];
   vagaCodigos?: number[];
+  /**
+   * Os números deste dia saem da lista de candidatos (`numerosDoDia`).
+   *
+   * Liga quando o primeiro candidato do dia é lançado PELO SISTEMA. Os dias
+   * de 2026 importados da planilha têm os nomes só para consulta e ficam sem
+   * ele: medido em 23/09/2026, recalcular o passado pela aba nominal derrubava
+   * "contratados" de 40 para 24 — a coluna CONTRATADO não era mantida com o
+   * mesmo cuidado da QUANTI.
+   */
+  numerosPelaLista?: boolean;
   /** @deprecated Formato de vínculo único, anterior à lista. Só leitura. */
   vagaId?: string;
   /** @deprecated Ver `vagaCodigos`. */
   vagaCodigo?: number;
+}
+
+/**
+ * Um candidato convocado para um dia de seleção — as abas nominais da planilha
+ * ("GERAL 2026", "PEDAGÓGICO 2026"). Os números do dia saem desta lista: ver
+ * `numerosDoDia` em utils/candidatos.
+ *
+ * ⚠️ Nome de quem não é funcionário e resultado de teste psicológico: a regra
+ * do banco deixa só o RH (sem Visualizador) ler.
+ */
+export interface Candidato {
+  id: string;
+  selecaoId: string;
+  /** DD/MM/AAAA — copiado do dia de seleção, para listar sem buscá-lo. */
+  data: string;
+  nome: string;
+  resultado: import('./utils/candidatos').ResultadoCandidato;
+  contratado?: import('./utils/candidatos').Contratacao;
+  /** Rótulo do motivo, quando desistiu. */
+  motivo?: string;
+  observacao?: string;
 }
 
 export interface RecruiterStats {

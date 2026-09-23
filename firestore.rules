@@ -309,6 +309,17 @@ service cloud.firestore {
       allow write: if isEditor();
     }
 
+    // Candidatos de cada dia de seleção (as abas nominais da planilha). Nome de
+    // quem NÃO é funcionário e resultado de teste psicológico: todo o RH lê e
+    // grava; Visualizador nem lê — diferente de `selecoes`, que é só número.
+    match /candidatos/{candidatoId} {
+      allow read: if isEditor();
+      allow create, update: if isEditor()
+        && incoming().nome is string && incoming().nome.size() > 0 && incoming().nome.size() <= 150
+        && incoming().selecaoId is string && incoming().selecaoId.size() > 0;
+      allow delete: if isEditor();
+    }
+
     // O que o RH fez no dia e não foi seleção. Mesma permissão das seleções:
     // aparecem lado a lado na mesma tela, e quem registra uma registra a outra.
     match /atividades/{atividadeId} {
@@ -354,7 +365,11 @@ service cloud.firestore {
             || (!(tarefaId in ['atendimentos', 'testes', 'divulgacoes', 'acolhimentos'])
                 && incoming().get('arquivada', false) == false));
       allow update: if (isAdmin() || isCoordenador()) && tarefaValida();
-      allow delete: if false;
+      // Apagar: Admin/Coordenador, fora das quatro padrão. Se a tarefa já foi
+      // contada, os números dela saem do acumulado (o relato ignora contagem de
+      // tarefa inexistente) — o app avisa antes, e arquivar mantém o histórico.
+      allow delete: if (isAdmin() || isCoordenador())
+        && !(tarefaId in ['atendimentos', 'testes', 'divulgacoes', 'acolhimentos']);
     }
 
     match /turnover/{turnoverId} {

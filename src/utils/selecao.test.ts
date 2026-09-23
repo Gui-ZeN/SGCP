@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ehRealizada, estaAtrasada, validarAgendamento, validarConfirmacao, camposDaConfirmacao, totaisDeSelecoes, codigosDasVagas, funilDaVaga } from './selecao';
+import { ehRealizada, estaAtrasada, validarAgendamento, validarConfirmacao, camposDaConfirmacao, totaisDeSelecoes, codigosDasVagas, funilDaVaga, camposDoFormulario, funilEfetivo, selecoesDaVaga, vagasSugeridas } from './selecao';
 import type { Selecao } from '../types';
 
 const dia = (over: Partial<Selecao>): Selecao => ({
@@ -165,5 +165,72 @@ describe('funilDaVaga', () => {
       dia({ vagaIds: ['v1'], data: '10/09/2026', convocados: 1, compareceram: 1 }),
     ], vaga);
     expect(f.ultimaData).toBe('10/09/2026');
+  });
+});
+
+describe('camposDoFormulario (módulo Seleções)', () => {
+  const base = {
+    data: '10/09/2026', cargo: 'ASG', sede: 'DT', origem: 'geral' as const, setor: 'Infra', gestor: 'Paulo', responsavel: 'Arlana',
+    convocados: 10, jaAconteceu: true, compareceram: 4, ausentes: 6, desistiram: 1, contratados: 2,
+  };
+
+  it('seleção que já aconteceu nasce realizada, com os números', () => {
+    const { erros, campos } = camposDoFormulario(base);
+    expect(erros).toEqual([]);
+    expect(campos).toMatchObject({ status: 'realizado', compareceram: 4, ausentes: 6, contratados: 2, setor: 'Infra', gestor: 'Paulo' });
+  });
+
+  it('agendada ignora os números de resultado', () => {
+    expect(camposDoFormulario({ ...base, jaAconteceu: false }).campos).toMatchObject({ status: 'agendado', compareceram: 0, ausentes: 0, contratados: 0 });
+  });
+
+  it('não exige que a conta feche, só barra o impossível', () => {
+    expect(camposDoFormulario({ ...base, compareceram: 2, ausentes: 6 }).erros).toEqual([]); // 8 de 10: a planilha tem isso
+    expect(camposDoFormulario({ ...base, compareceram: 7, ausentes: 6 }).erros[0]).toMatch(/passa dos convocados/);
+    expect(camposDoFormulario({ ...base, contratados: 5 }).erros[0]).toMatch(/Contratados/);
+  });
+
+  it('herda as exigências do agendamento', () => {
+    expect(camposDoFormulario({ ...base, jaAconteceu: false, cargo: '', convocados: 0 }).erros).toEqual(['Informe o cargo.', 'Informe quantas pessoas foram convocadas.']);
+  });
+});
+
+describe('seleção ↔ vaga', () => {
+  const sel = (over: Partial<Selecao>): Selecao => ({
+    id: Math.random().toString(36), data: '10/09/2026', cargo: 'ASG', sede: 'DT', responsavel: '', origem: 'geral',
+    convocados: 10, compareceram: 4, ausentes: 6, contratados: 1, desistiram: 0, ...over,
+  });
+  const vaga = { id: 'v1', codigo: 1143, candChamados: 3, candCompareceram: 2, candAprovados: 1 };
+
+  it('vaga com seleção ligada: o funil é a soma das seleções, não o digitado', () => {
+    const f = funilEfetivo(vaga, [sel({ vagaIds: ['v1'] }), sel({ vagaCodigos: [1143], convocados: 5, compareceram: 5, contratados: 0 }), sel({})]);
+    expect(f).toEqual({ chamados: 15, compareceram: 9, aprovados: 1, fonte: 'selecao', selecoes: 2 });
+  });
+
+  it('sem seleção ligada: vale o que foi digitado na vaga', () => {
+    expect(funilEfetivo(vaga, [sel({})])).toMatchObject({ chamados: 3, compareceram: 2, aprovados: 1, fonte: 'manual' });
+  });
+
+  it('ligada só por agendamento: a fonte já é a seleção, com zeros até acontecer', () => {
+    expect(funilEfetivo(vaga, [sel({ vagaIds: ['v1'], status: 'agendado' })])).toMatchObject({ chamados: 0, fonte: 'selecao', selecoes: 0 });
+  });
+
+  it('seleções da vaga: da mais recente para a mais antiga, agendadas incluídas', () => {
+    const lista = selecoesDaVaga([sel({ vagaIds: ['v1'], data: '01/09/2026' }), sel({ vagaIds: ['v1'], data: '20/09/2026', status: 'agendado' }), sel({})], vaga);
+    expect(lista.map(s => s.data)).toEqual(['20/09/2026', '01/09/2026']);
+  });
+});
+
+describe('vagasSugeridas', () => {
+  const sedes = [{ id: '1', nome: 'DIONISIO TORRES', sigla: 'DT', regiao: '' }] as any[];
+  const v = (id: string, vaga: string, sede: string, status = 'ABERTA') => ({ id, vaga, sede, status });
+  const vagas = [v('a', 'Pedreiro', 'DT'), v('b', 'ASG', 'DIONISIO TORRES'), v('c', 'ASG', 'BS'), v('d', 'ASG', 'DT', 'FECHADA')];
+
+  it('abertas da mesma sede (nome ou sigla), mesmo cargo primeiro', () => {
+    expect(vagasSugeridas(vagas, sedes, 'DT', 'asg').map(x => x.id)).toEqual(['b', 'a']);
+  });
+
+  it('já ligada aparece mesmo fechada', () => {
+    expect(vagasSugeridas(vagas, sedes, 'DT', 'ASG', ['d']).map(x => x.id)).toContain('d');
   });
 });

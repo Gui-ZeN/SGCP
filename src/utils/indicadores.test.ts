@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { integracaoPorSede, treinamentoPorSede, experienciaPorSede, totalGeral, filtrarPorMes, coletarAnos, taxaPresencaPorCargo, taxaTurnover, funilSelecao, funilPorChave, motivosDesistencia } from './indicadores';
+import { integracaoPorSede, treinamentoPorSede, experienciaPorSede, totalGeral, filtrarPorMes, coletarAnos, taxaPresencaPorCargo, taxaTurnover, funilSelecao, funilPorChave, motivosDesistencia, doRecorte, indicadoresSelecao, selecaoPorMes } from './indicadores';
 import type { Integracao, Treinamento, Experiencia } from '../types';
 
 const integ = (sede: string, status: Integracao['status']): Integracao =>
@@ -312,5 +312,43 @@ describe('funilSelecao — agendados não entram na conta', () => {
     expect(f.eventos).toBe(0);
     expect(f.convocados).toBe(0);
     expect(f.taxaComparecimento).toBe(0);
+  });
+});
+
+describe('Geral × Pedagógico', () => {
+  const g = (data: string, convocados: number, compareceram: number, ausentes: number, contratados = 0, desistiram = 0) =>
+    ({ origem: 'geral', data, convocados, compareceram, ausentes, contratados, desistiram });
+  const p = (data: string, convocados: number, compareceram: number, ausentes: number, desistiram = 0) =>
+    ({ origem: 'pedagogico', data, convocados, compareceram, ausentes, contratados: 0, desistiram });
+  const base = [g('06/01/2026', 11, 2, 6, 1, 3), g('13/02/2026', 9, 8, 1, 3), p('13/01/2026', 5, 5, 0), p('19/01/2026', 5, 1, 4, 1)];
+
+  it('recorta pela aba de origem; registro sem origem conta como Geral', () => {
+    expect(doRecorte(base, 'geral')).toHaveLength(2);
+    expect(doRecorte(base, 'pedagogico')).toHaveLength(2);
+    expect(doRecorte(base, 'ambos')).toHaveLength(4);
+    expect(doRecorte([{ convocados: 1 }], 'geral')).toHaveLength(1);
+  });
+
+  it('ausência é sobre os convocados, como na planilha do RH', () => {
+    expect(indicadoresSelecao(base).taxaAusencia).toBe(37); // 11 de 30
+  });
+
+  it('contratação só existe na base Geral — no Pedagógico é null, não zero', () => {
+    // A aba QUANTI Pedagógico não tem a coluna CONTRATADOS: mostrar 0 seria
+    // afirmar que ninguém foi contratado.
+    expect(indicadoresSelecao(doRecorte(base, 'pedagogico')).contratacao).toBeNull();
+    // Em "ambos", a razão usa só os convocados da Geral (20 / 4), senão os
+    // convocados do Pedagógico inflariam o "custo" de cada contratação.
+    expect(indicadoresSelecao(base).contratacao).toEqual({ contratados: 4, convocadosPorContratacao: 5, conversaoPresentes: 40 });
+  });
+
+  it('convocações por contratação é null quando ninguém foi contratado', () => {
+    expect(indicadoresSelecao([g('06/01/2026', 5, 2, 3)]).contratacao?.convocadosPorContratacao).toBeNull();
+  });
+
+  it('por mês: só os meses com seleção, em ordem', () => {
+    const m = selecaoPorMes(base);
+    expect(m.map(x => x.mes)).toEqual(['Jan', 'Fev']);
+    expect(m[0]).toMatchObject({ convocados: 21, compareceram: 8, taxa: 38 });
   });
 });

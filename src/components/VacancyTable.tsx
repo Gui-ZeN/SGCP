@@ -53,7 +53,7 @@ import {
 import { exportToXlsx } from '../utils/xlsxExporter';
 import { SLA_META_DIAS } from '../constants/hr';
 import { parseDateDDMMYYYY, isPausedOrSuspended, getDiasEmAberto, getSlaInfo, ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa, statusForEtapa } from '../utils/vaga';
-import { funilDaVaga, type FunilDaVaga } from '../utils/selecao';
+import { funilDaVaga, funilEfetivo, selecoesDaVaga, type FunilDaVaga } from '../utils/selecao';
 
 interface VacancyTableProps {
   vagas: Vaga[];
@@ -76,11 +76,13 @@ interface VacancyTableProps {
   // Logs de auditoria (só carregados para admin) — usados na timeline do painel de detalhes.
   logs?: SystemLog[];
   /**
-   * Seleções do escopo. Entram aqui só para PRÉ-PREENCHER o funil quando a
-   * vaga muda de etapa — nada é gravado na vaga automaticamente: os números da
-   * seleção são sugestão, e quem confirma é quem move a vaga.
+   * Seleções do escopo. Vaga com seleção ligada tem o funil calculado delas
+   * (decisão de 23/09/2026: automático) — ninguém digita chamados/compareceram/
+   * aprovados. Sem seleção ligada, o funil segue digitado como antes.
    */
   selecoes?: Selecao[];
+  /** Abrir uma seleção no módulo Seleções, já nos candidatos. */
+  abrirSelecao?: (id: string) => void;
 }
 
 export const VacancyTable: React.FC<VacancyTableProps> = ({ 
@@ -100,7 +102,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   userRole,
   focusVaga,
   logs,
-  selecoes = []
+  selecoes = [],
+  abrirSelecao
 }) => {
   const canManageVagas = isAdmin || userRole === 'Analista' || userRole === 'Administrador';
   // Os nomes já usados entram nas sugestões do formulário: o cadastro de
@@ -226,8 +229,20 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   const [moveCompareceram, setMoveCompareceram] = useState(0);
   const [moveAprovados, setMoveAprovados] = useState(0);
   const [moveMotivo, setMoveMotivo] = useState('');
+  const [funilAuto, setFunilAuto] = useState(false);
   const openEtapaMove = (vaga: Vaga, novaEtapa: string, tipo: 'funil' | 'desistencia') => {
     const daSelecao = funilDaVaga(selecoes, vaga);
+    const efetivo = funilEfetivo(vaga, selecoes);
+    if (efetivo.fonte === 'selecao') {
+      // Automático: mostra a soma das seleções, só leitura, e não grava na vaga.
+      setSelecaoDaVaga(null);
+      setFunilAuto(true);
+      setEtapaMove({ vaga, novaEtapa, tipo });
+      setMoveChamados(efetivo.chamados); setMoveCompareceram(efetivo.compareceram); setMoveAprovados(efetivo.aprovados);
+      setMoveMotivo(vaga.motivoDesistencia || '');
+      return;
+    }
+    setFunilAuto(false);
     // Pré-preenche SÓ quando a vaga ainda não tem número próprio. Se o RH já
     // digitou algo, o que ele escreveu fica — os números da seleção viram uma
     // sugestão com botão, em vez de apagarem o trabalho dele por baixo.
@@ -256,7 +271,9 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     // status (mantém o "Por status" coerente) quando aplicável.
     const novoStatus = statusForEtapa(vaga.status, novaEtapa);
     const base: any = novoStatus ? { etapa: novaEtapa, status: novoStatus } : { etapa: novaEtapa };
-    if (tipo === 'funil') {
+    if (tipo === 'funil' && funilAuto) {
+      await updateVaga(vaga.id, base);
+    } else if (tipo === 'funil') {
       await updateVaga(vaga.id, {
         ...base,
         candChamados: Number(moveChamados) || 0,
@@ -642,9 +659,11 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         { type: String, value: v.conclusao || null },
         { type: Number, value: sla },
         { type: String, value: v.observacoes || null },
-        { type: Number, value: v.candChamados ?? null },
-        { type: Number, value: v.candCompareceram ?? null },
-        { type: Number, value: v.candAprovados ?? null },
+        ...(f => [
+          { type: Number, value: f.fonte === 'selecao' ? f.chamados : (v.candChamados ?? null) },
+          { type: Number, value: f.fonte === 'selecao' ? f.compareceram : (v.candCompareceram ?? null) },
+          { type: Number, value: f.fonte === 'selecao' ? f.aprovados : (v.candAprovados ?? null) },
+        ])(funilEfetivo(v, selecoes)),
         { type: String, value: v.motivoDesistencia || null }
       ];
     });
@@ -1768,6 +1787,9 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           vaga={selectedDetailsVaga}
           logs={logs}
           canManage={canManageVagas}
+          funil={funilEfetivo(selectedDetailsVaga, selecoes)}
+          selecoes={selecoesDaVaga(selecoes, selectedDetailsVaga)}
+          onAbrirSelecao={abrirSelecao}
           getSedeLabel={getSedeLabel}
           renderStatusBadge={getStatusBadge}
           onClose={() => setSelectedDetailsVaga(null)}
@@ -1802,6 +1824,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           cargos={cargos}
           sedes={sedes}
           setores={setores}
+          funilAutomatico={funilEfetivo(editingVaga, selecoes).fonte === 'selecao' ? funilEfetivo(editingVaga, selecoes) : undefined}
           onClose={() => setEditingVaga(null)}
           onSave={handleEditSave}
         />
@@ -1875,6 +1898,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           onCancel={() => setEtapaMove(null)}
           onConfirm={confirmEtapaMove}
           selecao={etapaMove.tipo === 'funil' ? selecaoDaVaga : null}
+          automatico={funilAuto}
           onUsarSelecao={aplicarNumerosDaSelecao}
         />
       )}

@@ -12,9 +12,11 @@ interface EditVacancyModalProps {
   setores?: Setor[];
   onClose: () => void;
   onSave: (id: string, updatedFields: Partial<Vaga>) => Promise<void>;
+  /** Presente = a vaga tem seleção ligada e o funil vem dela (só leitura). */
+  funilAutomatico?: { chamados: number; compareceram: number; aprovados: number; selecoes: number };
 }
 
-export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos, sedes, setores, onClose, onSave }) => {
+export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos, sedes, setores, funilAutomatico, onClose, onSave }) => {
   const [tempStatus, setTempStatus] = useState<Vaga['status']>('ABERTA');
   const [tempEtapa, setTempEtapa] = useState('');
   const [tempAprovado, setTempAprovado] = useState('');
@@ -116,9 +118,11 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
       tempoProcesso: Number(tempTempoProcesso) || 0,
       mesConclusao: rawMonthConclusao,
       categoriaMotivo: finalMotivoVal.includes('Aumento') ? 'Aumento de Quadro' : (finalMotivoVal.includes('Outro') ? 'Outros' : 'Substituição'),
-      candChamados: Number(tempCandChamados) || 0,
-      candCompareceram: Number(tempCandCompareceram) || 0,
-      candAprovados: Number(tempCandAprovados) || 0,
+      ...(funilAutomatico ? {} : {
+        candChamados: Number(tempCandChamados) || 0,
+        candCompareceram: Number(tempCandCompareceram) || 0,
+        candAprovados: Number(tempCandAprovados) || 0,
+      }),
       motivoDesistencia: tempMotivoDesistencia
     });
 
@@ -349,7 +353,12 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
           {/* Funil de candidatos + motivo de desistência (indicadores do processo) */}
           <div className="bg-slate-50/60 p-4 rounded-2xl border border-slate-100 space-y-3">
             <p className="text-xs font-bold text-slate-500 uppercase">Funil de candidatos</p>
-            <div className="grid grid-cols-3 gap-3">
+            {funilAutomatico && (
+              <p className="text-[11px] text-slate-600 font-semibold">
+                Somado de {funilAutomatico.selecoes === 1 ? '1 seleção ligada' : `${funilAutomatico.selecoes} seleções ligadas`} — para mudar, lance no módulo Seleções.
+              </p>
+            )}
+            <fieldset disabled={!!funilAutomatico} className="grid grid-cols-3 gap-3 disabled:opacity-80">
               <div>
                 <label htmlFor="modal-chamados" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Chamados</label>
                 <input
@@ -357,7 +366,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
                   type="number"
                   min={0}
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                  value={tempCandChamados}
+                  value={funilAutomatico ? funilAutomatico.chamados : tempCandChamados}
                   onChange={(e) => setTempCandChamados(Number(e.target.value))}
                 />
               </div>
@@ -368,7 +377,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
                   type="number"
                   min={0}
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                  value={tempCandCompareceram}
+                  value={funilAutomatico ? funilAutomatico.compareceram : tempCandCompareceram}
                   onChange={(e) => setTempCandCompareceram(Number(e.target.value))}
                 />
               </div>
@@ -379,11 +388,11 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
                   type="number"
                   min={0}
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                  value={tempCandAprovados}
+                  value={funilAutomatico ? funilAutomatico.aprovados : tempCandAprovados}
                   onChange={(e) => setTempCandAprovados(Number(e.target.value))}
                 />
               </div>
-            </div>
+            </fieldset>
             <div>
               <label htmlFor="modal-desistencia" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Motivo de desistência (se houve)</label>
               <select

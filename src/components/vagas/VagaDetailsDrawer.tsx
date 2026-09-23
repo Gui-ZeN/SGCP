@@ -1,5 +1,6 @@
 import React from 'react';
-import { Vaga } from '../../types';
+import { Vaga, Selecao } from '../../types';
+import { ehRealizada, type FunilEfetivo } from '../../utils/selecao';
 import { SystemLog } from '../../hooks/useLogs';
 import { getDiasEmAberto, getSlaInfo, isPausedOrSuspended } from '../../utils/vaga';
 import { Workflow, X, History, UserCheck, FileText, CheckCircle2, Edit2, Trash2 } from 'lucide-react';
@@ -12,6 +13,11 @@ interface VagaDetailsDrawerProps {
   vaga: Vaga;
   logs?: SystemLog[];
   canManage: boolean;
+  /** O funil que a vaga mostra (das seleções ligadas, ou digitado). */
+  funil: FunilEfetivo;
+  /** Seleções ligadas a esta vaga. */
+  selecoes?: Selecao[];
+  onAbrirSelecao?: (id: string) => void;
   getSedeLabel: (nome: string) => string;
   renderStatusBadge: (status: Vaga['status']) => React.ReactNode;
   onClose: () => void;
@@ -21,7 +27,7 @@ interface VagaDetailsDrawerProps {
 }
 
 export const VagaDetailsDrawer: React.FC<VagaDetailsDrawerProps> = ({
-  vaga, logs, canManage, getSedeLabel, renderStatusBadge, onClose, onConcluir, onEditar, onExcluir
+  vaga, logs, canManage, funil, selecoes = [], onAbrirSelecao, getSedeLabel, renderStatusBadge, onClose, onConcluir, onEditar, onExcluir
 }) => {
   const sla = getSlaInfo(getDiasEmAberto(vaga), vaga.status === 'FECHADA', isPausedOrSuspended(vaga.status));
 
@@ -163,20 +169,23 @@ export const VagaDetailsDrawer: React.FC<VagaDetailsDrawerProps> = ({
           </div>
 
           {/* Funil de candidatos (indicadores do processo) */}
-          {(!!vaga.candChamados || !!vaga.candCompareceram || !!vaga.candAprovados || !!vaga.motivoDesistencia) && (
+          {(!!funil.chamados || !!funil.compareceram || !!funil.aprovados || !!vaga.motivoDesistencia || funil.fonte === 'selecao') && (
             <div className="space-y-3">
-              <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Funil de Candidatos</h4>
+              <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100 flex justify-between">
+                Funil de Candidatos
+                {funil.fonte === 'selecao' && <span className="normal-case tracking-normal font-semibold text-slate-500">das seleções · automático</span>}
+              </h4>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                  <span className="block text-lg font-extrabold text-slate-800">{vaga.candChamados || 0}</span>
+                  <span className="block text-lg font-extrabold text-slate-800">{funil.chamados}</span>
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Chamados</span>
                 </div>
                 <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                  <span className="block text-lg font-extrabold text-blue-700">{vaga.candCompareceram || 0}</span>
+                  <span className="block text-lg font-extrabold text-blue-700">{funil.compareceram}</span>
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Compareceram</span>
                 </div>
                 <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                  <span className="block text-lg font-extrabold text-emerald-700">{vaga.candAprovados || 0}</span>
+                  <span className="block text-lg font-extrabold text-emerald-700">{funil.aprovados}</span>
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Aprovados</span>
                 </div>
               </div>
@@ -186,6 +195,29 @@ export const VagaDetailsDrawer: React.FC<VagaDetailsDrawerProps> = ({
                   <span className="text-slate-700 font-semibold">{vaga.motivoDesistencia}</span>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Seleções ligadas a esta vaga (módulo Seleções) */}
+          {selecoes.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Seleções desta vaga</h4>
+              <ul className="divide-y divide-slate-100 border border-slate-100 rounded-xl">
+                {selecoes.map(s => (
+                  <li key={s.id} className="flex items-center gap-3 px-3 py-2 text-xs">
+                    <span className="font-bold text-slate-800 tabular-nums w-20 shrink-0">{s.data}</span>
+                    <span className="text-slate-600 font-semibold tabular-nums flex-1 min-w-0 truncate">
+                      {ehRealizada(s) ? `${s.convocados} conv. · ${s.compareceram} comp. · ${s.contratados} contr.` : `Agendada · ${s.convocados} convocados`}
+                    </span>
+                    {onAbrirSelecao && (
+                      <button type="button" onClick={() => onAbrirSelecao(s.id)}
+                        className="shrink-0 text-[11px] font-bold text-slate-700 underline hover:text-slate-900 cursor-pointer">
+                        Candidatos
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { relatoPorPessoa, diaEmFortaleza, listaDeTarefas, type EntradaLog, type Diario, type Tarefa } from './resumoDia';
+import { relatoPorPessoa, diaEmFortaleza, listaDeTarefas, totalContado, type EntradaLog, type Diario, type Tarefa } from './resumoDia';
 
 const DIA = '22/09/2026';
 const ARLANA = 'arlana@christus.com.br';
@@ -27,6 +27,23 @@ describe('o relato é frase, não linha de log', () => {
       modulo: 'Seleções', acao: 'ALTEROU',
       ref: { cargo: 'AUXILIAR DE SERVIÇOS GERAIS', sede: 'DIONISIO TORRES', convocados: 3, compareceram: 1 },
     })])).toEqual(['Conduziu a seleção de Auxiliar de Serviços Gerais em Dionisio Torres: 3 convocados, 1 compareceu.']);
+  });
+
+  it('correção no módulo Seleções não vira "Conduziu" nem conta como conduzida', () => {
+    const r = relato([
+      e({ modulo: 'Seleções', acao: 'ALTEROU', ref: { tipo: 'edicao', cargo: 'ASG', sede: 'DT', convocados: 3, compareceram: 1 } }),
+      e({ modulo: 'Seleções', acao: 'ALTEROU', ref: { tipo: 'edicao', cargo: 'ASG' } }),
+    ]);
+    expect(r[0].secoes.flatMap(s => s.frases)).toEqual(['Corrigiu os dados de 2 seleções.']);
+    expect(r[0].acumulado.mes.join(' ')).not.toMatch(/conduzida/);
+  });
+
+  it('seleção lançada depois do fato vira "Lançou", não "Conduziu" nem "Agendou"', () => {
+    const f = frases([
+      e({ modulo: 'Seleções', acao: 'CRIOU', ref: { tipo: 'lancamento', cargo: 'ASG', sede: 'DT', data: '10/09/2026', convocados: 5 } }),
+      e({ modulo: 'Seleções', acao: 'CRIOU', ref: { tipo: 'lancamento', cargo: 'Pedreiro', sede: 'DT', data: '11/09/2026', convocados: 2 } }),
+    ]);
+    expect(f).toEqual(['Lançou 2 seleções já realizadas no sistema.']);
   });
 
   it('comparecimento zero é dito com todas as letras', () => {
@@ -88,6 +105,17 @@ describe('o relato é frase, não linha de log', () => {
     expect(f).toContain('Importou 1 planilha para o sistema.');
   });
 
+  it('candidatos viram UMA frase por seleção, contados por pessoa, sem nome', () => {
+    const cand = (acao: string, candidato: string) =>
+      e({ modulo: 'Candidatos', acao, ref: { cargo: 'AUXILIAR DE CANTINA', data: DIA, candidato } });
+    const r = relato([cand('CRIOU', 'k1'), cand('CRIOU', 'k2'), cand('ALTEROU', 'k1'), cand('ALTEROU', 'k3'), cand('ALTEROU', 'k3')]);
+    expect(r[0].secoes.find(s => s.titulo === 'Seleções')!.frases).toEqual([
+      `Registrou 2 candidatos na seleção de Auxiliar de Cantina de ${DIA}.`,
+      // k1 foi registrado agora (já contou acima); k3 teve o resultado lançado duas vezes.
+      `Lançou o resultado de 1 candidato na seleção de Auxiliar de Cantina de ${DIA}.`,
+    ]);
+  });
+
   it('ajuste de cadastro não entra no relato — nem conta como dia trabalhado', () => {
     // Configurar usuário, sede ou cargo não é trabalho do RH para a direção ler.
     const cad = ['Usuários', 'Sedes', 'Cargos', 'Setores', 'Regiões'].map(modulo => e({ modulo, acao: 'ALTEROU' }));
@@ -95,6 +123,10 @@ describe('o relato é frase, não linha de log', () => {
     const r = relato([...cad, e({})]);
     expect(r[0].acoes).toBe(1);
     expect(r[0].secoes.flatMap(s => s.frases)).toEqual(['Atualizou o andamento de 1 vaga.']);
+  });
+
+  it('"sistema" (import, manutenção) não é pessoa: não vira relato', () => {
+    expect(relato([e({ usuario: 'sistema', modulo: 'Candidatos', acao: 'CRIOU' })])).toEqual([]);
   });
 
   it('registro antigo, sem campos, ainda entra como contagem', () => {
@@ -226,5 +258,23 @@ describe('recorte e ordem', () => {
       e({ usuario: 'muito@x.com' }), e({ usuario: 'muito@x.com' }),
     ], [], DIA);
     expect(r.map(p => p.email)).toEqual(['muito@x.com', 'pouco@x.com']);
+  });
+});
+
+describe('contador apagado', () => {
+  it('a contagem dele some do relato e do acumulado — nunca aparece o id interno', () => {
+    const r = relatoPorPessoa([], [{ email: ARLANA, data: DIA, contagens: { atendimentos: 2, tApagado: 5 } }], DIA, new Map(), []);
+    const tudo = JSON.stringify(r);
+    expect(tudo).not.toContain('tApagado');
+    expect(r[0].secoes[0].frases).toEqual(['Atendimentos a colaboradores: 2.']);
+    expect(r[0].acumulado.mes).toEqual(['Atendimentos a colaboradores: 2']);
+  });
+
+  it('quem só tinha contado no apagado não aparece no dia', () => {
+    expect(relatoPorPessoa([], [{ email: ARLANA, data: DIA, contagens: { tApagado: 5 } }], DIA, new Map(), [])).toEqual([]);
+  });
+
+  it('totalContado soma todas as pessoas e dias, ignorando zero e negativo', () => {
+    expect(totalContado('t1', [{ contagens: { t1: 2 } }, { contagens: { t1: 0 } }, { contagens: { t1: -1 } }, {}])).toBe(2);
   });
 });

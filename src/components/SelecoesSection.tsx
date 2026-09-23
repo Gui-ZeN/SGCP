@@ -2,7 +2,9 @@ import React, { useMemo, useState } from 'react';
 import type { Selecao, Vaga, Integracao, Entrevista, Consulta, Experiencia } from '../types';
 import type { Sede } from '../hooks/useMetadata';
 import type { Atividade } from '../hooks/useAtividades';
-import { relatoPorPessoa, TAREFAS_PADRAO, type EntradaLog, type Diario, type Tarefa } from '../utils/resumoDia';
+import type { Candidato } from '../types';
+import { CandidatosDoDia } from './CandidatosDoDia';
+import { relatoPorPessoa, TAREFAS_PADRAO, totalContado, type EntradaLog, type Diario, type Tarefa } from '../utils/resumoDia';
 import { siglaCanonica } from '../utils/unidade';
 import { montarAgendaDoDia, resumoDeOutrosModulos } from '../utils/agenda';
 import { formatDateBR, toISOInput, dataISOLocal } from '../utils/date';
@@ -63,6 +65,8 @@ interface SelecoesSectionProps {
   criarTarefa?: (nome: string) => Promise<void>;
   /** Renomear/arquivar — só Admin e Coordenador. Ausente = sem "Gerenciar". */
   ajustarTarefa?: (id: string, campos: { nome?: string; arquivada?: boolean }) => Promise<void>;
+  /** Apagar tarefa NUNCA contada — só Admin e Coordenador. Ausente = sem o botão. */
+  apagarTarefa?: (id: string) => Promise<void>;
   /** E-mail de quem está logado — para achar o próprio "Meu dia". */
   emailAtual?: string;
   /** As linhas do log de quem está logado: o "do sistema" do formulário. */
@@ -72,6 +76,14 @@ interface SelecoesSectionProps {
   entrevistas: Entrevista[];
   consultas: Consulta[];
   experiencias: Experiencia[];
+  /**
+   * Candidatos de cada dia de seleção. Ausente = sem a lista (Visualizador:
+   * a regra do banco nem deixa ler — tem nome e resultado de teste).
+   */
+  candidatos?: Candidato[];
+  salvarCandidato?: (selecao: Selecao, dados: Pick<Candidato, 'nome' | 'resultado' | 'contratado' | 'motivo' | 'observacao'>, id?: string) => Promise<void>;
+  registrarCandidatos?: (selecao: Selecao, nomes: string[]) => Promise<void>;
+  removerCandidato?: (selecao: Selecao, id: string) => Promise<void>;
   /** Ausentes = somente leitura (Visualizador). */
   agendarSelecao?: (dados: Omit<Selecao, 'id'>) => Promise<void>;
   confirmarSelecao?: (id: string, campos: Partial<Selecao>) => Promise<void>;
@@ -100,7 +112,8 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
     agendarSelecao, confirmarSelecao, sedes = [], sedePadrao = '', responsavelPadrao = '',
     atividades = [], adicionarAtividade, atualizarAtividade, removerAtividade, confirmAction,
     logs, usuarios = [], diarios = [], salvarMeuDia, emailAtual = '', meuLog = [],
-    tarefas = TAREFAS_PADRAO, criarTarefa, ajustarTarefa,
+    tarefas = TAREFAS_PADRAO, criarTarefa, ajustarTarefa, apagarTarefa,
+    candidatos, salvarCandidato, registrarCandidatos, removerCandidato,
     ...fontes
   } = props;
   const [diaISO, setDiaISO] = useState(() => dataISOLocal());
@@ -112,6 +125,14 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
   });
   const [erros, setErros] = useState<string[]>([]);
   const [salvando, setSalvando] = useState(false);
+
+  // Dia de seleção com a lista de candidatos aberta.
+  const [candidatosDe, setCandidatosDe] = useState<string | null>(null);
+  const porSelecao = useMemo(() => {
+    const m = new Map<string, Candidato[]>();
+    for (const c of candidatos || []) (m.get(c.selecaoId) || m.set(c.selecaoId, []).get(c.selecaoId)!).push(c);
+    return m;
+  }, [candidatos]);
 
   const [confirmando, setConfirmando] = useState<{ id: string; convocados: number; titulo: string } | null>(null);
   const [presentes, setPresentes] = useState(0);
@@ -638,8 +659,9 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                 )}
               </div>
 
-              {/* Gerenciar (Admin/Coordenador): renomear e arquivar. Arquivar,
-                  nunca apagar — a arquivada ainda nomeia o que já foi contado. */}
+              {/* Gerenciar (Admin/Coordenador): renomear, arquivar e apagar. Apagar a
+                  já contada tira os números dela do acumulado (a confirmação diz
+                  quantos); arquivar some do formulário e mantém o histórico. */}
               {gerenciando && ajustarTarefa ? (
                 <div className="border border-slate-200 rounded-xl divide-y divide-slate-100">
                   {tarefas.map(t => (
@@ -662,6 +684,26 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                       >
                         {t.arquivada ? 'Reativar' : 'Arquivar'}
                       </button>
+                      {apagarTarefa && !TAREFAS_PADRAO.some(p => p.id === t.id) && (
+                        <button
+                          type="button"
+                          aria-label={`Apagar ${t.nome}`}
+                          onClick={() => {
+                            // Apagar a já contada é permitido (pedido do RH), mas os
+                            // números dela saem do acumulado — dito ANTES, com o total.
+                            const total = totalContado(t.id, diarios);
+                            const aviso = total > 0
+                              ? `"${t.nome}" já foi contada ${total} ${total === 1 ? 'vez' : 'vezes'}. Apagando, essas contagens saem do acumulado do mês e do ano. Para manter o histórico, use Arquivar.`
+                              : `Apagar "${t.nome}"? Ela nunca foi contada, então nenhum número se perde.`;
+                            const apagar = () => apagarTarefa(t.id);
+                            if (confirmAction) confirmAction('Apagar tarefa', aviso, apagar);
+                            else apagar();
+                          }}
+                          className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1009,6 +1051,17 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                         }`}>
                           {s.origem === 'pedagogico' ? 'Pedagógico' : 'Geral'}
                         </span>
+                        {candidatos && (
+                          <button
+                            onClick={() => setCandidatosDe(a => (a === s.id ? null : s.id))}
+                            aria-expanded={candidatosDe === s.id}
+                            className="block mt-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-900 hover:underline cursor-pointer"
+                          >
+                            {porSelecao.get(s.id)?.length
+                              ? `${porSelecao.get(s.id)!.length} candidato(s)`
+                              : '+ Candidatos'}
+                          </button>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm font-semibold text-slate-700">{s.sede || '—'}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-slate-700">{s.responsavel || '—'}</td>
@@ -1026,7 +1079,15 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                         {s.desistiram || '—'}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap sticky right-0 bg-white group-hover:bg-slate-50 border-l border-slate-100">
-                        {!realizada ? (
+                        {!realizada && s.numerosPelaLista && porSelecao.get(s.id)?.length ? (
+                          // Com lista, a presença é lançada candidato a candidato.
+                          <button
+                            onClick={() => setCandidatosDe(s.id)}
+                            className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition"
+                          >
+                            Lançar resultados
+                          </button>
+                        ) : !realizada ? (
                           confirmarSelecao ? (
                             <button
                               onClick={() => abrirConfirmacao(s)}
@@ -1061,6 +1122,26 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
           </div>
         )}
       </div>
+
+      {/* Candidatos do dia de seleção escolhido na tabela. Bloco próprio, e não
+          linha expandida dentro da tabela: ela tem largura mínima e rola de
+          lado no celular, e a lista tem campos para preencher. Só existe se o
+          dia está na tela — trocar de dia fecha. */}
+      {(() => {
+        const sel = doDia.find(x => x.id === candidatosDe);
+        if (!sel || !salvarCandidato || !registrarCandidatos || !removerCandidato) return null;
+        return (
+          <CandidatosDoDia
+            selecao={sel}
+            candidatos={porSelecao.get(sel.id) || []}
+            onSalvar={(dados, id) => salvarCandidato(sel, dados, id)}
+            onRegistrar={nomes => registrarCandidatos(sel, nomes)}
+            onRemover={id => removerCandidato(sel, id)}
+            onFechar={() => setCandidatosDe(null)}
+            confirmAction={confirmAction}
+          />
+        );
+      })()}
 
       {/* Também no dia — o que a equipe fez fora das seleções.
           Bloco PRÓPRIO, e não linhas na tabela acima: atividade não tem cargo,

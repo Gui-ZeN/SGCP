@@ -6,6 +6,9 @@
  */
 
 import type { Selecao } from '../types';
+import type { Sede } from '../hooks/useMetadata';
+import { siglaDaSede, chaveDeSede } from './filtroIndicadores';
+import { normalizarNome } from './catalogo';
 
 /**
  * O evento já aconteceu?
@@ -158,4 +161,111 @@ export function camposDaConfirmacao(convocados: number, compareceram: number): P
     compareceram,
     ausentes: Math.max(0, convocados - compareceram),
   };
+}
+
+/** O formulário do módulo Seleções — o dia de seleção como uma linha da QUANTI. */
+export interface FormularioSelecao {
+  data: string; // DD/MM/AAAA
+  cargo: string;
+  sede: string;
+  origem: Selecao['origem'];
+  setor: string;
+  gestor: string;
+  responsavel: string;
+  convocados: number;
+  /** Já aconteceu? Então os números abaixo valem e ela nasce "realizada". */
+  jaAconteceu: boolean;
+  compareceram: number;
+  ausentes: number;
+  desistiram: number;
+  contratados: number;
+  /** Vagas do Quadro que esta seleção atende (opcional: professor quase nunca tem vaga). */
+  vagaIds?: string[];
+}
+
+/**
+ * Valida e monta os campos da seleção. Lançar DEPOIS do fato é o jeito que o
+ * RH trabalha na planilha — por isso "já aconteceu" existe no formulário, e
+ * não só o agendamento seguido de confirmação.
+ *
+ * Não exige convocados = compareceram + ausentes: a planilha não fecha essa
+ * conta em 54 dos 263 dias de 2026, e travar aqui faria o RH desistir do
+ * sistema. Exige só o impossível: mais gente do que foi chamada.
+ */
+export function camposDoFormulario(f: FormularioSelecao): { erros: string[]; campos: Omit<Selecao, 'id'> } {
+  const erros = validarAgendamento({ data: f.data, cargo: f.cargo, sede: f.sede, convocados: f.convocados });
+  const n = (x: number) => Math.max(0, Math.floor(Number(x)) || 0);
+  const [comp, aus, des, cont] = f.jaAconteceu ? [n(f.compareceram), n(f.ausentes), n(f.desistiram), n(f.contratados)] : [0, 0, 0, 0];
+  if (f.jaAconteceu) {
+    if (comp + aus > f.convocados) erros.push(`Compareceram + ausentes (${comp + aus}) passa dos convocados (${f.convocados}).`);
+    if (cont > comp) erros.push(`Contratados (${cont}) não pode passar de quem compareceu (${comp}).`);
+  }
+  return {
+    erros,
+    campos: {
+      data: f.data.trim(), cargo: f.cargo.trim(), sede: f.sede.trim(), origem: f.origem,
+      setor: f.setor.trim(), gestor: f.gestor.trim(), responsavel: f.responsavel.trim(),
+      convocados: n(f.convocados), compareceram: comp, ausentes: aus, desistiram: des, contratados: cont,
+      status: f.jaAconteceu ? 'realizado' : 'agendado',
+      vagaIds: f.vagaIds || [],
+    },
+  };
+}
+
+// ─── seleção ↔ vaga ─────────────────────────────────────────────────────────
+
+/** A seleção atende esta vaga? (lista atual, campo único antigo ou código) */
+export function atendeVaga(s: Selecao, vaga: { id: string; codigo?: number | string }): boolean {
+  if (s.vagaIds?.includes(vaga.id) || s.vagaId === vaga.id) return true;
+  const codigo = vaga.codigo === undefined || vaga.codigo === null ? null : Number(vaga.codigo);
+  return codigo !== null && codigosDasVagas(s).includes(codigo);
+}
+
+/** As seleções ligadas à vaga, da mais recente para a mais antiga (agendadas incluídas). */
+export function selecoesDaVaga(selecoes: Selecao[], vaga: { id: string; codigo?: number | string }): Selecao[] {
+  const chave = (d: string) => (d || '').split('/').reverse().join('');
+  return selecoes.filter(s => atendeVaga(s, vaga)).sort((a, b) => chave(b.data).localeCompare(chave(a.data)));
+}
+
+export interface FunilEfetivo {
+  chamados: number;
+  compareceram: number;
+  aprovados: number;
+  /** 'selecao' = somado das seleções ligadas (decisão de 23/09/2026: automático); 'manual' = digitado na vaga. */
+  fonte: 'selecao' | 'manual';
+  selecoes: number;
+}
+
+/**
+ * O funil que a vaga MOSTRA. Vaga com seleção ligada: a soma das seleções,
+ * sempre atualizada, sem ninguém digitar (decisão de 23/09/2026 — antes era só
+ * sugestão ao mover de etapa). Sem seleção ligada: o que foi digitado na vaga.
+ */
+export function funilEfetivo(
+  vaga: { id: string; codigo?: number | string; candChamados?: number; candCompareceram?: number; candAprovados?: number },
+  selecoes: Selecao[]
+): FunilEfetivo {
+  const f = funilDaVaga(selecoes, vaga);
+  if (selecoes.some(s => atendeVaga(s, vaga))) {
+    return { chamados: f.chamados, compareceram: f.compareceram, aprovados: f.aprovados, fonte: 'selecao', selecoes: f.selecoes };
+  }
+  return { chamados: vaga.candChamados || 0, compareceram: vaga.candCompareceram || 0, aprovados: vaga.candAprovados || 0, fonte: 'manual', selecoes: 0 };
+}
+
+const EM_ANDAMENTO = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO'];
+
+/**
+ * As vagas que uma seleção pode atender: abertas, da MESMA sede (pela sigla do
+ * cadastro — "DT" e "DIONISIO TORRES" são a mesma), com as do mesmo cargo
+ * primeiro. As já ligadas entram mesmo se fecharam depois, para não sumirem da
+ * lista de quem está corrigindo.
+ */
+export function vagasSugeridas<V extends { id: string; vaga: string; sede: string; status: string; codigo?: number | string }>(
+  vagas: V[], sedes: Sede[], sede: string, cargo: string, jaLigadas: string[] = []
+): V[] {
+  const alvo = chaveDeSede(siglaDaSede(sedes, sede));
+  const c = normalizarNome(cargo);
+  return vagas
+    .filter(v => jaLigadas.includes(v.id) || (EM_ANDAMENTO.includes((v.status || '').toUpperCase()) && !!alvo && chaveDeSede(siglaDaSede(sedes, v.sede)) === alvo))
+    .sort((a, b) => Number(normalizarNome(b.vaga) === c) - Number(normalizarNome(a.vaga) === c) || a.vaga.localeCompare(b.vaga, 'pt-BR'));
 }

@@ -287,6 +287,31 @@ test("setores: analista NÃO renomeia nem apaga setor", async () => {
   await assertFails(deleteDoc(doc(ctx.user(ANALISTA_EMAIL), "setores", "sTI")));
 });
 
+// Candidatos: nome de quem NÃO é funcionário + resultado de teste psicológico.
+// Todo o RH lê e grava; Visualizador nem lê (decisão de 23/09/2026).
+const candidato = { selecaoId: "s1", data: "23/09/2026", nome: "Fulana de Tal", resultado: "ausente" };
+
+test("candidatos: analista cria e lê", async () => {
+  await assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "candidatos", "c1"), candidato));
+  await assertSucceeds(getDoc(doc(ctx.user(ANALISTA_EMAIL), "candidatos", "c1")));
+});
+
+test("candidatos: coordenador cria", () =>
+  assertSucceeds(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "candidatos", "c2"), candidato)));
+
+test("candidatos: visualizador NÃO lê nem grava", async () => {
+  await assertFails(getDoc(doc(ctx.user(VIEWER_EMAIL), "candidatos", "c1")));
+  await assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "candidatos", "c3"), candidato));
+});
+
+test("candidatos: sem nome ou sem dia de seleção é recusado", async () => {
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "candidatos", "c4"), { ...candidato, nome: "" }));
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "candidatos", "c5"), { ...candidato, selecaoId: "" }));
+});
+
+test("candidatos: quem não está cadastrado não lê", () =>
+  assertFails(getDoc(doc(ctx.user(STRANGER_EMAIL), "candidatos", "c1"))));
+
 test("setores: admin segue renomeando e apagando", async () => {
   await assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "setores", "sTI"), { nome: "Tecnologia" }));
   await assertSucceeds(deleteDoc(doc(ctx.user(ADMIN_EMAIL), "setores", "sTI")));
@@ -634,6 +659,21 @@ test("tarefas: analista NAO mexe numa tarefa padrao", () =>
 test("tarefas: coordenador arquiva uma tarefa padrao", () =>
   assertSucceeds(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "tarefasDiario", "testes"), { nome: "Testes psicológicos aplicados", arquivada: true })));
 
+// Apagar: só Admin/Coordenador. As quatro padrão vivem no código e nunca se
+// apagam.
+test("tarefas: coordenador apaga uma tarefa criada pela equipe", async () => {
+  await testEnv.withSecurityRulesDisabled(c => setDoc(doc(c.firestore(), "tarefasDiario", "tApagar"), { nome: "Reunião com X", ordem: 9, arquivada: false }));
+  await assertSucceeds(deleteDoc(doc(ctx.user(COORDENADOR_EMAIL), "tarefasDiario", "tApagar")));
+});
+
+test("tarefas: analista NAO apaga tarefa", async () => {
+  await testEnv.withSecurityRulesDisabled(c => setDoc(doc(c.firestore(), "tarefasDiario", "tFica"), { nome: "Y", ordem: 9, arquivada: false }));
+  await assertFails(deleteDoc(doc(ctx.user(ANALISTA_EMAIL), "tarefasDiario", "tFica")));
+});
+
+test("tarefas: ninguem apaga uma das quatro padrao", () =>
+  assertFails(deleteDoc(doc(ctx.user(ADMIN_EMAIL), "tarefasDiario", "atendimentos"))));
+
 test("tarefas: analista NAO renomeia tarefa existente", () =>
   assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "tarefasDiario", "tNova"), { nome: "Renomeada", ordem: 5 })));
 
@@ -642,8 +682,10 @@ test("tarefas: nome vazio ou longo demais e' recusado", async () => {
   await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "tarefasDiario", "tLonga"), { nome: "x".repeat(61) }));
 });
 
-test("tarefas: ninguem apaga (a arquivada ainda nomeia o historico)", () =>
-  assertFails(deleteDoc(doc(ctx.user(ADMIN_EMAIL), "tarefasDiario", "tNova"))));
+// Apagar tarefa já contada é permitido; o relato ignora a contagem órfã
+// (testado em resumoDia.test). Aqui fica o que a regra garante sozinha.
+test("tarefas: visualizador NAO apaga", () =>
+  assertFails(deleteDoc(doc(ctx.user(VIEWER_EMAIL), "tarefasDiario", "tNova"))));
 
 test("tarefas: visualizador NAO cria", () =>
   assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "tarefasDiario", "tViewer"), { nome: "Y" })));

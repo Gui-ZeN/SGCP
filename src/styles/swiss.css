@@ -258,6 +258,13 @@ html[data-theme="swiss"] textarea {
   border-radius: 4px !important;
 }
 
+/* Exceção: célula de planilha (lista de candidatos do módulo Seleções). Numa
+   grade de centenas de linhas, uma caixa em volta de CADA campo vira ruído — a
+   célula fica sem borda, ganha o fio ao passar o mouse e o acento ao editar. */
+html[data-theme="swiss"] .celula-planilha { border-color: transparent !important; }
+html[data-theme="swiss"] .celula-planilha:hover:not(:disabled) { border-color: var(--sgpc-hairline) !important; }
+html[data-theme="swiss"] .celula-planilha:focus { border-color: var(--sgpc-acento) !important; background: var(--sgpc-papel) !important; }
+
 /* ===== Foco: anel cobalto nítido em vez de halo difuso ===== */
 html[data-theme="swiss"] *:focus-visible {
   outline: 2px solid var(--sgpc-acento) !important;

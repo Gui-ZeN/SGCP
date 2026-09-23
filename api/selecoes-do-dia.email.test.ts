@@ -127,6 +127,20 @@ describe('relato concorda com a tela', () => {
       detalhes: 'Seleção agendada: ASG em DT, 22/09/2026 — 3 convocado(s).' },
     { timestamp: '2026-09-23T02:30:00.000Z', usuario: J, acao: 'CRIOU', modulo: 'Resumo do Dia', detalhes: '',
       ref: { titulo: 'Kits do Setembro Amarelo', detalhe: '120 kits' } },
+    { timestamp: '2026-09-22T16:00:00.000Z', usuario: A, acao: 'ALTEROU', modulo: 'Seleções', detalhes: '',
+      ref: { tipo: 'edicao', cargo: 'ASG', sede: 'DT', convocados: 3, compareceram: 1 } },
+    // Candidatos: dois registrados, um deles com resultado lançado duas vezes
+    // e um terceiro só com resultado — cobre a contagem por candidato.
+    { timestamp: '2026-09-22T14:00:00.000Z', usuario: A, acao: 'CRIOU', modulo: 'Candidatos', detalhes: '',
+      ref: { cargo: 'ASG', data: '22/09/2026', candidato: 'k1' } },
+    { timestamp: '2026-09-22T14:01:00.000Z', usuario: A, acao: 'CRIOU', modulo: 'Candidatos', detalhes: '',
+      ref: { cargo: 'ASG', data: '22/09/2026', candidato: 'k2' } },
+    { timestamp: '2026-09-22T15:00:00.000Z', usuario: A, acao: 'ALTEROU', modulo: 'Candidatos', detalhes: '',
+      ref: { cargo: 'ASG', data: '22/09/2026', candidato: 'k1' } },
+    { timestamp: '2026-09-22T15:05:00.000Z', usuario: A, acao: 'ALTEROU', modulo: 'Candidatos', detalhes: '',
+      ref: { cargo: 'ASG', data: '22/09/2026', candidato: 'k3' } },
+    { timestamp: '2026-09-22T15:06:00.000Z', usuario: A, acao: 'ALTEROU', modulo: 'Candidatos', detalhes: '',
+      ref: { cargo: 'ASG', data: '22/09/2026', candidato: 'k3' } },
     { timestamp: '2026-09-05T13:00:00.000Z', usuario: A, acao: 'ALTEROU', modulo: 'Seleções', detalhes: '',
       ref: { cargo: 'X', convocados: 2, compareceram: 2 } },
     { timestamp: '2026-08-05T13:00:00.000Z', usuario: A, acao: 'ALTEROU', modulo: 'Seleções', detalhes: '',
@@ -152,7 +166,7 @@ describe('relato concorda com a tela', () => {
     // Igualdade entre duas cópias erradas também passaria no teste de cima.
     const r = relatoPorPessoa(log, diarios, DIA, nomes, tarefas);
     expect(r.map(p => [p.nome, p.acoes])).toEqual([
-      ['Arlana Gomes', 5],
+      ['Arlana Gomes', 11], // 5 + os 5 lançamentos de candidatos + 1 correção
       ['jenifer@christus.com.br', 4],
       ['so-diario@christus.com.br', 0],
     ]);
@@ -161,6 +175,9 @@ describe('relato concorda com a tela', () => {
     expect(arlana).toContain('Agendou para 23/09/2026 a seleção de Aprendiz em DT, com 10 convocados.');
     expect(arlana).toContain('Abriu 30 vagas em Dom Luís: 30 de ASG.');
     expect(arlana).toContain('Encaminhou 1 consulta de colaboradores.');
+    expect(arlana).toContain('Registrou 2 candidatos na seleção de ASG de 22/09/2026.');
+    expect(arlana).toContain('Corrigiu os dados de 1 seleção.');
+    expect(arlana).toContain('Lançou o resultado de 1 candidato na seleção de ASG de 22/09/2026.');
     expect(JSON.stringify(r)).not.toContain('Psiquiatria');
     expect(arlana).toContain('Entrevistas por telefone: 5.');
     expect(arlana).toContain('Testes psicológicos: 1.');

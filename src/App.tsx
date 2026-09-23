@@ -22,6 +22,10 @@ import { useConsultas } from './hooks/useConsultas';
 import { useFuncionarios } from './hooks/useFuncionarios';
 import { useOrganograma } from './hooks/useOrganograma';
 import { useAtividades } from './hooks/useAtividades';
+import { useCandidatos } from './hooks/useCandidatos';
+import { numerosDoDia } from './utils/candidatos';
+import { atendeVaga } from './utils/selecao';
+import type { Candidato, Selecao } from './types';
 import { useDiario } from './hooks/useDiario';
 import { useMeuLog } from './hooks/useMeuLog';
 import { useTarefasDiario } from './hooks/useTarefasDiario';
@@ -61,6 +65,7 @@ const RequisicoesSection = lazyComRetry(() => import('./components/RequisicoesSe
 const IntegracoesSection = lazyComRetry(() => import('./components/IntegracoesSection').then(m => ({ default: m.IntegracoesSection })));
 const ConsultasSection = lazyComRetry(() => import('./components/ConsultasSection').then(m => ({ default: m.ConsultasSection })));
 const SelecoesSection = lazyComRetry(() => import('./components/SelecoesSection').then(m => ({ default: m.SelecoesSection })));
+const SelecoesModulo = lazyComRetry(() => import('./components/SelecoesModulo').then(m => ({ default: m.SelecoesModulo })));
 const OrganogramaSection = lazyComRetry(() => import('./components/OrganogramaSection').then(m => ({ default: m.OrganogramaSection })));
 import { 
   Briefcase, 
@@ -73,6 +78,7 @@ import {
   ShieldAlert,
   GraduationCap,
   ClipboardList,
+  Sheet,
   Users,
   Network,
   ShieldCheck,
@@ -222,7 +228,9 @@ export default function App() {
     [integracoes, sedes, selectedSede, isAdmin]
   );
 
-  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'integracao' | 'consultas' | 'selecoes' | 'organograma' | 'admin'>('home');
+  // Seleção a abrir no módulo Seleções (vindo da gaveta da vaga). O token muda a cada clique.
+  const [focoSelecao, setFocoSelecao] = useState<{ id: string; token: number } | null>(null);
+  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'integracao' | 'consultas' | 'selecoes' | 'selecoesLista' | 'organograma' | 'admin'>('home');
   // Menu em gaveta abaixo de `lg`. Antes a sidebar virava uma fita horizontal de
   // colunas: 1408px de conteúdo num celular de 375px, com 8 dos 12 itens fora da
   // tela e o "Sair" com 0×0. Na gaveta cabe a lista inteira, com rótulo e nome
@@ -278,9 +286,11 @@ export default function App() {
   );
 
   const { atividades, adicionarAtividade, atualizarAtividade, removerAtividade } = useAtividades(user);
+  // Candidatos: só para quem a regra deixa ler (RH sem Visualizador).
+  const { candidatos, gravarCandidato, removerCandidato } = useCandidatos(user, canManageModules);
   const { diarios, salvarMeuDia } = useDiario(user);
   const meuLog = useMeuLog(user);
-  const { tarefas: tarefasDiario, criarTarefa, ajustarTarefa } = useTarefasDiario(user);
+  const { tarefas: tarefasDiario, criarTarefa, ajustarTarefa, apagarTarefa } = useTarefasDiario(user);
 
   // Atividade segue o MESMO escopo por unidade das seleções: aparecem na mesma
   // tela e no mesmo e-mail, e uma escapando do recorte mostraria a Universidade
@@ -382,6 +392,91 @@ export default function App() {
       await updateSelecao(id, campos);
       await logAction('ALTEROU', 'Seleções', `Presença confirmada na seleção de ${alvo?.cargo || id} (${alvo?.data}): ${campos.compareceram} de ${alvo?.convocados} compareceram.`,
         { ref: { cargo: alvo?.cargo, sede: alvo?.sede, data: alvo?.data, convocados: alvo?.convocados, compareceram: campos.compareceram } });
+    });
+
+  // Candidatos do dia de seleção. Os números do dia (convocados,
+  // compareceram…) SAEM DA LISTA e são regravados na seleção a cada mudança —
+  // assim tabela, dashboard e e-mail das 18h, que leem `selecoes`, seguem sem
+  // saber que existe candidato. ⚠️ O log leva cargo, data e o ID do
+  // candidato, nunca o nome: log é imutável, e nome de candidato não pode
+  // ficar para sempre num lugar de onde não se apaga.
+  // Só recalcula dia cujos números SÃO da lista: o que já é (`numerosPelaLista`)
+  // ou o que ainda não tinha candidato nenhum — o primeiro lançado pelo sistema
+  // liga a chave. Dia importado com nomes só para consulta fica como está.
+  const recalcularSelecao = async (selecao: Selecao, lista: Pick<Candidato, 'resultado' | 'contratado' | 'motivo'>[]) => {
+    const jaTinha = candidatos.some(c => c.selecaoId === selecao.id);
+    if (!selecao.numerosPelaLista && jaTinha) return;
+    await updateSelecao(selecao.id, { ...numerosDoDia(lista), numerosPelaLista: true });
+  };
+
+  // Sem a tela de carregamento global: lançar o resultado de 20 candidatos é
+  // 20 trocas de campo, e a tela piscaria a cada uma. Erro ainda avisa.
+  const wrappedSalvarCandidato = async (selecao: Selecao, dados: Pick<Candidato, 'nome' | 'resultado' | 'contratado' | 'motivo' | 'observacao'>, id?: string) => {
+    const antes = id ? candidatos.find(c => c.id === id) : undefined;
+    try {
+      const candidatoId = id || `cand_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await gravarCandidato(candidatoId, { ...dados, selecaoId: selecao.id, data: selecao.data });
+      const outros = candidatos.filter(c => c.selecaoId === selecao.id && c.id !== candidatoId);
+      await recalcularSelecao(selecao, [...outros, dados]);
+      await logAction(id ? 'ALTEROU' : 'CRIOU', 'Candidatos',
+        `${id ? 'Candidato atualizado' : 'Candidato registrado'} na seleção de ${selecao.cargo} (${selecao.data}).`,
+        { ref: { cargo: selecao.cargo, data: selecao.data, candidato: candidatoId } });
+    } catch (err: any) {
+      notify(`Erro ao salvar o candidato: ${err?.message || err}`, 'error');
+      return;
+    }
+    // Contratado na seleção → sugere como aprovado da vaga ligada (só sugere:
+    // quem confirma é o RH, e concluir a vaga continua no Quadro).
+    if (dados.contratado === 'sim' && antes?.contratado !== 'sim') {
+      const vaga = vagas.find(v => atendeVaga(selecao, v) && !v.aprovado && v.status !== 'FECHADA');
+      if (vaga) {
+        askConfirmation('Registrar como aprovado da vaga?',
+          `${dados.nome} foi marcado(a) como contratado(a). Registrar como aprovado(a) da vaga #${vaga.codigo} (${vaga.vaga})? Para concluir a vaga, use o Quadro de Vagas.`,
+          () => wrappedUpdateVaga(vaga.id, { aprovado: dados.nome }));
+      }
+    }
+  };
+
+  /** Vários nomes de uma vez — a convocação costuma ser de 10, 20 pessoas. */
+  const wrappedRegistrarCandidatos = (selecao: Selecao, nomes: string[]) =>
+    executeWithLoading(`Registrando ${nomes.length} candidato(s)...`, async () => {
+      const novos = nomes.map((nome, i) => ({
+        id: `cand_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`,
+        nome, resultado: 'convocado' as const, contratado: '' as const, motivo: '', observacao: '',
+      }));
+      for (const c of novos) await gravarCandidato(c.id, { ...c, selecaoId: selecao.id, data: selecao.data });
+      await recalcularSelecao(selecao, [...candidatos.filter(c => c.selecaoId === selecao.id), ...novos]);
+      for (const c of novos) {
+        await logAction('CRIOU', 'Candidatos', `Candidato registrado na seleção de ${selecao.cargo} (${selecao.data}).`,
+          { ref: { cargo: selecao.cargo, data: selecao.data, candidato: c.id } });
+      }
+    });
+
+  const wrappedRemoverCandidato = (selecao: Selecao, id: string) =>
+    executeWithLoading('Removendo candidato...', async () => {
+      await removerCandidato(id);
+      await recalcularSelecao(selecao, candidatos.filter(c => c.selecaoId === selecao.id && c.id !== id));
+      await logAction('EXCLUIU', 'Candidatos', `Candidato removido da seleção de ${selecao.cargo} (${selecao.data}).`,
+        { ref: { cargo: selecao.cargo, data: selecao.data, candidato: id } });
+    });
+
+  // Módulo Seleções (a planilha no sistema). O log diz o QUE foi: lançar
+  // depois do fato é "lancamento" e corrigir é "edicao" — nenhum dos dois vira
+  // "Conduziu a seleção" no e-mail das 18h de quem só digitou.
+  const wrappedSalvarSelecao = (campos: Omit<Selecao, 'id'>, id?: string) =>
+    executeWithLoading(id ? 'Salvando a seleção...' : 'Registrando a seleção...', async () => {
+      const ref = { cargo: campos.cargo, sede: campos.sede, data: campos.data, convocados: campos.convocados };
+      if (id) {
+        await updateSelecao(id, campos);
+        await logAction('ALTEROU', 'Seleções', `Seleção de ${campos.cargo} (${campos.data}) corrigida no módulo Seleções.`, { ref: { ...ref, tipo: 'edicao' } });
+      } else if (campos.status === 'realizado') {
+        await addSelecao(campos);
+        await logAction('CRIOU', 'Seleções', `Seleção já realizada lançada: ${campos.cargo} em ${campos.sede}, ${campos.data} — ${campos.compareceram} de ${campos.convocados} compareceram.`,
+          { ref: { ...ref, compareceram: campos.compareceram, tipo: 'lancamento' } });
+      } else {
+        await addSelecao(campos);
+        await logAction('CRIOU', 'Seleções', `Seleção agendada: ${campos.cargo} em ${campos.sede}, ${campos.data} — ${campos.convocados} convocado(s).`, { ref });
+      }
     });
 
   // Painel admin do Coordenador: vê/gerencia só a UNIDADE dele (Colégio OU
@@ -1110,6 +1205,7 @@ export default function App() {
               {activeTab === 'integracao' && 'Treinamento de Integração'}
               {activeTab === 'consultas' && 'Consultas'}
               {activeTab === 'selecoes' && 'Resumo do Dia'}
+              {activeTab === 'selecoesLista' && 'Seleções'}
               {activeTab === 'organograma' && 'Organograma'}
               {activeTab === 'admin' && 'Painel Administrativo'}
             </p>
@@ -1244,6 +1340,21 @@ export default function App() {
                   {requisicoesPendentes > 0 && (
                     <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-amber-500 text-white leading-none shrink-0">{requisicoesPendentes}</span>
                   )}
+                </button>
+              )}
+
+              {podeVerSelecoes && (
+                <button
+                  id="tab-selecoes-lista"
+                  onClick={() => setActiveTab('selecoesLista')}
+                  className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                    activeTab === 'selecoesLista'
+                      ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
+                  }`}
+                >
+                  <Sheet className="w-4 h-4 shrink-0 text-indigo-500" />
+                  <span className="flex-1 text-left">Seleções</span>
                 </button>
               )}
 
@@ -1514,6 +1625,7 @@ export default function App() {
               addSetor={wrappedAddSetor}
               isAdmin={isAdmin || isCoord}
               selecoes={scopedSelecoes}
+              abrirSelecao={podeVerSelecoes ? (id: string) => { setFocoSelecao({ id, token: Date.now() }); setActiveTab('selecoesLista'); } : undefined}
               confirmAction={askConfirmation}
               triggerAddModal={triggerAddModal}
               userSede={scopedUserSede}
@@ -1593,6 +1705,24 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'selecoesLista' && podeVerSelecoes && (
+            <SelecoesModulo
+              selecoes={scopedSelecoes}
+              sedes={sedesIntegracao}
+              vagas={scopedVagas}
+              foco={focoSelecao}
+              setores={(setores || []).map(s => s.nome)}
+              sedePadrao={scopedUserSede}
+              responsavelPadrao={user?.displayName || ''}
+              salvarSelecao={canManageModules ? wrappedSalvarSelecao : undefined}
+              candidatos={canManageModules ? candidatos : undefined}
+              salvarCandidato={canManageModules ? wrappedSalvarCandidato : undefined}
+              registrarCandidatos={canManageModules ? wrappedRegistrarCandidatos : undefined}
+              removerCandidato={canManageModules ? wrappedRemoverCandidato : undefined}
+              confirmAction={askConfirmation}
+            />
+          )}
+
           {activeTab === 'selecoes' && podeVerSelecoes && (
             <SelecoesSection
               selecoes={scopedSelecoes}
@@ -1606,6 +1736,11 @@ export default function App() {
               responsavelPadrao={user?.displayName || ''}
               agendarSelecao={canManageModules ? wrappedAgendarSelecao : undefined}
               confirmarSelecao={canManageModules ? wrappedConfirmarSelecao : undefined}
+              // Candidatos: nome e resultado de teste — só o RH, sem Visualizador.
+              candidatos={canManageModules ? candidatos : undefined}
+              salvarCandidato={canManageModules ? wrappedSalvarCandidato : undefined}
+              registrarCandidatos={canManageModules ? wrappedRegistrarCandidatos : undefined}
+              removerCandidato={canManageModules ? wrappedRemoverCandidato : undefined}
               atividades={scopedAtividades}
               // Log só para quem as regras deixam ler; para os demais o bloco
               // "No sistema" simplesmente não aparece.
@@ -1621,6 +1756,7 @@ export default function App() {
               // Renomear e arquivar mexem na lista de TODO o RH: só quem
               // coordena. A regra do banco confere a mesma coisa.
               ajustarTarefa={isAdmin || isCoord ? ajustarTarefa : undefined}
+              apagarTarefa={isAdmin || isCoord ? apagarTarefa : undefined}
               adicionarAtividade={canManageModules ? wrappedAdicionarAtividade : undefined}
               atualizarAtividade={canManageModules ? wrappedAtualizarAtividade : undefined}
               removerAtividade={canManageModules ? wrappedRemoverAtividade : undefined}

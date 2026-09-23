@@ -65,7 +65,9 @@ export const EtapaMoveModal: React.FC<{
   /** Números já registrados nas seleções desta vaga — sugestão, não imposição. */
   selecao?: { selecoes: number; chamados: number; compareceram: number; aprovados: number; ultimaData: string } | null;
   onUsarSelecao?: () => void;
-}> = ({ move, chamados, compareceram, aprovados, motivo, onChamados, onCompareceram, onAprovados, onMotivo, onCancel, onConfirm, selecao, onUsarSelecao }) => (
+  /** Funil vem das seleções ligadas: só leitura. */
+  automatico?: boolean;
+}> = ({ move, chamados, compareceram, aprovados, motivo, onChamados, onCompareceram, onAprovados, onMotivo, onCancel, onConfirm, selecao, onUsarSelecao, automatico }) => (
   <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
     <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
       <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
@@ -102,7 +104,10 @@ export const EtapaMoveModal: React.FC<{
                 )}
               </div>
             )}
-            <div className="grid grid-cols-3 gap-3">
+            {automatico && (
+              <p className="mb-3 text-[11px] text-slate-600 font-semibold">Somado das seleções ligadas a esta vaga — atualiza sozinho, no módulo Seleções.</p>
+            )}
+            <fieldset disabled={automatico} className="grid grid-cols-3 gap-3 disabled:opacity-80">
               <div>
                 <label htmlFor="move-chamados" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Chamados</label>
                 <input id="move-chamados" type="number" min={0} value={chamados} onChange={(e) => onChamados(Number(e.target.value))} className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl" />
@@ -115,7 +120,7 @@ export const EtapaMoveModal: React.FC<{
                 <label htmlFor="move-aprovados" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Aprovados</label>
                 <input id="move-aprovados" type="number" min={0} value={aprovados} onChange={(e) => onAprovados(Number(e.target.value))} className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl" />
               </div>
-            </div>
+            </fieldset>
           </div>
         ) : (
           <div>
