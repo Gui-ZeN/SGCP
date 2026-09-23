@@ -6,8 +6,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Vaga } from '../types';
 import { toISOInput, formatDateBR, monthAbbrFromDate, yearFromDate } from '../utils/date';
-import { PlusCircle, FileText, CheckCircle } from 'lucide-react';
+import { PlusCircle, FileText, CheckCircle, X } from 'lucide-react';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
+import { sugestoesDeCargo, setorExistente } from '../utils/catalogo';
 
 interface AddVacancyFormProps {
   /** `quantidade` abre N posições iguais de uma vez — ver `addVagas` em useVagas. */
@@ -17,9 +18,13 @@ interface AddVacancyFormProps {
   cargos?: Cargo[];
   setores?: Setor[];
   userSede?: string;
+  /** Nomes já usados em vagas — entram nas sugestões junto com o cadastro. */
+  nomesUsados?: string[];
+  /** Cadastra um setor novo. Ausente = sem o "+ Novo setor". */
+  criarSetor?: (nome: string) => Promise<void>;
 }
 
-export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSuccess, sedes, cargos, setores, userSede }) => {
+export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSuccess, sedes, cargos, setores, userSede, nomesUsados = [], criarSetor }) => {
   const [vagaName, setVagaName] = useState('');
   const [sede, setSede] = useState(userSede || 'DT');
 
@@ -148,11 +153,50 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
     ].sort((a,b) => a.localeCompare(b));
   }, [setores]);
 
+  // Setor recém-criado aqui: vale na hora, antes de o cadastro devolvê-lo na
+  // lista — senão o efeito abaixo o trocaria pelo primeiro da lista.
+  const [setorCriado, setSetorCriado] = useState('');
+  const opcoesDeSetor = setorCriado && !sectorOptions.includes(setorCriado)
+    ? [...sectorOptions, setorCriado].sort((a, b) => a.localeCompare(b))
+    : sectorOptions;
+
   useEffect(() => {
-    if (sectorOptions && sectorOptions.length > 0 && !sectorOptions.includes(setor)) {
+    if (sectorOptions && sectorOptions.length > 0 && !sectorOptions.includes(setor) && setor !== setorCriado) {
       setSetor(sectorOptions[0]);
     }
-  }, [sectorOptions, setor]);
+  }, [sectorOptions, setor, setorCriado]);
+
+  const [novoSetor, setNovoSetor] = useState<string | null>(null);
+  const [avisoSetor, setAvisoSetor] = useState('');
+  const [criandoSetor, setCriandoSetor] = useState(false);
+  const criarSetorAgora = async () => {
+    const nome = (novoSetor || '').trim().replace(/\s+/g, ' ');
+    if (!nome || !criarSetor) return;
+    // Nome que já existe (ignorando caixa e acento) reaproveita o cadastrado:
+    // "pedagogico" não pode virar um segundo "Pedagógico".
+    const existente = setorExistente(sectorOptions, nome);
+    if (existente) {
+      setSetor(existente);
+      setNovoSetor(null);
+      setAvisoSetor(`"${existente}" já existia e foi selecionado.`);
+      return;
+    }
+    setCriandoSetor(true);
+    try {
+      await criarSetor(nome);
+      setSetorCriado(nome);
+      setSetor(nome);
+      setNovoSetor(null);
+      setAvisoSetor(`Setor "${nome}" criado.`);
+    } finally {
+      setCriandoSetor(false);
+    }
+  };
+
+  const sugestoes = useMemo(
+    () => sugestoesDeCargo((cargos || []).map(c => c.nome), nomesUsados),
+    [cargos, nomesUsados]
+  );
 
   const motivoOptions = [
     "Substituição por desligamento", 
@@ -206,12 +250,16 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
                 placeholder="Ex: Auxiliar Administrativo"
                 value={vagaName}
                 onChange={(e) => setVagaName(e.target.value)}
+                aria-describedby="form-vaga-ajuda"
               />
+              {/* Sugestão, não trava: um cargo que ninguém abriu ainda precisa
+                  poder ser digitado. */}
               <datalist id="cargoSuggestions">
-                {[...(cargos || [])].sort((a,b) => (a.nome || '').localeCompare(b.nome || '')).map(c => (
-                  <option key={c.id} value={c.nome} />
-                ))}
+                {sugestoes.map(nome => <option key={nome} value={nome} />)}
               </datalist>
+              <p id="form-vaga-ajuda" className="text-[11px] text-slate-500 font-medium mt-1.5 ml-1 leading-relaxed">
+                Comece a digitar para ver os cargos já usados.
+              </p>
 
               {/* Quantidade mora colada ao Cargo porque é "quantas DESTE cargo",
                   e não um atributo solto da vaga. Cada posição continua virando
@@ -286,17 +334,67 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
 
             {/* Setor Dropdown */}
             <div>
-              <label htmlFor="form-setor" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Setor / Área</label>
-              <select
-                id="form-setor"
-                className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors placeholder:text-slate-400"
-                value={setor}
-                onChange={(e) => setSetor(e.target.value)}
-              >
-                {sectorOptions.map((opt, idx) => (
-                  <option key={idx} value={opt}>{opt}</option>
-                ))}
-              </select>
+              <div className="flex items-baseline justify-between gap-2 mb-1.5 ml-1">
+                <label htmlFor={novoSetor !== null ? 'form-setor-novo' : 'form-setor'} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Setor / Área</label>
+                {criarSetor && novoSetor === null && (
+                  <button
+                    type="button"
+                    onClick={() => { setNovoSetor(''); setAvisoSetor(''); }}
+                    className="text-[11px] font-bold text-orange-700 hover:text-orange-800 cursor-pointer"
+                  >
+                    + Novo setor
+                  </button>
+                )}
+              </div>
+              {novoSetor !== null ? (
+                <div className="flex gap-1.5">
+                  <input
+                    id="form-setor-novo"
+                    type="text"
+                    autoFocus
+                    maxLength={60}
+                    placeholder="Nome do setor"
+                    className="w-full min-w-0 px-3 py-2.5 text-sm bg-white border border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none rounded-xl text-slate-700 font-medium placeholder:text-slate-400"
+                    value={novoSetor}
+                    onChange={(e) => setNovoSetor(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Enter aqui cria o setor, não envia a vaga pela metade.
+                      if (e.key === 'Enter') { e.preventDefault(); criarSetorAgora(); }
+                      if (e.key === 'Escape') { e.preventDefault(); setNovoSetor(null); }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={criarSetorAgora}
+                    disabled={criandoSetor || !novoSetor.trim()}
+                    className="shrink-0 px-3 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 disabled:opacity-40 cursor-pointer disabled:cursor-default"
+                  >
+                    {criandoSetor ? '...' : 'Criar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNovoSetor(null)}
+                    aria-label="Cancelar novo setor"
+                    className="shrink-0 px-2.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 text-sm font-bold cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <select
+                  id="form-setor"
+                  className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors placeholder:text-slate-400"
+                  value={setor}
+                  onChange={(e) => { setSetor(e.target.value); setAvisoSetor(''); }}
+                >
+                  {opcoesDeSetor.map((opt, idx) => (
+                    <option key={idx} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              )}
+              {avisoSetor && (
+                <p role="status" className="text-[11px] text-emerald-700 font-semibold mt-1.5 ml-1">{avisoSetor}</p>
+              )}
             </div>
 
             {/* Sexo check */}

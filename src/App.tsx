@@ -1511,6 +1511,7 @@ export default function App() {
               sedes={scopedSedes}
               cargos={cargos}
               setores={setores}
+              addSetor={wrappedAddSetor}
               isAdmin={isAdmin || isCoord}
               selecoes={scopedSelecoes}
               confirmAction={askConfirmation}

@@ -256,7 +256,14 @@ service cloud.firestore {
 
     match /setores/{setorId} {
       allow read: if isAppUser();
-      allow write: if isAdmin();
+      // Criar vem do formulário de nova vaga: quem abre vaga declara o setor
+      // que falta, sem esperar um Admin. Só o nome, e nome de verdade.
+      allow create: if isAdmin() || (isEditor()
+        && incoming().keys().hasOnly(['nome'])
+        && incoming().nome is string
+        && incoming().nome.size() > 0 && incoming().nome.size() <= 60);
+      // Renomear e apagar mexem no que já foi contado nas vagas — só Admin.
+      allow update, delete: if isAdmin();
     }
 
     // Configuração interna do sistema. Nenhum cliente lê isto hoje, então

@@ -64,6 +64,8 @@ interface VacancyTableProps {
   sedes?: Sede[];
   cargos?: Cargo[];
   setores?: Setor[];
+  /** Criar setor direto do formulário de nova vaga. Ausente = sem o botão. */
+  addSetor?: (nome: string) => Promise<void>;
   isAdmin?: boolean;
   confirmAction?: (title: string, message: string, onConfirm: () => void | Promise<void>) => void;
   triggerAddModal?: number;
@@ -90,6 +92,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   sedes,
   cargos,
   setores,
+  addSetor,
   isAdmin = false,
   confirmAction,
   triggerAddModal,
@@ -100,6 +103,9 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   selecoes = []
 }) => {
   const canManageVagas = isAdmin || userRole === 'Analista' || userRole === 'Administrador';
+  // Os nomes já usados entram nas sugestões do formulário: o cadastro de
+  // cargos sozinho cobre uma fração do que o RH abre de verdade.
+  const nomesDeVagaUsados = useMemo(() => vagas.map(v => v.vaga), [vagas]);
   // Abrir detalhes via teclado (Enter/Espaço) onde a área é clicável (acessibilidade).
   const teclaDetalhe = (vaga: Vaga) => (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDetailsVaga(vaga); }
@@ -1818,6 +1824,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                 sedes={sedes}
                 cargos={cargos}
                 setores={setores}
+                nomesUsados={nomesDeVagaUsados}
+                criarSetor={canManageVagas ? addSetor : undefined}
                 onSuccess={() => setShowAddVagaModal(false)}
                 userSede={userSede}
               />

@@ -56,6 +56,7 @@ const ctx = {
 async function seed() {
   await testEnv.withSecurityRulesDisabled(async (c) => {
     const db = c.firestore();
+    await setDoc(doc(db, "setores", "sTI"), { nome: "TI" });
     // Sem bootstrap por e-mail: o admin precisa estar registrado em `usuarios`.
     await setDoc(doc(db, "usuarios", ADMIN_EMAIL), {
       email: ADMIN_EMAIL,
@@ -264,6 +265,32 @@ test("sedes: coordenador NÃO pode excluir sede da Universidade", () =>
 
 test("sedes: coordenador NÃO pode criar/editar Cargos (cadastro global)", () =>
   assertFails(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "cargos", "c99"), { nome: "X" })));
+
+// Setor nasce no formulário de nova vaga: quem abre vaga declara o setor que
+// falta. Renomear e apagar mexem no que já foi contado — só Admin.
+test("setores: analista PODE criar setor (só o nome)", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "setores", "sNovo"), { nome: "Nutrição" })));
+
+test("setores: coordenador PODE criar setor", () =>
+  assertSucceeds(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "setores", "sNovo2"), { nome: "Enfermaria" })));
+
+test("setores: visualizador NÃO cria setor", () =>
+  assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "setores", "sNovo3"), { nome: "X" })));
+
+test("setores: analista NÃO cria setor com campo a mais nem nome vazio", async () => {
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "setores", "sNovo4"), { nome: "X", ativo: true }));
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "setores", "sNovo5"), { nome: "" }));
+});
+
+test("setores: analista NÃO renomeia nem apaga setor", async () => {
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "setores", "sTI"), { nome: "Tecnologia" }));
+  await assertFails(deleteDoc(doc(ctx.user(ANALISTA_EMAIL), "setores", "sTI")));
+});
+
+test("setores: admin segue renomeando e apagando", async () => {
+  await assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "setores", "sTI"), { nome: "Tecnologia" }));
+  await assertSucceeds(deleteDoc(doc(ctx.user(ADMIN_EMAIL), "setores", "sTI")));
+});
 
 // --- Coordenador da UNIVERSIDADE (unidade denormalizada no doc do usuário) ---
 test("sedes: coordenador do Colegio edita sede legada (sem campo regiao) sem estourar a regra", () =>
