@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ehRealizada, estaAtrasada, validarAgendamento, validarConfirmacao, camposDaConfirmacao, totaisDeSelecoes, codigosDasVagas, funilDaVaga, camposDoFormulario, funilEfetivo, selecoesDaVaga, vagasSugeridas } from './selecao';
+import { ehRealizada, estaAtrasada, validarAgendamento, validarConfirmacao, camposDaConfirmacao, totaisDeSelecoes, codigosDasVagas, funilDaVaga, camposDoFormulario, funilEfetivo, selecoesDaVaga, vagasSugeridas, origemDoSetor } from './selecao';
 import type { Selecao } from '../types';
 
 const dia = (over: Partial<Selecao>): Selecao => ({
@@ -232,5 +232,14 @@ describe('vagasSugeridas', () => {
 
   it('já ligada aparece mesmo fechada', () => {
     expect(vagasSugeridas(vagas, sedes, 'DT', 'ASG', ['d']).map(x => x.id)).toContain('d');
+  });
+});
+
+describe('origemDoSetor', () => {
+  it('Pedagógico (com ou sem acento) vai para a planilha pedagógica; o resto, geral', () => {
+    expect(origemDoSetor('Pedagógico')).toBe('pedagogico');
+    expect(origemDoSetor(' PEDAGOGICO ')).toBe('pedagogico');
+    expect(origemDoSetor('Infraestrutura')).toBe('geral');
+    expect(origemDoSetor(undefined)).toBe('geral');
   });
 });

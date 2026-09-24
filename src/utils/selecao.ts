@@ -269,3 +269,11 @@ export function vagasSugeridas<V extends { id: string; vaga: string; sede: strin
     .filter(v => jaLigadas.includes(v.id) || (EM_ANDAMENTO.includes((v.status || '').toUpperCase()) && !!alvo && chaveDeSede(siglaDaSede(sedes, v.sede)) === alvo))
     .sort((a, b) => Number(normalizarNome(b.vaga) === c) - Number(normalizarNome(a.vaga) === c) || a.vaga.localeCompare(b.vaga, 'pt-BR'));
 }
+
+/**
+ * Qual planilha (QUANTI) a seleção conta: vem do setor da vaga, não de escolha
+ * manual (decisão de 24/09/2026). Setor Pedagógico → pedagógico; o resto → geral.
+ */
+export function origemDoSetor(setor: string | undefined): NonNullable<Selecao['origem']> {
+  return normalizarNome(setor || '') === 'pedagogico' ? 'pedagogico' : 'geral';
+}

@@ -12,7 +12,7 @@
 import React, { useMemo, useState } from 'react';
 import type { Selecao, Candidato, Vaga } from '../types';
 import type { Sede } from '../hooks/useMetadata';
-import { camposDoFormulario, ehRealizada, vagasSugeridas, type FormularioSelecao } from '../utils/selecao';
+import { camposDoFormulario, ehRealizada, vagasSugeridas, origemDoSetor, type FormularioSelecao } from '../utils/selecao';
 import { formatDateBR, toISOInput, dataISOLocal } from '../utils/date';
 import {
   opcoesDeSede, naSede, siglaDaSede, anoMes, noPeriodo, anosDosDados, MESES_LONGOS, type Periodo,
@@ -350,6 +350,19 @@ const FormSelecao: React.FC<{
   const [erros, setErros] = useState<string[]>([]);
   const [salvando, setSalvando] = useState(false);
   const set = <K extends keyof FormularioSelecao>(k: K, v: FormularioSelecao[K]) => setF(x => ({ ...x, [k]: v }));
+  // Seleção antiga sem vaga ligada abre com os campos livres; nova abre pedindo a vaga.
+  const [semVaga, setSemVaga] = useState(!(inicial.vagaIds || []).length && !!inicial.cargo);
+  const trocarSede = (sede: string) =>
+    setF(x => semVaga ? { ...x, sede } : { ...x, sede, vagaIds: [], cargo: '', setor: '', gestor: '' });
+  const marcarVaga = (v: Vaga) => setF(x => {
+    const ligadas = x.vagaIds || [];
+    if (ligadas.includes(v.id)) {
+      const resto = ligadas.filter(id => id !== v.id);
+      return resto.length ? { ...x, vagaIds: resto } : { ...x, vagaIds: [], cargo: '', setor: '', gestor: '' };
+    }
+    if (ligadas.length) return { ...x, vagaIds: [...ligadas, v.id] };
+    return { ...x, vagaIds: [v.id], cargo: v.vaga, setor: v.setor || '', gestor: v.solicitante || '' };
+  });
   const numeroCampo = (k: 'convocados' | 'compareceram' | 'ausentes' | 'desistiram' | 'contratados', r: string, bloqueado = false) => (
     <label className="block">
       <span className={rotulo}>{r}</span>
@@ -359,7 +372,11 @@ const FormSelecao: React.FC<{
   );
 
   const salvar = async () => {
-    const { erros: e, campos } = camposDoFormulario(numerosDaLista ? { ...f, convocados: Math.max(1, f.convocados) } : f);
+    // Planilha pelo setor. Sem setor (histórico da aba pedagógica, que não tem
+    // a coluna), fica a que já estava.
+    const g = { ...f, origem: f.setor ? origemDoSetor(f.setor) : f.origem };
+    const { erros: e0, campos } = camposDoFormulario(numerosDaLista ? { ...g, convocados: Math.max(1, g.convocados) } : g);
+    const e = !semVaga && !(f.vagaIds || []).length ? ['Escolha a vaga — ou use "Seleção sem vaga aberta".', ...e0.filter(x => !/cargo/i.test(x))] : e0;
     setErros(e);
     if (e.length) return;
     setSalvando(true);
@@ -381,62 +398,80 @@ const FormSelecao: React.FC<{
           <input type="date" className={campo} value={toISOInput(f.data)} onChange={e => set('data', formatDateBR(e.target.value))} />
         </label>
         <label className="block md:col-span-2">
-          <span className={rotulo}>Cargo *</span>
-          <input className={campo} list="sm-cargos" value={f.cargo} onChange={e => set('cargo', e.target.value)} />
-        </label>
-        <label className="block">
-          <span className={rotulo}>Planilha</span>
-          <select className={campo} value={f.origem} onChange={e => set('origem', e.target.value as Selecao['origem'])}>
-            <option value="geral">Geral</option>
-            <option value="pedagogico">Pedagógico</option>
-          </select>
-        </label>
-        <label className="block">
           <span className={rotulo}>Sede *</span>
-          <select className={campo} value={f.sede} onChange={e => set('sede', e.target.value)}>
+          <select className={campo} value={f.sede} onChange={e => trocarSede(e.target.value)}>
             <option value="">Escolha…</option>
             {f.sede && !sedes.some(s => s.nome === f.sede) && <option value={f.sede}>{f.sede}</option>}
             {sedes.map(s => <option key={s.nome} value={s.nome}>{s.sigla ? `${s.sigla} · ${s.nome}` : s.nome}</option>)}
           </select>
         </label>
         <label className="block">
-          <span className={rotulo}>Setor</span>
-          <input className={campo} list="sm-setores" value={f.setor} onChange={e => set('setor', e.target.value)} />
-        </label>
-        <label className="block">
-          <span className={rotulo}>Gestor</span>
-          <input className={campo} list="sm-gestores" value={f.gestor} onChange={e => set('gestor', e.target.value)} />
-        </label>
-        <label className="block">
           <span className={rotulo}>Responsável (RH)</span>
           <input className={campo} list="sm-rh" value={f.responsavel} onChange={e => set('responsavel', e.target.value)} />
         </label>
       </div>
-      {/* Vagas do Quadro que esta seleção atende. Liga o funil da vaga
-          (chamados/compareceram/aprovados) a esta seleção — automático. */}
-      <fieldset className="mt-4">
-        <legend className={rotulo}>Vagas atendidas <span className="font-medium text-slate-500">(opcional)</span></legend>
-        {(() => {
-          const opcoes = vagasSugeridas(vagas, sedes, f.sede, f.cargo, f.vagaIds);
-          if (!f.sede) return <p className="text-xs text-slate-500 font-medium">Escolha a sede para ver as vagas abertas dela.</p>;
-          if (!opcoes.length) return <p className="text-xs text-slate-500 font-medium">Nenhuma vaga aberta nesta sede — dá para salvar sem vaga.</p>;
-          const marcadas = new Set(f.vagaIds || []);
-          return (
-            <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-44 overflow-y-auto">
-              {opcoes.map(v => (
-                <label key={v.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-slate-50 text-sm">
-                  <input type="checkbox" className="w-4 h-4 accent-slate-900 shrink-0" checked={marcadas.has(v.id)}
-                    onChange={() => set('vagaIds', marcadas.has(v.id) ? (f.vagaIds || []).filter(x => x !== v.id) : [...(f.vagaIds || []), v.id])} />
-                  <span className="tabular-nums text-xs font-semibold text-slate-500 shrink-0">#{v.codigo}</span>
-                  <span className="font-semibold text-slate-800 truncate">{v.vaga}</span>
-                  <span className="ml-auto text-xs text-slate-500 shrink-0">{v.setor || ''}</span>
-                </label>
-              ))}
-            </div>
-          );
-        })()}
-        <p className="text-[11px] text-slate-500 font-medium mt-1">Ligada, a vaga passa a mostrar chamados, compareceram e aprovados somados das seleções dela.</p>
-      </fieldset>
+
+      {/* A seleção nasce de uma vaga aberta (24/09/2026): cargo, setor, gestor e
+          planilha vêm dela. Ligar também soma o funil da vaga automaticamente. */}
+      {!semVaga ? (
+        <fieldset className="mt-4">
+          <legend className={rotulo}>Vaga *</legend>
+          {(() => {
+            if (!f.sede) return <p className="text-xs text-slate-500 font-medium">Escolha a sede para ver as vagas abertas dela.</p>;
+            const ligadas = f.vagaIds || [];
+            // Depois da primeira vaga, só as do mesmo cargo: uma seleção, um cargo.
+            const opcoes = vagasSugeridas(vagas, sedes, f.sede, f.cargo, ligadas)
+              .filter(v => !ligadas.length || ligadas.includes(v.id) || normalizarNome(v.vaga) === normalizarNome(f.cargo));
+            if (!opcoes.length) return <p className="text-xs text-slate-500 font-medium">Nenhuma vaga aberta nesta sede.</p>;
+            return (
+              <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-56 overflow-y-auto">
+                {opcoes.map(v => (
+                  <label key={v.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-slate-50 text-sm">
+                    <input type="checkbox" className="w-4 h-4 accent-slate-900 shrink-0" checked={ligadas.includes(v.id)} onChange={() => marcarVaga(v)} />
+                    <span className="tabular-nums text-xs font-semibold text-slate-500 shrink-0">#{v.codigo}</span>
+                    <span className="font-semibold text-slate-800 truncate">{v.vaga}</span>
+                    <span className="ml-auto text-xs text-slate-500 shrink-0">{v.setor || ''}</span>
+                  </label>
+                ))}
+              </div>
+            );
+          })()}
+          {(f.vagaIds || []).length > 0 && (
+            <p className="mt-2 text-xs text-slate-700 font-medium">
+              <b className="font-semibold">{f.cargo}</b>
+              {f.setor && <> · {f.setor}</>}
+              {f.gestor && <> · gestor {f.gestor}</>}
+              <span className="text-slate-500"> · conta na planilha {origemDoSetor(f.setor) === 'pedagogico' ? 'Pedagógico' : 'Geral'}</span>
+            </p>
+          )}
+          <button type="button" onClick={() => { setSemVaga(true); setF(x => ({ ...x, vagaIds: [] })); }}
+            className="mt-2 text-[11px] font-semibold text-slate-600 underline hover:text-slate-900 cursor-pointer">
+            Seleção sem vaga aberta (banco de talentos)
+          </button>
+        </fieldset>
+      ) : (
+        <fieldset className="mt-4">
+          <legend className={rotulo}>Seleção sem vaga aberta</legend>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label className="block">
+              <span className={rotulo}>Cargo *</span>
+              <input className={campo} list="sm-cargos" value={f.cargo} onChange={e => set('cargo', e.target.value)} />
+            </label>
+            <label className="block">
+              <span className={rotulo}>Setor</span>
+              <input className={campo} list="sm-setores" value={f.setor} onChange={e => set('setor', e.target.value)} />
+            </label>
+            <label className="block">
+              <span className={rotulo}>Gestor</span>
+              <input className={campo} list="sm-gestores" value={f.gestor} onChange={e => set('gestor', e.target.value)} />
+            </label>
+          </div>
+          <button type="button" onClick={() => { setSemVaga(false); setF(x => ({ ...x, cargo: '', setor: '', gestor: '' })); }}
+            className="mt-2 text-[11px] font-semibold text-slate-600 underline hover:text-slate-900 cursor-pointer">
+            Escolher uma vaga aberta
+          </button>
+        </fieldset>
+      )}
 
       <datalist id="sm-cargos">{sugestoes.cargos.map(x => <option key={x} value={x} />)}</datalist>
       <datalist id="sm-setores">{sugestoes.setores.map(x => <option key={x} value={x} />)}</datalist>
@@ -460,7 +495,7 @@ const FormSelecao: React.FC<{
                 {numeroCampo('compareceram', 'Compareceram')}
                 {numeroCampo('ausentes', 'Ausentes')}
                 {numeroCampo('desistiram', 'Desistiram')}
-                {f.origem === 'geral' && numeroCampo('contratados', 'Contratados')}
+                {(f.setor ? origemDoSetor(f.setor) : f.origem) === 'geral' && numeroCampo('contratados', 'Contratados')}
               </>}
             </div>
             {!f.jaAconteceu && <p className="text-[11px] text-slate-500 font-medium mt-2">Fica como agendada. O resultado é lançado depois — aqui ou pela lista de candidatos.</p>}
