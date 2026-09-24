@@ -13,6 +13,7 @@ colors:
   tinta-secundaria: "#45474D"
   tinta-suave: "#5F6169"
   hairline: "#DDE0E6"
+  fio-forte: "#CAD5E2"
   superficie: "#E3E5EA"
   fio-de-campo: "#D8D7D1"
   sucesso: "#059669"
@@ -57,6 +58,11 @@ typography:
     fontSize: "12px"
     fontWeight: 600
     lineHeight: 1.4
+  nota:
+    fontFamily: "Hanken Grotesk, system-ui, sans-serif"
+    fontSize: "11px"
+    fontWeight: 500
+    lineHeight: 1.35
   mono:
     fontFamily: "JetBrains Mono, monospace"
     fontSize: "12px"
@@ -145,6 +151,7 @@ A paleta é quase monocromática, papel e tinta sobre um chão cinza frio, com u
 - **Tinta Secundária** (`{colors.tinta-secundaria}`): valor e rótulo de apoio sobre papel (8.9:1).
 - **Tinta Suave** (`{colors.tinta-suave}`): texto de apoio e ticks de eixo (6.2:1).
 - **Fio** (`{colors.hairline}`): a linha de 1px de painéis, divisores e bordas.
+- **Fio Forte** (`{colors.fio-forte}`): o fio que precisa aparecer, como os conectores do organograma e o polegar da barra do menu.
 - **Superfície** (`{colors.superficie}`): preenchimento neutro sutil (trilho de controle segmentado, hover de botão fantasma).
 - **Fio de Campo** (`{colors.fio-de-campo}`): a borda dos inputs, selects e textareas.
 
@@ -173,7 +180,7 @@ A paleta é quase monocromática, papel e tinta sobre um chão cinza frio, com u
 - **Title** (700, 14px, 1.35): o título de painel e de bloco (o `Painel` dos Indicadores), os botões e os nomes em lista.
 - **Number** (700, 28px, 1, tabular): o número-chave (Kpi, contagem de frente), sempre com um rótulo que diga do que é.
 - **Body** (500, 14px, 1.5): texto corrido e células.
-- **Label** (600, 12px): rótulo de campo, meta de linha e legenda. Texto de apoio menor (11px, 500) só para notas e ressalvas.
+- **Label** (600, 12px): rótulo de campo, meta de linha e legenda. **Nota** (500, 11px): o degrau mais baixo, para notas, ressalvas e o cargo e a meta do cartão do organograma. Nada abaixo de 11px.
 
 ### Named Rules
 **The No Eyebrow Rule.** Nenhum rótulo em caixa alta acima de um título. O título fala sozinho; a data e o contexto vão abaixo dele ou ao lado.
@@ -191,7 +198,7 @@ Listas densas (candidatos, seleções) seguem a planilha: linha de ~33px, cabeç
 Quase plano. A profundidade vem da troca de tom (chão cinza, painel branco) e do fio de 1px, não de sombra. Onde a marcação pede sombra, o `swiss.css` troca o brilho difuso antigo por uma sombra curta e nítida, para o cartão se soltar do chão sem parecer flutuar.
 
 ### Shadow Vocabulary
-- **Cartão** (`box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 2px 8px -2px rgba(15, 23, 42, .06)`): a única sombra do sistema, aplicada a qualquer `shadow-*`.
+- **Cartão** (`--sgpc-sombra-cartao`: `0 1px 2px rgba(15, 23, 42, .05), 0 2px 8px -2px rgba(15, 23, 42, .06)`): a única sombra do sistema, aplicada a qualquer `shadow-*` e ao cartão do organograma. CSS próprio usa o token, nunca o valor.
 
 ### Named Rules
 **The Hairline Over Shadow Rule.** Separar é trabalho do fio (`{colors.hairline}`). Sombra nova, brilho colorido ou gradiente não entram: o `swiss.css` zera `bg-gradient-*` e remove os orbs desfocados.

@@ -23,6 +23,9 @@ html[data-theme="swiss"] {
   --sgpc-tinta: #1A1B1F;           /* preto do texto/blocos sólidos */
   --sgpc-hairline: #DDE0E6;        /* fio de 1px que desenha a grade suíça */
   --sgpc-superficie: #E3E5EA;      /* preenchimento neutro sutil */
+  --sgpc-fio-forte: #CAD5E2;       /* fio que precisa aparecer: conectores do organograma, polegar do menu */
+  /* A única sombra do sistema (DESIGN.md › Elevation). */
+  --sgpc-sombra-cartao: 0 1px 2px rgba(15, 23, 42, .05), 0 2px 8px -2px rgba(15, 23, 42, .06);
   --sgpc-scroll-trilho: #D8D7D1;
   --sgpc-scroll-polegar: #CFCEC7;
 
@@ -77,7 +80,7 @@ html[data-theme="swiss"] .rounded-3xl { border-radius: 6px !important; }
 /* Elevação: troca o glow difuso antigo por uma sombra curta e nítida — dá
    profundidade (cartões "soltam" do fundo) sem o ar vibecoded. */
 html[data-theme="swiss"] [class*="shadow"] {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 2px 8px -2px rgba(15, 23, 42, .06) !important;
+  box-shadow: var(--sgpc-sombra-cartao) !important;
 }
 /* Suíço é anti-gradiente: tudo chapa (não atinge os grids em inline-style) */
 html[data-theme="swiss"] [class*="bg-gradient-"] { background-image: none !important; }
