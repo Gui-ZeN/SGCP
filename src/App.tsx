@@ -1587,6 +1587,10 @@ export default function App() {
               experiencias={scopedExperiencias}
               entrevistas={scopedEntrevistas}
               turnover={scopedTurnover}
+              selecoes={podeVerSelecoes ? scopedSelecoes : undefined}
+              requisicoes={isAdmin ? requisicoes : undefined}
+              consultas={podeVerConsultas ? consultas : undefined}
+              podeRegistrarDia={podeVerSelecoes && canManageModules}
               setActiveTab={setActiveTab}
               onFocusVaga={handleFocusVaga}
               userName={user?.displayName}

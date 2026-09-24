@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-24T15:00:00-03:00",
+  "title": "Design System: SGPC",
+  "extensions": {
+    "colorMeta": {
+      "cobalto": {
+        "role": "primary",
+        "displayName": "Cobalto",
+        "canonical": "#1B4DD8",
+        "tonalRamp": [
+          "#0B1F5C",
+          "#12308A",
+          "#1740B0",
+          "#1B4DD8",
+          "#5B7FE3",
+          "#C9D6F6",
+          "#DCE5FA",
+          "#F0F4FD"
+        ]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Chão",
+        "canonical": "#ECEDF0"
+      },
+      "papel": {
+        "role": "neutral",
+        "displayName": "Papel",
+        "canonical": "#FFFFFF"
+      },
+      "tinta": {
+        "role": "neutral",
+        "displayName": "Tinta",
+        "canonical": "#1A1B1F",
+        "tonalRamp": [
+          "#1A1B1F",
+          "#2E3036",
+          "#45474D",
+          "#5F6169",
+          "#8A8C93",
+          "#B7B9BF",
+          "#DDE0E6",
+          "#ECEDF0"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Fio",
+        "canonical": "#DDE0E6"
+      },
+      "sucesso": {
+        "role": "semantic",
+        "displayName": "Sucesso",
+        "canonical": "#059669",
+        "tonalRamp": [
+          "#064E3B",
+          "#047857",
+          "#059669",
+          "#10B981",
+          "#6EE7B7",
+          "#A7F3D0",
+          "#D1FAE5",
+          "#ECFDF5"
+        ]
+      },
+      "alerta": {
+        "role": "semantic",
+        "displayName": "Alerta",
+        "canonical": "#D97706",
+        "tonalRamp": [
+          "#78350F",
+          "#B45309",
+          "#D97706",
+          "#F59E0B",
+          "#FCD34D",
+          "#FDE68A",
+          "#FEF3C7",
+          "#FFFBEB"
+        ]
+      },
+      "erro": {
+        "role": "semantic",
+        "displayName": "Erro",
+        "canonical": "#E11D48",
+        "tonalRamp": [
+          "#881337",
+          "#BE123C",
+          "#E11D48",
+          "#F43F5E",
+          "#FDA4AF",
+          "#FECDD3",
+          "#FFE4E6",
+          "#FFF1F2"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Saudação do Início e título de página; um por tela."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Título de painel grande."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Título de painel/bloco, botões, nomes em lista."
+      },
+      "number": {
+        "displayName": "Número-chave",
+        "purpose": "Kpi e contagem de frente, sempre com rótulo."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Texto corrido e células."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Rótulo de campo, meta de linha, legenda."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Só dado de máquina: códigos, ids, e-mails de usuário, linhas de log."
+      }
+    },
+    "shadows": [
+      {
+        "name": "cartao",
+        "value": "0 1px 2px rgba(15, 23, 42, .05), 0 2px 8px -2px rgba(15, 23, 42, .06)",
+        "purpose": "A única sombra do sistema; qualquer shadow-* vira esta."
+      }
+    ],
+    "motion": [
+      {
+        "name": "estado",
+        "value": "150ms–250ms, transition-colors",
+        "purpose": "Hover e troca de estado; nada de coreografia de entrada. Gráficos sem animação."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botão principal",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Uma ação principal por área: Salvar, Nova seleção, Registrar meu dia.",
+      "html": "<button class=\"ds-btn-primary\">Registrar meu dia</button>",
+      "css": ".ds-btn-primary { background: #1A1B1F; color: #fff; font: 600 14px/1.35 'Hanken Grotesk', system-ui, sans-serif; padding: 10px 16px; border: 0; border-radius: 6px; cursor: pointer; transition: background-color .15s; } .ds-btn-primary:hover { background: #1E293B; } .ds-btn-primary:focus-visible { outline: 2px solid #1B4DD8; outline-offset: 1px; }"
+    },
+    {
+      "name": "Botão fantasma",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Cancelar e ações secundárias.",
+      "html": "<button class=\"ds-btn-ghost\">Cancelar</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: #45474D; font: 600 14px/1.35 'Hanken Grotesk', system-ui, sans-serif; padding: 8px 16px; border: 0; border-radius: 6px; cursor: pointer; transition: background-color .15s; } .ds-btn-ghost:hover { background: #E3E5EA; color: #1A1B1F; } .ds-btn-ghost:focus-visible { outline: 2px solid #1B4DD8; outline-offset: 1px; }"
+    },
+    {
+      "name": "Campo",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Input/select com fio de campo e foco cobalto.",
+      "html": "<label class=\"ds-field\"><span>Sede *</span><input class=\"ds-input\" value=\"BN · BENFICA\"></label>",
+      "css": ".ds-field { display: block; font: 600 12px/1.4 'Hanken Grotesk', system-ui, sans-serif; color: #45474D; } .ds-field span { display: block; margin-bottom: 4px; } .ds-input { display: block; width: 240px; background: #fff; color: #1A1B1F; font: 500 14px/1.5 'Hanken Grotesk', system-ui, sans-serif; padding: 8px 12px; border: 1px solid #D8D7D1; border-radius: 4px; } .ds-input:focus-visible { outline: 2px solid #1B4DD8; outline-offset: 1px; }"
+    },
+    {
+      "name": "Painel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Bloco de conteúdo: papel, fio de 1px, título que é título.",
+      "html": "<section class=\"ds-panel\"><h3>Convocados por sede</h3><p>Ao lado, quanto dos convocados compareceu.</p></section>",
+      "css": ".ds-panel { background: #fff; border: 1px solid #DDE0E6; border-radius: 6px; padding: 20px; width: 320px; font-family: 'Hanken Grotesk', system-ui, sans-serif; } .ds-panel h3 { margin: 0; font-size: 14px; font-weight: 700; color: #1A1B1F; } .ds-panel p { margin: 2px 0 0; font-size: 12px; font-weight: 500; color: #5F6169; }"
+    },
+    {
+      "name": "Item de menu ativo",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Menu lateral: ícone monocromático, ativo em cobalto.",
+      "html": "<nav class=\"ds-nav\"><button class=\"ds-nav-item is-active\">Seleções</button><button class=\"ds-nav-item\">Resumo do Dia</button></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; width: 200px; background: #ECEDF0; padding: 8px; } .ds-nav-item { text-align: left; background: transparent; color: #45474D; font: 600 14px/1.35 'Hanken Grotesk', system-ui, sans-serif; padding: 8px 12px; border: 0; border-radius: 6px; cursor: pointer; } .ds-nav-item:hover { background: #E3E5EA; color: #1A1B1F; } .ds-nav-item.is-active { background: #1B4DD8; color: #fff; } .ds-nav-item:focus-visible { outline: 2px solid #1B4DD8; outline-offset: 1px; }"
+    },
+    {
+      "name": "Controle segmentado",
+      "kind": "chip",
+      "refersTo": "segmented-active",
+      "description": "Recortes (Todas / Geral / Pedagógico) e abas dos Indicadores.",
+      "html": "<div class=\"ds-seg\" role=\"group\"><button aria-pressed=\"true\">Todas</button><button aria-pressed=\"false\">Geral</button><button aria-pressed=\"false\">Pedagógico</button></div>",
+      "css": ".ds-seg { display: inline-flex; gap: 2px; padding: 4px; background: #E3E5EA; border-radius: 6px; } .ds-seg button { background: transparent; color: #45474D; font: 600 12px/1.4 'Hanken Grotesk', system-ui, sans-serif; padding: 6px 12px; border: 0; border-radius: 4px; cursor: pointer; } .ds-seg button:hover { color: #1A1B1F; } .ds-seg button[aria-pressed=\"true\"] { background: #fff; color: #1A1B1F; box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 2px 8px -2px rgba(15,23,42,.06); } .ds-seg button:focus-visible { outline: 2px solid #1B4DD8; outline-offset: 1px; }"
+    },
+    {
+      "name": "Número-chave",
+      "kind": "custom",
+      "refersTo": "panel",
+      "description": "Kpi: rótulo, número tabular, denominador.",
+      "html": "<div class=\"ds-kpi\"><p class=\"r\">Compareceram</p><p class=\"v\">454</p><p class=\"d\">36% dos convocados</p></div>",
+      "css": ".ds-kpi { background: #fff; border: 1px solid #DDE0E6; border-radius: 6px; padding: 14px 16px; width: 180px; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-feature-settings: 'tnum' 1, 'ss01' 1; } .ds-kpi p { margin: 0; } .ds-kpi .r { font-size: 12px; font-weight: 600; color: #45474D; } .ds-kpi .v { margin-top: 4px; font-size: 28px; line-height: 1; font-weight: 700; letter-spacing: -0.015em; color: #1A1B1F; } .ds-kpi .d { margin-top: 6px; font-size: 11px; font-weight: 500; color: #5F6169; }"
+    },
+    {
+      "name": "Frente do Início",
+      "kind": "custom",
+      "refersTo": "panel",
+      "description": "Linha de 'Para hoje': número colorido pelo estado, título, itens com o 'quando' à direita.",
+      "html": "<div class=\"ds-frente\"><div class=\"n\">3</div><div class=\"t\">Avaliações de experiência</div><ul><li><b>João Lima</b> <span>90 dias · ASG</span><em class=\"crit\">venceu há 4 dias</em></li><li><b>Maria Souza</b> <span>45 dias · BN</span><em class=\"aten\">vence em 2 dias</em></li></ul></div>",
+      "css": ".ds-frente { display: grid; grid-template-columns: 9rem 1fr; gap: 4px 24px; width: 560px; padding: 16px 20px; background: #fff; border-top: 1px solid #DDE0E6; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-feature-settings: 'tnum' 1; } .ds-frente .n { grid-row: span 2; font-size: 32px; line-height: 1; font-weight: 700; color: #BE123C; } .ds-frente .t { display: none; } .ds-frente ul { grid-column: 2; grid-row: 1 / span 2; margin: 0; padding: 0; list-style: none; } .ds-frente li { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; font-size: 14px; } .ds-frente b { font-weight: 600; color: #1A1B1F; } .ds-frente span { font-size: 12px; color: #5F6169; flex: 1; } .ds-frente em { font-style: normal; font-size: 12px; font-weight: 600; } .ds-frente .crit { color: #BE123C; } .ds-frente .aten { color: #B45309; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "A Prancheta do RH",
+    "overview": "O SGPC é a ferramenta em que o RH do Grupo Christus passa o dia: abre vaga, conduz seleção, lança candidato, cobra avaliação de experiência. O visual existe para sair da frente do trabalho, como uma prancheta bem organizada: grade, fio fino, um só azul e números alinhados. Quem abre a tela deve achar o que precisa em segundos e seguir o dia.\n\nO sistema é uma camada de re-skin (`src/styles/swiss.css`, sob `html[data-theme=\"swiss\"]`), que é o tema único. Ela remapeia as classes utilitárias do Tailwind para tokens `--sgpc-*`. Toda cor nova entra como token nesse arquivo, nunca como hexadecimal solto num componente. É isso que permite que uma campanha (Setembro Amarelo) troque o acento inteiro num bloco só.\n\nO Suíço veio substituir três coisas, que não voltam: o SaaS genérico colorido (uma cor por módulo, gradiente, bolha desfocada, texto com gradiente), o painel feito de cartões iguais (ícone + número grande + rótulo como estrutura da página) e a planilha crua (tudo em tabela cinza, sem hierarquia).",
+    "keyCharacteristics": [
+      "Um acento só (cobalto), usado para estado e ação, nunca para enfeite.",
+      "Hairline de 1px no lugar de sombra para desenhar a grade.",
+      "Hanken Grotesk com números tabulares em todo o sistema.",
+      "Cantos discretos: 4px nos controles, 6px nos painéis.",
+      "Cor semântica (verde, âmbar, vermelho) só quando informa um estado."
+    ],
+    "rules": [
+      {
+        "name": "The One Voice Rule",
+        "body": "Existe um azul e ele significa \"aqui\". Cor decorativa (roxo, ciano, rosa, laranja da marca antiga) é remapeada para o cobalto pelo `swiss.css`; não se cria outra.",
+        "section": "colors"
+      },
+      {
+        "name": "The Campaign Rule",
+        "body": "Campanha troca a família inteira do acento (base, forte, borda e tints), nunca só a base. Sucesso, alerta e erro não mudam com campanha: status precisa continuar legível.",
+        "section": "colors"
+      },
+      {
+        "name": "The Status Is Earned Rule",
+        "body": "Verde, âmbar e vermelho só aparecem quando carregam um estado e vêm sempre com texto (\"venceu há 4 dias\"), nunca sozinhos.",
+        "section": "colors"
+      },
+      {
+        "name": "The No Eyebrow Rule",
+        "body": "Nenhum rótulo em caixa alta acima de um título. O título fala sozinho; a data e o contexto vão abaixo dele ou ao lado.",
+        "section": "typography"
+      },
+      {
+        "name": "The Number Needs A Noun Rule",
+        "body": "Todo número grande vem com o rótulo e, quando existe, o denominador (\"de 41 fechadas\", \"245 convocados\").",
+        "section": "typography"
+      },
+      {
+        "name": "The Hairline Over Shadow Rule",
+        "body": "Separar é trabalho do fio (`{colors.hairline}`). Sombra nova, brilho colorido ou gradiente não entram: o `swiss.css` zera `bg-gradient-*` e remove os orbs desfocados.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do declarar toda cor nova como token `--sgpc-*` em `src/styles/swiss.css` e usá-la por `var()`.",
+      "Do usar o cobalto só para estado, seleção e ação, e cor semântica só com texto junto.",
+      "Do separar blocos com o fio de 1px (`{colors.hairline}`) e o respiro de 20–24px.",
+      "Do manter os números tabulares e dar a cada número grande o seu rótulo e o denominador.",
+      "Do desligar a animação dos gráficos (`isAnimationActive={false}`) e manter as transições de interface em 150–250ms."
+    ],
+    "donts": [
+      "Don't usar gradiente, texto com gradiente, bolha desfocada ou uma cor por módulo (o SaaS genérico colorido que o Suíço substituiu).",
+      "Don't montar a página como uma grade de cartões iguais de ícone + número + rótulo.",
+      "Don't cair na planilha crua: toda tela tem hierarquia (título, o que pede ação, depois o resto).",
+      "Don't pôr rótulo em caixa alta acima de um título, nem borda colorida lateral acima de 1px em cartão, item ou alerta.",
+      "Don't criar um segundo azul: `info` é o próprio cobalto."
+    ]
+  }
+}
