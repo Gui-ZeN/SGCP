@@ -4,6 +4,7 @@ import { SLA_META_DIAS } from '../constants/hr';
 import { Sede } from '../hooks/useMetadata';
 import { ProximasDatasCard } from './ProximasDatasCard';
 import { SetembroAmarelo } from './SetembroAmarelo';
+import { OutubroRosa } from './OutubroRosa';
 import { pendenciasDoDia, quandoVence } from '../utils/inicio';
 import { ehRealizada } from '../utils/selecao';
 import { formatDateBR, dataISOLocal } from '../utils/date';
@@ -30,6 +31,7 @@ interface HomeSectionProps {
   /** Para onde levam as seleções pendentes: Resumo do Dia (Colégio) ou o módulo Seleções (Universidade). */
   abaSelecoes?: string;
   mostrarSetembroAmarelo?: boolean; // enfeite sazonal (Painel Admin → Enfeites)
+  mostrarOutubroRosa?: boolean;
   setActiveTab: (tab: any) => void;
   onFocusVaga?: (vaga: any) => void;
   userName?: string;
@@ -61,6 +63,7 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
   podeRegistrarDia = false,
   abaSelecoes = 'selecoes',
   mostrarSetembroAmarelo = false,
+  mostrarOutubroRosa = false,
   setActiveTab,
   onFocusVaga,
   userName,
@@ -177,6 +180,7 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
   return (
     <div className="space-y-6">
       {mostrarSetembroAmarelo && <SetembroAmarelo />}
+      {mostrarOutubroRosa && <OutubroRosa />}
 
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 pb-5 border-b border-slate-200">
         <div className="min-w-0">

@@ -34,6 +34,7 @@ import { Bandeirinhas } from './components/Bandeirinhas';
 import { BootLoader } from './components/BootLoader';
 import { LogoSGPC } from './components/LogoSGPC';
 import { ehSetembro } from './data/setembroAmarelo';
+import { ehOutubro } from './data/outubroRosa';
 import { useAppConfig } from './hooks/useAppConfig';
 import { regiaoDaSede, sedeEhUniversidade, escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade, REGIAO_UNIVERSIDADE } from './utils/unidade';
 import { requisicaoParaVaga } from './utils/requisicao';
@@ -55,6 +56,13 @@ const COR_TOAST: Record<string, string> = {
 const ENFEITES: { id: string; nome: string; Comp: ComponentType | null; padrao: boolean }[] = [
   { id: 'sao-joao', nome: 'São João — bandeirinhas no topo', Comp: Bandeirinhas, padrao: mesAtual === 5 },
   { id: 'setembro-amarelo', nome: 'Setembro Amarelo — frase de acolhimento no Início', Comp: null, padrao: ehSetembro() },
+  { id: 'outubro-rosa', nome: 'Outubro Rosa — frase no Início e o rosa como cor do sistema', Comp: null, padrao: ehOutubro() },
+];
+
+/** Campanha que reskina o acento, na ordem de prioridade se duas estiverem ligadas. */
+const CAMPANHAS: { id: string; favicon: string }[] = [
+  { id: 'outubro-rosa', favicon: '/logo-outubro.svg' },
+  { id: 'setembro-amarelo', favicon: '/logo-setembro.svg' },
 ];
 import { useOperationalModules, addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from './hooks/useOperationalModules';
 const TreinamentosSection = lazyComRetry(() => import('./components/TreinamentosSection').then(m => ({ default: m.TreinamentosSection })));
@@ -191,17 +199,20 @@ export default function App() {
   const enfeiteAtivo = (e: { id: string; padrao: boolean }) => enfeites[e.id] ?? e.padrao;
   const enfeiteLigado = (id: string) => { const e = ENFEITES.find(x => x.id === id); return e ? enfeiteAtivo(e) : false; };
   // Campanha ativa reskina o ACENTO do sistema inteiro (ver swiss.css):
-  // Setembro Amarelo → dourado no lugar do cobalto.
+  // Setembro Amarelo → dourado; Outubro Rosa → rosa-magenta. Uma por vez: se o
+  // admin ligar as duas, vale a primeira de CAMPANHAS.
   const campanhaSetembro = enfeiteLigado('setembro-amarelo');
+  const campanhaOutubro = enfeiteLigado('outubro-rosa');
+  const campanha = CAMPANHAS.find(c => enfeiteLigado(c.id));
   useEffect(() => {
     const raiz = document.documentElement;
-    if (campanhaSetembro) raiz.setAttribute('data-campanha', 'setembro-amarelo');
+    if (campanha) raiz.setAttribute('data-campanha', campanha.id);
     else raiz.removeAttribute('data-campanha');
     // O favicon não enxerga o CSS da página (é um arquivo à parte), então
-    // trocamos o arquivo pela variante dourada durante a campanha.
+    // trocamos o arquivo pela variante da campanha.
     const icone = document.querySelector('link[rel="icon"]');
-    if (icone) icone.setAttribute('href', campanhaSetembro ? '/logo-setembro.svg' : '/logo.svg');
-  }, [campanhaSetembro]);
+    if (icone) icone.setAttribute('href', campanha ? campanha.favicon : '/logo.svg');
+  }, [campanha?.id]);
 
   // Módulo "Integração": era exclusivo da Universidade; agora o Colégio também
   // faz integração, então vale para todo usuário do app.
@@ -1585,7 +1596,8 @@ export default function App() {
           <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-7 h-7 text-indigo-600 animate-spin" /></div>}>
           {activeTab === 'home' && (
             <HomeSection
-              mostrarSetembroAmarelo={campanhaSetembro}
+              mostrarSetembroAmarelo={campanhaSetembro && !campanhaOutubro}
+              mostrarOutubroRosa={campanhaOutubro}
               vagas={scopedVagas}
               treinamentos={scopedTreinamentos}
               experiencias={scopedExperiencias}

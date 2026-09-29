@@ -163,7 +163,7 @@ A paleta é quase monocromática, papel e tinta sobre um chão cinza frio, com u
 ### Named Rules
 **The One Voice Rule.** Existe um azul e ele significa "aqui". Cor decorativa (roxo, ciano, rosa, laranja da marca antiga) é remapeada para o cobalto pelo `swiss.css`; não se cria outra.
 
-**The Campaign Rule.** Campanha troca a família inteira do acento (base, forte, borda e tints), nunca só a base. Sucesso, alerta e erro não mudam com campanha: status precisa continuar legível.
+**The Campaign Rule.** Campanha troca a família inteira do acento (base, forte, borda e tints), nunca só a base. Sucesso, alerta e erro não mudam com campanha: status precisa continuar legível. As campanhas de hoje são o Setembro Amarelo (dourado #A16207) e o Outubro Rosa (rosa-magenta #AD2A8C), uma por vez, via `data-campanha`. Um acento de campanha precisa ficar longe do vermelho de erro: meça o ΔE (OKLab) contra #BE123C antes de adotar. O rosa clássico (#BE185D) dá 4,6, a mesma cor na prática; o #AD2A8C dá 12,4, aceito porque status sempre vem com texto. O símbolo da campanha (o laço) pode usar a cor tradicional, porque não é estado.
 
 **The Status Is Earned Rule.** Verde, âmbar e vermelho só aparecem quando carregam um estado e vêm sempre com texto ("venceu há 4 dias"), nunca sozinhos.
 

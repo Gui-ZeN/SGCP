@@ -60,6 +60,22 @@ html[data-theme="swiss"][data-campanha="setembro-amarelo"] {
   --sgpc-acento-tint-medio: #FDE68A;
   --sgpc-acento-tint-suave: #FEFCE8;
 }
+/* ═══ Campanha: Outubro Rosa (enfeite no Painel Admin) ══════════════════════
+   Mesma regra do Setembro: troca a FAMÍLIA inteira do acento, status intacto.
+   O rosa é magenta de propósito. O rosa clássico (#BE185D) fica a ΔE 4,6 do
+   vermelho de erro (#BE123C) — "seleção de hoje" e "sem confirmar" viravam a
+   mesma cor. Este fica a ΔE 12,4 (13,3 em deuteranopia) e mede 6,0:1 com o
+   texto branco dos botões. Abaixo de 15 ainda, mas status sempre vem com
+   texto (DESIGN.md › The Status Is Earned Rule). O laço da faixa usa o rosa
+   tradicional: é símbolo, não estado. */
+html[data-theme="swiss"][data-campanha="outubro-rosa"] {
+  --sgpc-acento: #AD2A8C;          /* rosa-magenta */
+  --sgpc-acento-forte: #8E1F72;
+  --sgpc-acento-borda: #F3C5E3;
+  --sgpc-acento-tint: #FBE8F4;
+  --sgpc-acento-tint-medio: #F6D3EA;
+  --sgpc-acento-tint-suave: #FDF3FA;
+}
 html[data-theme="swiss"] body {
   background-color: var(--sgpc-canvas) !important;
   font-family: 'Hanken Grotesk', system-ui, sans-serif;
