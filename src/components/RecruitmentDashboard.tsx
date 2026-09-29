@@ -245,7 +245,8 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
       <div role="tabpanel" id={`painel-${aba}`} aria-labelledby={`aba-${aba}`}>
         {aba === 'geral' && <AbaVisaoGeral atencao={geral.atencao} temas={geral.temas} irPara={setAba} />}
         {aba === 'vagas' && <AbaVagas vagas={f.vagas} sedes={sedes} periodo={periodo} />}
-        {aba === 'selecoes' && <AbaSelecoes selecoes={f.selecoes} sedes={sedes} periodo={periodo} fechadasPedagogico={fechadasPedagogico} />}
+        {aba === 'selecoes' && <AbaSelecoes selecoes={f.selecoes} sedes={sedes} periodo={periodo} fechadasPedagogico={fechadasPedagogico}
+          vagas={f.vagas} experiencias={f.experienciasSede} />}
         {aba === 'pessoas' && (
           <div className="space-y-8">
             <AbaPessoas treinamentos={f.treinamentos} experiencias={f.experiencias} experienciasEmCurso={f.experienciasSede}

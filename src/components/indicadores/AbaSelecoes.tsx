@@ -11,7 +11,7 @@
  * registro", nunca 0, que afirmaria que ninguém foi contratado.
  */
 import React, { useMemo, useState } from 'react';
-import type { Selecao } from '../../types';
+import type { Selecao, Vaga, Experiencia } from '../../types';
 import type { Sede } from '../../hooks/useMetadata';
 import {
   doRecorte, indicadoresSelecao, selecaoPorMes, funilPorChave, motivosDesistencia,
@@ -19,6 +19,9 @@ import {
 } from '../../utils/indicadores';
 import { siglaDaSede, type Periodo } from '../../utils/filtroIndicadores';
 import { TabelaDoGrafico } from '../TabelaDoGrafico';
+import { FunilCompleto } from './FunilCompleto';
+import { funilCompleto } from '../../utils/funil';
+import { dataISOLocal } from '../../utils/date';
 import { Painel, Kpi, Nota, Vazio, Dica, ListaComBarra, useEixos, num, dec } from './ui';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LineChart, Line, LabelList } from 'recharts';
 
@@ -39,7 +42,10 @@ export const AbaSelecoes: React.FC<{
   selecoes: Selecao[]; sedes: Sede[]; periodo: Periodo;
   /** Vagas do setor Pedagógico fechadas no período (Quadro) — estimativa de contratações. */
   fechadasPedagogico?: number;
-}> = ({ selecoes, sedes, fechadasPedagogico = 0 }) => {
+  /** Na sede, sem filtro de período: o funil filtra pela conclusão da vaga. */
+  vagas?: Vaga[];
+  experiencias?: Experiencia[];
+}> = ({ selecoes, sedes, periodo, fechadasPedagogico = 0, vagas = [], experiencias = [] }) => {
   const { C, grade, eixo, cursorBarra, cursorLinha, legenda } = useEixos();
   const COR = { geral: C.primary, pedagogico: C.amber };
   const [modo, setModo] = useState<Modo>('ambos');
@@ -52,6 +58,9 @@ export const AbaSelecoes: React.FC<{
   const porCargo = useMemo(() => funilPorChave(lista, s => s.cargo).slice(0, 10), [lista]);
   // Pedagógico sem coluna CONTRATADO: estimativa pelas vagas fechadas no Quadro.
   const estimativa = recorte === 'pedagogico' && !ind.contratacao && fechadasPedagogico > 0 ? fechadasPedagogico : null;
+  const funil = useMemo(
+    () => funilCompleto({ selecoes: lista, vagas, experiencias, periodo, recorte, hojeISO: dataISOLocal() }),
+    [lista, vagas, experiencias, periodo, recorte]);
   const motivos = useMemo(() => motivosDesistencia(doRecorte(lista, 'geral')), [lista]);
   const totalMotivos = motivos.reduce((t, m) => t + m.total, 0);
 
@@ -124,6 +133,8 @@ export const AbaSelecoes: React.FC<{
           {ind.inconsistentes > 0 && (
             <Nota>Em {ind.inconsistentes} dos {ind.eventos} dias, convocados ≠ compareceram + ausentes na planilha. As taxas usam os convocados como registrados.</Nota>
           )}
+
+          <FunilCompleto funil={funil} recorteRotulo={MODOS.find(m => m.id === recorte)?.rotulo === 'Todas' ? 'Geral e Pedagógico' : `Só ${MODOS.find(m => m.id === recorte)?.rotulo}`} />
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <Painel titulo="Convocados por sede" descricao="Ao lado, quanto dos convocados compareceu.">
