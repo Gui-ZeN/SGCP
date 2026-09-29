@@ -322,7 +322,11 @@ export default function App() {
   // segunda linguagem para o mesmo trabalho era custo sem ganho. Não tem coleção
   // própria além de `selecoes`: o resto do dia vem das listas JÁ ESCOPADAS por
   // unidade, então o isolamento Colégio × Universidade vem de graça.
-  const podeVerSelecoes = podeVerConsultas;
+  // Liberado para a Universidade em 29/09/2026: `scopedSelecoes` já filtra por
+  // unidade, e cada candidato só aparece se a seleção dele estiver na lista.
+  const podeVerSelecoes = true;
+  // O Resumo do Dia ("Meu dia" → e-mail das 18h) continua só do Colégio.
+  const podeVerResumoDia = podeVerConsultas;
 
   // Organograma: cadastro de pessoas + desenho a partir do nível do cargo.
   // A coleção `funcionarios` já existia (base dos aniversários) e nunca teve
@@ -1358,7 +1362,7 @@ export default function App() {
                 </button>
               )}
 
-              {podeVerSelecoes && (
+              {podeVerResumoDia && (
                 <button
                   id="tab-selecoes"
                   onClick={() => setActiveTab('selecoes')}
@@ -1590,7 +1594,8 @@ export default function App() {
               selecoes={podeVerSelecoes ? scopedSelecoes : undefined}
               requisicoes={isAdmin ? requisicoes : undefined}
               consultas={podeVerConsultas ? consultas : undefined}
-              podeRegistrarDia={podeVerSelecoes && canManageModules}
+              podeRegistrarDia={podeVerResumoDia && canManageModules}
+              abaSelecoes={podeVerResumoDia ? 'selecoes' : 'selecoesLista'}
               setActiveTab={setActiveTab}
               onFocusVaga={handleFocusVaga}
               userName={user?.displayName}
@@ -1727,7 +1732,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'selecoes' && podeVerSelecoes && (
+          {activeTab === 'selecoes' && podeVerResumoDia && (
             <SelecoesSection
               selecoes={scopedSelecoes}
               vagas={scopedVagas}

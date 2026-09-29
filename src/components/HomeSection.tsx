@@ -27,6 +27,8 @@ interface HomeSectionProps {
   consultas?: Consulta[];
   /** Mostra o botão "Registrar meu dia" (Resumo do Dia). */
   podeRegistrarDia?: boolean;
+  /** Para onde levam as seleções pendentes: Resumo do Dia (Colégio) ou o módulo Seleções (Universidade). */
+  abaSelecoes?: string;
   mostrarSetembroAmarelo?: boolean; // enfeite sazonal (Painel Admin → Enfeites)
   setActiveTab: (tab: any) => void;
   onFocusVaga?: (vaga: any) => void;
@@ -57,6 +59,7 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
   requisicoes,
   consultas,
   podeRegistrarDia = false,
+  abaSelecoes = 'selecoes',
   mostrarSetembroAmarelo = false,
   setActiveTab,
   onFocusVaga,
@@ -88,19 +91,19 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
     {
       id: 'sem-confirmar', titulo: 'Seleções sem confirmar', tom: 'critico',
       detalhe: 'Agendadas que já passaram. Lance quem veio.',
-      verTudo: () => setActiveTab('selecoes'),
+      verTudo: () => setActiveTab(abaSelecoes),
       itens: p.selecoesSemConfirmar.map(s => ({
         id: s.id, principal: s.cargo, meta: `${sigla(s.sede)} · ${s.convocados} convocados`,
-        quando: `dia ${s.data.slice(0, 5)}`, tom: 'critico' as Tom, abrir: () => setActiveTab('selecoes'),
+        quando: `dia ${s.data.slice(0, 5)}`, tom: 'critico' as Tom, abrir: () => setActiveTab(abaSelecoes),
       })),
     },
     {
       id: 'hoje', titulo: 'Seleções de hoje', tom: 'acento',
       detalhe: 'Depois da seleção, lance o resultado de cada candidato.',
-      verTudo: () => setActiveTab('selecoes'),
+      verTudo: () => setActiveTab(abaSelecoes),
       itens: p.selecoesHoje.map(s => ({
         id: s.id, principal: s.cargo, meta: [sigla(s.sede), `${s.convocados} convocados`, s.responsavel].filter(Boolean).join(' · '),
-        quando: 'hoje', tom: 'acento' as Tom, abrir: () => setActiveTab('selecoes'),
+        quando: 'hoje', tom: 'acento' as Tom, abrir: () => setActiveTab(abaSelecoes),
       })),
     },
     {
