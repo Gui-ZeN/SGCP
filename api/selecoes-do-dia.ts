@@ -733,6 +733,31 @@ async function tokenDeAcesso(): Promise<string> {
 
 const campoTexto = (d: any, campo: string) => d?.fields?.[campo]?.stringValue ?? '';
 
+/**
+ * E-mails de quem é da Universidade — ficam FORA do e-mail das 18h, que é só do
+ * Colégio (decisão de 29/09/2026, inclusive para Administrador com sede lá).
+ * Vale o `unidade` do cadastro; vazio (3 de 15 cadastros em 29/09), a região
+ * da sede, casada por nome ou sigla como `sedeEhUniversidade` faz na tela.
+ * Quem não está em `usuarios` continua no e-mail, como antes.
+ */
+export function emailsDaUniversidade(
+  usuarios: { email: string; unidade?: string; sede?: string }[],
+  sedes: { nome: string; sigla?: string; regiao?: string }[],
+): Set<string> {
+  const k = (s?: string) => (s || '').toLowerCase().trim();
+  const regiao = new Map<string, string>();
+  for (const s of sedes) {
+    if (k(s.nome)) regiao.set(k(s.nome), k(s.regiao));
+    if (k(s.sigla)) regiao.set(k(s.sigla), k(s.regiao));
+  }
+  return new Set(
+    usuarios
+      .filter(u => (k(u.unidade) || (regiao.get(k(u.sede)) === 'universidade' ? 'universidade' : '')) === 'universidade')
+      .map(u => k(u.email))
+      .filter(Boolean)
+  );
+}
+
 async function lerColecao(colecao: string, token: string): Promise<any[]> {
   const docs: any[] = [];
   let pageToken = '';
@@ -918,15 +943,21 @@ export default async function handler(req: any, res: any) {
     // Nome de exibição de cada e-mail. O log só guarda o endereço; sem nome
     // cadastrado, o assunto sai com o próprio endereço, que ainda é melhor que
     // pular a pessoa.
+    const usuarios = await lerColecao('usuarios', token);
     const nomes = new Map<string, string>(
-      (await lerColecao('usuarios', token))
+      usuarios
         .map(d => [campoTexto(d, 'email').trim().toLowerCase(), campoTexto(d, 'nome').trim()] as [string, string])
         .filter(([email, nome]) => email && nome)
     );
+    const daUniversidade = emailsDaUniversidade(
+      usuarios.map(d => ({ email: campoTexto(d, 'email'), unidade: campoTexto(d, 'unidade'), sede: campoTexto(d, 'sede') })),
+      (await lerColecao('sedes', token)).map(d => ({ nome: campoTexto(d, 'nome'), sigla: campoTexto(d, 'sigla'), regiao: campoTexto(d, 'regiao') })),
+    );
 
+    // O relato é montado igual ao da tela; só a lista de quem vira e-mail é do Colégio.
     const pessoas = relatoPorPessoa(
       await lerLogDoAno(dia, token), await lerDiarios(token), dia, nomes, await lerTarefas(token),
-    );
+    ).filter(p => !daUniversidade.has(p.email.trim().toLowerCase()));
 
     // Dia em que ninguém registrou nada não vira e-mail: aviso que quase
     // sempre diz "nada aconteceu" ensina o destinatário a ignorar o remetente.

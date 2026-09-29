@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  montarEmailPessoa, relatoPorPessoa,
+  montarEmailPessoa, relatoPorPessoa, emailsDaUniversidade,
   type RelatoPessoa, type EntradaLog, type Diario, type Tarefa,
 } from './selecoes-do-dia';
 import { relatoPorPessoa as relatoDaTela } from '../src/utils/resumoDia';
@@ -192,5 +192,22 @@ describe('relato concorda com a tela', () => {
     expect(jenifer).toContain('Importou 1 planilha para o sistema.');
     expect(jenifer).toContain('Agendou 1 seleção.');
     expect(jenifer).toContain('Kits do Setembro Amarelo — 120 kits.');
+  });
+});
+
+describe('e-mail das 18h é só do Colégio (29/09)', () => {
+  const sedes = [
+    { nome: 'ALDEOTA', sigla: 'UA', regiao: 'Universidade' },
+    { nome: 'DIONISIO TORRES', sigla: 'DT', regiao: 'Fortaleza' },
+  ];
+  it('usa o campo unidade; vazio, a região da sede (por nome ou sigla); qualquer papel', () => {
+    const fora = emailsDaUniversidade([
+      { email: 'Coord.Uni@x.com', unidade: 'universidade', sede: 'ALDEOTA' },
+      { email: 'admin.uni@x.com', unidade: '', sede: ' aldeota ' },
+      { email: 'analista.uni@x.com', sede: 'UA' },
+      { email: 'col@x.com', unidade: 'colegio', sede: 'DIONISIO TORRES' },
+      { email: 'semsede@x.com' },
+    ], sedes);
+    expect([...fora].sort()).toEqual(['admin.uni@x.com', 'analista.uni@x.com', 'coord.uni@x.com']);
   });
 });
