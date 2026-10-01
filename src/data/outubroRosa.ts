@@ -2,25 +2,18 @@
  * Outubro Rosa — frases de enfeite para o Início do SGPC (mês de
  * conscientização sobre o câncer de mama).
  *
- * Mesmo tom do Setembro Amarelo: leve e acolhedor. Nada de recomendação médica
- * específica (idade, frequência de exame) — isso é conversa com o médico, e a
- * frase diz isso em vez de arriscar um número. Uma frase é sorteada a cada
- * abertura do sistema.
+ * Mesmo tom do Setembro Amarelo: leve e acolhedor. Sem descrição do corpo nem
+ * termo clínico (sinal, exame específico, diagnóstico) — numa tela de trabalho
+ * isso soava estranho, e saiu em 01/10/2026 a pedido do Guilherme. Uma frase é
+ * sorteada a cada abertura do sistema.
  */
 
 export const FRASES_OUTUBRO_ROSA: string[] = [
   'Cuidar de si também é prioridade.',
-  'Conhecer o próprio corpo ajuda a notar quando algo muda.',
-  'Percebeu alguma mudança na mama? Procure um médico, sem esperar.',
-  'Diagnóstico precoce aumenta muito as chances de tratamento.',
   'Já marcou seus exames de rotina deste ano?',
-  'Converse com seu médico sobre quando fazer a mamografia.',
-  'Nódulo, pele retraída ou líquido saindo do mamilo: vale uma consulta.',
   'Lembre quem você ama de cuidar da saúde também.',
-  'O câncer de mama também pode atingir homens. A atenção vale para todos.',
   'Uma consulta hoje pode evitar muita preocupação amanhã.',
   'Cuidar da saúde não é luxo, é rotina.',
-  'Informação de qualidade salva vidas. Compartilhe.',
   'Liberar um horário para o exame também é cuidar da equipe.',
   'Quem está em tratamento precisa de acolhimento e flexibilidade.',
   'Acolher uma colega em tratamento também é trabalho do RH.',
@@ -29,6 +22,8 @@ export const FRASES_OUTUBRO_ROSA: string[] = [
   'O laço rosa é um lembrete: a sua saúde importa.',
   'Prevenir é um jeito de cuidar do seu futuro.',
   'Por trás de cada nome nesta tela existe uma história que merece cuidado.',
+  'Um gesto de apoio pode deixar o dia de alguém mais leve.',
+  'Informação de qualidade salva vidas. Compartilhe.',
 ];
 
 /** Sorteia uma frase. `aleatorio` injetável para testes determinísticos. */

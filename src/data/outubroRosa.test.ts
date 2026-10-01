@@ -13,6 +13,10 @@ describe('FRASES_OUTUBRO_ROSA', () => {
   it('não arrisca número de idade ou frequência de exame', () => {
     expect(FRASES_OUTUBRO_ROSA.some(f => /\d/.test(f))).toBe(false);
   });
+  it('sem descrição do corpo nem termo clínico (pedido de 01/10)', () => {
+    const clinico = /mama|mamilo|n[óo]dulo|retra|mamografia|diagn[óo]stico|c[âa]ncer/i;
+    expect(FRASES_OUTUBRO_ROSA.filter(f => clinico.test(f))).toEqual([]);
+  });
 });
 
 describe('sortearFraseOutubro', () => {
