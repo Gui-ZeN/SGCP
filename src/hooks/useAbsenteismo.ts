@@ -8,7 +8,10 @@ import type { Periodo } from '../utils/filtroIndicadores';
  * Absenteísmo do Chromos, e chega pronta.
  */
 
-export interface MesAbs { mes: string; headcount: number; horasPerdidas: number; horasEsperadas: number; taxa: number | null }
+export type ClasseFalta = 'atestado' | 'injustificada' | 'outro';
+export type PorTipo = Record<ClasseFalta, { faltas: number; horas: number }>;
+export interface MesAbs { mes: string; headcount: number; horasPerdidas: number; horasEsperadas: number; taxa: number | null; porTipo?: PorTipo }
+export interface PessoaAbs { nome: string; matricula: string; sede: string; cargo: string; faltas: number; horas: number; taxa: number; porTipo: PorTipo }
 export interface SedeAbs { sede: string; regiao: string; meses: MesAbs[]; horasPerdidas: number; horasEsperadas: number; taxa: number | null }
 export interface Absenteismo {
   periodo: { de: string; ate: string };
@@ -17,6 +20,9 @@ export interface Absenteismo {
   geral: { horasPerdidas: number; horasEsperadas: number; taxa: number | null };
   sedes: SedeAbs[];
   semDono: number;
+  porTipo: PorTipo;
+  pessoas: PessoaAbs[];
+  semana: { dia: string; contagem: Record<ClasseFalta, number> }[];
   geradoEm: string;
 }
 
