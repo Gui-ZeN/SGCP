@@ -14,7 +14,7 @@
  *     aqui pelo cadastro — nunca pelo navegador. Administrador vê as duas.
  */
 import crypto from 'node:crypto';
-import { BASE, PROJETO, campoTexto, emailsDaUniversidade, tokenDeAcesso } from './selecoes-do-dia';
+import { BASE, PROJETO, campoTexto, emailsDaUniversidade, tokenDeAcesso } from './selecoes-do-dia.js';
 
 const CERTIFICADOS = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
 const MES = /^\d{4}-(0[1-9]|1[0-2])$/;

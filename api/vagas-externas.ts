@@ -18,7 +18,7 @@
  *  5. Log como `sistema`: não vira relato de ninguém no e-mail das 18h.
  */
 import crypto from 'node:crypto';
-import { BASE, campoTexto, tokenDeAcesso } from './selecoes-do-dia';
+import { BASE, campoTexto, tokenDeAcesso } from './selecoes-do-dia.js';
 
 const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const CASO = /^[A-Za-z0-9_.-]{1,100}$/;
