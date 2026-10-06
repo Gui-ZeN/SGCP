@@ -623,9 +623,9 @@ export function montarEmailPessoa(dia: string, p: RelatoPessoa): EmailPessoa {
   return { assunto, html, texto };
 }
 
-const PROJETO = 'project-312a1a63-026e-4dfa-91c';
+export const PROJETO = 'project-312a1a63-026e-4dfa-91c';
 const BANCO = 'ai-studio-2b395015-7429-44d1-83dd-233de9cd3c47';
-const BASE = `https://firestore.googleapis.com/v1/projects/${PROJETO}/databases/${BANCO}/documents`;
+export const BASE = `https://firestore.googleapis.com/v1/projects/${PROJETO}/databases/${BANCO}/documents`;
 
 /** Data de hoje em DD/MM/AAAA no fuso de Fortaleza (UTC-3, sem horário de verão). */
 function hojeEmFortaleza(): string {
@@ -699,7 +699,7 @@ export function lerContaDeServico(bruto: string | undefined): { client_email: st
  * suas dependências para dentro de uma função serverless que faz uma única
  * chamada. Menos peso no cold start e menos superfície para auditar.
  */
-async function tokenDeAcesso(): Promise<string> {
+export async function tokenDeAcesso(): Promise<string> {
   const conta = lerContaDeServico(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
 
   const agora = Math.floor(Date.now() / 1000);
@@ -731,7 +731,7 @@ async function tokenDeAcesso(): Promise<string> {
   return json.access_token;
 }
 
-const campoTexto = (d: any, campo: string) => d?.fields?.[campo]?.stringValue ?? '';
+export const campoTexto = (d: any, campo: string) => d?.fields?.[campo]?.stringValue ?? '';
 
 /**
  * E-mails de quem é da Universidade — ficam FORA do e-mail das 18h, que é só do

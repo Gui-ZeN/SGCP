@@ -37,6 +37,7 @@ import { AbaVagas } from './indicadores/AbaVagas';
 import { AbaSelecoes } from './indicadores/AbaSelecoes';
 import { AbaPessoas, avaliacoesAVencer, LIMITE_ATRASO_DIAS } from './indicadores/AbaPessoas';
 import { AbaClima } from './indicadores/AbaClima';
+import { AbaAbsenteismo } from './indicadores/AbaAbsenteismo';
 import { num, dec, pct } from './indicadores/ui';
 
 interface RecruitmentDashboardProps {
@@ -59,6 +60,7 @@ const ABAS: { id: AbaId; rotulo: string }[] = [
   { id: 'vagas', rotulo: 'Vagas' },
   { id: 'selecoes', rotulo: 'Seleções' },
   { id: 'pessoas', rotulo: 'Pessoas' },
+  { id: 'absenteismo', rotulo: 'Absenteísmo' },
   { id: 'clima', rotulo: 'Clima & Turnover' },
 ];
 const EM_ANDAMENTO = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO'];
@@ -261,6 +263,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             />
           </div>
         )}
+        {aba === 'absenteismo' && <AbaAbsenteismo periodo={periodo} sedeFiltrada={!!sede} />}
         {aba === 'clima' && <AbaClima turnover={f.turnover} entrevistas={f.entrevistas} sedeFiltrada={!!sede} />}
       </div>
     </div>

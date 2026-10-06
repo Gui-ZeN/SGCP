@@ -12,7 +12,7 @@
 import React from 'react';
 import { AlertTriangle, Clock, ChevronRight, CheckCircle2 } from 'lucide-react';
 
-export type AbaId = 'geral' | 'vagas' | 'selecoes' | 'pessoas' | 'clima';
+export type AbaId = 'geral' | 'vagas' | 'selecoes' | 'pessoas' | 'absenteismo' | 'clima';
 
 export interface ItemDeAtencao {
   id: string;
