@@ -179,6 +179,7 @@ export default function App() {
     importSelecoes,
     addSelecao,
     updateSelecao,
+    removeSelecao,
     addEntrevista,
     updateEntrevista,
     deleteEntrevista,
@@ -474,6 +475,28 @@ export default function App() {
       await logAction('EXCLUIU', 'Candidatos', `Candidato removido da seleção de ${selecao.cargo} (${selecao.data}).`,
         { ref: { cargo: selecao.cargo, data: selecao.data, candidato: id } });
     });
+
+  /**
+   * Excluir uma seleção AGENDADA (pedido da Coordenação, 08/10/2026). Só
+   * Administrador e Coordenador veem o botão; realizada não se exclui por aqui,
+   * porque já entrou nos números dos Indicadores. Os nomes convocados para ela
+   * saem junto — sem a seleção, ficariam soltos no banco.
+   */
+  const excluirSelecao = (selecao: Selecao) => {
+    const nomes = candidatos.filter(c => c.selecaoId === selecao.id);
+    askConfirmation(
+      'Excluir seleção agendada',
+      `Excluir a seleção de ${selecao.cargo} em ${selecao.sede}, marcada para ${selecao.data}?` +
+        (nomes.length ? ` Os ${nomes.length} nome(s) convocados para ela também saem.` : '') +
+        ' Não dá para desfazer.',
+      () => executeWithLoading('Excluindo a seleção...', async () => {
+        for (const c of nomes) await removerCandidato(c.id);
+        await removeSelecao(selecao.id);
+        await logAction('EXCLUIU', 'Seleções', `Seleção agendada excluída: ${selecao.cargo} em ${selecao.sede}, ${selecao.data} — ${selecao.convocados} convocado(s).`,
+          { ref: { cargo: selecao.cargo, sede: selecao.sede, data: selecao.data, convocados: selecao.convocados } });
+      })
+    );
+  };
 
   // Módulo Seleções (a planilha no sistema). O log diz o QUE foi: lançar
   // depois do fato é "lancamento" e corrigir é "edicao" — nenhum dos dois vira
@@ -1740,6 +1763,8 @@ export default function App() {
               salvarCandidato={canManageModules ? wrappedSalvarCandidato : undefined}
               registrarCandidatos={canManageModules ? wrappedRegistrarCandidatos : undefined}
               removerCandidato={canManageModules ? wrappedRemoverCandidato : undefined}
+              // Excluir seleção agendada: decisão da Coordenação (Admin e Coordenador).
+              excluirSelecao={isAdmin || isCoord ? excluirSelecao : undefined}
               confirmAction={askConfirmation}
             />
           )}
@@ -1762,6 +1787,7 @@ export default function App() {
               salvarCandidato={canManageModules ? wrappedSalvarCandidato : undefined}
               registrarCandidatos={canManageModules ? wrappedRegistrarCandidatos : undefined}
               removerCandidato={canManageModules ? wrappedRemoverCandidato : undefined}
+              excluirSelecao={isAdmin || isCoord ? excluirSelecao : undefined}
               atividades={scopedAtividades}
               // Log só para quem as regras deixam ler; para os demais o bloco
               // "No sistema" simplesmente não aparece.

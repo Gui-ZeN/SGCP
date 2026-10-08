@@ -425,6 +425,7 @@ export function useOperationalModules(user?: any) {
     // Agenda: agendar o dia de seleção antes e confirmar a presença depois.
     addSelecao: sel.create,
     updateSelecao: sel.update,
+    removeSelecao: sel.remove,
     addEntrevista,
     updateEntrevista,
     deleteEntrevista,

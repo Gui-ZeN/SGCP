@@ -40,6 +40,8 @@ interface Props {
   registrarCandidatos?: (selecao: Selecao, nomes: string[]) => Promise<void>;
   removerCandidato?: (selecao: Selecao, id: string) => Promise<void>;
   confirmAction?: (titulo: string, mensagem: string, onConfirm: () => void | Promise<void>) => void;
+  /** Excluir uma seleção AGENDADA (só Administrador e Coordenador recebem). */
+  excluirSelecao?: (selecao: Selecao) => void;
 }
 
 const ordem = (d: string) => { const am = anoMes(d); return am ? am[0] * 10000 + am[1] * 100 + Number(d.slice(0, 2)) : 0; };
@@ -49,7 +51,7 @@ const filtro = 'text-sm bg-white border border-slate-200 rounded-lg pl-3 pr-8 py
 
 export const SelecoesModulo: React.FC<Props> = ({
   selecoes, sedes, vagas = [], foco, setores = [], sedePadrao = '', responsavelPadrao = '', salvarSelecao,
-  candidatos, salvarCandidato, registrarCandidatos, removerCandidato, confirmAction,
+  candidatos, salvarCandidato, registrarCandidatos, removerCandidato, confirmAction, excluirSelecao,
 }) => {
   // ── filtros ──
   const anos = useMemo(() => anosDosDados(selecoes.map(s => s.data)), [selecoes]);
@@ -219,6 +221,12 @@ export const SelecoesModulo: React.FC<Props> = ({
                 className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">
                 Ver todos os candidatos
               </button>
+              {excluirSelecao && !ehRealizada(selFiltrada) && (
+                <button onClick={() => excluirSelecao(selFiltrada)}
+                  className="px-3 py-2 rounded-lg border border-rose-200 bg-white text-sm font-semibold text-rose-700 hover:bg-rose-50 cursor-pointer">
+                  Excluir seleção
+                </button>
+              )}
             </div>
           </div>
         )}

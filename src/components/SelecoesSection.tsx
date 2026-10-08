@@ -47,6 +47,8 @@ interface SelecoesSectionProps {
   atualizarAtividade?: (id: string, campos: Partial<Atividade>) => Promise<void>;
   removerAtividade?: (id: string) => Promise<void>;
   confirmAction?: (titulo: string, mensagem: string, onConfirm: () => void | Promise<void>) => void;
+  /** Excluir uma seleção AGENDADA (só Administrador e Coordenador recebem). */
+  excluirSelecao?: (selecao: Selecao) => void;
   /**
    * O log de auditoria — tudo que cada pessoa fez no sistema. Só chega aqui
    * para Administrador e Coordenador (é o que as regras deixam ler), e já vem
@@ -113,7 +115,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
     atividades = [], adicionarAtividade, atualizarAtividade, removerAtividade, confirmAction,
     logs, usuarios = [], diarios = [], salvarMeuDia, emailAtual = '', meuLog = [],
     tarefas = TAREFAS_PADRAO, criarTarefa, ajustarTarefa, apagarTarefa,
-    candidatos, salvarCandidato, registrarCandidatos, removerCandidato,
+    candidatos, salvarCandidato, registrarCandidatos, removerCandidato, excluirSelecao,
     ...fontes
   } = props;
   const [diaISO, setDiaISO] = useState(() => dataISOLocal());
@@ -1112,6 +1114,14 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                           </span>
                         ) : (
                           <span className="text-[11px] text-slate-400">—</span>
+                        )}
+                        {excluirSelecao && !realizada && (
+                          <button
+                            onClick={() => excluirSelecao(s)}
+                            className="block mt-1.5 text-[11px] font-bold text-rose-700 hover:text-rose-900 hover:underline cursor-pointer"
+                          >
+                            Excluir seleção
+                          </button>
                         )}
                       </td>
                     </tr>
