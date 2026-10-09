@@ -24,7 +24,7 @@ import { useOrganograma } from './hooks/useOrganograma';
 import { useAtividades } from './hooks/useAtividades';
 import { useCandidatos } from './hooks/useCandidatos';
 import { numerosDoDia } from './utils/candidatos';
-import { atendeVaga } from './utils/selecao';
+import { atendeVaga, camposDoFormulario, origemDoSetor } from './utils/selecao';
 import type { Candidato, Selecao } from './types';
 import { useDiario } from './hooks/useDiario';
 import { useMeuLog } from './hooks/useMeuLog';
@@ -33,6 +33,11 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Bandeirinhas } from './components/Bandeirinhas';
 import { BootLoader } from './components/BootLoader';
 import { LogoSGPC } from './components/LogoSGPC';
+import { MenuLateral, type ItemMenu } from './components/MenuLateral';
+import { Modal } from './components/ui/Modal';
+import { lerRota, linkPara, type Aba, type ParametrosDaRota } from './lib/rotas';
+import { vagaAtrasada } from './utils/vaga';
+import { SLA_META_DIAS } from './constants/hr';
 import { ehSetembro } from './data/setembroAmarelo';
 import { ehOutubro } from './data/outubroRosa';
 import { useAppConfig } from './hooks/useAppConfig';
@@ -60,10 +65,11 @@ const ENFEITES: { id: string; nome: string; Comp: ComponentType | null; padrao: 
 ];
 
 /** Campanha que reskina o acento, na ordem de prioridade se duas estiverem ligadas. */
-const CAMPANHAS: { id: string; favicon: string }[] = [
-  { id: 'outubro-rosa', favicon: '/logo-outubro.svg' },
-  { id: 'setembro-amarelo', favicon: '/logo-setembro.svg' },
+const CAMPANHAS: { id: string; nome: string; favicon: string }[] = [
+  { id: 'outubro-rosa', nome: 'Outubro Rosa', favicon: '/logo-outubro.svg' },
+  { id: 'setembro-amarelo', nome: 'Setembro Amarelo', favicon: '/logo-setembro.svg' },
 ];
+
 import { useOperationalModules, addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from './hooks/useOperationalModules';
 const TreinamentosSection = lazyComRetry(() => import('./components/TreinamentosSection').then(m => ({ default: m.TreinamentosSection })));
 const ExperienciasSection = lazyComRetry(() => import('./components/ExperienciasSection').then(m => ({ default: m.ExperienciasSection })));
@@ -83,7 +89,6 @@ import {
   Inbox,
   Loader2,
   Lock,
-  ShieldAlert,
   GraduationCap,
   ClipboardList,
   Sheet,
@@ -94,7 +99,9 @@ import {
   Percent,
   User,
   Menu,
-  X
+  House,
+  UserPlus,
+  Settings
 } from 'lucide-react';
 import { auth, googleProvider, isFirebaseEnabled, db } from './lib/firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
@@ -112,8 +119,6 @@ export default function App() {
   const { vagas, loading, usingFirebase, errorMessage, addVaga, addVagas, updateVaga, deleteVaga, importVagas, importarVagasAnuais, padronizarSetores } = useVagas(user);
   const [toast, setToast] = useState<{ message: string, type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
   const [triggerAddModal, setTriggerAddModal] = useState(0);
-  // Vaga focada a partir do Home (alerta de SLA) → filtra o Quadro de Vagas por ela.
-  const [vagaFocus, setVagaFocus] = useState<{ codigo: string; token: number } | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importReplace, setImportReplace] = useState(false);
   const [importingSpreadsheet, setImportingSpreadsheet] = useState(false);
@@ -240,9 +245,29 @@ export default function App() {
     [integracoes, sedes, selectedSede, isAdmin]
   );
 
-  // Seleção a abrir no módulo Seleções (vindo da gaveta da vaga). O token muda a cada clique.
-  const [focoSelecao, setFocoSelecao] = useState<{ id: string; token: number } | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'vagas' | 'treinamentos' | 'experiencias' | 'entrevistas' | 'turnover' | 'requisicoes' | 'integracao' | 'consultas' | 'selecoes' | 'selecoesLista' | 'organograma' | 'admin'>('home');
+  // A tela e o que ela abre vêm do endereço (lib/rotas.ts). O token muda a cada
+  // navegação: clicar de novo no mesmo atalho reaplica o foco.
+  const [rota, setRota] = useState(() => ({ ...lerRota(window.location.hash), token: Date.now() }));
+  useEffect(() => {
+    const seguirEndereco = () => setRota({ ...lerRota(window.location.hash), token: Date.now() });
+    window.addEventListener('hashchange', seguirEndereco);
+    return () => window.removeEventListener('hashchange', seguirEndereco);
+  }, []);
+  const activeTab = rota.aba;
+  const irPara = (aba: Aba, params: ParametrosDaRota = {}) => {
+    const destino = linkPara(aba, params);
+    // Mesmo endereço não dispara hashchange: reaplica o foco na mão.
+    if (window.location.hash === destino) setRota({ ...lerRota(destino), token: Date.now() });
+    else window.location.hash = destino;
+  };
+  const setActiveTab = (aba: Aba) => irPara(aba);
+  // Vaga a destacar no Quadro (#/vagas?vaga=124), seleção a abrir
+  // (#/selecoes?selecao=…) e dia do Resumo (#/resumo-do-dia?dia=2026-10-08).
+  const vagaFocus = activeTab === 'vagas' && rota.params.vaga ? { codigo: rota.params.vaga, token: rota.token } : null;
+  const focoSelecao = activeTab === 'selecoesLista' && rota.params.selecao ? { id: rota.params.selecao, token: rota.token } : null;
+  const focoDia = activeTab === 'selecoes' && rota.params.dia ? { dia: rota.params.dia, token: rota.token } : null;
+  const focoPessoa = activeTab === 'experiencias' && rota.params.pessoa ? { pessoa: rota.params.pessoa, token: rota.token } : null;
+  const focoNovaSelecao = activeTab === 'selecoesLista' && rota.params.novaSelecao ? { vagaId: rota.params.novaSelecao, token: rota.token } : null;
   // Menu em gaveta abaixo de `lg`. Antes a sidebar virava uma fita horizontal de
   // colunas: 1408px de conteúdo num celular de 375px, com 8 dos 12 itens fora da
   // tela e o "Sair" com 0×0. Na gaveta cabe a lista inteira, com rótulo e nome
@@ -393,15 +418,6 @@ export default function App() {
     });
 
   // Agendar/confirmar seleção, com auditoria como nos demais módulos.
-  const wrappedAgendarSelecao = (dados: any) =>
-    executeWithLoading("Agendando seleção...", async () => {
-      await addSelecao(dados);
-      // Módulo PRÓPRIO, e não 'Vagas': o resumo diário conta alterações de vaga
-      // numa linha só ("12 vagas alteradas"), e seleção ali dentro sumiria na
-      // contagem — justamente o "5 de 11 compareceram", que é o que interessa.
-      await logAction('CRIOU', 'Seleções', `Seleção agendada: ${dados.cargo} em ${dados.sede}, ${dados.data} — ${dados.convocados} convocado(s).`,
-        { ref: { cargo: dados.cargo, sede: dados.sede, data: dados.data, convocados: dados.convocados } });
-    });
   const wrappedConfirmarSelecao = (id: string, campos: any) =>
     executeWithLoading("Confirmando presença...", async () => {
       const alvo = selecoes.find(s => s.id === id);
@@ -468,14 +484,6 @@ export default function App() {
       }
     });
 
-  const wrappedRemoverCandidato = (selecao: Selecao, id: string) =>
-    executeWithLoading('Removendo candidato...', async () => {
-      await removerCandidato(id);
-      await recalcularSelecao(selecao, candidatos.filter(c => c.selecaoId === selecao.id && c.id !== id));
-      await logAction('EXCLUIU', 'Candidatos', `Candidato removido da seleção de ${selecao.cargo} (${selecao.data}).`,
-        { ref: { cargo: selecao.cargo, data: selecao.data, candidato: id } });
-    });
-
   /**
    * Excluir uma seleção AGENDADA (pedido da Coordenação, 08/10/2026). Só
    * Administrador e Coordenador veem o botão; realizada não se exclui por aqui,
@@ -497,6 +505,65 @@ export default function App() {
       })
     );
   };
+
+  /**
+   * Criar uma seleção — o caminho ÚNICO (09/10/2026) do formulário de seleção,
+   * aberto de Seleções, do Resumo do Dia e do Kanban. Grava a seleção com os
+   * números das vagas ligadas e, se vieram nomes, registra cada um como
+   * convocado (aí os números do dia passam a sair da lista).
+   */
+  const criarSelecao = (campos: Omit<Selecao, 'id'>, nomes: string[] = []) =>
+    executeWithLoading(nomes.length ? `Criando a seleção com ${nomes.length} nome(s)...` : 'Criando a seleção...', async () => {
+      const vagaIds = campos.vagaIds || [];
+      const selecao = {
+        ...campos,
+        vagaCodigos: vagaIds.map(id => Number(vagas.find(v => v.id === id)?.codigo)).filter(n => Number.isFinite(n)),
+      };
+      const id = await addSelecao(selecao);
+      // Log no módulo PRÓPRIO, e não 'Vagas': o resumo diário conta alterações de
+      // vaga numa linha só, e a seleção ali dentro sumiria na contagem.
+      const ref = { cargo: selecao.cargo, sede: selecao.sede, data: selecao.data, convocados: selecao.convocados };
+      await logAction('CRIOU', 'Seleções', campos.status === 'realizado'
+        ? `Seleção já realizada lançada: ${selecao.cargo} em ${selecao.sede}, ${selecao.data} — ${selecao.compareceram} de ${selecao.convocados} compareceram.`
+        : `Seleção agendada: ${selecao.cargo} em ${selecao.sede}, ${selecao.data} — ${selecao.convocados} convocado(s)${selecao.vagaCodigos.length ? ` (vaga ${selecao.vagaCodigos.map(c => '#' + c).join(', ')})` : ''}.`,
+        { ref: campos.status === 'realizado' ? { ...ref, compareceram: selecao.compareceram, tipo: 'lancamento' } : ref });
+      if (!id || !nomes.length) return;
+      const novos = nomes.map((nome, k) => ({
+        id: `cand_${Date.now()}_${k}_${Math.random().toString(36).slice(2, 8)}`,
+        nome, resultado: 'convocado' as const, contratado: '' as const, motivo: '', observacao: '',
+      }));
+      for (const c of novos) await gravarCandidato(c.id, { ...c, selecaoId: id, data: selecao.data });
+      await recalcularSelecao({ ...selecao, id } as Selecao, novos);
+    });
+
+  /**
+   * Os modais do Kanban (Entrevista → Testes → Documentação) mudam vários
+   * candidatos de uma vez: presença, resultado do teste, etapa e vaga. Grava
+   * todos, refaz os números de cada seleção tocada e deixa UMA linha no log.
+   */
+  const atualizarCandidatos = (alteracoes: { candidato: Candidato; campos: Partial<Candidato> }[], resumo: string) =>
+    executeWithLoading('Atualizando os candidatos...', async () => {
+      for (const { candidato, campos } of alteracoes) await gravarCandidato(candidato.id, campos);
+      const tocadas = new Set(alteracoes.map(a => a.candidato.selecaoId));
+      for (const selecaoId of tocadas) {
+        const selecao = selecoes.find(s => s.id === selecaoId);
+        if (!selecao) continue;
+        const lista = candidatos.filter(c => c.selecaoId === selecaoId).map(c => {
+          const mudou = alteracoes.find(a => a.candidato.id === c.id);
+          return mudou ? { ...c, ...mudou.campos } : c;
+        });
+        await recalcularSelecao(selecao, lista);
+      }
+      if (alteracoes.length) await logAction('ALTEROU', 'Candidatos', resumo);
+    });
+
+  const wrappedRemoverCandidato = (selecao: Selecao, id: string) =>
+    executeWithLoading('Removendo candidato...', async () => {
+      await removerCandidato(id);
+      await recalcularSelecao(selecao, candidatos.filter(c => c.selecaoId === selecao.id && c.id !== id));
+      await logAction('EXCLUIU', 'Candidatos', `Candidato removido da seleção de ${selecao.cargo} (${selecao.data}).`,
+        { ref: { cargo: selecao.cargo, data: selecao.data, candidato: id } });
+    });
 
   // Módulo Seleções (a planilha no sistema). O log diz o QUE foi: lançar
   // depois do fato é "lancamento" e corrigir é "edicao" — nenhum dos dois vira
@@ -544,20 +611,6 @@ export default function App() {
     });
   };
 
-  // Foco de vaga vindo do Home: troca pra aba Vagas e filtra pelo código (token
-  // novo a cada clique força o VacancyTable a reaplicar o filtro).
-  const handleFocusVaga = (v: any) => {
-    if (v?.codigo == null) { setActiveTab('vagas'); return; }
-    setVagaFocus({ codigo: String(v.codigo), token: Date.now() });
-    setActiveTab('vagas');
-  };
-
-  // Limpa o foco ao sair da aba Vagas, senão ao voltar o VacancyTable remonta e
-  // reaplica o filtro antigo (bug: "voltei e continuava filtrado").
-  useEffect(() => {
-    if (activeTab !== 'vagas') setVagaFocus(null);
-  }, [activeTab]);
-
   const executeWithLoading = async (message: string, task: () => Promise<void>) => {
     setGlobalLoading(message);
     try {
@@ -594,9 +647,14 @@ export default function App() {
   // Requisições: aceitar cria a vaga (campos extras vão pras observações); recusar registra o motivo.
   const handleAceitarRequisicao = (req: any) =>
     executeWithLoading("Aceitando requisição e criando vaga...", async () => {
-      await addVaga(requisicaoParaVaga(req) as any); // conversão pura e testada (utils/requisicao)
-      await updateRequisicao(req.id, { status: 'aceita', decididaEm: new Date().toISOString(), decididaPor: user?.email || 'sistema' });
-      await logAction('CRIOU', 'Vagas', `Vaga "${req.cargo}" criada a partir de requisição (gestor: ${req.gestorSolicitante}).`,
+      const criada = await addVaga(requisicaoParaVaga(req) as any); // conversão pura e testada (utils/requisicao)
+      // Guarda qual vaga nasceu daqui: a requisição mostra "Ver vaga nº 124" e a
+      // vaga mostra de qual requisição veio, sem ninguém procurar à mão.
+      await updateRequisicao(req.id, {
+        status: 'aceita', decididaEm: new Date().toISOString(), decididaPor: user?.email || 'sistema',
+        ...(criada ? { vagaId: criada.id, vagaCodigo: criada.codigo } : {}),
+      });
+      await logAction('CRIOU', 'Vagas', `Vaga${criada ? ` #${criada.codigo}` : ''} "${req.cargo}" criada a partir de requisição (gestor: ${req.gestorSolicitante}).`,
         { ref: { cargo: req.cargo, sede: req.sede } });
       notify('Requisição aceita — vaga criada!', 'success');
     });
@@ -1069,7 +1127,7 @@ export default function App() {
     const mockUser = {
       email,
       displayName: name,
-      photoURL: null,
+      photoURL: null as string | null,
       uid: 'mock-uid-12345'
     };
     setUser(mockUser);
@@ -1206,403 +1264,59 @@ export default function App() {
     );
   }
 
+  // Vagas que passaram da meta na etapa atual — o mesmo critério do cartão do Kanban.
+  const vagasAtrasadas = scopedVagas.filter(vagaAtrasada).length;
+  // Mesma ordem do menu antigo (pedido: nada muda de lugar); só ganhou grupos com nome.
+  const itensMenu: ItemMenu[] = [
+    { id: 'home', rotulo: 'Início', Icone: House, grupo: '' },
+    { id: 'dashboard', rotulo: 'Indicadores', Icone: BarChart3, grupo: '' },
+    { id: 'vagas', rotulo: 'Vagas', Icone: Layers, grupo: 'Recrutamento', badge: vagasAtrasadas, badgeTitulo: `${vagasAtrasadas} vagas passaram da meta de ${SLA_META_DIAS} dias na etapa` },
+    ...(isAdmin ? [{ id: 'requisicoes', rotulo: 'Requisições', Icone: Inbox, grupo: 'Recrutamento', badge: requisicoesPendentes, badgeTitulo: `${requisicoesPendentes} requisições esperando resposta` }] : []),
+    ...(podeVerSelecoes ? [{ id: 'selecoesLista', rotulo: 'Seleções', Icone: Sheet, grupo: 'Recrutamento' }] : []),
+    ...(podeVerResumoDia ? [{ id: 'selecoes', rotulo: 'Resumo do Dia', Icone: Users, grupo: 'Recrutamento' }] : []),
+    { id: 'treinamentos', rotulo: 'Treinamentos', Icone: GraduationCap, grupo: 'Pessoas' },
+    { id: 'experiencias', rotulo: 'Experiência', Icone: ShieldCheck, grupo: 'Pessoas' },
+    { id: 'entrevistas', rotulo: 'Entrevistas', Icone: HeartCrack, grupo: 'Pessoas' },
+    { id: 'turnover', rotulo: 'Turnover', Icone: Percent, grupo: 'Pessoas' },
+    { id: 'organograma', rotulo: 'Organograma', Icone: Network, grupo: 'Pessoas' },
+    ...(podeVerIntegracao ? [{ id: 'integracao', rotulo: 'Integração', Icone: UserPlus, grupo: 'Pessoas' }] : []),
+    ...(podeVerConsultas ? [{ id: 'consultas', rotulo: 'Consultas', Icone: ClipboardList, grupo: 'Pessoas' }] : []),
+    ...((isAdmin || isCoord) ? [{ id: 'admin', rotulo: 'Admin', Icone: Settings, grupo: 'Sistema' }] : []),
+  ];
+
   return (
     <div className="relative h-screen w-screen bg-slate-50 font-sans antialiased text-slate-700 flex flex-col overflow-hidden">
       {/* Enfeites de época (ligados/desligados pelo admin no painel) 🎉 */}
       {ENFEITES.filter(e => e.Comp && enfeiteAtivo(e)).map(e => { const Comp = e.Comp!; return <Comp key={e.id} />; })}
-      {/* Top Main Navigation Header (Glued to top) */}
-      <header className="no-print flex items-center justify-between bg-white py-3.5 px-6 border-b border-slate-200 shadow-xs shrink-0 z-10 gap-4">
-        {/* Logo and Dynamic Screen Name */}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setMenuAberto(true)}
-            aria-label="Abrir menu de navegação"
-            aria-expanded={menuAberto}
-            aria-controls="nav-principal"
-            className="lg:hidden w-11 h-11 -ml-2 shrink-0 flex items-center justify-center rounded-2xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer transition"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-          <LogoSGPC className="w-9 h-9 rounded-xl shrink-0" />
-          <div>
-            <h1 className="text-sm font-extrabold text-slate-800 tracking-tight leading-none flex items-center gap-1">
-              <span>SGPC</span>
-              <span className="hidden sm:inline text-xs font-semibold text-slate-400 mx-0.5">|</span>
-              <span className="hidden sm:inline text-xs font-medium text-slate-500">Sistema de Gestão de Pessoas Christus</span>
-              <span className="text-[9px] font-bold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-md border border-orange-200 ml-1 shrink-0">v1.2.0</span>
-            </h1>
-            <p className="text-[11px] text-slate-500 font-bold mt-1 leading-none uppercase tracking-wider">
-              {activeTab === 'dashboard' && 'Painel de Indicadores'}
-              {activeTab === 'vagas' && 'Quadro de Vagas'}
-              {activeTab === 'treinamentos' && 'Treinamentos'}
-              {activeTab === 'experiencias' && 'Acompanhamento de Experiência'}
-              {activeTab === 'entrevistas' && 'Entrevistas de Desligamento'}
-              {activeTab === 'turnover' && 'Turnover & Headcount'}
-              {activeTab === 'requisicoes' && 'Requisições de Vaga'}
-              {activeTab === 'integracao' && 'Treinamento de Integração'}
-              {activeTab === 'consultas' && 'Consultas'}
-              {activeTab === 'selecoes' && 'Resumo do Dia'}
-              {activeTab === 'selecoesLista' && 'Seleções'}
-              {activeTab === 'organograma' && 'Organograma'}
-              {activeTab === 'admin' && 'Painel Administrativo'}
-            </p>
-          </div>
-        </div>
-
-        {/* Sync Status Badge & Button */}
-        <div className="flex items-center gap-3">
-          {usingFirebase ? (
-            <div className="flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-100 text-[10px] font-bold uppercase tracking-wider">
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5 animate-pulse"></span>
-              Conectado
-            </div>
-          ) : (
-            <div 
-              className="flex items-center bg-orange-50 text-orange-700 px-3 py-1.5 rounded-full border border-orange-200 text-[10px] font-bold uppercase tracking-wider cursor-help"
-              title="A aplicação está rodando em modo sandbox local (localStorage). Sincronize com Firebase rodando o setup."
-            >
-              <span className="w-1.5 h-1.5 bg-orange-500 rounded-full mr-1.5 animate-pulse"></span>
-              Demo Local
-            </div>
-          )}
-
-        </div>
+      {/* Barra do topo: só abaixo de lg, onde o menu vira gaveta. */}
+      <header className="casca-topo no-print">
+        <button type="button" onClick={() => setMenuAberto(true)} aria-label="Abrir menu de navegação" aria-expanded={menuAberto} aria-controls="menu-principal">
+          <Menu className="w-5 h-5" />
+        </button>
+        <LogoSGPC className="casca-logo" />
+        <strong>SGPC</strong>
+        <span>{itensMenu.find(i => i.id === activeTab)?.rotulo}</span>
       </header>
 
       {/* Main Layout Area - Glued to side and bottom */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
         
-        {/* Navigation Sidebar Drawer */}
-        {menuAberto && (
-          <div
-            className="lg:hidden fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[1px]"
-            onClick={() => setMenuAberto(false)}
-            aria-hidden="true"
-          />
-        )}
-        <nav
-          id="nav-principal"
-          aria-label="Navegação principal"
-          className={`no-print bg-white border-slate-200 p-5 flex flex-col gap-4 shrink-0 overflow-hidden
-            fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] border-r shadow-2xl transition-transform duration-200 ${
-              menuAberto ? 'translate-x-0' : '-translate-x-full'
-            }
-            lg:static lg:translate-x-0 lg:w-64 lg:max-w-none lg:shadow-none lg:transition-none`}
-        >
-          <div className="lg:hidden flex items-center justify-between shrink-0">
-            <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Navegação</span>
-            <button
-              type="button"
-              onClick={() => setMenuAberto(false)}
-              aria-label="Fechar menu"
-              className="w-11 h-11 -mr-2 flex items-center justify-center rounded-2xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Só a lista rola; o cartão de usuário fica ancorado embaixo. Em
-              notebook 1366×768 os 12 itens não cabiam e o `scrollbar-none`
-              escondia que havia mais — o Painel Admin e o Sair ficavam
-              inalcançáveis. */}
-          <div
-            onClick={() => setMenuAberto(false)}
-            className="flex flex-col gap-4 w-full flex-1 min-h-0 overflow-y-auto nav-scroll"
-          >
-            
-            {/* Category 1: Visão Geral */}
-            <div className="space-y-1 w-full shrink-0">
-              <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                Visão geral
-              </div>
-              <button
-                id="tab-home"
-                onClick={() => setActiveTab('home')}
-                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                  activeTab === 'home' 
-                    ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10' 
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
-                }`}
-              >
-                <div className="w-4 h-4 shrink-0 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                </div>
-                <span>Início</span>
-              </button>
-
-              <button
-                id="tab-dashboard"
-                onClick={() => setActiveTab('dashboard')}
-                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                  activeTab === 'dashboard' 
-                    ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10' 
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
-                }`}
-              >
-                <BarChart3 className="w-4 h-4 shrink-0" />
-                <span>Indicadores</span>
-              </button>
-            </div>
-
-            {/* Category 2: Recrutamento */}
-            <div className="space-y-1 w-full shrink-0">
-              <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-500 tracking-wider mt-1">
-                Recrutamento
-              </div>
-              <button
-                id="tab-vagas"
-                onClick={() => setActiveTab('vagas')}
-                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                  activeTab === 'vagas' 
-                    ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10' 
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
-                }`}
-              >
-                <Layers className="w-4 h-4 shrink-0" />
-                <span>Quadro de Vagas</span>
-              </button>
-
-              {isAdmin && (
-                <button
-                  id="tab-requisicoes"
-                  onClick={() => setActiveTab('requisicoes')}
-                  className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                    activeTab === 'requisicoes'
-                      ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
-                  }`}
-                >
-                  <Inbox className="w-4 h-4 shrink-0" />
-                  <span className="flex-1 text-left">Requisições</span>
-                  {requisicoesPendentes > 0 && (
-                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-amber-500 text-white leading-none shrink-0">{requisicoesPendentes}</span>
-                  )}
-                </button>
-              )}
-
-              {podeVerSelecoes && (
-                <button
-                  id="tab-selecoes-lista"
-                  onClick={() => setActiveTab('selecoesLista')}
-                  className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                    activeTab === 'selecoesLista'
-                      ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
-                  }`}
-                >
-                  <Sheet className="w-4 h-4 shrink-0 text-indigo-500" />
-                  <span className="flex-1 text-left">Seleções</span>
-                </button>
-              )}
-
-              {podeVerResumoDia && (
-                <button
-                  id="tab-selecoes"
-                  onClick={() => setActiveTab('selecoes')}
-                  className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                    activeTab === 'selecoes'
-                      ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
-                  }`}
-                >
-                  <Users className="w-4 h-4 shrink-0 text-indigo-500" />
-                  <span className="flex-1 text-left">Resumo do Dia</span>
-                </button>
-              )}
-            </div>
-
-            {/* Category 3: Gestão */}
-            <div className="space-y-1 w-full shrink-0">
-              <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-500 tracking-wider mt-1">
-                Gestão
-              </div>
-              
-              <button
-                id="tab-treinamentos"
-                onClick={() => setActiveTab('treinamentos')}
-                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                  activeTab === 'treinamentos' 
-                    ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10' 
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
-                }`}
-              >
-                <GraduationCap className="w-4 h-4 shrink-0 text-orange-550" />
-                <span>Treinamentos</span>
-              </button>
-
-              <button
-                id="tab-experiencias"
-                onClick={() => setActiveTab('experiencias')}
-                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                  activeTab === 'experiencias' 
-                    ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10' 
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
-                }`}
-              >
-                <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-500" />
-                <span>Experiência</span>
-              </button>
-
-              <button
-                id="tab-entrevistas"
-                onClick={() => setActiveTab('entrevistas')}
-                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                  activeTab === 'entrevistas' 
-                    ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10' 
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
-                }`}
-              >
-                <HeartCrack className="w-4 h-4 shrink-0 text-rose-500" />
-                <span>Entrevistas</span>
-              </button>
-
-              <button
-                id="tab-turnover"
-                onClick={() => setActiveTab('turnover')}
-                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                  activeTab === 'turnover' 
-                    ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10' 
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
-                }`}
-              >
-                <Percent className="w-4 h-4 shrink-0 text-blue-500" />
-                <span>Turn Over</span>
-              </button>
-
-              <button
-                id="tab-organograma"
-                onClick={() => setActiveTab('organograma')}
-                className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                  activeTab === 'organograma'
-                    ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
-                }`}
-              >
-                <Network className="w-4 h-4 shrink-0 text-violet-500" />
-                <span>Organograma</span>
-              </button>
-
-              {podeVerIntegracao && (
-                <button
-                  id="tab-integracao"
-                  onClick={() => setActiveTab('integracao')}
-                  className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                    activeTab === 'integracao'
-                      ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
-                  }`}
-                >
-                  <GraduationCap className="w-4 h-4 shrink-0" />
-                  <span className="flex-1 text-left">Integração</span>
-                </button>
-              )}
-
-              {podeVerConsultas && (
-                <button
-                  id="tab-consultas"
-                  onClick={() => setActiveTab('consultas')}
-                  className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                    activeTab === 'consultas'
-                      ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/70'
-                  }`}
-                >
-                  <ClipboardList className="w-4 h-4 shrink-0 text-indigo-500" />
-                  <span className="flex-1 text-left">Consultas</span>
-                </button>
-              )}
-
-            </div>
-
-            {/* Category 4: Sistema / Admin (Administrador completo ou Coordenador regional) */}
-            {(isAdmin || isCoord) && (
-              <div className="space-y-1 w-full shrink-0">
-                <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-500 tracking-wider mt-1">
-                  Sistema
-                </div>
-                {(isAdmin || isCoord) && (
-                  <button
-                    id="tab-admin"
-                    onClick={() => setActiveTab('admin')}
-                    className={`flex items-center gap-2.5 px-3 py-3 lg:py-2.5 w-full rounded-2xl text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                      activeTab === 'admin' 
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/15' 
-                        : 'text-slate-500 hover:text-indigo-600 hover:bg-slate-100/70'
-                    }`}
-                  >
-                    <ShieldAlert className="w-4.5 h-4.5 shrink-0" />
-                    <span>Painel Admin</span>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Sidebar Footer User Card with Integrated System Indicators & Copyright */}
-          <div className="flex flex-col gap-3 pt-4 border-t border-slate-100 w-full shrink-0">
-            {user ? (
-              <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center gap-3">
-                {user.photoURL ? (
-                  <img src={user.photoURL} alt={user.displayName} width={32} height={32} loading="lazy" className="w-8 h-8 rounded-full border border-slate-350 shadow-xs shrink-0" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-slate-900 text-slate-50 text-[10px] font-black flex items-center justify-center uppercase border border-slate-850 shrink-0">
-                    {user.displayName?.charAt(0) || 'U'}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-slate-850 truncate leading-none mb-1">
-                    {user.displayName || 'Gestor'}
-                  </p>
-                  <div className="flex flex-wrap gap-1 items-center">
-                    <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded font-extrabold uppercase border leading-none ${
-                      isAdmin 
-                        ? 'bg-rose-50 text-rose-600 border-rose-100' 
-                        : isViewer
-                        ? 'bg-slate-100 text-slate-600 border-slate-200'
-                        : 'bg-indigo-50 text-indigo-600 border-indigo-100'
-                    }`}>
-                      {userRole}
-                    </span>
-                    <span className="inline-block text-[9px] px-1.5 py-0.5 rounded font-mono text-slate-600 bg-slate-100 border border-slate-250 font-extrabold uppercase leading-none" title={isViewer ? 'Acesso a todas as sedes' : `Sede: ${selectedSede}`}>
-                      {isViewer ? 'TODAS' : (sedes.find(s => s.nome.toLowerCase() === selectedSede?.toLowerCase())?.sigla || selectedSede)}
-                    </span>
-                  </div>
-                  <button
-                    onClick={handleLogout}
-                    className="text-[10px] text-rose-600 hover:text-rose-700 font-extrabold uppercase tracking-wider inline-flex items-center mt-1.5 -mx-1 px-1 min-h-[32px] cursor-pointer hover:underline animate-duration-150"
-                  >
-                    Sair
-                  </button>
-                </div>
-              </div>
-            ) : isFirebaseEnabled ? (
-              <button
-                onClick={handleLogin}
-                className="w-full px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md border border-slate-950 hover:scale-[1.01] transition"
-              >
-                <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Entrar no SGPC</span>
-              </button>
-            ) : (
-              <div className="bg-slate-50 text-[9px] p-3 rounded-2xl text-slate-400 text-center font-bold uppercase tracking-wider leading-normal">
-                Modo Offline
-              </div>
-            )}
-
-            {/* Quick System Status Indicators embedded directly in sidebar */}
-            <div className="pt-2.5 border-t border-slate-100 space-y-1 text-[9px] text-slate-400 font-extrabold uppercase tracking-wider">
-              <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
-                <span>Firestore Sincronizado</span>
-              </div>
-              <div className="text-[8px] text-slate-400/80 font-semibold normal-case pt-1 flex justify-between items-center leading-none">
-                <span>Â© {new Date().getFullYear()} SGPC</span>
-                <span>v1.2.0</span>
-              </div>
-            </div>
-          </div>
-        </nav>
+        <MenuLateral
+          itens={itensMenu}
+          ativo={activeTab}
+          irPara={id => setActiveTab(id as Aba)}
+          aberto={menuAberto}
+          fechar={() => setMenuAberto(false)}
+          usuario={user ? {
+            nome: user.displayName || 'Gestor',
+            foto: user.photoURL,
+            papel: userRole,
+            sede: isViewer ? 'Todas as sedes' : (sedes.find(s => s.nome.toLowerCase() === selectedSede?.toLowerCase())?.sigla || selectedSede),
+          } : null}
+          sair={handleLogout}
+          conectado={usingFirebase}
+          campanha={campanha}
+        />
 
         {/* Dynamic Content Pane - scrollable workspace */}
         <main className="flex-1 bg-slate-50 p-6 lg:p-8 overflow-y-auto min-h-0 h-full">
@@ -1631,8 +1345,6 @@ export default function App() {
               consultas={podeVerConsultas ? consultas : undefined}
               podeRegistrarDia={podeVerResumoDia && canManageModules}
               abaSelecoes={podeVerResumoDia ? 'selecoes' : 'selecoesLista'}
-              setActiveTab={setActiveTab}
-              onFocusVaga={handleFocusVaga}
               userName={user?.displayName}
               sedes={scopedSedes}
               userSede={scopedUserSede}
@@ -1669,13 +1381,21 @@ export default function App() {
               addSetor={wrappedAddSetor}
               isAdmin={isAdmin || isCoord}
               selecoes={scopedSelecoes}
-              abrirSelecao={podeVerSelecoes ? (id: string) => { setFocoSelecao({ id, token: Date.now() }); setActiveTab('selecoesLista'); } : undefined}
+              abrirSelecao={podeVerSelecoes ? (id: string) => irPara('selecoesLista', { selecao: id }) : undefined}
               confirmAction={askConfirmation}
               triggerAddModal={triggerAddModal}
               userSede={scopedUserSede}
               userRole={selectedRole}
               focusVaga={vagaFocus}
               logs={logs}
+              requisicoes={isAdmin ? requisicoes : undefined}
+              podeVerSelecoes={podeVerSelecoes}
+              // O Kanban conduz os candidatos (nomes = só o RH, sem Visualizador).
+              candidatos={canManageModules && podeVerSelecoes ? candidatos : undefined}
+              criarSelecao={canManageModules && podeVerSelecoes ? criarSelecao : undefined}
+              responsavelPadrao={user?.displayName || ''}
+              registrarCandidatos={canManageModules && podeVerSelecoes ? wrappedRegistrarCandidatos : undefined}
+              atualizarCandidatos={canManageModules && podeVerSelecoes ? atualizarCandidatos : undefined}
             />
           )}
 
@@ -1696,6 +1416,7 @@ export default function App() {
 
           {activeTab === 'experiencias' && (
             <ExperienciasSection
+              foco={focoPessoa}
               experiencias={scopedExperiencias}
               addExperiencia={wrappedAddExperiencia}
               updateExperiencia={wrappedUpdateExperiencia}
@@ -1755,10 +1476,12 @@ export default function App() {
               sedes={sedesIntegracao}
               vagas={scopedVagas}
               foco={focoSelecao}
+              novaParaVaga={focoNovaSelecao}
               setores={(setores || []).map(s => s.nome)}
               sedePadrao={scopedUserSede}
               responsavelPadrao={user?.displayName || ''}
               salvarSelecao={canManageModules ? wrappedSalvarSelecao : undefined}
+              criarSelecao={canManageModules ? criarSelecao : undefined}
               candidatos={canManageModules ? candidatos : undefined}
               salvarCandidato={canManageModules ? wrappedSalvarCandidato : undefined}
               registrarCandidatos={canManageModules ? wrappedRegistrarCandidatos : undefined}
@@ -1771,6 +1494,7 @@ export default function App() {
 
           {activeTab === 'selecoes' && podeVerResumoDia && (
             <SelecoesSection
+              foco={focoDia}
               selecoes={scopedSelecoes}
               vagas={scopedVagas}
               integracoes={scopedIntegracoes}
@@ -1780,7 +1504,7 @@ export default function App() {
               sedes={sedesIntegracao}
               sedePadrao={scopedUserSede}
               responsavelPadrao={user?.displayName || ''}
-              agendarSelecao={canManageModules ? wrappedAgendarSelecao : undefined}
+              criarSelecao={canManageModules ? criarSelecao : undefined}
               confirmarSelecao={canManageModules ? wrappedConfirmarSelecao : undefined}
               // Candidatos: nome e resultado de teste — só o RH, sem Visualizador.
               candidatos={canManageModules ? candidatos : undefined}
@@ -1946,47 +1670,32 @@ export default function App() {
       )}
 
       {/* Dynamic Custom Confirm Dialog Modal */}
+      {/* Confirmação no modal padrão: abre por cima de qualquer outro modal (excluir
+          a partir dos detalhes da vaga, por exemplo). */}
       {confirmModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[100] flex items-center justify-center p-4 transition duration-300 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95">
-            <div className="p-6 space-y-5">
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl shrink-0">
-                  <ShieldAlert className="w-6 h-6 animate-pulse" />
-                </div>
-                <div className="space-y-1.55">
-                  <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider leading-snug">
-                    {confirmModal.title}
-                  </h3>
-                  <p className="text-xs text-slate-550 font-semibold leading-relaxed">
-                    {confirmModal.message}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setConfirmModal(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 hover:text-slate-700 rounded-xl cursor-pointer transition-colors"
-                >
-                  {confirmModal.cancelText || 'Cancelar'}
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const callback = confirmModal.onConfirm;
-                    setConfirmModal(null);
-                    await callback();
-                  }}
-                  className="px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-lg shadow-rose-500/10 cursor-pointer transition-colors"
-                >
-                  {confirmModal.confirmText || 'Confirmar'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <Modal
+          largura="sm"
+          titulo={confirmModal.title}
+          aoFechar={() => setConfirmModal(null)}
+          rodape={<>
+            <button type="button" className="btn" onClick={() => setConfirmModal(null)}>
+              {confirmModal.cancelText || 'Cancelar'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-primario"
+              onClick={async () => {
+                const callback = confirmModal.onConfirm;
+                setConfirmModal(null);
+                await callback();
+              }}
+            >
+              {confirmModal.confirmText || 'Confirmar'}
+            </button>
+          </>}
+        >
+          <p className="text-[14.5px] leading-relaxed" style={{ color: 'var(--tinta-2)' }}>{confirmModal.message}</p>
+        </Modal>
       )}
 
     </div>

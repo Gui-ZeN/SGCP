@@ -6,6 +6,8 @@ import { EntrevistaPublica } from './components/EntrevistaPublica';
 import { recarregarUmaVez } from './lib/lazyComRetry';
 import './index.css';
 import './styles/swiss.css';
+import './styles/casca.css';
+import './styles/ui.css';
 
 // Deploy novo troca o hash dos chunks; quem está com a aba antiga aberta recebe
 // 404 ao abrir uma seção lazy. O Vite avisa aqui quando o PRELOAD falha (antes

@@ -11,7 +11,7 @@
  * create/update já com o corpo pronto.
  */
 
-import { useState, useEffect, type Dispatch, type SetStateAction } from 'react';
+import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import {
   db,
   isFirebaseEnabled,
@@ -55,7 +55,7 @@ export interface UseFirestoreCollectionResult<T> {
   loading: boolean;
   usingFirebase: boolean;
   setItems: Dispatch<SetStateAction<T[]>>;
-  create: (body: Omit<T, 'id'>) => Promise<void>;
+  create: (body: Omit<T, 'id'>) => Promise<string | undefined>;
   update: (id: string, fields: Partial<T>) => Promise<void>;
   /**
    * Cria com id escolhido, ou mescla se já existir. Para registro de id
@@ -139,18 +139,34 @@ export function useFirestoreCollection<T extends { id: string }>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 
-  const create = async (body: Omit<T, 'id'>) => {
+  // Modo local (demo/offline): toda gravação parte da lista ATUAL, não da que
+  // estava na tela quando a função foi criada. ⚠️ Sem isto, gravações seguidas
+  // (marcar a entrevista e já registrar 4 nomes) apagavam umas às outras: cada
+  // uma partia da mesma lista velha e só a última sobrava.
+  const atual = useRef(items);
+  atual.current = items;
+  const gravarLocal = (mudar: (lista: T[]) => T[]) => {
+    const updated = applySort(mudar(atual.current));
+    atual.current = updated;
+    setItems(updated);
+    cache(updated);
+  };
+
+  /** Devolve o id criado (ou undefined se falhou): quem cria às vezes precisa
+   *  dele em seguida — a seleção marcada pelo Kanban recebe os nomes na hora. */
+  const create = async (body: Omit<T, 'id'>): Promise<string | undefined> => {
     if (usingFirebase && db) {
       try {
-        await addDoc(collection(db, collectionName), stripUndefinedFields(body as any));
+        const ref = await addDoc(collection(db, collectionName), stripUndefinedFields(body as any));
+        return ref.id;
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, collectionName);
+        return undefined;
       }
     } else {
       const newItem = { id: newLocalId(), ...(body as any) } as T;
-      const updated = applySort(prepend ? [newItem, ...items] : [...items, newItem]);
-      setItems(updated);
-      cache(updated);
+      gravarLocal(lista => prepend ? [newItem, ...lista] : [...lista, newItem]);
+      return newItem.id;
     }
   };
 
@@ -165,9 +181,7 @@ export function useFirestoreCollection<T extends { id: string }>(
         handleFirestoreError(err, OperationType.UPDATE, `${collectionName}/${id}`);
       }
     } else {
-      const updated = applySort(items.map(it => (it.id === id ? { ...it, ...fields } : it)));
-      setItems(updated);
-      cache(updated);
+      gravarLocal(lista => lista.map(it => (it.id === id ? { ...it, ...fields } : it)));
     }
   };
 
@@ -181,12 +195,9 @@ export function useFirestoreCollection<T extends { id: string }>(
         handleFirestoreError(err, OperationType.UPDATE, `${collectionName}/${id}`);
       }
     } else {
-      const existe = items.some(it => it.id === id);
-      const updated = applySort(existe
-        ? items.map(it => (it.id === id ? { ...it, ...fields } : it))
-        : [...items, { ...(fields as any), id } as T]);
-      setItems(updated);
-      cache(updated);
+      gravarLocal(lista => lista.some(it => it.id === id)
+        ? lista.map(it => (it.id === id ? { ...it, ...fields } : it))
+        : [...lista, { ...(fields as any), id } as T]);
     }
   };
 
@@ -198,9 +209,7 @@ export function useFirestoreCollection<T extends { id: string }>(
         handleFirestoreError(err, OperationType.DELETE, `${collectionName}/${id}`);
       }
     } else {
-      const updated = items.filter(it => it.id !== id);
-      setItems(updated);
-      cache(updated);
+      gravarLocal(lista => lista.filter(it => it.id !== id));
     }
   };
 

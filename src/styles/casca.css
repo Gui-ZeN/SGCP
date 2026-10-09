@@ -1,0 +1,267 @@
+/**
+ * Casca do SGPC (rework 10/2026) — menu lateral e moldura da aplicação.
+ *
+ * Direção: estrutura familiar (menu lateral, Kanban, botões que dizem o que
+ * fazem) com identidade nos detalhes. O menu é azul-marinho institucional; a
+ * campanha troca SÓ a família do menu (fundo, texto, selo). Cor de etapa e o
+ * vermelho de atraso nunca seguem campanha: status precisa continuar legível.
+ *
+ * Classes próprias (`casca-*`), sem utilitário do Tailwind: o `swiss.css`
+ * remapeia `bg-*`/`rounded-*` com !important e engoliria o menu novo.
+ */
+:root {
+  --menu-fundo: #13213F;
+  --menu-texto: #D3DAE8;         /* 11,6:1 sobre o fundo */
+  --menu-suave: #8E9BBA;         /* rótulo de grupo — 5,6:1 */
+  --menu-hover: rgba(255, 255, 255, .08);
+  --menu-fio: rgba(255, 255, 255, .12);
+  --menu-selo: #F2B33D;          /* célula do logo, badge, anel de foco */
+  --menu-selo-texto: #13213F;
+}
+/* Setembro Amarelo: mostarda-escuro; o dourado vira o selo. */
+html[data-campanha="setembro-amarelo"] {
+  --menu-fundo: #3A2E07;
+  --menu-texto: #EFE4C4;
+  --menu-suave: #BCA873;
+  --menu-selo: #F5C518;
+  --menu-selo-texto: #3A2E07;
+}
+/* Outubro Rosa: vinho-rosado; o rosa do laço vira o selo. */
+html[data-campanha="outubro-rosa"] {
+  --menu-fundo: #4C1239;
+  --menu-texto: #F3D9E8;
+  --menu-suave: #C894B4;
+  --menu-selo: #F07AB8;
+  --menu-selo-texto: #4C1239;
+}
+
+.casca-menu {
+  /* O logo lê os tokens do tema: aqui ele vira traço claro sobre o marinho. */
+  --sgpc-tinta: #FFFFFF;
+  --sgpc-acento: var(--menu-selo);
+  --sgpc-papel: var(--menu-selo-texto);
+
+  /* Medidas do menu. Tudo alinha num eixo só: o centro da faixa recolhida
+     (32px). Ícone 18px com 23px à esquerda, avatar 28px com 18px, logo 34px
+     com 15px. Antes cada peça tinha a sua margem e os ícones de baixo saíam tortos. */
+  --item-h: 32px;
+  --grupo-h: 22px;
+  --marca-h: 56px;
+
+  background: var(--menu-fundo);
+  color: var(--menu-texto);
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  flex-shrink: 0;
+  min-height: 0;
+  font-size: 14px;
+  transition: background-color .25s ease;
+}
+/* O menu NÃO rola: em tela baixa (notebook 1366×768, com as barras do
+   navegador sobram ~620px) os itens se apertam em vez de esconder metade. */
+@media (max-height: 700px) { .casca-menu { --item-h: 29px; --grupo-h: 18px; --marca-h: 50px; } }
+@media (max-height: 600px) { .casca-menu { --item-h: 27px; --grupo-h: 0px; } }
+
+.casca-marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--marca-h);
+  padding: 0 10px 0 15px;
+  flex-shrink: 0;
+}
+.casca-logo { width: 34px; height: 34px; flex-shrink: 0; }
+.casca-marca > div { min-width: 0; flex: 1; }
+.casca-marca strong { display: block; font-size: 16px; font-weight: 700; color: #fff; line-height: 1.15; }
+.casca-marca small { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--menu-suave); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.casca-marca small.casca-campanha { color: #fff; font-weight: 600; }
+.casca-marca small.casca-campanha svg { color: var(--menu-selo); flex-shrink: 0; }
+.casca-alternar,
+.casca-fechar {
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border-radius: 6px;
+  color: var(--menu-suave);
+  flex-shrink: 0;
+}
+.casca-alternar:hover, .casca-fechar:hover { background: var(--menu-hover); color: #fff; }
+.casca-alternar svg { width: 18px; height: 18px; }
+.casca-fechar { width: 40px; height: 40px; color: var(--menu-texto); }
+
+.casca-lista {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 12px 8px;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+.casca-lista::-webkit-scrollbar { display: none; }
+.casca-grupo + .casca-grupo { margin-top: 6px; }
+.casca-grupo h2 {
+  height: var(--grupo-h);
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--menu-suave);
+  padding: 0 11px;
+  white-space: nowrap;
+}
+.casca-grupo a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--item-h);
+  padding: 0 11px;
+  border-radius: 6px;
+  color: var(--menu-texto);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color .15s ease, color .15s ease;
+}
+.casca-grupo a:hover { background: var(--menu-hover); color: #fff; }
+.casca-grupo a[aria-current="page"] { background: #fff; color: var(--menu-fundo); font-weight: 700; }
+.casca-grupo a span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.casca-icone { width: 18px; height: 18px; flex-shrink: 0; opacity: .85; }
+.casca-grupo a[aria-current="page"] .casca-icone { opacity: 1; }
+.casca-grupo a em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--menu-selo);
+  color: var(--menu-selo-texto);
+  border-radius: 4px;
+  padding: 0 6px;
+  line-height: 18px;
+}
+.casca-menu a:focus-visible,
+.casca-menu button:focus-visible {
+  outline: 2px solid var(--menu-selo) !important;
+  outline-offset: 2px;
+}
+
+.casca-rodape {
+  flex-shrink: 0;
+  border-top: 1px solid var(--menu-fio);
+  padding: 8px 12px;
+}
+.casca-usuario {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding-left: 6px;
+}
+.casca-avatar-moldura { position: relative; width: 28px; height: 28px; flex-shrink: 0; }
+.casca-avatar-moldura img,
+.casca-avatar { width: 28px; height: 28px; border-radius: 50%; display: block; }
+.casca-avatar {
+  display: grid; place-items: center;
+  background: var(--menu-selo); color: var(--menu-selo-texto);
+  font-weight: 700; font-size: 13px; text-transform: uppercase;
+}
+/* A conexão: verde = sincronizando; âmbar = modo local. */
+.casca-avatar-moldura i {
+  position: absolute; right: -2px; bottom: -2px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #F2B33D;
+  box-shadow: 0 0 0 2px var(--menu-fundo);
+}
+.casca-avatar-moldura i.ok { background: #4ADE80; }
+.casca-usuario > div { flex: 1; min-width: 0; }
+.casca-usuario strong { display: block; font-size: 13px; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.casca-usuario small { display: block; font-size: 11.5px; color: var(--menu-suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.casca-usuario button {
+  font-size: 13px; font-weight: 600;
+  color: var(--menu-texto);
+  padding: 6px 8px; border-radius: 6px;
+}
+.casca-usuario button:hover { background: var(--menu-hover); color: #fff; }
+
+/* Barra do topo: só no celular/tablet, onde o menu vira gaveta. */
+.casca-topo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 56px;
+  padding: 0 12px;
+  background: var(--menu-fundo);
+  color: #fff;
+  flex-shrink: 0;
+  --sgpc-tinta: #FFFFFF;
+  --sgpc-acento: var(--menu-selo);
+  --sgpc-papel: var(--menu-selo-texto);
+}
+.casca-topo button {
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  border-radius: 6px;
+  color: #fff;
+}
+.casca-topo button:hover { background: var(--menu-hover); }
+.casca-topo strong { font-size: 17px; font-weight: 700; }
+.casca-topo span { font-size: 14px; color: var(--menu-texto); margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.casca-veu { position: fixed; inset: 0; z-index: 40; background: rgba(15, 23, 42, .45); }
+.casca-espaco { display: none; }
+
+@media (max-width: 1023.98px) {
+  .casca-menu {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    width: 288px;
+    max-width: 85vw;
+    transform: translateX(-100%);
+    transition: transform .2s ease-out, background-color .25s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, .25);
+  }
+  .casca-menu.aberto { transform: translateX(0); }
+  .casca-alternar { display: none; }
+}
+/* `display` aqui, e não com `lg:hidden`: casca.css carrega depois do Tailwind
+   e o `display` das classes acima venceria o utilitário. */
+@media (min-width: 1024px) {
+  .casca-topo, .casca-fechar, .casca-veu { display: none; }
+}
+
+/* ── Menu recolhido: só ícones; abre POR CIMA ao passar o mouse ─────────
+   O conteúdo não pula: quem ocupa o lugar na página é o .casca-espaco (64px),
+   e o menu aberto flutua sobre a tela. O menu tem SEMPRE 240px; recolhido, o
+   clip-path mostra só os 64px da esquerda (e corta o clique fora deles). Abrir
+   anima o recorte, não a largura: nada é recalculado no layout. */
+@media (min-width: 1024px) {
+  .casca-espaco { display: block; width: 64px; flex-shrink: 0; }
+  .casca-menu.recolhido {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 45;
+    width: 240px;
+    overflow: hidden;
+    clip-path: inset(0 176px 0 0);
+    transition: clip-path .18s ease-out, box-shadow .18s ease-out, background-color .25s ease;
+  }
+  .casca-menu.recolhido:hover,
+  .casca-menu.recolhido:focus-within {
+    clip-path: inset(0 -40px 0 0); /* -40px deixa a sombra aparecer */
+    box-shadow: 10px 0 30px rgba(10, 16, 32, .28);
+    transition-delay: .12s; /* passar o mouse de raspão não abre */
+  }
+  .casca-menu.recolhido:not(:hover):not(:focus-within) :is(.casca-marca > div, .casca-alternar, .casca-grupo h2, .casca-grupo a span, .casca-usuario > div, .casca-usuario button) {
+    opacity: 0;
+  }
+  /* o número continua visível, preso ao ícone */
+  .casca-menu.recolhido:not(:hover):not(:focus-within) .casca-grupo a em {
+    position: absolute; left: 27px; top: 50%; transform: translateY(-15px);
+    font-size: 10px; padding: 0 4px; line-height: 15px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .casca-menu, .casca-menu.recolhido, .casca-grupo a { transition: none; }
+}

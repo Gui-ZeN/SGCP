@@ -18,3 +18,5 @@ vagas.json
 .impeccable/hook.cache.json
 # Estado efêmero da sessão `live` (servidor, anotações) — não é fonte.
 .impeccable/live/
+# Estado efêmero do `questions` do impeccable (pid do servidor, log).
+.impeccable/questions/

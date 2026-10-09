@@ -5,7 +5,7 @@ import React from 'react';
  *
  * É inline (não <img src="logo.svg">) de propósito: assim a cor vem dos tokens
  * (--sgpc-acento / --sgpc-tinta) e a logo acompanha automaticamente qualquer
- * campanha ou tema. Bônus: dentro da página o SVG usa a Hanken Grotesk de
+ * campanha ou tema. Bônus: dentro da página o SVG usa a Public Sans de
  * verdade — via <img> a fonte não carrega e caía no Arial.
  */
 export const LogoSGPC: React.FC<{ className?: string; title?: string }> = ({
@@ -22,7 +22,7 @@ export const LogoSGPC: React.FC<{ className?: string; title?: string }> = ({
       <line x1="8" y1="50" x2="92" y2="50" />
     </g>
     <g
-      fontFamily="'Hanken Grotesk', system-ui, sans-serif"
+      fontFamily="'Public Sans', system-ui, sans-serif"
       fontWeight="800"
       fontSize="30"
       textAnchor="middle"
