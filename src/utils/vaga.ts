@@ -131,9 +131,11 @@ export function statusForEtapa(currentStatus: string | undefined, novaEtapa: str
 
 /** Mapeia a etapa (texto livre nas vagas antigas) para uma etapa do funil. */
 export function normalizeEtapa(vaga: Vaga): string {
-  if (vaga.status === 'DOCUMENTAÇÃO') return 'Documentação';
   const e = (vaga.etapa || '').toLowerCase();
+  // ⚠️ Admissão ANTES do status: as duas etapas finais têm status DOCUMENTAÇÃO,
+  // e com o status primeiro a vaga nunca chegava a "Aguardando admissão".
   if (e.includes('admiss')) return 'Aguardando admissão';
+  if (vaga.status === 'DOCUMENTAÇÃO') return 'Documentação';
   if (e.includes('doc') || e.includes('exame') || e.includes('contrat') || e.includes('carteira')) return 'Documentação';
   if (e.includes('teste') || e.includes('psico') || e.includes('avalia')) return 'Testes';
   if (e.includes('entrevista')) return 'Entrevista';
@@ -163,6 +165,17 @@ export function diasNestaEtapa(vaga: Vaga): number {
     }
   }
   return getDiasEmAberto(vaga);
+}
+
+/**
+ * Passou da meta de SLA_META_DIAS na etapa atual. Pausada não atrasa.
+ *
+ * ⚠️ Critério ÚNICO: o menu, o Quadro, o Início e os Indicadores contavam cada
+ * um do seu jeito (dias na etapa × dias em aberto) e mostravam 7 numa tela e 9
+ * na outra para as mesmas vagas.
+ */
+export function vagaAtrasada(vaga: Vaga): boolean {
+  return vaga.status !== 'FECHADA' && !isPausedOrSuspended(vaga.status) && diasNestaEtapa(vaga) > SLA_META_DIAS;
 }
 
 /**

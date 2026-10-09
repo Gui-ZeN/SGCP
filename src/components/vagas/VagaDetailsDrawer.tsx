@@ -1,12 +1,17 @@
 import React from 'react';
-import { Vaga, Selecao } from '../../types';
+import { Vaga, Selecao, Requisicao } from '../../types';
 import { ehRealizada, type FunilEfetivo } from '../../utils/selecao';
 import { SystemLog } from '../../hooks/useLogs';
 import { getDiasEmAberto, getSlaInfo, isPausedOrSuspended } from '../../utils/vaga';
-import { Workflow, X, History, UserCheck, FileText, CheckCircle2, Edit2, Trash2 } from 'lucide-react';
+import { Check, Pencil, Trash2 } from 'lucide-react';
+import { Modal } from '../ui/Modal';
+import { Atalho } from '../ui/Atalhos';
+import { toISOInput } from '../../utils/date';
 
 /**
- * Gaveta lateral de detalhes da vaga (extraída do VacancyTable — Seção 4).
+ * Detalhes da vaga. Era uma gaveta que abria na lateral; desde 08/10/2026 abre
+ * no meio da tela, no modal padrão (pedido do Guilherme). O nome do arquivo
+ * ficou por ser importado em vários lugares.
  * Puramente apresentacional: recebe a vaga + callbacks; todo estado fica no pai.
  */
 interface VagaDetailsDrawerProps {
@@ -18,6 +23,10 @@ interface VagaDetailsDrawerProps {
   /** Seleções ligadas a esta vaga. */
   selecoes?: Selecao[];
   onAbrirSelecao?: (id: string) => void;
+  /** A requisição de onde a vaga nasceu (só para quem vê requisições). */
+  origem?: Requisicao;
+  /** Mostra o atalho "Nova seleção para esta vaga". */
+  podeNovaSelecao?: boolean;
   getSedeLabel: (nome: string) => string;
   renderStatusBadge: (status: Vaga['status']) => React.ReactNode;
   onClose: () => void;
@@ -27,282 +36,147 @@ interface VagaDetailsDrawerProps {
 }
 
 export const VagaDetailsDrawer: React.FC<VagaDetailsDrawerProps> = ({
-  vaga, logs, canManage, funil, selecoes = [], onAbrirSelecao, getSedeLabel, renderStatusBadge, onClose, onConcluir, onEditar, onExcluir
+  vaga, logs, canManage, funil, selecoes = [], onAbrirSelecao, origem, podeNovaSelecao, getSedeLabel, renderStatusBadge, onClose, onConcluir, onEditar, onExcluir
 }) => {
-  const sla = getSlaInfo(getDiasEmAberto(vaga), vaga.status === 'FECHADA', isPausedOrSuspended(vaga.status));
+  const dias = getDiasEmAberto(vaga);
+  const pausada = isPausedOrSuspended(vaga.status);
+  const sla = getSlaInfo(dias, vaga.status === 'FECHADA', pausada);
+  const corPrazo = pausada ? 'var(--etapa-pausa)'
+    : /Crítico/.test(sla.label) ? 'var(--atraso)'
+    : /Alerta/.test(sla.label) ? '#B7791F'
+    : 'var(--etapa-admissao)';
+  const temFunil = !!funil.chamados || !!funil.compareceram || !!funil.aprovados || !!vaga.motivoDesistencia || funil.fonte === 'selecao';
+  const historico = (logs || [])
+    .filter(l => l.modulo === 'Vagas' && l.detalhes.includes(`#${vaga.codigo}`))
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 12);
 
   return (
-    <div className="fixed inset-0 z-[120] flex justify-end animate-fade-in">
-      {/* Backdrop Overlay */}
-      <div
-        onClick={onClose}
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300"
-      ></div>
-
-      {/* Drawer Panel */}
-      <div className="w-full max-w-lg bg-white h-full relative shadow-2xl z-[130] flex flex-col justify-between animate-in slide-in-from-right duration-300 transform">
-
-        {/* Header Area */}
-        <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-orange-100 rounded-2xl text-orange-600">
-              <Workflow className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 font-mono text-xs font-bold">VAGA #{vaga.codigo}</span>
-                {renderStatusBadge(vaga.status)}
-              </div>
-              <h3 className="text-base font-bold text-slate-800 leading-snug mt-0.5">{vaga.vaga}</h3>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Fechar detalhes"
-            className="w-8 h-8 rounded-full bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-850 cursor-pointer shadow-sm transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
+    <Modal
+      largura="lg"
+      aoFechar={onClose}
+      antes={<><span>Vaga nº {vaga.codigo}</span>{renderStatusBadge(vaga.status)}</>}
+      titulo={vaga.vaga}
+      rodape={canManage ? (
+        <>
+          <button type="button" className="btn btn-perigo mr-auto" onClick={() => onExcluir(vaga)}><Trash2 />Excluir</button>
+          <button type="button" className="btn" onClick={() => onEditar(vaga)}><Pencil />Editar</button>
+          {vaga.status !== 'FECHADA' && (
+            <button type="button" className="btn btn-primario" onClick={() => onConcluir(vaga)}><Check />Concluir vaga</button>
+          )}
+        </>
+      ) : (
+        <button type="button" className="btn" onClick={onClose}>Fechar</button>
+      )}
+    >
+      <section className="secao">
+        <h3 className="secao-titulo">
+          Prazo
+          <span className="etiqueta" style={{ color: corPrazo, background: 'var(--superficie)' }}>{sla.label.replace('SLA ', '')}</span>
+        </h3>
+        <div className="trilho" style={{ height: 6 }} aria-hidden="true">
+          <i style={{ width: `${sla.percent}%`, background: corPrazo }} />
         </div>
+        <p className="mt-2 text-[13.5px]" style={{ color: 'var(--tinta-2)' }}>
+          Aberta em {vaga.solicitacao} · <b style={{ color: 'var(--tinta)' }}>{dias} dias</b>
+          {vaga.conclusao ? ` · fechada em ${vaga.conclusao}` : ''} · {sla.desc}
+        </p>
+      </section>
 
-        {/* Scrollable Attributes Body */}
-        <div className="flex-1 p-6 overflow-y-auto space-y-6 scrollbar-thin">
-
-          {/* Thermometer block of SLA */}
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-            <div className="flex justify-between items-center text-xs font-bold uppercase tracking-wider">
-              <div className="flex items-center gap-1.5 text-slate-700">
-                <History className="w-4 h-4 text-orange-500" />
-                <span>Cronômetro de SLA</span>
-              </div>
-              <span className={`px-2 py-0.5 font-bold rounded-lg text-[9px] uppercase border font-sans ${sla.color}`}>
-                {sla.label}
-              </span>
-            </div>
-
-            <div className="space-y-1">
-              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                <div className={`h-full ${sla.progressBar}`} style={{ width: `${sla.percent}%` }}></div>
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-slate-500">
-                <span>Abertura: {vaga.solicitacao}</span>
-                <span className="font-bold text-slate-800">{getDiasEmAberto(vaga)} dias decorridos</span>
-                {vaga.conclusao && <span>Fechada: {vaga.conclusao}</span>}
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-500 font-medium italic">{sla.desc}</p>
-          </div>
-
-          {/* General details grid (Bento Section 1) */}
-          <div className="space-y-3">
-            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Origem & Identidade</h4>
-            <div className="grid grid-cols-2 gap-3 text-xs leading-relaxed">
-              <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Sede Organizacional</span>
-                <span className="text-slate-700 font-bold">{getSedeLabel(vaga.sede)}</span>
-              </div>
-              <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Setor / Departamento</span>
-                <span className="text-slate-700 font-bold">{vaga.setor}</span>
-              </div>
-              <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Sexo Preferencial</span>
-                <span className={`font-bold inline-flex ${vaga.sexo === 'FEMININO' ? 'text-pink-700' : vaga.sexo === 'MASCULINO' ? 'text-indigo-700' : 'text-slate-700'}`}>
-                  {vaga.sexo || 'Indiferente'}
-                </span>
-              </div>
-              <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Recruiter Responsável</span>
-                <span className="text-slate-700 font-bold">{vaga.responsavel || 'Equipe RH'}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Requester details grid (Bento Section 2) */}
-          <div className="space-y-3">
-            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Detalhes da Requisição</h4>
-            <div className="grid grid-cols-2 gap-3 text-xs leading-relaxed">
-              <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100 col-span-2">
-                <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Gestor Solicitante</span>
-                <span className="text-slate-750 font-bold">{vaga.solicitante}</span>
-              </div>
-              <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Motivo de Abertura</span>
-                <span className="text-slate-750 font-semibold">{vaga.motivo || 'Substituição'}</span>
-              </div>
-              <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Funcional Substituído</span>
-                <span className="text-slate-750 font-semibold italic">{vaga.funcionarioSubstituido || '-'}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Dynamic workflow attributes (Bento Section 3) */}
-          <div className="space-y-3">
-            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Status & Contratação</h4>
-            <div className="grid grid-cols-2 gap-3 text-xs leading-relaxed">
-              <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Etapa Atual no SGPC</span>
-                <span className="text-orange-700 font-bold bg-orange-50 px-2 py-0.5 rounded border border-orange-150 uppercase text-[9px] inline-block mt-0.5">
-                  {vaga.etapa || 'Triagem'}
-                </span>
-              </div>
-              <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                <span className="text-slate-400 block font-bold text-[9px] uppercase tracking-wider mb-0.5">Candidato Selecionado</span>
-                <span className={`font-bold flex items-center gap-1.5 ${vaga.status === 'FECHADA' ? 'text-emerald-850' : 'text-slate-700'}`}>
-                  {vaga.aprovado ? (
-                    <>
-                      <UserCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                      <span>{vaga.aprovado}</span>
-                    </>
-                  ) : vaga.status === 'FECHADA' ? (
-                    <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 text-[10px] uppercase font-extrabold flex items-center gap-1">
-                      ⚠️ Não informado
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 font-medium italic">Ainda em aberto</span>
-                  )}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Funil de candidatos (indicadores do processo) */}
-          {(!!funil.chamados || !!funil.compareceram || !!funil.aprovados || !!vaga.motivoDesistencia || funil.fonte === 'selecao') && (
-            <div className="space-y-3">
-              <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100 flex justify-between">
-                Funil de Candidatos
-                {funil.fonte === 'selecao' && <span className="normal-case tracking-normal font-semibold text-slate-500">das seleções · automático</span>}
-              </h4>
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                  <span className="block text-lg font-extrabold text-slate-800">{funil.chamados}</span>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Chamados</span>
-                </div>
-                <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                  <span className="block text-lg font-extrabold text-blue-700">{funil.compareceram}</span>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Compareceram</span>
-                </div>
-                <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                  <span className="block text-lg font-extrabold text-emerald-700">{funil.aprovados}</span>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Aprovados</span>
-                </div>
-              </div>
-              {vaga.motivoDesistencia && (
-                <div className="flex items-center gap-2 text-[11px] bg-rose-50/50 border border-rose-100 rounded-xl px-3 py-2">
-                  <span className="font-bold text-rose-700 uppercase text-[9px]">Desistência:</span>
-                  <span className="text-slate-700 font-semibold">{vaga.motivoDesistencia}</span>
-                </div>
-              )}
+      <section className="secao">
+        <dl className="ficha">
+          <div><dt>Sede</dt><dd>{getSedeLabel(vaga.sede)}</dd></div>
+          <div><dt>Setor</dt><dd>{vaga.setor || '—'}</dd></div>
+          <div><dt>Gestor solicitante</dt><dd>{vaga.solicitante || '—'}</dd></div>
+          <div><dt>Responsável no RH</dt><dd>{vaga.responsavel || 'Equipe RH'}</dd></div>
+          <div><dt>Motivo da abertura</dt><dd>{vaga.motivo || 'Substituição'}</dd></div>
+          <div><dt>Quem está sendo substituído</dt><dd>{vaga.funcionarioSubstituido || '—'}</dd></div>
+          <div><dt>Sexo preferencial</dt><dd>{vaga.sexo || 'Indiferente'}</dd></div>
+          <div><dt>Etapa</dt><dd>{vaga.etapa || 'Triagem'}</dd></div>
+          {origem && (
+            <div className="larga">
+              <dt>Origem</dt>
+              <dd>
+                Requisição de {origem.gestorSolicitante}{origem.criadaEm ? ` em ${new Date(origem.criadaEm).toLocaleDateString('pt-BR')}` : ''}
+                {' · '}<Atalho para="requisicoes">ver as requisições</Atalho>
+              </dd>
             </div>
           )}
-
-          {/* Seleções ligadas a esta vaga (módulo Seleções) */}
-          {selecoes.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Seleções desta vaga</h4>
-              <ul className="divide-y divide-slate-100 border border-slate-100 rounded-xl">
-                {selecoes.map(s => (
-                  <li key={s.id} className="flex items-center gap-3 px-3 py-2 text-xs">
-                    <span className="font-bold text-slate-800 tabular-nums w-20 shrink-0">{s.data}</span>
-                    <span className="text-slate-600 font-semibold tabular-nums flex-1 min-w-0 truncate">
-                      {ehRealizada(s) ? `${s.convocados} conv. · ${s.compareceram} comp. · ${s.contratados} contr.` : `Agendada · ${s.convocados} convocados`}
-                    </span>
-                    {onAbrirSelecao && (
-                      <button type="button" onClick={() => onAbrirSelecao(s.id)}
-                        className="shrink-0 text-[11px] font-bold text-slate-700 underline hover:text-slate-900 cursor-pointer">
-                        Candidatos
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Notes block */}
-          <div className="space-y-2">
-            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Informações Complementares</h4>
-            <div className="bg-orange-50/15 border border-orange-100/70 rounded-2xl p-4 text-xs text-slate-700 font-medium relative italic leading-relaxed">
-              <FileText className="absolute right-4 top-4 text-slate-205 w-5 h-5 shrink-0 opacity-40" />
-              <p className="whitespace-pre-line">
-                {vaga.observacoes || "Nenhuma anotação adicional registrada para o processo seletivo deste cargo."}
-              </p>
-            </div>
+          <div className="larga">
+            <dt>Candidato selecionado</dt>
+            <dd>
+              {vaga.aprovado
+                ? <>{vaga.aprovado}{vaga.status === 'FECHADA' && <>{' · '}<Atalho para="experiencias" params={{ pessoa: vaga.aprovado }}>ver na Experiência</Atalho></>}</>
+                : vaga.status === 'FECHADA'
+                  ? <span className="etiqueta etiqueta-atraso">Não informado</span>
+                  : <span style={{ color: 'var(--tinta-3)', fontWeight: 500 }}>Ainda em aberto</span>}
+            </dd>
           </div>
+        </dl>
+      </section>
 
-          {/* Histórico / timeline a partir dos logs (carregados só para admin) */}
-          {logs && logs.length > 0 && (() => {
-            const marca = `#${vaga.codigo}`;
-            const vagaLogs = logs
-              .filter(l => l.modulo === 'Vagas' && l.detalhes.includes(marca))
-              .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-              .slice(0, 12);
-            return (
-              <div className="space-y-2">
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Histórico da Vaga</h4>
-                {vagaLogs.length === 0 ? (
-                  <p className="text-[11px] text-slate-400 italic">Nenhum registro de alteração para esta vaga.</p>
-                ) : (
-                  <ul className="space-y-2.5 pt-1">
-                    {vagaLogs.map(l => (
-                      <li key={l.id} className="flex gap-2.5 text-[11px]">
-                        <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${l.acao === 'EXCLUIU' ? 'bg-rose-500' : l.acao === 'CRIOU' ? 'bg-emerald-500' : 'bg-indigo-500'}`} />
-                        <div className="min-w-0">
-                          <p className="text-slate-700 font-semibold leading-snug">{l.detalhes}</p>
-                          <p className="text-[10px] text-slate-400 font-medium mt-0.5">{new Date(l.timestamp).toLocaleString('pt-BR')} · {l.usuario}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            );
-          })()}
-
-        </div>
-
-        {/* Quick Actions Footer inside Drawer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-xs font-bold rounded-xl text-slate-650 cursor-pointer transition"
-          >
-            Fechar Detalhes
-          </button>
-
-          {canManage && (
-            <div className="flex items-center gap-2">
-              {vaga.status !== 'FECHADA' && (
-                <button
-                  onClick={() => onConcluir(vaga)}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 font-bold text-white text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Concluir Vaga
-                </button>
-              )}
-              <button
-                onClick={() => onEditar(vaga)}
-                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 font-bold text-white text-xs rounded-xl flex items-center gap-1 cursor-pointer transition shadow-none"
-              >
-                <Edit2 className="w-3.5 h-3.5" />
-                Editar Registro
-              </button>
-              <button
-                onClick={() => onExcluir(vaga)}
-                className="px-4 py-2 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer transition"
-                title="Excluir Vaga"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Excluir Vaga
-              </button>
-            </div>
+      {temFunil && (
+        <section className="secao">
+          <h3 className="secao-titulo">Funil de candidatos {funil.fonte === 'selecao' && <small>somado das seleções, automático</small>}</h3>
+          <dl className="ficha" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+            <div><dt>Chamados</dt><dd className="text-[22px] tabular-nums">{funil.chamados}</dd></div>
+            <div><dt>Compareceram</dt><dd className="text-[22px] tabular-nums">{funil.compareceram}</dd></div>
+            <div><dt>Aprovados</dt><dd className="text-[22px] tabular-nums">{funil.aprovados}</dd></div>
+          </dl>
+          {vaga.motivoDesistencia && (
+            <p className="mt-3 text-[13.5px]"><span className="etiqueta etiqueta-atraso mr-2">Desistência</span>{vaga.motivoDesistencia}</p>
           )}
-        </div>
+        </section>
+      )}
 
-      </div>
-    </div>
+      {(selecoes.length > 0 || (podeNovaSelecao && vaga.status !== 'FECHADA')) && (
+        <section className="secao">
+          <h3 className="secao-titulo">
+            Seleções desta vaga
+            {podeNovaSelecao && vaga.status !== 'FECHADA' && (
+              <Atalho para="selecoesLista" params={{ novaSelecao: vaga.id }} className="btn btn-sm">+ Nova seleção para esta vaga</Atalho>
+            )}
+          </h3>
+          {selecoes.length === 0 && <p className="text-[13.5px]" style={{ color: 'var(--tinta-3)' }}>Nenhuma seleção ligada ainda.</p>}
+          <ul className="divide-y" style={{ borderColor: '#EEF0F3' }}>
+            {selecoes.map(s => (
+              <li key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 text-[13.5px]">
+                <b className="tabular-nums w-24 shrink-0">{s.data}</b>
+                <span className="flex-1 min-w-[180px]" style={{ color: 'var(--tinta-2)' }}>
+                  {ehRealizada(s) ? `${s.convocados} convocados · ${s.compareceram} vieram · ${s.contratados} contratados` : `Agendada · ${s.convocados} convocados`}
+                </span>
+                {onAbrirSelecao && <button type="button" className="atalho" onClick={() => onAbrirSelecao(s.id)}>Candidatos</button>}
+                <Atalho para="selecoes" params={{ dia: toISOInput(s.data) }}>Ver o dia</Atalho>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="secao">
+        <h3 className="secao-titulo">Observações</h3>
+        <p className="whitespace-pre-line text-[14px]" style={{ color: vaga.observacoes ? 'var(--tinta)' : 'var(--tinta-3)' }}>
+          {vaga.observacoes || 'Nenhuma observação registrada.'}
+        </p>
+      </section>
+
+      {logs && (
+        <section className="secao">
+          <h3 className="secao-titulo">Histórico</h3>
+          {historico.length === 0 ? (
+            <p className="text-[13.5px]" style={{ color: 'var(--tinta-3)' }}>Nenhuma alteração registrada para esta vaga.</p>
+          ) : (
+            <ul className="space-y-2.5">
+              {historico.map(l => (
+                <li key={l.id} className="text-[13.5px]">
+                  <p style={{ color: 'var(--tinta)' }}>{l.detalhes}</p>
+                  <p className="text-[12.5px] mt-0.5" style={{ color: 'var(--tinta-3)' }}>{new Date(l.timestamp).toLocaleString('pt-BR')} · {l.usuario}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+    </Modal>
   );
 };

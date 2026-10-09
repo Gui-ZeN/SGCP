@@ -75,6 +75,9 @@ export interface Experiencia {
   dataPedidoRescisao?: string; // DD/MM/YYYY — data em que o colaborador pediu
   termino1: string; // Calc: +45 days
   termino2: string; // Calc: +90 days
+  /** A vaga que trouxe esta pessoa (gravado ao concluir a vaga, desde 08/10/2026). */
+  vagaId?: string;
+  vagaCodigo?: number;
 }
 
 export interface Entrevista {
@@ -130,7 +133,8 @@ export interface Requisicao {
   motivoRecusa?: string;
   decididaEm?: string;  // ISO
   decididaPor?: string; // e-mail do admin que decidiu
-  vagaId?: string;      // vaga criada ao aceitar
+  vagaId?: string;      // vaga criada ao aceitar (gravado desde 08/10/2026)
+  vagaCodigo?: number;  // o número dela, para o link "Ver vaga nº 124"
 }
 
 // Treinamento de Integração (onboarding) — módulo EXCLUSIVO da Universidade.
@@ -289,6 +293,13 @@ export interface Candidato {
   /** Rótulo do motivo, quando desistiu. */
   motivo?: string;
   observacao?: string;
+  /**
+   * Onde a pessoa está no funil da vaga, conduzido pelo Kanban (desde
+   * 08/10/2026): ausente = só convocada/entrevistada; 'testes'; 'documentacao'.
+   */
+  etapa?: 'testes' | 'documentacao' | null;  // null = voltou (o Firestore guarda o null; undefined sumiria)
+  /** A vaga para a qual ela segue (uma seleção pode atender várias vagas). */
+  vagaId?: string | null;
 }
 
 export interface RecruiterStats {

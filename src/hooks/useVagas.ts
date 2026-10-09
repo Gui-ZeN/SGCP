@@ -140,9 +140,9 @@ export function useVagas(user?: any) {
     );
   };
 
-  const addVaga = async (vagaInput: Omit<Vaga, 'id' | 'codigo'>) => {
-    await addVagas(vagaInput, 1);
-  };
+  /** Abre uma vaga e devolve o id e o número dela (a requisição aceita guarda os dois). */
+  const addVaga = async (vagaInput: Omit<Vaga, 'id' | 'codigo'>): Promise<{ id: string; codigo: number } | null> =>
+    (await addVagas(vagaInput, 1))[0] ?? null;
 
   /**
    * Numera e grava um conjunto de vagas de uma vez.
@@ -155,32 +155,37 @@ export function useVagas(user?: any) {
   const gravarVagasNumerando = async (
     novas: Omit<Vaga, 'id' | 'codigo'>[],
     rotuloDoErro: string,
-  ): Promise<number> => {
-    if (novas.length === 0) return 0;
+  ): Promise<{ id: string; codigo: number }[]> => {
+    if (novas.length === 0) return [];
     const codigos = codigosSequenciais(vagas, novas.length);
     const comCodigo = novas.map((v, i) => ({ ...v, codigo: codigos[i] }));
+    // O id sai antes da gravação: quem criou precisa dele (requisição → vaga).
+    const criadas: { id: string; codigo: number }[] = [];
 
     if (usingFirebase && db) {
       try {
         for (let i = 0; i < comCodigo.length; i += 450) {
           const batch = writeBatch(db);
           comCodigo.slice(i, i + 450).forEach(item => {
-            batch.set(doc(collection(db, 'vagas')), stripUndefinedFields(item as any));
+            const ref = doc(collection(db, 'vagas'));
+            criadas.push({ id: ref.id, codigo: item.codigo });
+            batch.set(ref, stripUndefinedFields(item as any));
           });
           await batch.commit();
         }
       } catch (error) {
         handleFirestoreError(error, OperationType.CREATE, rotuloDoErro);
-        return 0;
+        return [];
       }
     } else {
       const locais = comCodigo.map((v, i) => ({ id: `local_vaga_${Date.now()}_${i}`, ...v } as Vaga));
+      criadas.push(...locais.map(v => ({ id: v.id, codigo: v.codigo })));
       const lista = [...locais, ...vagas].sort((a, b) => b.codigo - a.codigo);
       setVagas(lista);
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(lista));
     }
 
-    return comCodigo.length;
+    return criadas;
   };
 
   // Update an existing vacancy's details or status
@@ -337,7 +342,7 @@ export function useVagas(user?: any) {
    * compartilhado com a abertura em lote.
    */
   const importarVagasAnuais = (novas: Omit<Vaga, 'id' | 'codigo'>[]): Promise<number> =>
-    gravarVagasNumerando(novas, 'vagas/importAnual');
+    gravarVagasNumerando(novas, 'vagas/importAnual').then(criadas => criadas.length);
 
   return {
     vagas,

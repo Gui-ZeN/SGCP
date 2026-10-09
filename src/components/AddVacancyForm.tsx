@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Vaga } from '../types';
 import { toISOInput, formatDateBR, monthAbbrFromDate, yearFromDate } from '../utils/date';
-import { PlusCircle, FileText, CheckCircle, X } from 'lucide-react';
+import { PlusCircle, CheckCircle, X } from 'lucide-react';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import { sugestoesDeCargo, setorExistente } from '../utils/catalogo';
 
@@ -210,24 +210,14 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
   ].sort((a,b) => a.localeCompare(b));
 
   return (
-    <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 max-w-3xl mx-auto">
-      <div className="flex items-center gap-4 border-b border-slate-100 pb-5 mb-6">
-        <div className="p-3 bg-gradient-to-br from-orange-50 to-orange-100/50 text-orange-500 rounded-2xl shadow-sm border border-orange-100/50">
-          <FileText className="w-6 h-6" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-slate-800 tracking-tight">Nova Requisição de Vaga</h2>
-          <p className="text-sm text-slate-500 font-medium mt-0.5">Insira as informações do processo seletivo para registrar no sistema.</p>
-        </div>
-      </div>
-
+    <div>
       {done ? (
         <div className="flex flex-col items-center justify-center py-12 space-y-3">
           <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center text-orange-500 animate-bounce">
             <CheckCircle className="w-10 h-10" />
           </div>
           <h3 className="text-lg font-bold text-slate-800">Processo Iniciado!</h3>
-          <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Vaga adicionada com sucesso ao banco cadastral.</p>
+          <p className="text-xs text-slate-400 font-semibold">Vaga adicionada com sucesso ao banco cadastral.</p>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -240,13 +230,13 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {/* Vacancy name */}
             <div className="md:col-span-1">
-              <label htmlFor="form-vaga" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Cargo / Vaga <span className="text-orange-500">*</span></label>
+              <label htmlFor="form-vaga" className="block text-[13px] font-semibold text-slate-700 mb-1">Cargo / Vaga <span className="text-orange-500">*</span></label>
               <input
                 id="form-vaga"
                 type="text"
                 required
                 list="cargoSuggestions"
-                className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors placeholder:text-slate-400"
+                className="campo w-full"
                 placeholder="Ex: Auxiliar Administrativo"
                 value={vagaName}
                 onChange={(e) => setVagaName(e.target.value)}
@@ -257,7 +247,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
               <datalist id="cargoSuggestions">
                 {sugestoes.map(nome => <option key={nome} value={nome} />)}
               </datalist>
-              <p id="form-vaga-ajuda" className="text-[11px] text-slate-500 font-medium mt-1.5 ml-1 leading-relaxed">
+              <p id="form-vaga-ajuda" className="text-[12.5px] text-slate-500 font-medium mt-1.5 ml-1 leading-relaxed">
                 Comece a digitar para ver os cargos já usados.
               </p>
 
@@ -266,7 +256,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
                   um registro próprio — o campo poupa digitação, não altera o
                   significado de nada no painel. */}
               <div className="mt-3">
-                <label htmlFor="form-quantidade" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                <label htmlFor="form-quantidade" className="block text-[13px] font-semibold text-slate-700 mb-1">
                   Quantidade de vagas
                 </label>
                 <input
@@ -275,12 +265,12 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
                   min={1}
                   max={200}
                   inputMode="numeric"
-                  className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors"
+                  className="campo w-full"
                   value={quantidade}
                   onChange={(e) => setQuantidade(e.target.value)}
                   aria-describedby="form-quantidade-ajuda"
                 />
-                <p id="form-quantidade-ajuda" className="text-[11px] text-slate-500 font-medium mt-1.5 ml-1 leading-relaxed">
+                <p id="form-quantidade-ajuda" className="text-[12.5px] text-slate-500 font-medium mt-1.5 ml-1 leading-relaxed">
                   {quantas > 1
                     ? `Abre ${quantas} vagas iguais, cada uma com seu código e seu acompanhamento.`
                     : 'Deixe 1 para uma vaga. Para um lote (ex.: temporários), informe quantas.'}
@@ -290,12 +280,12 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
 
             {/* Requester Solicitor */}
             <div>
-              <label htmlFor="form-solicitante" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Gestor Solicitante <span className="text-orange-500">*</span></label>
+              <label htmlFor="form-solicitante" className="block text-[13px] font-semibold text-slate-700 mb-1">Gestor Solicitante <span className="text-orange-500">*</span></label>
               <input
                 id="form-solicitante"
                 type="text"
                 required
-                className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors placeholder:text-slate-400"
+                className="campo w-full"
                 placeholder="Ex: Eveline Santiago"
                 value={solicitante}
                 onChange={(e) => setSolicitante(e.target.value)}
@@ -304,12 +294,12 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
 
             {/* Requesting Date option */}
             <div>
-              <label htmlFor="form-solicitacao" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Data Solicitação <span className="text-orange-500">*</span></label>
+              <label htmlFor="form-solicitacao" className="block text-[13px] font-semibold text-slate-700 mb-1">Data Solicitação <span className="text-orange-500">*</span></label>
               <input
                 id="form-solicitacao"
                 type="date"
                 required
-                className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors placeholder:text-slate-400"
+                className="campo w-full"
                 value={solicitacao}
                 onChange={(e) => setSolicitacao(e.target.value)}
               />
@@ -319,10 +309,10 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
           <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
             {/* Sede Dropdown */}
             <div>
-              <label htmlFor="form-sede" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Sede / Posto</label>
+              <label htmlFor="form-sede" className="block text-[13px] font-semibold text-slate-700 mb-1">Sede / Posto</label>
               <select
                 id="form-sede"
-                className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors placeholder:text-slate-400"
+                className="campo w-full"
                 value={sede}
                 onChange={(e) => setSede(e.target.value)}
               >
@@ -335,12 +325,12 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
             {/* Setor Dropdown */}
             <div>
               <div className="flex items-baseline justify-between gap-2 mb-1.5 ml-1">
-                <label htmlFor={novoSetor !== null ? 'form-setor-novo' : 'form-setor'} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Setor / Área</label>
+                <label htmlFor={novoSetor !== null ? 'form-setor-novo' : 'form-setor'} className="block text-[12.5px] font-bold text-slate-500">Setor / Área</label>
                 {criarSetor && novoSetor === null && (
                   <button
                     type="button"
                     onClick={() => { setNovoSetor(''); setAvisoSetor(''); }}
-                    className="text-[11px] font-bold text-orange-700 hover:text-orange-800 cursor-pointer"
+                    className="text-[12.5px] font-bold text-orange-700 hover:text-orange-800 cursor-pointer"
                   >
                     + Novo setor
                   </button>
@@ -354,7 +344,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
                     autoFocus
                     maxLength={60}
                     placeholder="Nome do setor"
-                    className="w-full min-w-0 px-3 py-2.5 text-sm bg-white border border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none rounded-xl text-slate-700 font-medium placeholder:text-slate-400"
+                    className="campo w-full"
                     value={novoSetor}
                     onChange={(e) => setNovoSetor(e.target.value)}
                     onKeyDown={(e) => {
@@ -383,7 +373,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
               ) : (
                 <select
                   id="form-setor"
-                  className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors placeholder:text-slate-400"
+                  className="campo w-full"
                   value={setor}
                   onChange={(e) => { setSetor(e.target.value); setAvisoSetor(''); }}
                 >
@@ -393,16 +383,16 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
                 </select>
               )}
               {avisoSetor && (
-                <p role="status" className="text-[11px] text-emerald-700 font-semibold mt-1.5 ml-1">{avisoSetor}</p>
+                <p role="status" className="text-[12.5px] text-emerald-700 font-semibold mt-1.5 ml-1">{avisoSetor}</p>
               )}
             </div>
 
             {/* Sexo check */}
             <div className="col-span-2 md:col-span-1">
-              <label htmlFor="form-sexo" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Sexo Preferencial</label>
+              <label htmlFor="form-sexo" className="block text-[13px] font-semibold text-slate-700 mb-1">Sexo Preferencial</label>
               <select
                 id="form-sexo"
-                className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors placeholder:text-slate-400"
+                className="campo w-full"
                 value={sexo}
                 onChange={(e) => setSexo(e.target.value as Vaga['sexo'])}
               >
@@ -416,10 +406,10 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {/* Motivo select */}
             <div>
-              <label htmlFor="form-motivo" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Motivo Solicitação</label>
+              <label htmlFor="form-motivo" className="block text-[13px] font-semibold text-slate-700 mb-1">Motivo Solicitação</label>
               <select
                 id="form-motivo"
-                className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors placeholder:text-slate-400"
+                className="campo w-full"
                 value={motivo}
                 onChange={(e) => setMotivo(e.target.value)}
               >
@@ -431,7 +421,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
                 <div className="mt-2">
                   <input aria-label="Especifique o motivo..."
                     type="text"
-                    className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors placeholder:text-slate-400"
+                    className="campo w-full"
                     placeholder="Especifique o motivo..."
                     value={motivoOutro}
                     onChange={(e) => setMotivoOutro(e.target.value)}
@@ -443,11 +433,11 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
 
             {/* Funcionário Substituído input */}
             <div>
-              <label htmlFor="form-substituto" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Substituído (Se houver)</label>
+              <label htmlFor="form-substituto" className="block text-[13px] font-semibold text-slate-700 mb-1">Substituído (Se houver)</label>
               <input
                 id="form-substituto"
                 type="text"
-                className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors placeholder:text-slate-400"
+                className="campo w-full"
                 placeholder="Ex: João Ferreira da Silva"
                 value={funcionarioSubstituido}
                 onChange={(e) => setFuncionarioSubstituido(e.target.value)}
@@ -456,11 +446,11 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
 
             {/* Responsavel input */}
             <div>
-              <label htmlFor="form-responsavel" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Recruiter Resp. (RH)</label>
+              <label htmlFor="form-responsavel" className="block text-[13px] font-semibold text-slate-700 mb-1">Recruiter Resp. (RH)</label>
               <input
                 id="form-responsavel"
                 type="text"
-                className="w-full px-4 py-2.5 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors placeholder:text-slate-400"
+                className="campo w-full"
                 placeholder="Ex: Arlana / Larissa"
                 value={responsavel}
                 onChange={(e) => setResponsavel(e.target.value)}
@@ -470,11 +460,11 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
 
           {/* Observacoes */}
           <div>
-            <label htmlFor="form-observacoes" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Observações / Requisitos</label>
+            <label htmlFor="form-observacoes" className="block text-[13px] font-semibold text-slate-700 mb-1">Observações / Requisitos</label>
             <textarea
               id="form-observacoes"
               rows={3}
-              className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-700 font-medium transition-colors placeholder:text-slate-400 resize-none selection:bg-orange-100 selection:text-orange-900"
+              className="campo w-full"
               placeholder="Descreva observações, requisitos para admissão ou particularidades da vaga..."
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
@@ -488,7 +478,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
               onClick={() => {
                 setVagaName(''); setSolicitante(''); setFuncionarioSubstituido(''); setObservacoes(''); setMotivoOutro(''); setSede('DT'); setSetor('Infra'); setMotivo('Substituição por desligamento'); setSexo('INDIFERENTE'); setResponsavel('RH');
               }}
-              className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-800 text-slate-600 text-sm font-bold rounded-xl cursor-pointer transition-colors"
+              className="btn"
             >
               Limpar
             </button>
@@ -496,7 +486,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
               id="submit-vaga-btn"
               type="submit"
               disabled={busy}
-              className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-55 text-white text-sm font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-orange-500/25 cursor-pointer transition active:scale-[0.98]"
+              className="btn btn-primario"
             >
               <PlusCircle className="w-4.5 h-4.5" />
               {/* O botão diz o número: "Abrir Vaga" com 30 no campo esconderia

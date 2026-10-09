@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { dataISOLocal } from '../utils/date';
-import { Vaga, Experiencia, Selecao } from '../types';
+import { dataISOLocal, formatDateBR } from '../utils/date';
+import { Vaga, Experiencia, Selecao, Requisicao, Candidato } from '../types';
 import { AddVacancyForm } from './AddVacancyForm';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import type { SystemLog } from '../hooks/useLogs';
@@ -13,47 +13,30 @@ import { EditVacancyModal } from './EditVacancyModal';
 import { ConcludeVacancyModal } from './ConcludeVacancyModal';
 import { VagaDetailsDrawer } from './vagas/VagaDetailsDrawer';
 import { PauseVagaModal, EtapaMoveModal, DragMoveConfirmModal } from './vagas/VagaModals';
-import { 
-  Search, 
-  MapPin, 
-  Layers, 
-  User, 
-  Calendar, 
-  Edit2, 
-  ChevronLeft, 
-  ChevronRight, 
-  Trash2, 
-  CheckCircle,
+import { CartaoVaga, corEtapa, fundoEtapa } from './vagas/CartaoVaga';
+import { FunilModal } from './vagas/FunilModal';
+import { ModalSelecao, formularioDaVaga, sugestoesDeSelecoes } from './selecoes/ModalSelecao';
+import { candidatosDaVaga, naDocumentacao } from '../utils/funilCandidatos';
+import { FiltroMultiplo } from './ui/FiltroMultiplo';
+import { Modal } from './ui/Modal';
+import {
+  Search,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
   HelpCircle,
-  Pause,
-  AlertCircle,
-  FileCode,
   ArrowUpDown,
-  PlusCircle,
-  Eye,
-  LayoutGrid,
-  Kanban,
-  Table,
+  Plus,
   Download,
   Settings,
-  Check,
   Users,
-  Play,
-  Clock,
-  AlertTriangle,
-  UserCheck,
-  SlidersHorizontal,
-  X,
-  ChevronDown,
-  Workflow,
-  Building,
-  CheckCircle2,
-  GripVertical
+  ChevronDown
 } from 'lucide-react';
 import { exportToXlsx } from '../utils/xlsxExporter';
 import { SLA_META_DIAS } from '../constants/hr';
-import { parseDateDDMMYYYY, isPausedOrSuspended, getDiasEmAberto, getSlaInfo, ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa, statusForEtapa } from '../utils/vaga';
-import { funilDaVaga, funilEfetivo, selecoesDaVaga, type FunilDaVaga } from '../utils/selecao';
+import { ReguaFunil, funilDasVagas } from './vagas/ReguaFunil';
+import { parseDateDDMMYYYY, isPausedOrSuspended, getDiasEmAberto, ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa, statusForEtapa, vagaAtrasada } from '../utils/vaga';
+import { funilDaVaga, funilEfetivo, selecoesDaVaga, atendeVaga, type FunilDaVaga } from '../utils/selecao';
 
 interface VacancyTableProps {
   vagas: Vaga[];
@@ -83,6 +66,20 @@ interface VacancyTableProps {
   selecoes?: Selecao[];
   /** Abrir uma seleção no módulo Seleções, já nos candidatos. */
   abrirSelecao?: (id: string) => void;
+  /** Requisições (só admin): mostram nos detalhes de qual requisição a vaga veio. */
+  requisicoes?: Requisicao[];
+  /** Mostra "Nova seleção para esta vaga" nos detalhes. */
+  podeVerSelecoes?: boolean;
+  /**
+   * O funil de candidatos conduzido pelo Kanban (08/10/2026). Sem eles (quem
+   * não lê candidatos), as passagens movem a vaga como antes.
+   */
+  candidatos?: Candidato[];
+  /** O formulário único de seleção (Triagem → Entrevista): cria a seleção ligada à vaga, com os nomes. */
+  criarSelecao?: (campos: Omit<Selecao, 'id'>, nomes: string[]) => Promise<void>;
+  responsavelPadrao?: string;
+  registrarCandidatos?: (selecao: Selecao, nomes: string[]) => Promise<void>;
+  atualizarCandidatos?: (alteracoes: { candidato: Candidato; campos: Partial<Candidato> }[], resumo: string) => Promise<void>;
 }
 
 export const VacancyTable: React.FC<VacancyTableProps> = ({ 
@@ -103,16 +100,19 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   focusVaga,
   logs,
   selecoes = [],
-  abrirSelecao
+  abrirSelecao,
+  requisicoes,
+  podeVerSelecoes = false,
+  candidatos,
+  criarSelecao,
+  responsavelPadrao = '',
+  registrarCandidatos,
+  atualizarCandidatos
 }) => {
   const canManageVagas = isAdmin || userRole === 'Analista' || userRole === 'Administrador';
   // Os nomes já usados entram nas sugestões do formulário: o cadastro de
   // cargos sozinho cobre uma fração do que o RH abre de verdade.
   const nomesDeVagaUsados = useMemo(() => vagas.map(v => v.vaga), [vagas]);
-  // Abrir detalhes via teclado (Enter/Espaço) onde a área é clicável (acessibilidade).
-  const teclaDetalhe = (vaga: Vaga) => (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDetailsVaga(vaga); }
-  };
   const getSedeLabel = (nome: string) => {
     const matched = sedes?.find(s => s.nome.toLowerCase() === nome.toLowerCase());
     return matched && matched.sigla ? `${matched.nome} (${matched.sigla})` : nome;
@@ -125,17 +125,17 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
   // Advanced Filter state
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSede, setSelectedSede] = useState(() => {
-    return !isAdmin && userSede ? userSede : '';
-  });
-  const [selectedStatus, setSelectedStatus] = useState('');
-  const [selectedSetor, setSelectedSetor] = useState('');
+  // Todo filtro é de múltipla escolha (regra desde 08/10/2026). Lista vazia = todos.
+  const [selectedSede, setSelectedSede] = useState<string[]>(() => !isAdmin && userSede ? [userSede] : []);
+  const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
+  const [selectedSetor, setSelectedSetor] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isAdmin && userSede) {
-      setSelectedSede(userSede);
+      setSelectedSede([userSede]);
     }
   }, [userSede, isAdmin]);
+  const sedeMarcada = (v: Vaga) => selectedSede.length === 0 || selectedSede.some(s => (v.sede || '').toLowerCase() === s.toLowerCase());
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -153,18 +153,22 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   const [kanbanGroupBy, setKanbanGroupBy] = useState<'status' | 'etapa'>('etapa');
   const [showConcluidasEtapa, setShowConcluidasEtapa] = useState(false);
   const [selectedDetailsVaga, setSelectedDetailsVaga] = useState<Vaga | null>(null);
-  const [showColumnManager, setShowColumnManager] = useState(false);
-  const [statusGroupFilter, setStatusGroupFilter] = useState<'TODAS' | 'ATIVAS' | 'CONCLUIDAS' | 'ALERTA_SLA'>('TODAS');
+  // Botões de filtro: somam entre si (Em andamento + Atrasadas…). Nenhum = todas.
+  const [statusGroupFilter, setStatusGroupFilter] = useState<('ATIVAS' | 'CONCLUIDAS' | 'ALERTA_SLA')[]>([]);
 
-  // Foco vindo do Home: filtra pela vaga (busca pelo código, que é único) e limpa
-  // os demais filtros pra ela não ficar escondida. token muda a cada clique → re-aplica.
+  // Foco vindo de outra tela (#/vagas?vaga=124): filtra pela vaga (o código é
+  // único), limpa os demais filtros pra ela não ficar escondida e já abre os
+  // detalhes. token muda a cada clique → re-aplica.
   useEffect(() => {
     if (focusVaga && focusVaga.codigo) {
       setSearchTerm(focusVaga.codigo);
-      setStatusGroupFilter('TODAS');
-      setSelectedStatus('');
-      setSelectedSetor('');
+      setStatusGroupFilter([]);
+      setSelectedStatus([]);
+      setSelectedSetor([]);
+      setSelectedSede(!isAdmin && userSede ? [userSede] : []);
       setCurrentPage(1);
+      const alvo = vagas.find(v => String(v.codigo) === focusVaga.codigo);
+      if (alvo) setSelectedDetailsVaga(alvo);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusVaga?.token]);
@@ -172,26 +176,6 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   // Drag and drop states for Kanban Funnel
   const [draggedOverLaneId, setDraggedOverLaneId] = useState<string | null>(null);
   const [draggingVagaId, setDraggingVagaId] = useState<string | null>(null);
-
-  // Column visibility configuration
-  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
-    codigo: true,
-    vaga: true,
-    sede: true,
-    status: true,
-    setor: true,
-    sexo: false, // Default hidden to avoid wider screens scrolling
-    solicitacao: true,
-    solicitante: true,
-    motivo: false,
-    funcionarioSubstituido: false,
-    etapa: true,
-    aprovado: false,
-    observacoes: false,
-    responsavel: true,
-    conclusao: false,
-    tempoProcesso: true
-  });
 
   // Edit modal state (original)
   const [showAddVagaModal, setShowAddVagaModal] = useState(false);
@@ -357,6 +341,15 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   // Arrastar entre colunas no board por etapa. Só a transição Triagem → Entrevista
   // abre o modal de funil (chamou x veio x aprovou + motivo de desistência); as
   // demais movem direto (etapaDesde é carimbado pelo updateVaga).
+  const podeConduzirFunil = canManageVagas && !!candidatos && !!criarSelecao && !!registrarCandidatos && !!atualizarCandidatos;
+  // Triagem → Entrevista sem entrevista agendada: o formulário único, com a vaga marcada.
+  const [entrevistaPara, setEntrevistaPara] = useState<Vaga | null>(null);
+  const [funilMove, setFunilMove] = useState<{ vaga: Vaga; de: string; para: 'Entrevista' | 'Testes' | 'Documentação' } | null>(null);
+  const moverParaEtapa = async (v: Vaga, etapa: string) => {
+    const novoStatus = statusForEtapa(v.status, etapa);
+    await updateVaga(v.id, novoStatus ? { etapa, status: novoStatus } : { etapa });
+  };
+
   const handleEtapaDrop = async (vagaId: string, etapa: string) => {
     const v = vagas.find(x => x.id === vagaId);
     if (!v) return;
@@ -365,14 +358,23 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     const ordem = ETAPAS_FUNIL as readonly string[];
     const atualIdx = ordem.indexOf(atual);
     const destinoIdx = ordem.indexOf(etapa);
-    // Avanço-chave Triagem → Entrevista: confirma o funil.
-    if (atual === 'Triagem' && etapa === 'Entrevista') {
-      openEtapaMove(v, etapa, 'funil');
-      return;
-    }
     // Retorno (etapa anterior): registra o motivo de desistência.
     if (atualIdx >= 0 && destinoIdx >= 0 && destinoIdx < atualIdx) {
       openEtapaMove(v, etapa, 'desistencia');
+      return;
+    }
+    // Avanço para Entrevista, Testes ou Documentação: o modal do funil de
+    // candidatos (marca a entrevista, quem veio, quem vai para os testes, quem
+    // segue). Pular etapa pode: o modal avisa.
+    if (podeConduzirFunil && (etapa === 'Entrevista' || etapa === 'Testes' || etapa === 'Documentação')) {
+      const temAgendada = selecoesDaVaga(selecoes, v).some(s => s.status === 'agendado');
+      if (etapa === 'Entrevista' && !temAgendada) setEntrevistaPara(v);
+      else setFunilMove({ vaga: v, de: atual, para: etapa });
+      return;
+    }
+    // Sem acesso aos candidatos: Triagem → Entrevista confirma os números, como antes.
+    if (atual === 'Triagem' && etapa === 'Entrevista') {
+      openEtapaMove(v, etapa, 'funil');
       return;
     }
     // Demais avanços: move direto (sincroniza o status quando aplicável).
@@ -381,6 +383,14 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   };
 
   // 1B. DIALOG HANDLERS TO REMOVE BROWSER PROMPTS (UPGRADING RECRUITER EXPERIENCE)
+  // Quem está na documentação desta vaga (se for uma pessoa só): o "Concluir"
+  // já vem com o nome dela, e ela vira "contratada" na seleção.
+  const escolhidoParaConcluir = (() => {
+    if (!vagaToConclude || !candidatos) return undefined;
+    const lista = naDocumentacao(candidatosDaVaga(vagaToConclude, selecoes, candidatos), vagaToConclude.id);
+    return lista.length === 1 ? lista[0] : undefined;
+  })();
+
   const handleOpenConcludeModal = (vaga: Vaga) => {
     setVagaToConclude(vaga);
   };
@@ -425,6 +435,15 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     };
 
     await updateVaga(vagaId, updatedFields);
+
+    // A pessoa da documentação que foi aprovada vira "contratada" na seleção:
+    // os números de contratados saem da lista, sem digitar de novo.
+    if (escolhidoParaConcluir && atualizarCandidatos && escolhidoParaConcluir.nome.trim().toLowerCase() === candidato.trim().toLowerCase()) {
+      await atualizarCandidatos(
+        [{ candidato: escolhidoParaConcluir, campos: { contratado: 'sim' } }],
+        `${escolhidoParaConcluir.nome} contratado(a) na vaga #${vagaToConclude!.codigo}.`
+      );
+    }
     
     if (adicionarNaExperiencia && addExperiencia && vagaToConclude) {
       await addExperiencia({
@@ -435,7 +454,10 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         dataAdmissao: finalAdmissao,
         supervisor: vagaToConclude.solicitante || '', // Requester as default supervisor
         status: 'EM_ANALISE',
-        observacoes: observacoes.trim()
+        observacoes: observacoes.trim(),
+        // De qual vaga veio: a Experiência mostra o link e a vaga leva até a pessoa.
+        vagaId: vagaToConclude.id,
+        vagaCodigo: vagaToConclude.codigo,
       });
     }
 
@@ -462,17 +484,12 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
   // 2. AGGREGATING ADVANCED KPIS (Respects selected Sede)
   const stats = useMemo(() => {
-    const relevantVagas = vagas.filter(v => {
-      if (selectedSede) {
-        return v.sede && v.sede.toLowerCase() === selectedSede.toLowerCase();
-      }
-      return true;
-    });
+    const relevantVagas = vagas.filter(sedeMarcada);
 
     const total = relevantVagas.length;
     let ativas = 0;
     let concluidas = 0;
-    let alertas = 0;
+    let atrasadas = 0;
     let somaTempoConclusao = 0;
     let countConcluidasComTempo = 0;
 
@@ -488,8 +505,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         if (v.status === 'ABERTA' || v.status === 'REABERTA' || v.status === 'DOCUMENTAÇÃO') {
           ativas++;
         }
-        if (days > SLA_META_DIAS && !isPausedOrSuspended(v.status)) {
-          alertas++;
+        if (diasNestaEtapa(v) > SLA_META_DIAS && !isPausedOrSuspended(v.status)) {
+          atrasadas++;
         }
       }
     });
@@ -498,7 +515,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       ? Math.round(somaTempoConclusao / countConcluidasComTempo) 
       : 0;
 
-    return { total, ativas, concluidas, alertas, tempoMedio };
+    return { total, ativas, concluidas, atrasadas, tempoMedio };
   }, [vagas, selectedSede, userSede, isAdmin]);
 
   // Derive unique options for filter dropdowns safely
@@ -541,14 +558,6 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     }
   };
 
-  // Toggle single column visibility
-  const toggleColumn = (col: string) => {
-    setVisibleColumns(prev => ({
-      ...prev,
-      [col]: !prev[col]
-    }));
-  };
-
   // Filter & Sort Logic
   const filteredVagas = useMemo(() => {
     let result = [...vagas];
@@ -565,27 +574,26 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     }
 
     // Branch filter
-    if (selectedSede) {
-      result = result.filter(v => v.sede && v.sede.toLowerCase() === selectedSede.toLowerCase());
-    }
+    result = result.filter(sedeMarcada);
 
     // Status filter
-    if (selectedStatus) {
-      result = result.filter(v => v.status === selectedStatus);
+    if (selectedStatus.length) {
+      result = result.filter(v => selectedStatus.includes(v.status));
     }
 
     // Sector filter
-    if (selectedSetor) {
-      result = result.filter(v => v.setor === selectedSetor);
+    if (selectedSetor.length) {
+      result = result.filter(v => selectedSetor.includes(v.setor));
     }
 
     // Modern KPI Groups Filter
-    if (statusGroupFilter === 'ATIVAS') {
-      result = result.filter(v => v.status === 'ABERTA' || v.status === 'REABERTA' || v.status === 'DOCUMENTAÇÃO');
-    } else if (statusGroupFilter === 'CONCLUIDAS') {
-      result = result.filter(v => v.status === 'FECHADA');
-    } else if (statusGroupFilter === 'ALERTA_SLA') {
-      result = result.filter(v => getDiasEmAberto(v) > SLA_META_DIAS && v.status !== 'FECHADA' && !isPausedOrSuspended(v.status));
+    if (statusGroupFilter.length) {
+      const grupo = {
+        ATIVAS: (v: Vaga) => v.status === 'ABERTA' || v.status === 'REABERTA' || v.status === 'DOCUMENTAÇÃO',
+        CONCLUIDAS: (v: Vaga) => v.status === 'FECHADA',
+        ALERTA_SLA: vagaAtrasada,
+      };
+      result = result.filter(v => statusGroupFilter.some(g => grupo[g](v)));
     }
 
     // Sorting implementation
@@ -612,6 +620,9 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   }, [filteredVagas, currentPage]);
 
   const totalPages = Math.ceil(filteredVagas.length / itemsPerPage) || 1;
+
+  // Régua do funil: segue os filtros da tela (sede, setor, busca).
+  const funil = useMemo(() => funilDasVagas(filteredVagas), [filteredVagas]);
 
   // Exporta as vagas filtradas para um .xlsx formatado (cabecalho em negrito com
   // fundo, colunas tipadas e larguras, primeira linha fixa), usando
@@ -676,1108 +687,339 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     }
   };
 
-  // Status Badge helper
+  // Etiqueta de status (tabela e gaveta de detalhes). Sempre com texto; a cor só reforça.
   const getStatusBadge = (status: Vaga['status']) => {
-    switch (status) {
-      case 'ABERTA':
-      case 'REABERTA':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping"></span>
-            Aberta
-          </span>
-        );
-      case 'FECHADA':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-            <Check className="w-3 h-3 text-emerald-600" />
-            Concluída
-          </span>
-        );
-      case 'PAUSADA':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-            <Pause className="w-3 h-3 text-slate-500" />
-            Pausada
-          </span>
-        );
-      case 'SUSPENSA':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-            <AlertCircle className="w-3 text-slate-500" />
-            Suspensa
-          </span>
-        );
-      case 'DOCUMENTAÇÃO':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
-            <FileCode className="w-3 h-3 text-indigo-600" />
-            Admissão
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2 rounded-full text-[10px] font-bold bg-slate-100 text-slate-800">
-            {status}
-          </span>
-        );
-    }
+    const [rotulo, cor, fundo] = ({
+      ABERTA: ['Aberta', 'var(--etapa-entrevista)', 'var(--etapa-entrevista-fundo)'],
+      REABERTA: ['Reaberta', 'var(--etapa-entrevista)', 'var(--etapa-entrevista-fundo)'],
+      FECHADA: ['Concluída', 'var(--etapa-admissao)', 'var(--etapa-admissao-fundo)'],
+      PAUSADA: ['Pausada', 'var(--etapa-pausa)', 'var(--etapa-pausa-fundo)'],
+      SUSPENSA: ['Suspensa', 'var(--etapa-pausa)', 'var(--etapa-pausa-fundo)'],
+      'DOCUMENTAÇÃO': ['Admissão', 'var(--etapa-documentacao)', 'var(--etapa-documentacao-fundo)'],
+    } as Record<string, [string, string, string]>)[status] ?? [status, 'var(--tinta-2)', 'var(--superficie)'];
+    return <span className="etiqueta" style={{ color: cor, background: fundo }}>{rotulo}</span>;
   };
 
+  // ── Visual novo (rework 10/2026) ─────────────────────────────────────────
+  // Um seletor só para as quatro visões (antes eram dois controles separados).
+  const modo = viewMode === 'kanban' ? kanbanGroupBy : viewMode;
+  const mudarModo = (m: 'etapa' | 'status' | 'tabela' | 'grade') => {
+    if (m === 'etapa' || m === 'status') { setViewMode('kanban'); setKanbanGroupBy(m); }
+    else setViewMode(m);
+    setCurrentPage(1);
+  };
+  const filtrosAtivos = !!(searchTerm || selectedSede.length || selectedSetor.length || selectedStatus.length || statusGroupFilter.length);
+  const limparFiltros = () => {
+    setSearchTerm('');
+    setSelectedSede(!isAdmin && userSede ? [userSede] : []);
+    setSelectedSetor([]);
+    setSelectedStatus([]);
+    setStatusGroupFilter([]);
+    setCurrentPage(1);
+  };
+  const abrirNovaVaga = () => {
+    if (!canManageVagas) {
+      alert('Só Administradores e Analistas podem criar vagas.');
+      return;
+    }
+    setShowAddVagaModal(true);
+  };
+  const ROTULO_CURTO: Record<string, string> = { 'Aguardando admissão': 'Admissão' };
+  const excluirVaga = (vaga: Vaga) => {
+    const msg = `Excluir a vaga nº ${vaga.codigo} (${vaga.vaga})? Não dá para desfazer.`;
+    if (confirmAction) confirmAction('Excluir vaga', msg, () => deleteVaga(vaga.id));
+    else if (confirm(msg)) deleteVaga(vaga.id);
+  };
+  const arrastar = (vaga: Vaga) => ({
+    arrastando: draggingVagaId === vaga.id,
+    onDragStart: (e: React.DragEvent) => {
+      if (!canManageVagas) return;
+      e.dataTransfer.setData('text/plain', vaga.id);
+      setDraggingVagaId(vaga.id);
+    },
+    onDragEnd: () => setDraggingVagaId(null),
+  });
+  const soltarEm = (alvo: string, aoSoltar: (vagaId: string) => void) => ({
+    onDragOver: (e: React.DragEvent) => e.preventDefault(),
+    onDragEnter: () => setDraggedOverLaneId(alvo),
+    onDragLeave: () => { if (draggedOverLaneId === alvo) setDraggedOverLaneId(null); },
+    onDrop: (e: React.DragEvent) => {
+      setDraggedOverLaneId(null);
+      if (!canManageVagas) return;
+      aoSoltar(e.dataTransfer.getData('text/plain'));
+    },
+  });
+  // Cartão nas visões que contam o tempo TOTAL em aberto (por status e cartões).
+  const cartaoPorTempoAberto = (vaga: Vaga, cor: string, comArrasto = false) => (
+    <CartaoVaga
+      key={vaga.id}
+      vaga={vaga}
+      sigla={getSedeSigla(vaga.sede)}
+      dias={getDiasEmAberto(vaga)}
+      rotuloDias="em aberto"
+      pausada={isPausedOrSuspended(vaga.status)}
+      cor={cor}
+      podeGerir={canManageVagas}
+      abrir={() => setSelectedDetailsVaga(vaga)}
+      editar={() => startEditing(vaga)}
+      pausar={() => openPauseModal(vaga)}
+      retomar={() => updateVaga(vaga.id, { status: 'ABERTA' })}
+      avancar={vaga.status === 'ABERTA' || vaga.status === 'REABERTA'
+        ? { rotulo: 'Para Admissão', cor: 'var(--etapa-documentacao)', acao: () => updateVaga(vaga.id, { status: 'DOCUMENTAÇÃO', etapa: 'Contratação / Docs' }) }
+        : undefined}
+      concluir={vaga.status === 'DOCUMENTAÇÃO' ? () => handleOpenConcludeModal(vaga) : undefined}
+      {...(comArrasto ? arrastar(vaga) : {})}
+    />
+  );
+  const paginacao = totalPages > 1 && (
+    <div className="paginacao">
+      <span>Página {currentPage} de {totalPages} · {filteredVagas.length} vagas</span>
+      <div className="flex gap-2">
+        <button type="button" className="btn btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}><ChevronLeft />Anterior</button>
+        <button type="button" className="btn btn-sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}>Próxima<ChevronRight /></button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-5">
+      <header className="pagina-cab">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Quadro de Vagas</h2>
-          <p className="text-slate-500 text-sm font-medium">Gestão de posições e processos seletivos.</p>
+          <p className="pagina-trilha">Recrutamento › Vagas</p>
+          <h2 className="pagina-titulo">Quadro de Vagas</h2>
         </div>
-        <button
-          onClick={() => {
-            if (!canManageVagas) {
-              alert("Apenas Administradores e Analistas podem criar vagas. Altere o perfil para Admin ou Analista para simular!");
-              return;
-            }
-            setShowAddVagaModal(true);
-          }}
-          className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold rounded-xl flex items-center gap-2 cursor-pointer shadow-sm hover:shadow transition"
-        >
-          <PlusCircle className="w-5 h-5 shrink-0" />
-          <span>Nova Vaga</span>
+        <div className="pagina-acoes">
+          <div className="seg" role="group" aria-label="Como mostrar as vagas">
+            {([['etapa', 'Por etapa'], ['status', 'Por status'], ['tabela', 'Tabela'], ['grade', 'Cartões']] as const).map(([id, rotulo]) => (
+              <button key={id} type="button" aria-pressed={modo === id} onClick={() => mudarModo(id)}>{rotulo}</button>
+            ))}
+          </div>
+          <button type="button" className="btn" onClick={handleExportXLSX} title="Baixa as vagas filtradas numa planilha .xlsx"><Download />Exportar</button>
+          <button type="button" className="btn btn-primario" onClick={abrirNovaVaga}><Plus />Nova vaga</button>
+        </div>
+      </header>
+
+      {/* Régua do funil: quantas vagas há em cada etapa, na cor da etapa. */}
+      <ReguaFunil funil={funil} complemento={stats.tempoMedio > 0 && <> · fechar uma vaga leva {stats.tempoMedio} dias, em média</>} />
+
+      <div className="filtros">
+        <button type="button" className="chip" aria-pressed={statusGroupFilter.length === 0} onClick={() => { setStatusGroupFilter([]); setCurrentPage(1); }}>
+          Todas <b>{stats.total}</b>
         </button>
-      </div>
-      
-      {/* SECTION 1: MODERN STATS PANEL (INTERACTIVE DECK) */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Total Metric Card */}
-        <div 
-          onClick={() => { setStatusGroupFilter('TODAS'); setCurrentPage(1); }}
-          className={`p-4 rounded-2xl border transition cursor-pointer relative overflow-hidden group ${
-            statusGroupFilter === 'TODAS' 
-              ? 'bg-slate-900 border-slate-900 text-white shadow-md shadow-slate-900/10' 
-              : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:shadow-xs'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider opacity-80 font-sans">Cadastradas</span>
-            <Building className={`w-4 h-4 ${statusGroupFilter === 'TODAS' ? 'text-orange-400' : 'text-slate-400'}`} />
-          </div>
-          <p className="text-2xl font-bold mt-2 font-sans">{stats.total}</p>
-          <div className="text-[10px] opacity-70 mt-1">Todas as vagas no banco</div>
-          {statusGroupFilter === 'TODAS' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-orange-500"></div>}
-        </div>
-
-        {/* Active Metric Card */}
-        <div 
-          onClick={() => { setStatusGroupFilter('ATIVAS'); setCurrentPage(1); }}
-          className={`p-4 rounded-2xl border transition cursor-pointer relative overflow-hidden group ${
-            statusGroupFilter === 'ATIVAS' 
-              ? 'bg-amber-600 border-amber-600 text-white shadow-md shadow-amber-600/10' 
-              : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:shadow-xs'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider opacity-80">Em Aberto</span>
-            <Play className={`w-4 h-4 ${statusGroupFilter === 'ATIVAS' ? 'text-white' : 'text-amber-500 animate-pulse'}`} />
-          </div>
-          <p className="text-2xl font-bold mt-2">{stats.ativas}</p>
-          <div className="text-[10px] opacity-70 mt-1">Contratações ativas</div>
-          {statusGroupFilter === 'ATIVAS' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-white"></div>}
-        </div>
-
-        {/* Closed Metric Card */}
-        <div 
-          onClick={() => { setStatusGroupFilter('CONCLUIDAS'); setCurrentPage(1); }}
-          className={`p-4 rounded-2xl border transition cursor-pointer relative overflow-hidden group ${
-            statusGroupFilter === 'CONCLUIDAS' 
-              ? 'bg-emerald-700 border-emerald-700 text-white shadow-md shadow-emerald-700/10' 
-              : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:shadow-xs'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider opacity-80">Concluídas</span>
-            <CheckCircle2 className={`w-4 h-4 ${statusGroupFilter === 'CONCLUIDAS' ? 'text-white' : 'text-emerald-500'}`} />
-          </div>
-          <p className="text-2xl font-bold mt-2">{stats.concluidas}</p>
-          <div className="text-[10px] opacity-70 mt-1">Vagas fechadas</div>
-          {statusGroupFilter === 'CONCLUIDAS' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-white"></div>}
-        </div>
-
-        {/* Medium SLA Card */}
-        <div className="p-4 rounded-2xl border bg-white border-slate-200 text-slate-700 hover:shadow-xs transition col-span-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tempo Médio SLA</span>
-            <Clock className="w-4 h-4 text-orange-500" />
-          </div>
-          <p className="text-2xl font-bold mt-2">{stats.tempoMedio} dias</p>
-          <div className="text-[10px] text-slate-400 mt-1">Para preencher vagas</div>
-        </div>
-
-        {/* SLA Breaches Card */}
-        <div 
-          onClick={() => { setStatusGroupFilter('ALERTA_SLA'); setCurrentPage(1); }}
-          className={`p-4 rounded-2xl border transition cursor-pointer relative overflow-hidden group col-span-2 lg:col-span-1 ${
-            statusGroupFilter === 'ALERTA_SLA' 
-              ? 'bg-rose-600 border-rose-600 text-white shadow-md shadow-rose-600/10' 
-              : 'bg-white border-slate-200 text-slate-705 hover:border-slate-300 hover:shadow-xs'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider opacity-80">Atendimento SLA</span>
-            <AlertTriangle className={`w-4 h-4 ${statusGroupFilter === 'ALERTA_SLA' ? 'text-white' : 'text-rose-500 animate-pulse'}`} />
-          </div>
-          <p className="text-2xl font-bold mt-2">{stats.alertas}</p>
-          <div className="text-[10px] opacity-70 mt-1">Vagas &gt; {SLA_META_DIAS} dias abertas</div>
-          {statusGroupFilter === 'ALERTA_SLA' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-white"></div>}
-        </div>
+        {([
+          ['ATIVAS', 'Em andamento', stats.ativas],
+          ['ALERTA_SLA', 'Atrasadas', stats.atrasadas],
+          ['CONCLUIDAS', 'Concluídas', stats.concluidas],
+        ] as const).map(([id, rotulo, n]) => (
+          <button
+            key={id}
+            type="button"
+            className="chip"
+            aria-pressed={statusGroupFilter.includes(id)}
+            onClick={() => { setStatusGroupFilter(g => g.includes(id) ? g.filter(x => x !== id) : [...g, id]); setCurrentPage(1); }}
+          >
+            {rotulo} <b>{n}</b>
+          </button>
+        ))}
+        <FiltroMultiplo
+          rotulo="Sede"
+          todos="todas"
+          opcoes={sedesList.map(s => ({ valor: s, rotulo: getSedeSigla(s) }))}
+          selecionados={selectedSede}
+          onChange={v => { setSelectedSede(v); setCurrentPage(1); }}
+        />
+        <FiltroMultiplo
+          rotulo="Setor"
+          opcoes={setoresList.map(s => ({ valor: s, rotulo: s }))}
+          selecionados={selectedSetor}
+          onChange={v => { setSelectedSetor(v); setCurrentPage(1); }}
+        />
+        <FiltroMultiplo
+          rotulo="Status"
+          opcoes={statusList.map(st => ({ valor: st, rotulo: st === 'FECHADA' ? 'Concluída' : st.charAt(0) + st.slice(1).toLowerCase() }))}
+          selecionados={selectedStatus}
+          onChange={v => { setSelectedStatus(v); setCurrentPage(1); }}
+        />
+        {modo === 'etapa' && (
+          <label className="chip">
+            <input type="checkbox" checked={showConcluidasEtapa} onChange={e => setShowConcluidasEtapa(e.target.checked)} />
+            Mostrar concluídas
+          </label>
+        )}
+        {filtrosAtivos && <button type="button" className="btn-texto" onClick={limparFiltros}>Limpar filtros</button>}
+        <label className="campo-busca">
+          <Search aria-hidden="true" />
+          <input
+            type="search"
+            className="campo"
+            aria-label="Buscar cargo, solicitante, setor ou número"
+            placeholder="Buscar cargo, setor ou número"
+            value={searchTerm}
+            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+          />
+        </label>
       </div>
 
-      {/* SECTION 2: CONTROL FILTERS BAR + ACTION BAR */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-        
-        {/* Filter Title & Quick Views Toggles */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-1.5 h-6 bg-orange-500 rounded-full"></div>
-            <div>
-              <p className="text-sm font-bold text-slate-800 tracking-tight">Painel operacional de recrutamento</p>
-              <p className="text-xs text-slate-400 font-semibold mt-0.5">Gestão por pipeline Kanban ou listagem</p>
-            </div>
-          </div>
-
-          {/* Interactive Toggle for View Modes */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl self-start lg:self-center">
-            <button
-              onClick={() => setViewMode('kanban')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase cursor-pointer transition ${
-                viewMode === 'kanban' 
-                  ? 'bg-white text-slate-900 shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="Kanban Board"
-            >
-              <Kanban className="w-3.5 h-3.5 text-orange-500" />
-              <span>Kanban</span>
-            </button>
-            <button
-              onClick={() => setViewMode('tabela')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase cursor-pointer transition ${
-                viewMode === 'tabela' 
-                  ? 'bg-white text-slate-900 shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="Comprehensive Table"
-            >
-              <Table className="w-3.5 h-3.5 text-blue-500" />
-              <span>Lista / Tabela</span>
-            </button>
-            <button
-              onClick={() => setViewMode('grade')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase cursor-pointer transition ${
-                viewMode === 'grade' 
-                  ? 'bg-white text-slate-900 shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="Bento Grid Card"
-            >
-              <LayoutGrid className="w-3.5 h-3.5 text-purple-650" />
-              <span>Cartões</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Advanced Filter Fields Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
-          {/* Term Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-            <input aria-label="Pesquisar Cargo, Solicitante ou Código..."
-              type="text"
-              className="w-full pl-9 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-200/90 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-700 font-medium transition"
-              placeholder="Pesquisar Cargo, Solicitante ou Código..."
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            />
-          </div>
-
-          {/* Sede Dropdown */}
-          <select aria-label="Filtrar por sede"
-            className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200/90 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-700 font-medium transition disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-            value={selectedSede}
-            onChange={(e) => { setSelectedSede(e.target.value); setCurrentPage(1); }}
-          >
-            <option value="">Todas as Sedes ({sedesList.length})</option>
-            {sedesList.map((s, idx) => (
-              <option key={idx} value={s}>{getSedeSigla(s)}</option>
-            ))}
-          </select>
-
-          {/* Sector Dropdown */}
-          <select aria-label="Filtrar por setor"
-            className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200/90 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-700 font-medium transition"
-            value={selectedSetor}
-            onChange={(e) => { setSelectedSetor(e.target.value); setCurrentPage(1); }}
-          >
-            <option value="">Todos os Setores ({setoresList.length})</option>
-            {setoresList.map((s, idx) => (
-              <option key={idx} value={s}>{s}</option>
-            ))}
-          </select>
-
-          {/* Specific status filter */}
-          <select aria-label="Status da Vaga: Todos"
-            className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200/90 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-700 font-medium transition"
-            value={selectedStatus}
-            onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-          >
-            <option value="">Status da Vaga: Todos</option>
-            {statusList.map((st, idx) => (
-              <option key={idx} value={st}>{st === 'FECHADA' ? 'CONCLUÍDA' : st}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Row of actionable tools (CSV export, column management, creator, clear) */}
-        <div className="flex flex-wrap items-center justify-between pt-3 border-t border-slate-100 gap-3">
-          
-          <div className="flex items-center gap-2">
-            {/* XLSX export */}
-            <button
-              onClick={handleExportXLSX}
-              className="px-3.5 py-2 text-xs font-bold uppercase tracking-wider bg-slate-100 hover:bg-slate-200 text-slate-750 rounded-xl border border-slate-250 transition-colors flex items-center gap-1.5 cursor-pointer"
-              title="Baixar planilha Excel (.xlsx) formatada"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Exportar Excel (.xlsx)</span>
-            </button>
-
-            {/* Column Manager Toggle (only relevant in table view) */}
-            {viewMode === 'tabela' && (
-              <div className="relative">
-                <button
-                  onClick={() => setShowColumnManager(!showColumnManager)}
-                  className={`px-3.5 py-2 text-xs font-bold uppercase tracking-wider rounded-xl border transition-colors flex items-center gap-1.5 cursor-pointer ${
-                    showColumnManager 
-                      ? 'bg-slate-900 text-white border-slate-905' 
-                      : 'bg-slate-150/60 hover:bg-slate-200 text-slate-700 border-slate-200'
-                  }`}
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  <span>Personalizar Colunas</span>
-                </button>
-                
-                {/* Column Selection Dialog Bubble */}
-                {showColumnManager && (
-                  <div className="absolute left-0 mt-2 bg-white border border-slate-200 p-4 rounded-2xl shadow-xl z-50 w-64 animate-in fade-in zoom-in-95 duration-100">
-                    <div className="flex items-center justify-between border-b border-sidebar-divider pb-2 mb-2">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Colunas no Relatório</span>
-                      <button onClick={() => setShowColumnManager(false)} className="text-slate-400 hover:text-slate-700">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <div className="space-y-1.5 max-h-56 overflow-y-auto">
-                      {Object.keys(visibleColumns).map((col) => {
-                        const translateMap: Record<string, string> = {
-                          codigo: "Código da Vaga",
-                          vaga: "Cargo / Nome",
-                          sede: "Sede de Operação",
-                          status: "Status Geral",
-                          setor: "Setor / Área",
-                          sexo: "Sexo Preferencial",
-                          solicitacao: "Data da Solicitação",
-                          solicitante: "Gestor Requerente",
-                          motivo: "Motivo Reclut.",
-                          funcionarioSubstituido: "Substituído",
-                          etapa: "Etapa de Seleção",
-                          aprovado: "Candidato Aprovado",
-                          observacoes: "Anotações / Notas",
-                          responsavel: "Recruiter RH",
-                          conclusao: "Data de Fechamento",
-                          tempoProcesso: "SLA / Dias Processo"
-                        };
-                        return (
-                          <label key={col} className="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-50 rounded-lg cursor-pointer text-xs font-medium text-slate-700">
-                            <input aria-label="Mostrar esta coluna" 
-                              type="checkbox" 
-                              checked={visibleColumns[col]} 
-                              onChange={() => toggleColumn(col)}
-                              className="rounded border-slate-300 text-orange-500 focus:ring-orange-500 h-3.5 w-3.5 cursor-pointer"
-                            />
-                            <span>{translateMap[col] || col}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* If filter active, show reset indicator */}
-            {(searchTerm || selectedSede || selectedSetor || selectedStatus || statusGroupFilter !== 'TODAS') && (
-              <button 
-                onClick={() => {
-                  setSearchTerm('');
-                  setSelectedSede('');
-                  setSelectedSetor('');
-                  setSelectedStatus('');
-                  setStatusGroupFilter('TODAS');
-                  setCurrentPage(1);
-                }}
-                className="text-xs font-bold text-rose-600 hover:text-rose-800 underline uppercase tracking-wider cursor-pointer ml-1"
-              >
-                Limpar Filtros
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Register Action Button */}
-            <button
-              onClick={() => {
-                if (canManageVagas) {
-                  setShowAddVagaModal(true);
-                } else {
-                  alert("Acesso restrito: Apenas Administradores e Analistas podem cadastrar novas vagas! Selecione um perfil adequado no topo para habilitar.");
-                }
-              }}
-              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition ${
-                canManageVagas 
-                  ? 'bg-slate-900 hover:bg-slate-800 text-white shadow-md' 
-                  : 'bg-slate-100 text-slate-400 border border-slate-205 cursor-not-allowed'
-              }`}
-            >
-              <PlusCircle className="w-4 h-4 text-orange-500 shrink-0" />
-              <span>Nova Vaga {!canManageVagas && "🔒"}</span>
-            </button>
-          </div>
-
-        </div>
-      </div>
-
-      {/* SECTION 3: CORE WORKSPACE VIEWS */}
-      
-      {/* Sub-toggle do Kanban: agrupar por status (atual) ou por etapa (funil novo) */}
-      {viewMode === 'kanban' && (
-        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-            <button
-              onClick={() => setKanbanGroupBy('etapa')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase cursor-pointer transition ${
-                kanbanGroupBy === 'etapa' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="Colunas por etapa do processo (funil): mostra onde a vaga está travando"
-            >
-              <Layers className="w-3.5 h-3.5 text-orange-500" />
-              <span>Por etapa</span>
-            </button>
-            <button
-              onClick={() => setKanbanGroupBy('status')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase cursor-pointer transition ${
-                kanbanGroupBy === 'status' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="Colunas por status da vaga: o retrato administrativo (aberta, pausada, concluída)"
-            >
-              <Workflow className="w-3.5 h-3.5 text-slate-500" />
-              <span>Por status</span>
-            </button>
-          </div>
-          {kanbanGroupBy === 'etapa' && (
-            <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase cursor-pointer select-none">
-              <input aria-label="Mostrar vagas concluídas"
-                type="checkbox"
-                checked={showConcluidasEtapa}
-                onChange={(e) => setShowConcluidasEtapa(e.target.checked)}
-                className="w-3.5 h-3.5 rounded accent-emerald-600"
-              />
-              Mostrar concluídas
-            </label>
-          )}
-        </div>
-      )}
-
-      {/* 3A: PIPELINE KANBAN VIEW (Por status — atual) */}
-      {viewMode === 'kanban' && kanbanGroupBy === 'status' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-
-          {/* Kanban Lanes definitions based on Recruiting Statuses */}
-          {[
-            {
-              id: 'lane-aberta',
-              title: "Ativas / Abertas",
-              color: "border-t-4 border-t-amber-500",
-              dot: "bg-amber-500 animate-pulse",
-              evals: (v: Vaga) => v.status === 'ABERTA' || v.status === 'REABERTA',
-              desc: "Procura ativa em andamento"
-            },
-            {
-              id: 'lane-doc',
-              title: "Admissão / Doc",
-              color: "border-t-4 border-t-indigo-500",
-              dot: "bg-indigo-500",
-              evals: (v: Vaga) => v.status === 'DOCUMENTAÇÃO',
-              desc: "Fase de recolha de documentos"
-            },
-            {
-              id: 'lane-paused',
-              title: "Pausada / Suspensa",
-              color: "border-t-4 border-t-slate-400",
-              dot: "bg-slate-400",
-              evals: (v: Vaga) => v.status === 'PAUSADA' || v.status === 'SUSPENSA',
-              desc: "Paralizado temporariamente"
-            },
-            {
-              id: 'lane-closed',
-              title: "Concluídas / Fechadas",
-              color: "border-t-4 border-t-emerald-500",
-              dot: "bg-emerald-500",
-              evals: (v: Vaga) => v.status === 'FECHADA',
-              desc: "Recrutamento concluído!"
-            }
-          ].map(lane => {
-            const laneVagas = filteredVagas.filter(lane.evals);
-            const isDraggedOver = draggedOverLaneId === lane.id;
-            
-            return (
-              <div 
-                key={lane.id} 
-                onDragOver={(e) => {
-                  e.preventDefault();
-                }}
-                onDragEnter={() => {
-                  setDraggedOverLaneId(lane.id);
-                }}
-                onDragLeave={() => {
-                  if (draggedOverLaneId === lane.id) {
-                    setDraggedOverLaneId(null);
-                  }
-                }}
-                onDrop={(e) => {
-                  if (!canManageVagas) return;
-                  const vagaId = e.dataTransfer.getData('text/plain');
-                  handleDragDrop(vagaId, lane.id);
-                  setDraggedOverLaneId(null);
-                }}
-                className={`bg-slate-50 border p-3 rounded-2xl flex flex-col space-y-3 min-h-[480px] transition duration-200 ${
-                  isDraggedOver 
-                    ? 'border-dashed border-orange-500 bg-orange-50/20 shadow-md ring-4 ring-orange-500/5' 
-                    : 'border-slate-200/80'
-                }`}
-              >
-                {/* Lane Header */}
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-                   <div className="flex items-center gap-2">
-                     <span className={`w-2 h-2 rounded-full ${lane.dot}`}></span>
-                     <h3 className="font-extrabold text-slate-850 text-xs tracking-tight">{lane.title}</h3>
-                   </div>
-                   <span className="text-[10px] font-extrabold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
-                     {laneVagas.length}
-                   </span>
-                </div>
-
-                <p className="text-[10px] text-slate-400 font-semibold uppercase italic leading-none">{lane.desc}</p>
-
-                {/* Lane card container (scrollable vertically if large volume) */}
-                <div className="flex-1 overflow-y-auto space-y-3 max-h-[600px] scrollbar-thin pr-1">
-                  {laneVagas.length === 0 ? (
-                    <div className="h-28 border border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center text-slate-400 italic text-[11px] p-4 text-center">
-                      Nenhuma vaga nesta fase
-                    </div>
-                  ) : (
-                    laneVagas.map(vaga => {
-                      const daysOpen = getDiasEmAberto(vaga);
-                      const sla = getSlaInfo(daysOpen, vaga.status === 'FECHADA', isPausedOrSuspended(vaga.status));
-                      const isCurrentlyDragging = draggingVagaId === vaga.id;
-
-                      return (
-                        <div 
-                          key={vaga.id} 
-                          draggable={canManageVagas}
-                          onDragStart={(e) => {
-                            if (!canManageVagas) return;
-                            e.dataTransfer.setData('text/plain', vaga.id);
-                            setDraggingVagaId(vaga.id);
-                          }}
-                          onDragEnd={() => {
-                            setDraggingVagaId(null);
-                          }}
-                          className={`bg-white p-4 border border-slate-200 rounded-2xl shadow-xs hover:shadow-md hover:border-slate-300 transition duration-150 flex flex-col space-y-3 relative group cursor-grab active:cursor-grabbing ${
-                            isCurrentlyDragging ? 'opacity-30 scale-95 border-dashed border-orange-200' : ''
-                          }`}
-                        >
-                          {/* Card ID & Title */}
-                          <div className="flex items-start justify-between gap-1">
-                            <div className="flex items-center gap-1 min-w-0">
-                              <GripVertical className="w-3 h-3 text-slate-300 shrink-0" />
-                              <span className="text-[10px] font-mono text-slate-400 font-bold tracking-widest shrink-0">#{vaga.codigo}</span>
-                            </div>
-                            <span className="text-[9px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded border border-orange-100 uppercase truncate">
-                              {vaga.etapa || 'Triagem'}
-                            </span>
-                          </div>
-
-                          <div 
-                            className="cursor-pointer" 
-                            onClick={() => setSelectedDetailsVaga(vaga)}
-                            title="Clique para ver detalhes completo"
-                          >
-                            <h4 className="font-bold text-slate-800 text-xs hover:text-orange-500 transition line-clamp-2 leading-tight">
-                              {vaga.vaga}
-                            </h4>
-                          </div>
-
-                          {/* Location, Sector Icons */}
-                          <div className="grid grid-cols-2 gap-1.5 text-[10px] text-slate-500 font-medium pb-2 border-b border-slate-100">
-                            <div className="flex items-center gap-1 min-w-0" title={`Sede: ${vaga.sede}`}>
-                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span className="truncate">{getSedeSigla(vaga.sede)}</span>
-                            </div>
-                            <div className="flex items-center gap-1 min-w-0" title={`Setor: ${vaga.setor}`}>
-                              <Layers className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span className="truncate">{vaga.setor}</span>
-                            </div>
-                          </div>
-
-                          {/* SLA Gauge indicator */}
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-400">Tempo de Processo</span>
-                              <span className={`px-1.5 py-0.5 font-bold rounded-lg ${sla.color} text-[8px] uppercase tracking-wider`}>
-                                {daysOpen} dias • {sla.label}
-                              </span>
-                            </div>
-                            <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden">
-                              <div className={`h-full ${sla.progressBar}`} style={{ width: `${sla.percent}%` }}></div>
-                            </div>
-                          </div>
-
-                          {/* Approved Candidate info if closed */}
-                          {vaga.status === 'FECHADA' && (
-                            <div className="bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-100/70 flex items-center gap-1.5 text-[10px]">
-                              <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <div className="truncate text-slate-700">
-                                <span className="font-extrabold text-emerald-800">Contratado: </span>
-                                <span className="font-semibold">{vaga.aprovado || 'Não especificado'}</span>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Requester name, Recruiter */}
-                          <div className="flex items-center justify-between text-[10px] pt-1 text-slate-600 font-bold font-sans">
-                            <div className="flex items-center gap-1 truncate max-w-[60%]">
-                              <User className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span className="truncate" title={`Solicitante: ${vaga.solicitante}`}>{vaga.solicitante}</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-slate-500 text-[9px] shrink-0 font-medium">
-                              <span className="bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded leading-none text-slate-650" title={`Responsável: ${vaga.responsavel || 'RH'}`}>
-                                RH: {vaga.responsavel || 'RH'}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Quick Interactive Transition Actions & Shortcuts */}
-                          <div className="flex items-center justify-between pt-2 mt-1 border-t border-slate-100">
-                            {/* Short detail buttons */}
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => setSelectedDetailsVaga(vaga)}
-                                aria-label="Ver detalhes da vaga"
-                                className="p-1 px-2 border border-slate-200 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-50 transition-colors"
-                                title="Visualização Rápida Lateral"
-                              >
-                                <Eye className="w-3 h-3" />
-                              </button>
-                              {canManageVagas && (
-                                <button
-                                  onClick={() => startEditing(vaga)}
-                                  aria-label="Editar vaga"
-                                  className="p-1 px-2 border border-slate-200 text-orange-600 hover:text-white rounded-lg hover:bg-orange-500 hover:border-orange-500 transition-colors"
-                                  title="Editar Vaga"
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Direct state switcher */}
-                            {canManageVagas && (
-                              <div className="flex items-center gap-1.5">
-                                {vaga.status === 'ABERTA' && (
-                                  <button
-                                    onClick={() => updateVaga(vaga.id, { status: 'DOCUMENTAÇÃO', etapa: 'Contratação / Docs' })}
-                                    className="p-1 px-1.5 bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[8px] font-bold uppercase rounded transition-colors"
-                                    title="Mover para admissão de documentos"
-                                  >
-                                    Admitir &rarr;
-                                  </button>
-                                )}
-                                {vaga.status === 'DOCUMENTAÇÃO' && (
-                                  <button
-                                    onClick={() => handleOpenConcludeModal(vaga)}
-                                    className="p-1 px-1.5 bg-emerald-55 border border-emerald-150 text-emerald-800 hover:bg-emerald-600 hover:text-white text-[8px] font-extrabold uppercase rounded transition-colors shadow-sm"
-                                    title="Concluir e fechar vaga"
-                                  >
-                                    Concluir ✓
-                                  </button>
-                                )}
-                                {vaga.status === 'PAUSADA' && (
-                                  <button
-                                    onClick={() => updateVaga(vaga.id, { status: 'ABERTA' })}
-                                    className="p-1 px-1.5 bg-amber-50 border border-amber-100 text-amber-700 hover:bg-amber-600 hover:text-white text-[8px] font-bold uppercase rounded transition"
-                                    title="Reativar vaga"
-                                  >
-                                    Reabrir &rarr;
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* 3A-bis: KANBAN POR ETAPA (visão alternativa — funil do processo) */}
-      {viewMode === 'kanban' && kanbanGroupBy === 'etapa' && (
+      {/* Kanban por etapa — a visão principal. Quem espera há mais tempo vem primeiro. */}
+      {modo === 'etapa' && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="quadro">
             {ETAPAS_FUNIL.map((etapa, idx) => {
-              const etapaVagas = filteredVagas.filter(v => v.status !== 'FECHADA' && normalizeEtapa(v) === etapa);
-              const isDraggedOver = draggedOverLaneId === `etapa-${etapa}`;
-              const dotColor = ['bg-slate-400', 'bg-amber-500', 'bg-indigo-500', 'bg-blue-500', 'bg-emerald-500'][idx] || 'bg-slate-400';
+              const lista = filteredVagas
+                .filter(v => v.status !== 'FECHADA' && normalizeEtapa(v) === etapa)
+                // Pausada vai para o fim: o prazo dela está parado, não pede ação.
+                .sort((a, b) => Number(isPausedOrSuspended(a.status)) - Number(isPausedOrSuspended(b.status)) || diasNestaEtapa(b) - diasNestaEtapa(a));
+              const proxima = ETAPAS_FUNIL[idx + 1];
+              const alvo = `etapa-${etapa}`;
               return (
-                <div
+                <section
                   key={etapa}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDragEnter={() => setDraggedOverLaneId(`etapa-${etapa}`)}
-                  onDragLeave={() => { if (draggedOverLaneId === `etapa-${etapa}`) setDraggedOverLaneId(null); }}
-                  onDrop={(e) => {
-                    if (!canManageVagas) return;
-                    const vagaId = e.dataTransfer.getData('text/plain');
-                    handleEtapaDrop(vagaId, etapa);
-                    setDraggedOverLaneId(null);
-                  }}
-                  className={`bg-slate-50 border p-3 rounded-2xl flex flex-col space-y-3 min-h-[480px] transition duration-200 ${
-                    isDraggedOver ? 'border-dashed border-orange-500 bg-orange-50/20 ring-4 ring-orange-500/5' : 'border-slate-200/80'
-                  }`}
+                  aria-label={`${etapa}: ${lista.length} vagas`}
+                  className={`coluna${draggedOverLaneId === alvo ? ' alvo' : ''}`}
+                  style={{ background: fundoEtapa(etapa), color: corEtapa(etapa) }}
+                  {...soltarEm(alvo, id => handleEtapaDrop(id, etapa))}
                 >
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${dotColor}`}></span>
-                      <h3 className="font-extrabold text-slate-850 text-xs tracking-tight">{etapa}</h3>
-                    </div>
-                    <span className="text-[10px] font-extrabold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">{etapaVagas.length}</span>
+                  <h3 className="coluna-cab">{etapa}<em>{lista.length}</em></h3>
+                  <div className="coluna-lista">
+                    {lista.length === 0 ? <p className="coluna-vazia">Nenhuma vaga nesta etapa</p> : lista.map(vaga => (
+                      <CartaoVaga
+                        key={vaga.id}
+                        vaga={vaga}
+                        sigla={getSedeSigla(vaga.sede)}
+                        dias={diasNestaEtapa(vaga)}
+                        rotuloDias="na etapa"
+                        pausada={isPausedOrSuspended(vaga.status)}
+                        cor={corEtapa(etapa)}
+                        podeGerir={canManageVagas}
+                        abrir={() => setSelectedDetailsVaga(vaga)}
+                        editar={() => startEditing(vaga)}
+                        pausar={() => openPauseModal(vaga)}
+                        retomar={() => updateVaga(vaga.id, { status: 'ABERTA' })}
+                        avancar={proxima ? { rotulo: `Para ${ROTULO_CURTO[proxima] ?? proxima}`, cor: corEtapa(proxima), acao: () => handleEtapaDrop(vaga.id, proxima) } : undefined}
+                        concluir={proxima ? undefined : () => handleOpenConcludeModal(vaga)}
+                        {...arrastar(vaga)}
+                      />
+                    ))}
                   </div>
-
-                  <div className="flex-1 overflow-y-auto space-y-3 max-h-[600px] scrollbar-thin pr-1">
-                    {etapaVagas.length === 0 ? (
-                      <div className="h-24 border border-dashed border-slate-300 rounded-2xl flex items-center justify-center text-slate-400 italic text-[11px] p-4 text-center">Nenhuma vaga nesta etapa</div>
-                    ) : (
-                      etapaVagas.map(vaga => {
-                        const dias = diasNestaEtapa(vaga);
-                        const paused = isPausedOrSuspended(vaga.status);
-                        const sla = getSlaInfo(dias, false, paused);
-                        const isCurrentlyDragging = draggingVagaId === vaga.id;
-                        return (
-                          <div
-                            key={vaga.id}
-                            draggable={canManageVagas}
-                            onDragStart={(e) => { if (!canManageVagas) return; e.dataTransfer.setData('text/plain', vaga.id); setDraggingVagaId(vaga.id); }}
-                            onDragEnd={() => setDraggingVagaId(null)}
-                            className={`bg-white p-4 border border-slate-200 rounded-2xl shadow-xs hover:shadow-md hover:border-slate-300 transition duration-150 flex flex-col space-y-2.5 relative cursor-grab active:cursor-grabbing ${
-                              isCurrentlyDragging ? 'opacity-30 scale-95' : ''
-                            } ${paused ? 'bg-slate-50/60' : ''}`}
-                          >
-                            <div className="flex items-start justify-between gap-1">
-                              <div className="flex items-center gap-1 min-w-0">
-                                <GripVertical className="w-3 h-3 text-slate-300 shrink-0" />
-                                <span className="text-[10px] font-mono text-slate-400 font-bold tracking-widest shrink-0">#{vaga.codigo}</span>
-                              </div>
-                              {paused ? (
-                                <span className="text-[9px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 uppercase flex items-center gap-1"><Pause className="w-2.5 h-2.5" /> Pausada</span>
-                              ) : (
-                                <span className="text-[9px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded border border-orange-100 uppercase truncate">{etapa}</span>
-                              )}
-                            </div>
-
-                            <div className="cursor-pointer" role="button" tabIndex={0} onClick={() => setSelectedDetailsVaga(vaga)} onKeyDown={teclaDetalhe(vaga)} title="Ver detalhes">
-                              <h4 className="font-bold text-slate-800 text-xs hover:text-orange-500 transition line-clamp-2 leading-tight">{vaga.vaga}</h4>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-1.5 text-[10px] text-slate-500 font-medium pb-2 border-b border-slate-100">
-                              <div className="flex items-center gap-1 min-w-0" title={`Sede: ${vaga.sede}`}><MapPin className="w-3 h-3 text-slate-400 shrink-0" /><span className="truncate">{getSedeSigla(vaga.sede)}</span></div>
-                              <div className="flex items-center gap-1 min-w-0" title={`Setor: ${vaga.setor}`}><Layers className="w-3 h-3 text-slate-400 shrink-0" /><span className="truncate">{vaga.setor}</span></div>
-                            </div>
-
-                            <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-slate-400">Nesta etapa</span>
-                              <span className={`px-1.5 py-0.5 font-bold rounded-lg ${sla.color} text-[8px] uppercase tracking-wider`}>{dias} dias</span>
-                            </div>
-
-                            {canManageVagas && (
-                              <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
-                                {etapa === 'Aguardando admissão' ? (
-                                  <button onClick={() => handleOpenConcludeModal(vaga)} className="flex-1 flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold uppercase rounded-lg py-1.5 transition-colors cursor-pointer" title="Concluir / contratar"><Check className="w-3 h-3" /> Concluir</button>
-                                ) : (
-                                  <button disabled className="flex-1 flex items-center justify-center gap-1 bg-slate-50 border border-slate-200 text-slate-300 text-[10px] font-bold uppercase rounded-lg py-1.5 cursor-not-allowed" title="Concluir fica liberado só em 'Aguardando admissão' — avance a vaga pelas etapas para registrar o funil"><Check className="w-3 h-3" /> Concluir</button>
-                                )}
-                                {paused ? (
-                                  <button onClick={() => updateVaga(vaga.id, { status: 'ABERTA' })} className="flex-1 flex items-center justify-center gap-1 bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 text-[10px] font-bold uppercase rounded-lg py-1.5 transition-colors cursor-pointer" title="Retomar vaga"><Play className="w-3 h-3" /> Retomar</button>
-                                ) : (
-                                  <button onClick={() => openPauseModal(vaga)} className="flex-1 flex items-center justify-center gap-1 bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 text-[10px] font-bold uppercase rounded-lg py-1.5 transition-colors cursor-pointer" title="Pausar vaga"><Pause className="w-3 h-3" /> Pausar</button>
-                                )}
-                                <button onClick={() => startEditing(vaga)} className="p-1.5 border border-slate-200 text-slate-500 hover:text-orange-600 hover:border-orange-300 rounded-lg transition-colors shrink-0 cursor-pointer" title="Editar"><Edit2 className="w-3 h-3" /></button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
+                </section>
               );
             })}
           </div>
 
-          {showConcluidasEtapa && (() => {
+          {(showConcluidasEtapa || statusGroupFilter.includes('CONCLUIDAS')) && (() => {
             const concluidas = filteredVagas.filter(v => v.status === 'FECHADA');
             return (
-              <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <CheckCircle className="w-4 h-4 text-emerald-600" />
-                  <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-tight">Concluídas / Fechadas</h3>
-                  <span className="text-[10px] font-extrabold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-100">{concluidas.length}</span>
-                </div>
-                {concluidas.length === 0 ? (
-                  <p className="text-[11px] text-slate-400 italic">Nenhuma vaga concluída no filtro atual.</p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {concluidas.map(vaga => (
-                      <div key={vaga.id} role="button" tabIndex={0} onClick={() => setSelectedDetailsVaga(vaga)} onKeyDown={teclaDetalhe(vaga)} title="Ver detalhes" className="border border-slate-200 rounded-xl p-2.5 cursor-pointer hover:bg-slate-50 transition-colors">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-[10px] font-mono text-slate-400 font-bold">#{vaga.codigo}</span>
-                          <span className="text-[9px] text-emerald-700 font-bold uppercase">{vaga.tempoProcesso ? `${vaga.tempoProcesso}d` : ''}</span>
-                        </div>
-                        <h4 className="font-bold text-slate-800 text-xs truncate mt-0.5">{vaga.vaga}</h4>
-                        <p className="text-[10px] text-slate-500 truncate">{getSedeSigla(vaga.sede)} · {vaga.aprovado || '—'}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <section className="painel p-4 space-y-3" aria-label="Vagas concluídas">
+                <h3 className="text-[15px] font-bold" style={{ color: 'var(--tinta)' }}>Concluídas <span style={{ color: 'var(--tinta-3)' }}>{concluidas.length}</span></h3>
+                {concluidas.length === 0
+                  ? <p style={{ color: 'var(--tinta-3)' }} className="text-[13px]">Nenhuma vaga concluída com esses filtros.</p>
+                  : <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">{concluidas.map(v => cartaoPorTempoAberto(v, 'var(--etapa-admissao)'))}</div>}
+              </section>
             );
           })()}
         </>
       )}
 
-      {/* 3B: ADJUSTABLE DETAILED TABLE LIST */}
-      {viewMode === 'tabela' && (
-        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto select-none">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-                  <th className="py-3 px-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('codigo')}>
-                    <div className="flex items-center gap-1">
-                      Cód <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th className="py-3 px-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('vaga')}>
-                    <div className="flex items-center gap-1">
-                      Cargo / Vaga <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th className="py-3 px-4">Sede / Setor</th>
-                  <th className="py-3 px-4">Status & Etapa</th>
-                  <th className="py-3 px-4">Gestor Solicitante</th>
-                  <th className="py-3 px-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('tempoProcesso')}>
-                    <div className="flex items-center gap-1">
-                      SLA Atual <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th className="py-3 px-4 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-medium">
-                {paginatedVagas.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-10 text-slate-400 font-medium italic">
-                      Nenhuma vaga localizada para os critérios ativos.
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedVagas.map((vaga) => {
-                    const diffDays = getDiasEmAberto(vaga);
-                    const sla = getSlaInfo(diffDays, vaga.status === 'FECHADA', isPausedOrSuspended(vaga.status));
-
-                    return (
-                      <tr key={vaga.id} className="hover:bg-slate-50/60 transition-colors odd:bg-white even:bg-slate-50/15">
-                        <td className="py-3.5 px-4 font-mono text-xs text-slate-400 font-bold">#{vaga.codigo}</td>
-                        <td className="py-3.5 px-4">
-                          <div className="font-bold text-slate-800 hover:text-orange-500 transition cursor-pointer leading-tight mb-0.5" role="button" tabIndex={0} onClick={() => setSelectedDetailsVaga(vaga)} onKeyDown={teclaDetalhe(vaga)} title="Ver detalhes">
-                            {vaga.vaga}
-                          </div>
-                          <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{vaga.responsavel || 'Equipe RH'}</div>
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap text-slate-600">
-                          <div className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1 font-semibold text-slate-700 leading-tight">
-                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span>{getSedeSigla(vaga.sede)}</span>
-                            </div>
-                            <div className="text-[10px] text-slate-400 flex items-center gap-1 leading-tight">
-                              <Layers className="w-3 h-3 shrink-0" />
-                              {vaga.setor}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="flex flex-col gap-1 items-start">
-                             {getStatusBadge(vaga.status)}
-                             {vaga.status !== 'FECHADA' && (
-                               <span className="text-[9px] font-bold text-slate-500 uppercase flex items-center gap-1 line-clamp-1">
-                                  <Workflow className="w-3 h-3 text-slate-400" />
-                                  {vaga.etapa || 'Triagem'}
-                               </span>
-                             )}
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap text-slate-700 font-bold">{vaga.solicitante}</td>
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          {vaga.status === 'FECHADA' ? (
-                            <span className="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full text-[11px] border border-emerald-150">
-                              {vaga.tempoProcesso} dias
-                            </span>
-                          ) : (
-                            <span className={`px-2 py-0.5 font-bold rounded-lg text-[9px] uppercase border font-sans ${sla.color}`}>
-                              {diffDays} dias ({sla.label.split(' ').pop()})
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Actions block */}
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => setSelectedDetailsVaga(vaga)}
-                              className="p-1.5 px-2.5 border border-slate-200 bg-white shadow-sm text-slate-700 hover:text-orange-600 hover:border-orange-200 hover:bg-orange-50 rounded-xl text-[10px] font-bold cursor-pointer inline-flex items-center gap-1 transition"
-                              title="Visualizar Informações Completas"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-slate-400" />
-                              Detalhes
-                            </button>
-
-                            {canManageVagas && (
-                              <>
-                                <button
-                                  onClick={() => startEditing(vaga)}
-                                  className="p-1.5 px-2.5 text-slate-700 bg-white shadow-sm hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 rounded-xl text-[10px] font-bold cursor-pointer inline-flex items-center gap-1 transition"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5 text-slate-400" />
-                                  Editar
-                                </button>
-                                {vaga.status !== 'FECHADA' && (
-                                  <button
-                                    onClick={() => handleOpenConcludeModal(vaga)}
-                                    className="p-1 px-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 rounded-lg cursor-pointer inline-flex items-center gap-0.5 transition"
-                                    title="Concluir e fechar vaga"
-                                  >
-                                    <Check className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => {
-                                    if (confirmAction) {
-                                      confirmAction(
-                                        "Excluir Vaga Permanentemente",
-                                        `Você tem certeza de que deseja remover permanentemente o registro da vaga #${vaga.codigo} - "${vaga.vaga}"? Esta ação é irreversível.`,
-                                        () => deleteVaga(vaga.id)
-                                      );
-                                    } else {
-                                      if(confirm(`Deletar a vaga #${vaga.codigo} permanentemente?`)) {
-                                        deleteVaga(vaga.id);
-                                      }
-                                    }
-                                  }}
-                                  className="p-1.5 px-2.5 text-rose-600 bg-rose-50/50 border border-rose-150 hover:border-rose-300 hover:bg-rose-50 shadow-sm rounded-xl text-[10px] font-bold cursor-pointer inline-flex items-center gap-1 transition"
-                                  title="Deletar permanentemente"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                                  Excluir
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Simple Pagination Footer */}
-          {totalPages > 1 && (
-            <div className="p-4 bg-white border-t border-slate-100 flex items-center justify-between">
-              <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Página {currentPage} de {totalPages}</span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  className="p-1.5 px-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition cursor-pointer"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  className="p-1.5 px-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition cursor-pointer"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
+      {/* Kanban por status — o retrato administrativo. */}
+      {modo === 'status' && (
+        <div className="quadro" style={{ '--colunas': 4 } as React.CSSProperties}>
+          {[
+            { id: 'lane-aberta', titulo: 'Abertas', cor: 'var(--etapa-entrevista)', fundo: 'var(--etapa-entrevista-fundo)', cabe: (v: Vaga) => v.status === 'ABERTA' || v.status === 'REABERTA' },
+            { id: 'lane-doc', titulo: 'Admissão / documentos', cor: 'var(--etapa-documentacao)', fundo: 'var(--etapa-documentacao-fundo)', cabe: (v: Vaga) => v.status === 'DOCUMENTAÇÃO' },
+            { id: 'lane-paused', titulo: 'Pausadas ou suspensas', cor: 'var(--etapa-pausa)', fundo: 'var(--etapa-pausa-fundo)', cabe: (v: Vaga) => isPausedOrSuspended(v.status) },
+            { id: 'lane-closed', titulo: 'Concluídas', cor: 'var(--etapa-admissao)', fundo: 'var(--etapa-admissao-fundo)', cabe: (v: Vaga) => v.status === 'FECHADA' },
+          ].map(raia => {
+            const lista = filteredVagas.filter(raia.cabe).sort((a, b) => Number(isPausedOrSuspended(a.status)) - Number(isPausedOrSuspended(b.status)) || getDiasEmAberto(b) - getDiasEmAberto(a));
+            return (
+              <section
+                key={raia.id}
+                aria-label={`${raia.titulo}: ${lista.length} vagas`}
+                className={`coluna${draggedOverLaneId === raia.id ? ' alvo' : ''}`}
+                style={{ background: raia.fundo, color: raia.cor }}
+                {...soltarEm(raia.id, id => handleDragDrop(id, raia.id))}
+              >
+                <h3 className="coluna-cab">{raia.titulo}<em>{lista.length}</em></h3>
+                <div className="coluna-lista">
+                  {lista.length === 0 ? <p className="coluna-vazia">Nenhuma vaga aqui</p> : lista.map(v => cartaoPorTempoAberto(v, raia.cor, true))}
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
 
-      {/* 3C: GRADE/BENTO CARD FLOW VIEW */}
-      {viewMode === 'grade' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {paginatedVagas.length === 0 ? (
-              <div className="col-span-full text-center py-12 text-slate-400 font-semibold italic">
-                Nenhuma vaga encontrada para exibir em cartões.
-              </div>
-            ) : (
-              paginatedVagas.map(vaga => {
-                const diffDays = getDiasEmAberto(vaga);
-                const sla = getSlaInfo(diffDays, vaga.status === 'FECHADA', isPausedOrSuspended(vaga.status));
-
-                return (
-                  <div key={vaga.id} className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs hover:shadow-md transition flex flex-col justify-between space-y-4">
-                    {/* Header bar of card */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono font-bold text-slate-400 tracking-wider">#{vaga.codigo}</span>
-                      <div>{getStatusBadge(vaga.status)}</div>
-                    </div>
-
-                    {/* Vaga Info */}
-                    <div className="space-y-1 cursor-pointer" role="button" tabIndex={0} onClick={() => setSelectedDetailsVaga(vaga)} onKeyDown={teclaDetalhe(vaga)} title="Ver detalhes">
-                      <h4 className="font-bold text-slate-850 hover:text-orange-500 transition line-clamp-1 text-sm">{vaga.vaga}</h4>
-                      <div className="flex flex-wrap gap-1.5">
-                        <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-150 rounded-lg px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                          <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                          {getSedeSigla(vaga.sede)}
+      {modo === 'tabela' && (
+        <div className="painel overflow-hidden">
+          {/* Sem rolagem de lado (regra de 08/10/2026): em tela estreita, cartão. */}
+          <div>
+            <table className="tabela tabela-empilha">
+              <thead>
+                <tr>
+                  <th><button type="button" onClick={() => handleSort('codigo')}>Nº <ArrowUpDown className="w-3 h-3" /></button></th>
+                  <th><button type="button" onClick={() => handleSort('vaga')}>Cargo <ArrowUpDown className="w-3 h-3" /></button></th>
+                  <th>Sede e setor</th>
+                  <th>Situação</th>
+                  <th>Solicitante</th>
+                  <th><button type="button" onClick={() => handleSort('tempoProcesso')}>Tempo <ArrowUpDown className="w-3 h-3" /></button></th>
+                  <th className="text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedVagas.length === 0 ? (
+                  <tr><td colSpan={7} className="text-center py-10" style={{ color: 'var(--tinta-3)' }}>Nenhuma vaga com esses filtros.</td></tr>
+                ) : paginatedVagas.map(vaga => {
+                  const dias = getDiasEmAberto(vaga);
+                  const atrasada = vaga.status !== 'FECHADA' && !isPausedOrSuspended(vaga.status) && dias > SLA_META_DIAS;
+                  return (
+                    <tr key={vaga.id}>
+                      <td className="num" data-rotulo="Nº">{vaga.codigo}</td>
+                      <td>
+                        <span>
+                          <button type="button" className="font-bold text-left hover:underline" onClick={() => setSelectedDetailsVaga(vaga)}>{vaga.vaga}</button>
+                          <span className="sub">{vaga.responsavel || 'Equipe RH'}</span>
                         </span>
-                        <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-150 rounded-lg px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                          <Layers className="w-3 h-3 text-slate-400 shrink-0" />
-                          {vaga.setor}
+                      </td>
+                      <td className="whitespace-nowrap" data-rotulo="Sede e setor"><span>{getSedeSigla(vaga.sede)}<span className="sub">{vaga.setor}</span></span></td>
+                      <td className="whitespace-nowrap" data-rotulo="Situação">
+                        <span>
+                          {getStatusBadge(vaga.status)}
+                          {vaga.status !== 'FECHADA' && <span className="sub">{vaga.etapa || 'Triagem'}</span>}
                         </span>
-                      </div>
-                    </div>
-
-                    {/* SLA Progress Bar inside Card */}
-                    <div className="space-y-1 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100">
-                      <div className="flex items-center justify-between text-[9px] font-bold">
-                        <span className="text-slate-405 leading-none">Dias Processo</span>
-                        <span className={`px-1.5 py-0.5 rounded leading-none ${sla.color} font-extrabold uppercase`}>
-                          {diffDays} dias
-                        </span>
-                      </div>
-                      <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden">
-                        <div className={`h-full ${sla.progressBar}`} style={{ width: `${sla.percent}%` }}></div>
-                      </div>
-                      <p className="text-[8px] text-slate-400 leading-none">{sla.desc}</p>
-                    </div>
-
-                    {/* Hired Candidate info if closed */}
-                    {vaga.status === 'FECHADA' && (
-                      <div className="bg-emerald-50/50 p-2 rounded-xl border border-emerald-100/70 flex items-center justify-between text-[10px]">
-                        <span className="text-emerald-700 font-extrabold uppercase text-[8px] tracking-wider shrink-0">Contratado</span>
-                        <span className="truncate max-w-[140px] text-emerald-800 font-bold flex items-center gap-1">
-                          <UserCheck className="w-3.5 h-3.5 text-emerald-600 inline-block shrink-0" />
-                          <span>{vaga.aprovado || 'Não especificado'}</span>
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Footer managers line */}
-                    <div className="space-y-1 pb-1 text-[10px] font-sans">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 font-semibold uppercase text-[8px] tracking-wider">Gestor</span>
-                        <span className="text-slate-700 font-bold truncate max-w-[120px]">{vaga.solicitante}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 font-semibold uppercase text-[8px] tracking-wider">Recrutado</span>
-                        <span className="text-slate-600 font-medium italic">{vaga.responsavel || 'RH'}</span>
-                      </div>
-                    </div>
-
-                    {/* Card action footer link */}
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px] font-bold">
-                      <button 
-                        onClick={() => setSelectedDetailsVaga(vaga)}
-                        className="text-orange-500 hover:text-orange-700 transition cursor-pointer flex items-center gap-1"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Detalhes</span>
-                      </button>
-
-                      {canManageVagas && (
-                        <div className="flex items-center gap-2">
-                          {vaga.status !== 'FECHADA' && (
-                            <button 
-                              onClick={() => handleOpenConcludeModal(vaga)}
-                              className="text-emerald-600 hover:text-emerald-800 transition cursor-pointer flex items-center gap-0.5"
-                              title="Concluir e fechar vaga"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>Concluir</span>
-                            </button>
+                      </td>
+                      <td data-rotulo="Solicitante">{vaga.solicitante}</td>
+                      <td className="whitespace-nowrap" data-rotulo="Tempo">
+                        {vaga.status === 'FECHADA'
+                          ? <span>{vaga.tempoProcesso ?? '—'} dias para fechar</span>
+                          : <span className={atrasada ? 'etiqueta etiqueta-atraso' : ''}>{dias} dias em aberto</span>}
+                      </td>
+                      <td>
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                          <button type="button" className="btn btn-sm" onClick={() => setSelectedDetailsVaga(vaga)}>Detalhes</button>
+                          {canManageVagas && (
+                            <>
+                              <button type="button" className="btn btn-sm" onClick={() => startEditing(vaga)}>Editar</button>
+                              {vaga.status !== 'FECHADA' && <button type="button" className="btn btn-sm" onClick={() => handleOpenConcludeModal(vaga)}>Concluir</button>}
+                              <button type="button" className="btn btn-sm btn-perigo" onClick={() => excluirVaga(vaga)}>Excluir</button>
+                            </>
                           )}
-                          <button 
-                            onClick={() => startEditing(vaga)}
-                            className="text-slate-705 hover:text-slate-900 transition cursor-pointer flex items-center gap-1"
-                          >
-                            <Edit2 className="w-3 h-3 text-slate-400" />
-                            <span>Editar</span>
-                          </button>
                         </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
+          {paginacao}
+        </div>
+      )}
 
-          {/* Simple Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center p-4 gap-4">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold font-sans disabled:opacity-40 hover:bg-slate-50 transition cursor-pointer"
-              >
-                Anterior
-              </button>
-              <span className="text-xs font-semibold text-slate-500 uppercase">Página {currentPage} de {totalPages}</span>
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold font-sans disabled:opacity-40 hover:bg-slate-50 transition cursor-pointer"
-              >
-                Próximo
-              </button>
-            </div>
-          )}
+      {modo === 'grade' && (
+        <div className="space-y-3">
+          {paginatedVagas.length === 0
+            ? <p className="painel text-center py-10" style={{ color: 'var(--tinta-3)' }}>Nenhuma vaga com esses filtros.</p>
+            : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">{paginatedVagas.map(v => cartaoPorTempoAberto(v, 'var(--etapa-entrevista)'))}</div>}
+          {paginacao && <div className="painel">{paginacao}</div>}
         </div>
       )}
 
@@ -1790,6 +1032,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           funil={funilEfetivo(selectedDetailsVaga, selecoes)}
           selecoes={selecoesDaVaga(selecoes, selectedDetailsVaga)}
           onAbrirSelecao={abrirSelecao}
+          origem={requisicoes?.find(r => r.vagaId === selectedDetailsVaga.id)}
+          podeNovaSelecao={podeVerSelecoes && canManageVagas}
           getSedeLabel={getSedeLabel}
           renderStatusBadge={getStatusBadge}
           onClose={() => setSelectedDetailsVaga(null)}
@@ -1798,8 +1042,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           onExcluir={(v) => {
             if (confirmAction) {
               confirmAction(
-                "Deletar Vaga",
-                `Confirmar remoção permanente da vaga de "${v.vaga}"?`,
+                "Excluir vaga",
+                `Excluir a vaga nº ${v.codigo} (${v.vaga})? Não dá para desfazer.`,
                 async () => {
                   await deleteVaga(v.id);
                   setSelectedDetailsVaga(null);
@@ -1832,35 +1076,63 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
       {/* 5B: CREATE NEW VACANCY DIALOG */}
       {showAddVagaModal && (
-        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150 block">
-          <div className="w-full max-w-3xl transform transition duration-200 scale-100 flex flex-col relative">
-            <button 
-              onClick={() => setShowAddVagaModal(false)}
-              className="absolute right-5 top-5 bg-slate-50 border border-slate-200 hover:bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center text-slate-550 hover:text-slate-800 text-xl font-semibold leading-none cursor-pointer z-10 shadow-sm"
-              aria-label="Fechar formulário"
-            >
-              &times;
-            </button>
-            <div className="max-h-[85vh] overflow-y-auto rounded-3xl shadow-2xl">
-              <AddVacancyForm 
-                addVaga={addVaga} 
-                sedes={sedes}
-                cargos={cargos}
-                setores={setores}
-                nomesUsados={nomesDeVagaUsados}
-                criarSetor={canManageVagas ? addSetor : undefined}
-                onSuccess={() => setShowAddVagaModal(false)}
-                userSede={userSede}
-              />
-            </div>
-          </div>
-        </div>
+        <Modal largura="lg" titulo="Nova vaga" aoFechar={() => setShowAddVagaModal(false)}>
+          <AddVacancyForm
+            addVaga={addVaga}
+            sedes={sedes}
+            cargos={cargos}
+            setores={setores}
+            nomesUsados={nomesDeVagaUsados}
+            criarSetor={canManageVagas ? addSetor : undefined}
+            onSuccess={() => setShowAddVagaModal(false)}
+            userSede={userSede}
+          />
+        </Modal>
+      )}
+
+      {/* Funil de candidatos: cada passagem do Kanban (08/10/2026) */}
+      {funilMove && podeConduzirFunil && (
+        <FunilModal
+          vaga={funilMove.vaga}
+          de={funilMove.de}
+          para={funilMove.para}
+          lista={candidatosDaVaga(funilMove.vaga, selecoes, candidatos!)}
+          selecoesLigadas={selecoesDaVaga(selecoes, funilMove.vaga)}
+          vagasDaSelecao={s => vagas.filter(v => v.status !== 'FECHADA' && atendeVaga(s, v))}
+          funil={funilEfetivo(funilMove.vaga, selecoes)}
+          aoFechar={() => setFunilMove(null)}
+          marcarOutra={() => { setEntrevistaPara(funilMove.vaga); setFunilMove(null); }}
+          registrarNomes={registrarCandidatos!}
+          atualizar={atualizarCandidatos!}
+          mover={() => moverParaEtapa(funilMove.vaga, funilMove.para)}
+        />
+      )}
+
+      {/* Triagem → Entrevista: o formulário único de seleção, com a vaga marcada */}
+      {entrevistaPara && criarSelecao && (
+        <ModalSelecao
+          titulo="Marcar a entrevista"
+          antes={<span>Vaga nº {entrevistaPara.codigo} · {entrevistaPara.vaga} · {normalizeEtapa(entrevistaPara)} → Entrevista</span>}
+          inicial={formularioDaVaga(entrevistaPara, { data: formatDateBR(dataISOLocal()), responsavel: responsavelPadrao })}
+          sedes={sedes || []}
+          vagas={vagas}
+          sugestoes={sugestoesDeSelecoes(selecoes, (setores || []).map(s => s.nome))}
+          comNomes
+          rotuloSalvar="Marcar e mover"
+          acaoExtra={{ rotulo: 'Só mover, marcar depois', acao: () => moverParaEtapa(entrevistaPara, 'Entrevista') }}
+          onSalvar={async (campos, nomes) => {
+            await criarSelecao(campos, nomes);
+            await moverParaEtapa(entrevistaPara, 'Entrevista');
+          }}
+          aoFechar={() => setEntrevistaPara(null)}
+        />
       )}
 
       {/* 5C: BEAUTIFUL DIALOG FOR CONCLUDING VACANCY (PROMPT ALTERNATIVE) */}
       {vagaToConclude && (
         <ConcludeVacancyModal
           vaga={vagaToConclude}
+          sugestao={escolhidoParaConcluir?.nome}
           onClose={() => setVagaToConclude(null)}
           onConclude={handleSaveConclusion}
         />

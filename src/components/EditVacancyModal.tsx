@@ -3,7 +3,7 @@ import { Vaga } from '../types';
 import { dateFromValue, toISOInput, formatDateBR, monthAbbrFromDate } from '../utils/date';
 import { MOTIVOS_DESISTENCIA } from '../constants/hr';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
-import { Edit2 } from 'lucide-react';
+import { Modal } from './ui/Modal';
 
 interface EditVacancyModalProps {
   vaga: Vaga;
@@ -130,39 +130,26 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl max-w-2xl w-full transform transition duration-250 border border-slate-200 shadow-2xl flex flex-col scale-100 relative max-h-[90vh] overflow-hidden">
-        
-        {/* Modal Header */}
-        <div className="p-6 border-b border-slate-200 flex items-center bg-slate-50 justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-orange-50 text-orange-500 rounded-2xl shadow-sm">
-              <Edit2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-800">Alterar Registro de Processo Seletivo</h3>
-              <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider mt-0.5">Vaga #{vaga.codigo} - {vaga.vaga}</p>
-            </div>
-          </div>
-          <button 
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-500 text-xl font-semibold leading-none cursor-pointer"
-          >
-            &times;
-          </button>
-        </div>
-
-        {/* Modal Form Content */}
-        <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto scrollbar-thin">
+    <Modal
+      largura="lg"
+      aoFechar={onClose}
+      antes={<span>Vaga nº {vaga.codigo}</span>}
+      titulo={`Editar: ${vaga.vaga}`}
+      rodape={<>
+        <button type="button" className="btn" onClick={onClose}>Cancelar</button>
+        <button type="button" className="btn btn-primario" onClick={handleSave}>Salvar alterações</button>
+      </>}
+    >
+        <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="modal-vaga" className="block text-xs font-bold text-slate-500 uppercase mb-1">Cargo / Vaga *</label>
+              <label htmlFor="modal-vaga" className="block text-[13px] font-semibold text-slate-700 mb-1">Cargo / Vaga *</label>
               <input
                 id="modal-vaga"
                 type="text"
                 required
                 list="modalCargoSuggestions"
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-750 font-medium"
+                className="campo w-full"
                 value={tempVagaName}
                 onChange={(e) => setTempVagaName(e.target.value)}
               />
@@ -174,12 +161,12 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
             </div>
 
             <div>
-              <label htmlFor="modal-solicitante" className="block text-xs font-bold text-slate-500 uppercase mb-1">Gestor Solicitante *</label>
+              <label htmlFor="modal-solicitante" className="block text-[13px] font-semibold text-slate-700 mb-1">Gestor Solicitante *</label>
               <input
                 id="modal-solicitante"
                 type="text"
                 required
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-750 font-medium"
+                className="campo w-full"
                 value={tempSolicitante}
                 onChange={(e) => setTempSolicitante(e.target.value)}
               />
@@ -188,7 +175,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label htmlFor="modal-sede" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Sede / Posto</label>
+              <label htmlFor="modal-sede" className="block text-[12px] font-bold text-slate-500 mb-1">Sede / Posto</label>
               <select
                 id="modal-sede"
                 className="w-full px-2 py-2 text-xs bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-750 font-medium cursor-pointer"
@@ -202,7 +189,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
             </div>
 
             <div>
-              <label htmlFor="modal-setor" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Setor / Área</label>
+              <label htmlFor="modal-setor" className="block text-[12px] font-bold text-slate-500 mb-1">Setor / Área</label>
               <select
                 id="modal-setor"
                 className="w-full px-2 py-2 text-xs bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-750 font-medium cursor-pointer"
@@ -225,7 +212,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
             </div>
 
             <div>
-              <label htmlFor="modal-sexo" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Sexo Prefer.</label>
+              <label htmlFor="modal-sexo" className="block text-[12px] font-bold text-slate-500 mb-1">Sexo Prefer.</label>
               <select
                 id="modal-sexo"
                 className="w-full px-2 py-2 text-xs bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-750 font-medium cursor-pointer"
@@ -241,22 +228,22 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="modal-solicitacao" className="block text-xs font-bold text-slate-500 uppercase mb-1">Data Solicitação *</label>
+              <label htmlFor="modal-solicitacao" className="block text-[13px] font-semibold text-slate-700 mb-1">Data Solicitação *</label>
               <input
                 id="modal-solicitacao"
                 type="date"
                 required
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-750 font-medium"
+                className="campo w-full"
                 value={tempSolicitacao}
                 onChange={(e) => setTempSolicitacao(e.target.value)}
               />
             </div>
 
             <div>
-              <label htmlFor="modal-motivo" className="block text-xs font-bold text-slate-500 uppercase mb-1">Motivo Solicitação</label>
+              <label htmlFor="modal-motivo" className="block text-[13px] font-semibold text-slate-700 mb-1">Motivo Solicitação</label>
               <select
                 id="modal-motivo"
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-750 font-medium cursor-pointer"
+                className="campo w-full"
                 value={tempMotivo}
                 onChange={(e) => setTempMotivo(e.target.value)}
               >
@@ -271,7 +258,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
                 <div className="mt-2">
                   <input aria-label="Especifique o motivo..."
                     type="text"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-750 font-medium"
+                    className="campo w-full"
                     placeholder="Especifique o motivo..."
                     value={tempMotivoOutro}
                     onChange={(e) => setTempMotivoOutro(e.target.value)}
@@ -284,11 +271,11 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="modal-substituido" className="block text-xs font-bold text-slate-500 uppercase mb-1">Substituído (Se houver)</label>
+              <label htmlFor="modal-substituido" className="block text-[13px] font-semibold text-slate-700 mb-1">Substituído (Se houver)</label>
               <input
                 id="modal-substituido"
                 type="text"
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl text-slate-750 font-medium"
+                className="campo w-full"
                 placeholder="Ex: João Ferreira da Silva"
                 value={tempFuncionarioSubstituido}
                 onChange={(e) => setTempFuncionarioSubstituido(e.target.value)}
@@ -296,11 +283,11 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
             </div>
 
             <div>
-              <label htmlFor="modal-responsavel" className="block text-xs font-bold text-slate-500 uppercase mb-1">Responsável RH</label>
+              <label htmlFor="modal-responsavel" className="block text-[13px] font-semibold text-slate-700 mb-1">Responsável RH</label>
               <input
                 id="modal-responsavel"
                 type="text"
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
+                className="campo w-full"
                 placeholder="Nome do recruiter"
                 value={tempResponsavel}
                 onChange={(e) => setTempResponsavel(e.target.value)}
@@ -310,10 +297,10 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="modal-status" className="block text-xs font-bold text-slate-500 uppercase mb-1">Status</label>
+              <label htmlFor="modal-status" className="block text-[13px] font-semibold text-slate-700 mb-1">Status</label>
               <select
                 id="modal-status"
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl cursor-pointer"
+                className="campo w-full"
                 value={tempStatus}
                 onChange={(e) => setTempStatus(e.target.value as Vaga['status'])}
               >
@@ -324,11 +311,11 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
             </div>
 
             <div>
-              <label htmlFor="modal-etapa" className="block text-xs font-bold text-slate-500 uppercase mb-1">Etapa Atual</label>
+              <label htmlFor="modal-etapa" className="block text-[13px] font-semibold text-slate-700 mb-1">Etapa Atual</label>
               <input
                 id="modal-etapa"
                 type="text"
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
+                className="campo w-full"
                 placeholder="Ex: Entrevista, Triagem, etc."
                 value={tempEtapa}
                 onChange={(e) => setTempEtapa(e.target.value)}
@@ -338,11 +325,11 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
 
           <div className="grid grid-cols-1 gap-4">
             <div>
-              <label htmlFor="modal-aprovado" className="block text-xs font-bold text-slate-500 uppercase mb-1">Candidato Aprovado</label>
+              <label htmlFor="modal-aprovado" className="block text-[13px] font-semibold text-slate-700 mb-1">Candidato Aprovado</label>
               <input
                 id="modal-aprovado"
                 type="text"
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
+                className="campo w-full"
                 placeholder="Nome do selecionado"
                 value={tempAprovado}
                 onChange={(e) => setTempAprovado(e.target.value)}
@@ -352,52 +339,52 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
 
           {/* Funil de candidatos + motivo de desistência (indicadores do processo) */}
           <div className="bg-slate-50/60 p-4 rounded-2xl border border-slate-100 space-y-3">
-            <p className="text-xs font-bold text-slate-500 uppercase">Funil de candidatos</p>
+            <p className="text-xs font-bold text-slate-500">Funil de candidatos</p>
             {funilAutomatico && (
-              <p className="text-[11px] text-slate-600 font-semibold">
+              <p className="text-[12.5px] text-slate-600 font-semibold">
                 Somado de {funilAutomatico.selecoes === 1 ? '1 seleção ligada' : `${funilAutomatico.selecoes} seleções ligadas`} — para mudar, lance no módulo Seleções.
               </p>
             )}
             <fieldset disabled={!!funilAutomatico} className="grid grid-cols-3 gap-3 disabled:opacity-80">
               <div>
-                <label htmlFor="modal-chamados" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Chamados</label>
+                <label htmlFor="modal-chamados" className="block text-[12px] font-bold text-slate-400 mb-1">Chamados</label>
                 <input
                   id="modal-chamados"
                   type="number"
                   min={0}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
+                  className="campo w-full"
                   value={funilAutomatico ? funilAutomatico.chamados : tempCandChamados}
                   onChange={(e) => setTempCandChamados(Number(e.target.value))}
                 />
               </div>
               <div>
-                <label htmlFor="modal-compareceram" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Compareceram</label>
+                <label htmlFor="modal-compareceram" className="block text-[12px] font-bold text-slate-400 mb-1">Compareceram</label>
                 <input
                   id="modal-compareceram"
                   type="number"
                   min={0}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
+                  className="campo w-full"
                   value={funilAutomatico ? funilAutomatico.compareceram : tempCandCompareceram}
                   onChange={(e) => setTempCandCompareceram(Number(e.target.value))}
                 />
               </div>
               <div>
-                <label htmlFor="modal-aprovados" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Aprovados</label>
+                <label htmlFor="modal-aprovados" className="block text-[12px] font-bold text-slate-400 mb-1">Aprovados</label>
                 <input
                   id="modal-aprovados"
                   type="number"
                   min={0}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
+                  className="campo w-full"
                   value={funilAutomatico ? funilAutomatico.aprovados : tempCandAprovados}
                   onChange={(e) => setTempCandAprovados(Number(e.target.value))}
                 />
               </div>
             </fieldset>
             <div>
-              <label htmlFor="modal-desistencia" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Motivo de desistência (se houve)</label>
+              <label htmlFor="modal-desistencia" className="block text-[12px] font-bold text-slate-400 mb-1">Motivo de desistência (se houve)</label>
               <select
                 id="modal-desistencia"
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl cursor-pointer"
+                className="campo w-full"
                 value={tempMotivoDesistencia}
                 onChange={(e) => setTempMotivoDesistencia(e.target.value)}
               >
@@ -412,7 +399,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
           {tempStatus === 'FECHADA' && (
             <div className="grid grid-cols-2 gap-4 bg-orange-50/45 p-4 rounded-2xl border border-orange-100">
               <div>
-                <label htmlFor="modal-conclusao" className="block text-xs font-bold text-orange-900 uppercase mb-1">Data Conclusão</label>
+                <label htmlFor="modal-conclusao" className="block text-xs font-bold text-orange-900 mb-1">Data Conclusão</label>
                 <input
                   id="modal-conclusao"
                   type="text"
@@ -424,7 +411,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
               </div>
 
               <div>
-                <label htmlFor="modal-process-time" className="block text-xs font-bold text-orange-900 uppercase mb-1">Dias Processo (SLA)</label>
+                <label htmlFor="modal-process-time" className="block text-xs font-bold text-orange-900 mb-1">Dias Processo (SLA)</label>
                 <input
                   id="modal-process-time"
                   type="number"
@@ -438,11 +425,11 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
           )}
 
           <div>
-            <label htmlFor="modal-observacoes" className="block text-xs font-bold text-slate-500 uppercase mb-1">Observações do Processo</label>
+            <label htmlFor="modal-observacoes" className="block text-[13px] font-semibold text-slate-700 mb-1">Observações do Processo</label>
             <textarea
               id="modal-observacoes"
               rows={3}
-              className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
+              className="campo w-full"
               placeholder="Informações adicionais da triagem, cancelamentos..."
               value={tempObservacoes}
               onChange={(e) => setTempObservacoes(e.target.value)}
@@ -450,21 +437,6 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
           </div>
         </div>
 
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-sm font-bold rounded-xl text-slate-600 cursor-pointer"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-sm font-bold rounded-xl text-white shadow-lg shadow-orange-500/20 cursor-pointer"
-          >
-            Salvar Alterações
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

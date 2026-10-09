@@ -22,6 +22,11 @@ describe('normalizeEtapa', () => {
   it('texto de admissão → Aguardando admissão', () => {
     expect(normalizeEtapa(vaga({ etapa: 'Aguardando admissão' }))).toBe('Aguardando admissão');
   });
+  it('status DOCUMENTAÇÃO com etapa de admissão → Aguardando admissão (a vaga não fica presa)', () => {
+    // statusForEtapa põe status DOCUMENTAÇÃO nas duas etapas finais; se o
+    // status vencesse, "Para Admissão →" mudava a etapa e o cartão não saía do lugar.
+    expect(normalizeEtapa(vaga({ status: 'DOCUMENTAÇÃO', etapa: 'Aguardando admissão' }))).toBe('Aguardando admissão');
+  });
   it('texto de documentação/contratação → Documentação', () => {
     expect(normalizeEtapa(vaga({ etapa: 'Contratação / Docs' }))).toBe('Documentação');
   });
