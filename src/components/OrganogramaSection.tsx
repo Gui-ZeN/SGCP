@@ -223,17 +223,44 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
 
   /**
    * Cada setor encolhe para caber na folha, em vez de rolar de lado (regra de
-   * 08/10/2026: nada rola de lado no notebook). O piso de 60% mantém o nome
-   * legível; abaixo disso a folha rola como último recurso. Na impressão o
-   * zoom volta a 1 (index.css, @media print).
+   * 08/10/2026: nada rola de lado no notebook). O piso de 80% mantém o nome
+   * legível (com 60%, o organograma real de 253 caixas virava letra miúda e
+   * ainda não cabia); o que passar disso se alcança ARRASTANDO o fundo. Na
+   * impressão o zoom volta a 1 (index.css, @media print).
    */
   const folha = useRef<HTMLDivElement>(null);
-  const ESCALA_MINIMA = 0.6;
+  const ESCALA_MINIMA = 0.8;
+
+  /**
+   * Arrastar o FUNDO move o desenho, como num mapa (pedido do RH em 09/10/2026,
+   * com o organograma da empresa inteira aberto). Sobre uma caixa não: lá o
+   * arrastar é o de trocar de chefe.
+   */
+  const pan = useRef<{ x: number; y: number; esq: number; topo: number } | null>(null);
+  const [movendo, setMovendo] = useState(false);
+  const comecarPan = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || (e.target as Element).closest('.org-caixa, button, a, input, select, textarea')) return;
+    pan.current = { x: e.clientX, y: e.clientY, esq: e.currentTarget.scrollLeft, topo: window.scrollY };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setMovendo(true);
+  };
+  const moverPan = (e: React.PointerEvent<HTMLDivElement>) => {
+    const p = pan.current;
+    if (!p) return;
+    e.currentTarget.scrollLeft = p.esq - (e.clientX - p.x);
+    window.scrollTo(window.scrollX, p.topo - (e.clientY - p.y));
+  };
+  const soltarPan = () => { pan.current = null; setMovendo(false); };
+  // Recorte novo abre CENTRADO: colado na esquerda, o topo da hierarquia
+  // ficava fora da vista, na ponta direita (print do RH em 09/10/2026).
+  const recorteCentrado = useRef<unknown>(null);
   useLayoutEffect(() => {
     const el = folha.current;
     if (!el) return;
     const ajustar = () => {
       const largura = el.clientWidth - 40; // o padding da folha (p-5)
+      // A linha de cima (contagem e dica) fica parada enquanto o desenho rola.
+      el.style.setProperty('--org-visivel', `${largura}px`);
       el.querySelectorAll<HTMLElement>('.org-t > li').forEach(li => {
         li.style.zoom = '';
         const natural = li.scrollWidth;
@@ -241,6 +268,10 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
       });
     };
     ajustar();
+    if (recorteCentrado.current !== doRecorte) {
+      recorteCentrado.current = doRecorte;
+      el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+    }
     const ro = new ResizeObserver(ajustar);
     ro.observe(el);
     return () => ro.disconnect();
@@ -430,7 +461,8 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
         </div>
       )}
 
-      <div ref={folha} className="org-folha painel p-5">
+      <div ref={folha} className={`org-folha painel p-5 ${movendo ? 'org-movendo' : ''}`}
+        onPointerDown={comecarPan} onPointerMove={moverPan} onPointerUp={soltarPan} onPointerCancel={soltarPan}>
         {raizes.length === 0 ? (
           <div className="py-14 text-center">
             <Network className="w-8 h-8 text-slate-300 mx-auto mb-2" />
@@ -455,14 +487,14 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div className="org-folha-cab flex flex-wrap items-center justify-between gap-3 mb-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                 {todosOsSetores ? '' : `${rotuloDoRecorte} · `}
                 {total} {total === 1 ? 'caixa' : 'caixas'} · {profundidade(raizes)} {profundidade(raizes) === 1 ? 'nível' : 'níveis'}
               </p>
               {podeEditar && (
                 <span className="text-[10px] font-semibold text-slate-500 no-print">
-                  Arraste uma caixa sobre outra para mudar de chefe.
+                  Arraste o fundo para navegar · arraste uma caixa sobre outra para mudar de chefe.
                 </span>
               )}
             </div>

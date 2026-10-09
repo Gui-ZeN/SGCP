@@ -196,7 +196,10 @@
 .org-t > li { width: max-content; margin-inline: auto; }
 /* Trava: setor com supervisores demais para a tela rola DENTRO da folha —
    nunca a página inteira (queixa de 08/10/2026: "a tela vai estourando"). */
-.org-folha { overflow-x: auto; }
+.org-folha { overflow-x: auto; cursor: grab; }
+/* Arrastando o fundo (pan): sem seleção de texto no caminho. */
+.org-folha.org-movendo { cursor: grabbing; user-select: none; }
+.org-folha-cab { position: sticky; left: 0; width: var(--org-visivel, auto); }
 
 .org-t li {
   position: relative;

@@ -258,7 +258,7 @@ Casca de duas colunas: menu lateral de 240px à esquerda e conteúdo à direita 
 - **Modal:** larguras 440 / 640 / 860px (`sm`/`md`/`lg`), altura até a tela menos 48px, corpo rolando por dentro.
 
 ### Named Rules
-**The No Sideways Scroll Rule.** Nenhuma tabela, quadro ou página rola na horizontal no notebook (1366 e 1024). Junte colunas (detalhe em `.sub`) ou use `.tabela-empilha`. O desenho do organograma encolhe cada setor para caber (zoom até 60%); só um setor com mais de ~7 supervisores lado a lado ainda rola dentro da própria folha, como último recurso.
+**The No Sideways Scroll Rule.** Nenhuma tabela, quadro ou página rola na horizontal no notebook (1366 e 1024). Junte colunas (detalhe em `.sub`) ou use `.tabela-empilha`. O desenho do organograma encolhe cada setor até 80% para caber e abre centrado no topo da hierarquia; o que ainda passar se alcança arrastando o fundo, como num mapa (a linha de contagem fica parada). Arrastar uma caixa continua sendo trocar de chefe.
 
 **The Menu Never Scrolls Rule.** O menu lateral não rola na vertical. Em tela baixa ele aperta (item de 32 → 29 → 27px; abaixo de 600px de altura os títulos de grupo somem). A partir de 1024px pode ficar recolhido em 64px, só ícones, e abre por cima do conteúdo ao passar o mouse ou receber foco, sem empurrar a página.
 
