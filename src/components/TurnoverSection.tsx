@@ -5,33 +5,12 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Turnover } from '../types';
-import { 
-  Percent, 
-  PlusCircle, 
-  Calculator, 
-  Trash2, 
-  Pencil,
-  TrendingUp, 
-  Users, 
-  UserPlus, 
-  UserMinus,
-  Calendar,
-  Download
-} from 'lucide-react';
+import { Plus, Trash2, Download } from 'lucide-react';
 import { exportToXlsx } from '../utils/xlsxExporter';
-import { useCoresGrafico } from '../hooks/useCoresGrafico';
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  Legend, 
-  BarChart, 
-  Bar 
-} from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar } from 'recharts';
+import { Modal } from './ui/Modal';
+import { FiltroMultiplo } from './ui/FiltroMultiplo';
+import { Kpi, Painel, Dica, useEixos, dec } from './indicadores/ui';
 
 interface TurnoverSectionProps {
   turnover: Turnover[];
@@ -50,11 +29,8 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
   confirmAction,
   canManage = true
 }) => {
-  // Acento vindo dos tokens (segue tema e campanha); o secundário fica em cinza
-  // neutro de propósito, pra não competir com o acento.
-  const cores = useCoresGrafico();
-  const accent = cores.primary;
-  const accent2 = cores.slate;
+  // Eixos, grade, legenda e dica: as mesmas peças dos Indicadores.
+  const { C, grade, eixo, cursorBarra, cursorLinha, legenda } = useEixos();
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTurnover, setEditingTurnover] = useState<Turnover | null>(null);
@@ -78,7 +54,8 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
   // '' = consolidado (Colégio + Universidade no mesmo número), que é como os
   // meses antigos foram lançados.
   const [unidade, setUnidade] = useState<'' | 'colegio' | 'universidade'>('');
-  const [filtroUnidade, setFiltroUnidade] = useState<'TODAS' | 'colegio' | 'universidade' | 'consolidado'>('TODAS');
+  // Múltipla escolha (regra de 08/10/2026); nada marcado = todas.
+  const [unidadesSel, setUnidadesSel] = useState<string[]>([]);
 
   /** Rótulo da unidade; sem valor é consolidado (as duas juntas). */
   const rotuloUnidade = (u?: string) =>
@@ -145,10 +122,9 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
    * de existir o campo — vivem sozinhos, sem par de unidade.
    */
   const turnoverFiltrado = useMemo(() => {
-    if (filtroUnidade === 'TODAS') return turnover;
-    if (filtroUnidade === 'consolidado') return turnover.filter(t => !t.unidade);
-    return turnover.filter(t => t.unidade === filtroUnidade);
-  }, [turnover, filtroUnidade]);
+    if (!unidadesSel.length) return turnover;
+    return turnover.filter(t => unidadesSel.includes(t.unidade || 'consolidado'));
+  }, [turnover, unidadesSel]);
 
   /** A base tem registro por unidade? Só então o filtro faz sentido na tela. */
   const temUnidadeLancada = useMemo(() => turnover.some(t => !!t.unidade), [turnover]);
@@ -181,13 +157,13 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
   }, [turnoverFiltrado]);
 
   /**
-   * Série dos gráficos. Com o filtro em "todas as unidades", SOMA os registros
-   * do mesmo mês: sem isso o eixo mostraria "07/2026" duas vezes, uma por
-   * unidade, como se fossem meses diferentes. Filtrado numa unidade, cada mês
-   * já é único e a série passa direto.
+   * Série dos gráficos. Com mais de uma unidade na tela, SOMA os registros do
+   * mesmo mês: sem isso o eixo mostraria "07/2026" duas vezes, uma por
+   * unidade, como se fossem meses diferentes. Com UMA unidade, cada mês já é
+   * único e a série passa direto.
    */
   const dadosGrafico = useMemo(() => {
-    if (filtroUnidade !== 'TODAS') return computedData;
+    if (unidadesSel.length === 1) return computedData;
 
     const porMes = new Map<string, any>();
     computedData.forEach(item => {
@@ -211,20 +187,20 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
       turnoverInvoluntario: m.totalFuncionarios > 0
         ? Number(((m.foramDesligados / m.totalFuncionarios) * 100).toFixed(2)) : 0,
     }));
-  }, [computedData, filtroUnidade]);
+  }, [computedData, unidadesSel]);
 
   // General Average KPI
   const avgStats = useMemo(() => {
-    if (computedData.length === 0) return { total: '0.0', voluntario: '0.0', involuntario: '0.0' };
+    if (computedData.length === 0) return { total: 0, voluntario: 0, involuntario: 0 };
     
     const sumTotal = computedData.reduce((acc, curr) => acc + curr.turnoverTotal, 0);
     const sumVol = computedData.reduce((acc, curr) => acc + curr.turnoverVoluntario, 0);
     const sumInvol = computedData.reduce((acc, curr) => acc + curr.turnoverInvoluntario, 0);
     
     return {
-      total: (sumTotal / computedData.length).toFixed(1),
-      voluntario: (sumVol / computedData.length).toFixed(1),
-      involuntario: (sumInvol / computedData.length).toFixed(1)
+      total: sumTotal / computedData.length,
+      voluntario: sumVol / computedData.length,
+      involuntario: sumInvol / computedData.length
     };
   }, [computedData]);
 
@@ -328,418 +304,220 @@ export const TurnoverSection: React.FC<TurnoverSectionProps> = ({
     }
   };
 
+  const fecharForm = () => { resetForm(); setShowAddForm(false); };
+  const excluir = (item: Turnover) => {
+    if (confirmAction) {
+      confirmAction('Excluir mês', `Remover o lançamento de ${item.mesAno} (${rotuloUnidade(item.unidade)})? As médias da tela são recalculadas.`, () => deleteTurnover(item.id));
+    } else if (confirm(`Remover permanentemente os logs do mês ${item.mesAno}?`)) {
+      deleteTurnover(item.id);
+    }
+  };
+  /** Entrou, pediu para sair, foi desligado: as mesmas cores no gráfico e na tabela. */
+  const COR = { entrou: 'var(--etapa-admissao)', pediu: 'var(--etapa-triagem)', desligado: 'var(--atraso)' };
+
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
-        <div>
-          <h2 className="text-xl font-bold text-slate-850 flex items-center gap-2">
-            <Percent className="w-6 h-6 text-orange-500" />
-            Índice de Rotatividade (Turnover)
-          </h2>
-          <p className="text-slate-500 text-sm font-medium font-sans">Acompanhe estatísticas mensais de admissão, demissão espontânea e demissão induzida.</p>
+    <div className="space-y-5">
+      <header className="pagina-cab">
+        <div className="min-w-0">
+          <p className="pagina-trilha">Pessoas</p>
+          <h1 className="pagina-titulo">Turnover</h1>
+          <p className="inicio-sub">Quem entrou, quem pediu para sair e quem foi desligado, mês a mês.</p>
         </div>
-        <div className="flex items-center gap-2 self-start">
+        <div className="pagina-acoes">
           {temUnidadeLancada && (
-            <select
-              value={filtroUnidade}
-              onChange={e => setFiltroUnidade(e.target.value as any)}
-              aria-label="Filtrar por unidade"
-              className="px-3 py-2 bg-white border border-slate-250 rounded-xl text-xs font-bold text-slate-700 cursor-pointer"
-            >
-              <option value="TODAS">Todas as unidades</option>
-              <option value="colegio">Colégio</option>
-              <option value="universidade">Universidade</option>
-              <option value="consolidado">Consolidado (sem unidade)</option>
-            </select>
+            <FiltroMultiplo rotulo="Unidade" todos="todas" selecionados={unidadesSel} onChange={setUnidadesSel}
+              opcoes={[{ valor: 'colegio', rotulo: 'Colégio' }, { valor: 'universidade', rotulo: 'Universidade' }, { valor: 'consolidado', rotulo: 'Consolidado (sem unidade)' }]} />
           )}
-          <button
-            onClick={handleExportTurnover}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded-xl text-xs font-bold uppercase tracking-wider border border-slate-250 flex items-center gap-1.5 cursor-pointer transition-colors"
-            title="Baixar planilha Excel (.xlsx)"
-          >
-            <Download className="w-3.5 h-3.5 text-emerald-600" />
-            Exportar Excel
+          <button type="button" className="btn" onClick={handleExportTurnover} title="Baixar planilha Excel (.xlsx)">
+            <Download aria-hidden="true" /> Exportar
           </button>
           {canManage && (
-          <button
-            onClick={openCreateForm}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition"
-          >
-            <PlusCircle className="w-4 h-4" />
-            Logar Mês Operacional
-          </button>
+            <button type="button" className="btn btn-primario" onClick={openCreateForm}>
+              <Plus aria-hidden="true" /> Lançar mês
+            </button>
           )}
         </div>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Kpi rotulo="Turnover médio" valor={`${dec(avgStats.total)}%`} detalhe="(admissões + saídas) ÷ 2 ÷ efetivo" />
+        <Kpi rotulo="Voluntário médio" valor={`${dec(avgStats.voluntario)}%`} detalhe="pediram para sair" />
+        <Kpi rotulo="Involuntário médio" valor={`${dec(avgStats.involuntario)}%`} detalhe="desligados pela empresa" />
       </div>
 
-      {/* KPI Stats Widgets */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Total Turnover Avg */}
-        {/* Fundo CHAPADO, não gradiente: o tema Suíço zera background-image
-            (`[class*="bg-gradient-"]`), e este cartão usava o gradiente como
-            único fundo — sobrava texto branco em cartão claro. */}
-        <div className="bg-slate-900 text-white p-5 rounded-2xl border border-slate-700 shadow-md flex items-center justify-between">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-350 tracking-wider flex items-center gap-1">
-              <Calculator className="w-3.5 h-3.5 text-orange-400" />
-              Turnover Médio Total
-            </span>
-            <div className="text-2xl font-bold mt-2">{avgStats.total}%</div>
-            <p className="text-[9px] text-slate-400 font-medium mt-1">Fórmula: (Admissões + Saídas) ÷ 2 ÷ efetivo</p>
-          </div>
-          <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center">
-            <TrendingUp className="w-6 h-6 text-orange-400" />
-          </div>
-        </div>
-
-        {/* Voluntario Avg */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-450 tracking-wider">Turnover Voluntário Médio</span>
-            <div className="text-xl font-bold text-slate-800 mt-2">{avgStats.voluntario}%</div>
-            <p className="text-[9px] text-slate-400 font-medium mt-1">Colaboradores solicitantes (pediram saída)</p>
-          </div>
-          <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
-            <UserMinus className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Involuntario Avg */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-450 tracking-wider">Turnover Involuntário Médio</span>
-            <div className="text-xl font-bold text-slate-800 mt-2">{avgStats.involuntario}%</div>
-            <p className="text-[9px] text-slate-400 font-medium mt-1">Desligamentos iniciados pelo empregador</p>
-          </div>
-          <div className="w-10 h-10 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center">
-            <UserMinus className="w-5 h-5 text-rose-500" />
-          </div>
-        </div>
-      </div>
-
-      {/* Chart Visualizer */}
       {dadosGrafico.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Timeline chart */}
-          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Comportamento Geral das Rotatividades (%)</h3>
-            <div className="h-72 w-full">
+          <Painel titulo="Turnover mês a mês" descricao="Total e voluntário, em %.">
+            <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <AreaChart data={dadosGrafico} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={accent} stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor={accent} stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorVol" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={accent2} stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor={accent2} stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="mesAno" stroke="#94a3b8" style={{ fontSize: 10, fontWeight: 600 }} />
-                  <YAxis stroke="#94a3b8" style={{ fontSize: 10, fontWeight: 600 }} />
-                  <Tooltip wrapperStyle={{ borderRadius: 12, borderColor: '#e2e8f0' }} />
-                  <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
-                  <Area type="monotone" name="Turnover Total (%)" dataKey="turnoverTotal" stroke={accent} strokeWidth={2.5} fillOpacity={1} fill="url(#colorTotal)" />
-                  <Area type="monotone" name="Voluntário (%)" dataKey="turnoverVoluntario" stroke={accent2} strokeWidth={2} fillOpacity={1} fill="url(#colorVol)" />
-                </AreaChart>
+                <LineChart data={dadosGrafico} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                  <CartesianGrid vertical={false} {...grade} />
+                  <XAxis dataKey="mesAno" {...eixo} />
+                  <YAxis {...eixo} />
+                  <Tooltip cursor={cursorLinha} content={<Dica formatar={(v: number) => `${dec(v, 2)}%`} />} />
+                  <Legend {...legenda} />
+                  <Line isAnimationActive={false} type="monotone" name="Turnover total" dataKey="turnoverTotal" stroke={C.primary} strokeWidth={2.5} dot={{ r: 3 }} />
+                  <Line isAnimationActive={false} type="monotone" name="Voluntário" dataKey="turnoverVoluntario" stroke={COR.pediu} strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </Painel>
 
           {/* Movimentação mês a mês. As saídas vêm SEPARADAS (pediu sair x foi
               desligado): somadas numa barra só, escondiam a única metade sobre a
               qual o RH consegue agir — quem pede para sair. Pedido do RH em
               31/08/2026, para acompanhar a evolução de janeiro em diante. */}
-          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Movimentação do Quadro mês a mês</h3>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-4">
-              Quem entrou, quem pediu para sair e quem foi desligado
-            </p>
-            <div className="h-72 w-full">
+          <Painel titulo="Movimentação do quadro" descricao="Quem entrou, quem pediu para sair e quem foi desligado.">
+            <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={dadosGrafico} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="mesAno" stroke="#94a3b8" style={{ fontSize: 10, fontWeight: 600 }} />
-                  <YAxis stroke="#94a3b8" style={{ fontSize: 10, fontWeight: 600 }} />
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
-                  <Bar name="Admissões" dataKey="totalAdmissao" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar name="Pediram para sair" dataKey="pediramSair" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                  <Bar name="Foram desligados" dataKey="foramDesligados" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                <BarChart data={dadosGrafico} margin={{ top: 8, right: 8, left: -20, bottom: 0 }} barGap={2}>
+                  <CartesianGrid vertical={false} {...grade} />
+                  <XAxis dataKey="mesAno" {...eixo} />
+                  <YAxis {...eixo} allowDecimals={false} />
+                  <Tooltip cursor={cursorBarra} content={<Dica />} />
+                  <Legend {...legenda} iconType="square" />
+                  <Bar isAnimationActive={false} name="Admissões" dataKey="totalAdmissao" fill={COR.entrou} radius={[3, 3, 0, 0]} maxBarSize={18} />
+                  <Bar isAnimationActive={false} name="Pediram para sair" dataKey="pediramSair" fill={COR.pediu} radius={[3, 3, 0, 0]} maxBarSize={18} />
+                  <Bar isAnimationActive={false} name="Foram desligados" dataKey="foramDesligados" fill={COR.desligado} radius={[3, 3, 0, 0]} maxBarSize={18} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </Painel>
         </div>
       )}
 
-      {/* Monthly data list */}
-      <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden animate-in fade-in">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+      <section className="painel overflow-hidden" aria-label="Meses lançados">
+        {computedData.length === 0 ? (
+          <p className="text-center py-12 text-[14px]" style={{ color: 'var(--tinta-3)' }}>Nenhum mês lançado.</p>
+        ) : (
+          // Sem rolagem de lado (regra de 08/10/2026): em tela estreita, cartão.
+          <table className="tabela tabela-empilha">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                <th className="py-4 px-5">Período / Efetivo</th>
-                <th className="py-4 px-5">Movimentação (Entradas / Saídas)</th>
-                <th className="py-4 px-5">Taxas de Turnover (%)</th>
-                <th className="py-4 px-5 text-right">Ação</th>
+              <tr>
+                <th scope="col">Mês</th>
+                <th scope="col" className="num-col">Efetivo</th>
+                <th scope="col" className="num-col">Entraram</th>
+                <th scope="col" className="num-col">Pediram para sair</th>
+                <th scope="col" className="num-col">Desligados</th>
+                <th scope="col" className="num-col">Turnover</th>
+                {canManage && <th scope="col"><span className="sr-only">Ações</span></th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-150 text-sm text-slate-700">
-              {computedData.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="text-center py-12 text-slate-400 font-semibold">
-                    Sem registros operacionais de turnover cadastrados.
+            <tbody>
+              {computedData.map((item) => (
+                <tr key={item.id}>
+                  <td className="whitespace-nowrap">
+                    <span>
+                      <b>{item.mesAno}</b>
+                      {temUnidadeLancada && <span className="sub">{rotuloUnidade(item.unidade)}</span>}
+                    </span>
                   </td>
+                  <td className="num-col" data-rotulo="Efetivo">{item.totalFuncionarios.toLocaleString('pt-BR')}</td>
+                  <td className="num-col" data-rotulo="Entraram" style={{ color: COR.entrou }}>+{item.totalAdmissao}</td>
+                  <td className="num-col" data-rotulo="Pediram para sair" style={{ color: COR.pediu }}>−{item.pediramSair}</td>
+                  <td className="num-col" data-rotulo="Desligados" style={{ color: COR.desligado }}>−{item.foramDesligados}</td>
+                  <td className="num-col" data-rotulo="Turnover">
+                    <span>
+                      <b>{dec(item.turnoverTotal, 2)}%</b>
+                      <span className="sub">vol. {dec(item.turnoverVoluntario, 2)}% · invol. {dec(item.turnoverInvoluntario, 2)}%</span>
+                    </span>
+                  </td>
+                  {canManage && (
+                    <td className="text-right whitespace-nowrap">
+                      <span className="inline-flex gap-1.5">
+                        <button type="button" className="btn btn-sm" onClick={() => openEditForm(item)}>Editar</button>
+                        <button type="button" className="btn btn-sm btn-perigo" onClick={() => excluir(item)} aria-label={`Excluir ${item.mesAno}`}><Trash2 aria-hidden="true" /></button>
+                      </span>
+                    </td>
+                  )}
                 </tr>
-              ) : (
-                computedData.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/40 transition">
-                    <td className="py-3 px-5">
-                      <div className="font-bold text-slate-850 flex items-center gap-1.5 whitespace-nowrap mb-0.5">
-                        <Calendar className="w-4 h-4 text-slate-450" />
-                        {item.mesAno}
-                        {temUnidadeLancada && (
-                          <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${
-                            item.unidade === 'universidade' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                            : item.unidade === 'colegio' ? 'bg-sky-50 text-sky-700 border-sky-200'
-                            : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                            {rotuloUnidade(item.unidade)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] font-semibold text-slate-500 ml-5">
-                        Efetivo: {item.totalFuncionarios} colaboradores
-                      </div>
-                    </td>
-                    <td className="py-3 px-5 whitespace-nowrap">
-                      <div className="flex items-center gap-3 text-xs font-mono">
-                         <span className="text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 flex items-center gap-1"><span className="text-[9px] uppercase font-sans text-emerald-800">In:</span> +{item.totalAdmissao}</span>
-                         <span className="text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 flex items-center gap-1"><span className="text-[9px] uppercase font-sans text-blue-800">Vol:</span> -{item.pediramSair}</span>
-                         <span className="text-rose-600 font-bold bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 flex items-center gap-1"><span className="text-[9px] uppercase font-sans text-rose-800">Invol:</span> -{item.foramDesligados}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-5 whitespace-nowrap">
-                       <div className="flex items-center gap-3">
-                          <div className="font-bold text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-lg text-sm font-mono">
-                            {item.turnoverTotal}%
-                          </div>
-                          <div className="flex flex-col gap-0.5 text-[10px] uppercase font-bold tracking-wider">
-                            <span className="text-blue-600">Voluntário: <span className="font-mono text-xs">{item.turnoverVoluntario}%</span></span>
-                            <span className="text-rose-600">Involuntário: <span className="font-mono text-xs">{item.turnoverInvoluntario}%</span></span>
-                          </div>
-                       </div>
-                    </td>
-                    <td className="py-3 px-5 text-right">
-                      {canManage ? (
-                        <>
-                      <button
-                        onClick={() => openEditForm(item)}
-                        className="p-1 px-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 rounded-lg cursor-pointer transition border border-transparent hover:border-slate-200 mr-1"
-                        title="Editar registro"
-                      >
-                         <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirmAction) {
-                            confirmAction(
-                              "Remover Indicadores de Turnover",
-                              `Deseja realmente remover permanentemente a planilha de headcount e logs do mês ${item.mesAno}? Isto resetará as médias estatísticas exibidas no dashboard.`,
-                              () => deleteTurnover(item.id)
-                            );
-                          } else {
-                            if (confirm(`Remover permanentemente os logs do mês ${item.mesAno}?`)) {
-                              deleteTurnover(item.id);
-                            }
-                          }
-                        }}
-                        className="p-1 px-2 text-rose-500 hover:bg-rose-50 hover:text-rose-700 rounded-lg cursor-pointer transition border border-transparent hover:border-rose-100"
-                        title="Deletar registro"
-                      >
-                         <Trash2 className="w-4 h-4" />
-                      </button>
-                        </>
-                      ) : (
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Leitura</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
+              ))}
             </tbody>
           </table>
-        </div>
-      </div>
+        )}
+      </section>
 
-      {/* Creation form dialog */}
       {showAddForm && (
-        <div className="fixed inset-0 bg-slate-900/65 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="p-5 bg-slate-950 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Percent className="w-5 h-5 text-orange-500" />
-                <h3 className="text-lg font-bold">{editingTurnover ? 'Editar Quadro de Turnover Mensal' : 'Registrar Quadro de Turnover Mensal'}</h3>
-              </div>
-              <button 
-                onClick={() => { resetForm(); setShowAddForm(false); }} 
-                className="text-slate-400 hover:text-white font-bold text-2xl cursor-pointer leading-none"
-              >
-                &times;
-              </button>
+        <Modal
+          titulo={editingTurnover ? `Editar ${editingTurnover.mesAno}` : 'Lançar mês'}
+          antes="Turnover"
+          largura="sm"
+          aoFechar={fecharForm}
+          rodape={<>
+            <button type="button" className="btn" onClick={fecharForm}>Cancelar</button>
+            <button type="submit" form="form-turnover" className="btn btn-primario">{editingTurnover ? 'Salvar alterações' : 'Lançar'}</button>
+          </>}
+        >
+          <form id="form-turnover" onSubmit={handleSubmit} className="space-y-4">
+            {errorMsg && <p role="alert" className="erro-form">{errorMsg}</p>}
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="rotulo">Mês *</span>
+                <select required className="campo w-full capitalize" value={mes} onChange={(e) => setMes(e.target.value)}>
+                  <option value="">Escolha…</option>
+                  {MESES.map((nome, i) => <option key={nome} value={String(i + 1).padStart(2, '0')}>{nome}</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="rotulo">Ano *</span>
+                <select required className="campo w-full" value={ano} onChange={(e) => setAno(e.target.value)}>
+                  <option value="">Escolha…</option>
+                  {anosDisponiveis.map(a => <option key={a} value={String(a)}>{a}</option>)}
+                </select>
+              </label>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {errorMsg && (
-                <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-semibold border border-red-100 flex items-center gap-2">
-                  <span className="w-5 h-5 flex items-center justify-center bg-red-100 rounded-full text-red-700 font-bold shrink-0">!</span>
-                  {errorMsg}
-                </div>
+            <label className="block">
+              <span className="rotulo">Unidade</span>
+              <select className="campo w-full" value={unidade} onChange={(e) => setUnidade(e.target.value as '' | 'colegio' | 'universidade')}>
+                <option value="">Consolidado (as duas unidades juntas)</option>
+                <option value="colegio">Colégio</option>
+                <option value="universidade">Universidade</option>
+              </select>
+              <span className="ajuda block">Para acompanhar separado, lance dois registros no mesmo mês, um de cada unidade.</span>
+            </label>
+
+            <div className="grid grid-cols-3 gap-3">
+              <label className="block">
+                <span className="rotulo">Admissões</span>
+                <input type="number" min={0} className="campo w-full tabular-nums" value={totalAdmissao} onChange={(e) => setTotalAdmissao(Number(e.target.value))} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Pediram para sair</span>
+                <input type="number" min={0} className="campo w-full tabular-nums" value={pediramSair} onChange={(e) => setPediramSair(Number(e.target.value))} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Desligados</span>
+                <input type="number" min={0} className="campo w-full tabular-nums" value={foramDesligados} onChange={(e) => setForamDesligados(Number(e.target.value))} />
+              </label>
+            </div>
+
+            {/* Efetivo vem DEPOIS da movimentação porque é calculado a partir
+                dela — e continua editável: a conta não sabe de transferência
+                entre unidades nem de correção de cadastro. */}
+            <label className="block">
+              <span className="rotulo">Efetivo no último dia do mês</span>
+              <input type="number" min={0} className="campo w-full tabular-nums" value={totalFuncionarios}
+                onChange={(e) => { setEfetivoManual(true); setTotalFuncionarios(Number(e.target.value)); }} />
+              {mesBase ? (
+                <span className="ajuda block">
+                  {mesBase.totalFuncionarios} em {mesBase.mesAno} + {totalAdmissao} admissões − {pediramSair + foramDesligados} saídas = <b style={{ color: 'var(--tinta)' }}>{efetivoCalculado}</b>
+                  {efetivoManual && totalFuncionarios !== efetivoCalculado && (
+                    <>
+                      {' · '}
+                      <button type="button" className="btn-texto underline"
+                        onClick={() => { setEfetivoManual(false); setTotalFuncionarios(Math.max(0, efetivoCalculado ?? 0)); }}>
+                        usar a conta
+                      </button>
+                    </>
+                  )}
+                </span>
+              ) : (
+                <span className="ajuda block">Sem mês anterior lançado nesta unidade: informe o efetivo.</span>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="trn-mes" className="block text-xs font-bold text-slate-500 uppercase mb-1">Mês *</label>
-                  <select id="trn-mes"
-                    required
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl cursor-pointer capitalize"
-                    value={mes}
-                    onChange={(e) => setMes(e.target.value)}
-                  >
-                    <option value="">Selecione…</option>
-                    {MESES.map((nome, i) => (
-                      <option key={nome} value={String(i + 1).padStart(2, '0')}>{nome}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="trn-ano" className="block text-xs font-bold text-slate-500 uppercase mb-1">Ano *</label>
-                  <select id="trn-ano"
-                    required
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl cursor-pointer"
-                    value={ano}
-                    onChange={(e) => setAno(e.target.value)}
-                  >
-                    <option value="">Selecione…</option>
-                    {anosDisponiveis.map(a => <option key={a} value={String(a)}>{a}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="trn-unidade" className="block text-xs font-bold text-slate-500 uppercase mb-1">Unidade</label>
-                <select id="trn-unidade"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl cursor-pointer"
-                  value={unidade}
-                  onChange={(e) => setUnidade(e.target.value as '' | 'colegio' | 'universidade')}
-                >
-                  <option value="">Consolidado (as duas unidades juntas)</option>
-                  <option value="colegio">Colégio</option>
-                  <option value="universidade">Universidade</option>
-                </select>
-                <p className="text-[10px] text-slate-400 font-semibold mt-1">
-                  Para acompanhar separado, lance dois registros no mesmo mês — um de cada unidade.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 p-3.5 bg-slate-50 border rounded-2xl">
-                <div>
-                  <label htmlFor="trn-admissoes" className="block text-[9px] font-bold text-slate-500 uppercase mb-1">Admissões</label>
-                  <input id="trn-admissoes"
-                    type="number"
-                    className="w-full px-2 py-1.5 text-xs bg-white border rounded font-mono"
-                    value={totalAdmissao}
-                    onChange={(e) => setTotalAdmissao(Number(e.target.value))}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="trn-espontaneas" className="block text-[9px] font-bold text-slate-500 uppercase mb-1">Espontâneas</label>
-                  <input id="trn-espontaneas"
-                    type="number"
-                    className="w-full px-2 py-1.5 text-xs bg-white border rounded font-mono"
-                    value={pediramSair}
-                    onChange={(e) => setPediramSair(Number(e.target.value))}
-                    title="Funcionários que pediram desligamento voluntário"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="trn-demissoes" className="block text-[9px] font-bold text-slate-500 uppercase mb-1">Demissões</label>
-                  <input id="trn-demissoes"
-                    type="number"
-                    className="w-full px-2 py-1.5 text-xs bg-white border rounded font-mono"
-                    value={foramDesligados}
-                    onChange={(e) => setForamDesligados(Number(e.target.value))}
-                    title="Funcionários desligados de forma involuntária"
-                  />
-                </div>
-              </div>
-
-              {/* Efetivo vem DEPOIS da movimentação porque é calculado a partir
-                  dela — e continua editável: a conta não sabe de transferência
-                  entre unidades nem de correção de cadastro. */}
-              <div>
-                <label htmlFor="trn-total-ativo-de-funcionarios-ultimo-dia-d" className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                  Total Ativo de Funcionários (Último dia do Mês)
-                </label>
-                <input id="trn-total-ativo-de-funcionarios-ultimo-dia-d"
-                  type="number"
-                  placeholder="Ex: 154"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl font-mono text-slate-800"
-                  value={totalFuncionarios}
-                  onChange={(e) => { setEfetivoManual(true); setTotalFuncionarios(Number(e.target.value)); }}
-                />
-
-                {mesBase ? (
-                  <p className="text-[10px] font-semibold text-slate-500 mt-1.5 flex items-start gap-1">
-                    <Calculator className="w-3 h-3 shrink-0 mt-0.5 text-slate-400" />
-                    <span>
-                      {mesBase.totalFuncionarios} em {mesBase.mesAno} + {totalAdmissao} admissões
-                      − {pediramSair + foramDesligados} saídas = <strong className="text-slate-700">{efetivoCalculado}</strong>
-                      {efetivoManual && totalFuncionarios !== efetivoCalculado && (
-                        <>
-                          {' · '}
-                          <button
-                            type="button"
-                            onClick={() => { setEfetivoManual(false); setTotalFuncionarios(Math.max(0, efetivoCalculado ?? 0)); }}
-                            className="underline font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
-                          >
-                            usar a conta
-                          </button>
-                        </>
-                      )}
-                    </span>
-                  </p>
-                ) : (
-                  <p className="text-[10px] font-semibold text-slate-400 mt-1.5">
-                    Sem mês anterior lançado nesta unidade — informe o efetivo.
-                  </p>
-                )}
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => { resetForm(); setShowAddForm(false); }}
-                  className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-sm font-bold rounded-xl text-slate-600 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-sm font-bold rounded-xl text-white shadow-lg shadow-orange-500/20 cursor-pointer"
-                >
-                  {editingTurnover ? 'Atualizar Índices' : 'Registar Índices'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+            </label>
+          </form>
+        </Modal>
       )}
     </div>
   );

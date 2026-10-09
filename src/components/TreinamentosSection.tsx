@@ -7,23 +7,11 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Treinamento } from '../types';
 import { toISOInput } from '../utils/date';
 import { exportToXlsx } from '../utils/xlsxExporter';
-import { 
-  GraduationCap, 
-  Search, 
-  MapPin, 
-  DollarSign, 
-  Clock, 
-  Users, 
-  PlusCircle, 
-  Calendar,
-  X,
-  FileSpreadsheet,
-  Trash2,
-  Pencil,
-  Upload,
-  Loader2
-} from 'lucide-react';
+import { Search, Plus, Download, Trash2, Pencil, Upload, Loader2 } from 'lucide-react';
 import { Sede } from '../hooks/useMetadata';
+import { Modal } from './ui/Modal';
+import { FiltroMultiplo } from './ui/FiltroMultiplo';
+import { Kpi } from './indicadores/ui';
 
 interface TreinamentosSectionProps {
   treinamentos: Treinamento[];
@@ -55,19 +43,14 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [importandoUni, setImportandoUni] = useState(false);
   const uniFileRef = useRef<HTMLInputElement>(null);
-  const [selectedUnidade, setSelectedUnidade] = useState(() => {
-    return !isAdmin && userSede ? userSede : '';
-  });
-  const [selectedTipo, setSelectedTipo] = useState('');
+  // Filtros de múltipla escolha; nada marcado = todos. Quem não é admin fica
+  // travado na própria unidade (como antes).
+  const sedeTravada = !isAdmin && !!userSede;
+  const [unidadesSel, setUnidadesSel] = useState<string[]>([]);
+  const [tiposSel, setTiposSel] = useState<string[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTreinamento, setEditingTreinamento] = useState<Treinamento | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
-
-  React.useEffect(() => {
-    if (!isAdmin && userSede) {
-      setSelectedUnidade(userSede);
-    }
-  }, [userSede, isAdmin]);
 
   // New Training form state
   const [tema, setTema] = useState('');
@@ -169,12 +152,13 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
         t.facilitador.toLowerCase().includes(searchTerm.toLowerCase()) || 
         t.publico.toLowerCase().includes(searchTerm.toLowerCase());
       
-      const matchUnidade = !selectedUnidade || (t.unidade && t.unidade.toLowerCase() === selectedUnidade.toLowerCase());
-      const matchTipo = !selectedTipo || t.tipo === selectedTipo;
+      const unidades = sedeTravada ? [userSede!] : unidadesSel;
+      const matchUnidade = !unidades.length || unidades.some(u => (t.unidade || '').toLowerCase() === u.toLowerCase());
+      const matchTipo = !tiposSel.length || tiposSel.includes(t.tipo);
 
       return matchText && matchUnidade && matchTipo;
     });
-  }, [treinamentos, searchTerm, selectedUnidade, selectedTipo, userSede, isAdmin]);
+  }, [treinamentos, searchTerm, unidadesSel, tiposSel, userSede, sedeTravada]);
 
   // Stats
   const stats = useMemo(() => {
@@ -316,25 +300,20 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
     }
   };
 
+  const corDoAproveitamento = (p: number) => (p >= 90 ? 'var(--etapa-admissao)' : p >= 70 ? 'var(--etapa-triagem)' : 'var(--atraso)');
+  const fecharForm = () => { resetForm(); setShowAddForm(false); };
+
   return (
-    <div className="space-y-6">
-      {/* Tab Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
-        <div>
-          <h2 className="text-xl font-bold text-slate-850 flex items-center gap-2">
-            <GraduationCap className="w-6 h-6 text-orange-500" />
-            Desenvolvimento & Treinamento
-          </h2>
-          <p className="text-slate-500 text-sm font-medium">Controle de capacitações, horas de formação e investimentos corporativos.</p>
+    <div className="space-y-5">
+      <header className="pagina-cab">
+        <div className="min-w-0">
+          <p className="pagina-trilha">Pessoas</p>
+          <h1 className="pagina-titulo">Treinamentos</h1>
+          <p className="inicio-sub">Capacitações, horas de formação e investimento.</p>
         </div>
-        <div className="flex items-center gap-2 self-start">
-          <button
-            onClick={handleExportTreinamentos}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded-xl text-xs font-bold uppercase tracking-wider border border-slate-250 flex items-center gap-1.5 cursor-pointer transition-colors"
-            title="Baixar planilha Excel (.xlsx)"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            Exportar Excel
+        <div className="pagina-acoes">
+          <button type="button" className="btn" onClick={handleExportTreinamentos} title="Baixar planilha Excel (.xlsx)">
+            <Download aria-hidden="true" /> Exportar
           </button>
           {canManage && onImportUniversidade && (
             <>
@@ -352,440 +331,183 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                   finally { setImportandoUni(false); if (uniFileRef.current) uniFileRef.current.value = ''; }
                 }}
               />
-              <button
-                onClick={() => uniFileRef.current?.click()}
-                disabled={importandoUni}
-                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded-xl text-xs font-bold uppercase tracking-wider border border-slate-250 flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-60"
-                title="Importar a planilha Monitoramento Treinamentos (abas por ano)"
-              >
-                {importandoUni ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 text-indigo-600" />}
+              <button type="button" className="btn" onClick={() => uniFileRef.current?.click()} disabled={importandoUni}
+                title="Importar a planilha Monitoramento Treinamentos (abas por ano)">
+                {importandoUni ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Upload aria-hidden="true" />}
                 Importar (Universidade)
               </button>
             </>
           )}
           {canManage && (
-            <button
-              id="btn-show-add-treinamento"
-              onClick={openCreateForm}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Registrar Treinamento
+            <button type="button" id="btn-show-add-treinamento" className="btn btn-primario" onClick={openCreateForm}>
+              <Plus aria-hidden="true" /> Registrar treinamento
             </button>
           )}
         </div>
+      </header>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi rotulo="Investimento" valor={stats.totalInvestido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} />
+        <Kpi rotulo="Horas de formação" valor={stats.totalHorasFormacao.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} unidade="h" />
+        <Kpi rotulo="Concluintes" valor={stats.totalQualificados.toLocaleString('pt-BR')} detalhe="pessoas que participaram" />
+        <Kpi rotulo="Aproveitamento" valor={`${stats.presencaMedia}%`} detalhe="presentes ÷ previstos"
+          tom={stats.presencaMedia >= 90 ? 'bom' : stats.presencaMedia >= 70 ? 'atencao' : 'critico'} />
       </div>
 
-      {/* KPI Bento Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
-            <DollarSign className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Investimento Total</div>
-            <div className="text-md font-bold text-slate-800">
-              {stats.totalInvestido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-            <Clock className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Horas de Formação</div>
-            <div className="text-md font-bold text-slate-800">{stats.totalHorasFormacao.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} hrs</div>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-            <Users className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Colaboradores Qualificados</div>
-            <div className="text-md font-bold text-slate-800">{stats.totalQualificados} concluintes</div>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <GraduationCap className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Aproveitamento / Presença</div>
-            <div className="text-md font-bold text-slate-800">{stats.presencaMedia}%</div>
-          </div>
-        </div>
+      {/* Todo filtro é de múltipla escolha (regra de 08/10/2026). */}
+      <div className="filtros">
+        {sedeTravada
+          ? <span className="chip" title="Seu acesso é desta unidade">Unidade: <b>{userSede}</b></span>
+          : <FiltroMultiplo rotulo="Unidade" opcoes={unidadesList.map(u => ({ valor: u, rotulo: u }))} selecionados={unidadesSel} onChange={setUnidadesSel} todos="todas" />}
+        <FiltroMultiplo rotulo="Tipo" opcoes={tiposList.map(t => ({ valor: t, rotulo: t }))} selecionados={tiposSel} onChange={setTiposSel} />
+        <label className="campo-busca">
+          <Search aria-hidden="true" />
+          <input type="search" className="campo" placeholder="Buscar tema, facilitador ou público" aria-label="Buscar tema, facilitador ou público"
+            value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        </label>
       </div>
 
-      {/* Advanced Filter Desk */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-          <input aria-label="Pesquisar por Tema, Facilitador..."
-            type="text"
-            className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500"
-            placeholder="Pesquisar por Tema, Facilitador..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        <select aria-label="Todas as Unidades"
-          className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-          value={selectedUnidade}
-          onChange={(e) => setSelectedUnidade(e.target.value)}
-        >
-          <option value="">Todas as Unidades</option>
-          {unidadesList.map((u, i) => (
-            <option key={i} value={u}>{u}</option>
-          ))}
-        </select>
-
-        <select aria-label="Todos os Tipos de Conteúdo"
-          className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500"
-          value={selectedTipo}
-          onChange={(e) => setSelectedTipo(e.target.value)}
-        >
-          <option value="">Todos os Tipos de Conteúdo</option>
-          {tiposList.map((t, i) => (
-            <option key={i} value={t}>{t}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Training Bento Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-        {filteredList.length === 0 ? (
-          <div className="col-span-full text-center py-12 bg-white rounded-2xl border border-slate-200 text-slate-400 font-medium shadow-sm">
-            Nenhum treinamento registrado com esses termos.
-          </div>
-        ) : (
-          filteredList.map((t) => {
+      {filteredList.length === 0 ? (
+        <p className="painel text-center py-12 text-[14px]" style={{ color: 'var(--tinta-3)' }}>Nenhum treinamento com esses filtros.</p>
+      ) : (
+        <div className="grade-cartoes">
+          {filteredList.map((t) => {
             const presencaPct = t.qtdPrevista > 0 ? Math.round((t.qtdRealizada / t.qtdPrevista) * 100) : 100;
             return (
-              <div key={t.id} className="bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition flex flex-col overflow-hidden relative group">
-                <div className={`h-2 w-full ${
-                  t.tipo === 'Liderança' ? 'bg-orange-500' :
-                  t.tipo === 'Integração' ? 'bg-emerald-500' :
-                  t.tipo === 'Técnico' ? 'bg-blue-500' :
-                  'bg-slate-400'
-                }`}></div>
-                
-                <div className="p-5 flex-1 flex flex-col">
-                  {/* Card Header */}
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="pr-2">
-                      <span className="text-[10px] font-black uppercase text-slate-400 font-mono tracking-widest">
-                        Cód: #{t.codigo || 'S/N'}
-                      </span>
-                      <h3 className="font-bold text-slate-850 mt-1 leading-snug">{t.tema}</h3>
-                    </div>
-                    <span className={`shrink-0 inline-block px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-lg border ${
-                      t.tipo === 'Liderança' ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                      t.tipo === 'Integração' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                      t.tipo === 'Técnico' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                      'bg-slate-50 text-slate-600 border-slate-200'
-                    }`}>
-                      {t.tipo}
-                    </span>
+              <article key={t.id} className="painel cartao-item">
+                <div className="cartao-item-antes">
+                  <span>nº {t.codigo || 's/n'} · {t.unidade || 'sem unidade'}</span>
+                  <span className="etiqueta">{t.tipo}</span>
+                </div>
+                <h3>{t.tema}</h3>
+                <p className="cartao-item-meta">{t.dataInicio}{t.dataTermino ? ` a ${t.dataTermino}` : ''}</p>
+
+                <dl className="ficha mt-3">
+                  <div><dt>Facilitador</dt><dd className="truncate" title={t.facilitador}>{t.facilitador || '—'}</dd></div>
+                  <div><dt>Público</dt><dd className="truncate" title={t.publico}>{t.publico || '—'}</dd></div>
+                </dl>
+
+                <div className="mt-4">
+                  <div className="flex items-baseline justify-between text-[13px]" style={{ color: 'var(--tinta-2)' }}>
+                    <span><b className="tabular-nums" style={{ color: 'var(--tinta)' }}>{t.qtdRealizada}</b> de {t.qtdPrevista} participaram</span>
+                    <b className="tabular-nums" style={{ color: corDoAproveitamento(presencaPct) }}>{presencaPct}%</b>
                   </div>
-
-                  {/* Info flex items */}
-                  <div className="flex flex-wrap gap-x-4 gap-y-2 mb-4">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{t.dataInicio} {t.dataTermino ? `— ${t.dataTermino}` : ''}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{t.unidade}</span>
-                    </div>
-                  </div>
-
-                  {/* Facilitador & Publico */}
-                  <div className="grid grid-cols-2 gap-3 mb-5 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <div>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase">Facilitador</span>
-                      <p className="text-xs font-semibold text-slate-800 truncate" title={t.facilitador}>{t.facilitador}</p>
-                    </div>
-                    <div>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase">Público Alvo</span>
-                      <p className="text-xs font-semibold text-slate-800 truncate" title={t.publico}>{t.publico}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-auto">
-                    {/* Numbers / Progress */}
-                    <div className="flex items-end justify-between mb-1.5">
-                      <div>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Participação</span>
-                        <div className="text-sm font-extrabold text-slate-800">
-                          {t.qtdRealizada} <span className="text-xs font-medium text-slate-400">/ {t.qtdPrevista}</span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Aproveitamento</span>
-                        <div className={`text-sm font-black ${presencaPct >= 90 ? 'text-emerald-600' : presencaPct >= 70 ? 'text-amber-500' : 'text-rose-500'}`}>
-                          {presencaPct}%
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mb-4">
-                      <div 
-                        className={`h-full rounded-full ${presencaPct >= 90 ? 'bg-emerald-500' : presencaPct >= 70 ? 'bg-amber-500' : 'bg-rose-500'}`}
-                        style={{ width: `${Math.min(presencaPct, 100)}%` }}
-                      ></div>
-                    </div>
-
-                    <div className="flex justify-between items-center pt-3 border-t border-slate-100">
-                      <div className="flex flex-col">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Carga</span>
-                        <span className="text-xs font-bold text-slate-700">{t.cargaHoraria}h / {(t.totalHorasFormacao || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}h Total</span>
-                      </div>
-                      <div className="flex flex-col text-right">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Custo (<span className="capitalize">{t.mesReferencia}</span>)</span>
-                        <span className="text-[13px] font-mono font-bold text-slate-800">
-                          {t.valorInvestido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </span>
-                      </div>
-                    </div>
+                  <div className="barra-fina mt-1.5" aria-hidden="true">
+                    <span style={{ width: `${Math.min(presencaPct, 100)}%`, background: corDoAproveitamento(presencaPct) }} />
                   </div>
                 </div>
+
+                <p className="mt-3 flex justify-between gap-3 text-[13px]" style={{ color: 'var(--tinta-2)' }}>
+                  <span>{t.cargaHoraria}h por pessoa · {(t.totalHorasFormacao || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}h no total</span>
+                  <b className="tabular-nums shrink-0" style={{ color: 'var(--tinta)' }} title={`Custo (${t.mesReferencia})`}>
+                    {t.valorInvestido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </b>
+                </p>
 
                 {canManage && (
-                  <>
-                <button
-                  onClick={() => openEditForm(t)}
-                  className="absolute top-4 right-14 p-1.5 bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 rounded-xl cursor-pointer transition shadow-sm z-10"
-                  title="Editar"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-
-                {/* Delete button (displays clearly for explicit manual cleanups) */}
-                <button
-                  onClick={() => {
-                    if (confirmAction) {
-                      confirmAction(
-                        "Excluir Treinamento",
-                        `Remover "${t.tema}"? Esta ação removerá os dados dos indicadores globais.`,
-                        () => deleteTreinamento(t.id)
-                      );
-                    } else {
-                      if (confirm(`Remover permanentemente "${t.tema}"?`)) {
-                        deleteTreinamento(t.id);
-                      }
-                    }
-                  }}
-                  className="absolute top-4 right-4 p-1.5 bg-white border border-rose-200 text-rose-500 hover:bg-rose-50 rounded-xl cursor-pointer transition shadow-sm z-10"
-                  title="Excluir"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-                  </>
+                  <div className="cartao-item-acoes mt-auto">
+                    <button type="button" className="btn-texto inline-flex items-center gap-1.5" onClick={() => openEditForm(t)}>
+                      <Pencil className="w-3.5 h-3.5" aria-hidden="true" /> Editar
+                    </button>
+                    <button type="button" className="btn-texto inline-flex items-center gap-1.5" style={{ color: 'var(--atraso)' }}
+                      onClick={() => {
+                        if (confirmAction) {
+                          confirmAction('Excluir treinamento', `Remover "${t.tema}"? Ele sai também dos Indicadores.`, () => deleteTreinamento(t.id));
+                        } else if (confirm(`Remover permanentemente "${t.tema}"?`)) {
+                          deleteTreinamento(t.id);
+                        }
+                      }}>
+                      <Trash2 className="w-3.5 h-3.5" aria-hidden="true" /> Excluir
+                    </button>
+                  </div>
                 )}
-              </div>
+              </article>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
 
-      {/* PopUp Creation Form Modal */}
       {showAddForm && (
-        <div className="fixed inset-0 bg-slate-900/65 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="p-5 bg-slate-950 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <GraduationCap className="w-5 h-5 text-orange-500" />
-                <h3 className="text-lg font-bold">{editingTreinamento ? 'Editar Treinamento' : 'Registrar Novo Treinamento'}</h3>
-              </div>
-              <button 
-                onClick={() => { resetForm(); setShowAddForm(false); }} 
-                className="text-slate-400 hover:text-white font-bold text-2xl cursor-pointer leading-none"
-              >
-                &times;
-              </button>
+        <Modal
+          titulo={editingTreinamento ? 'Editar treinamento' : 'Registrar treinamento'}
+          antes={editingTreinamento ? <>nº {editingTreinamento.codigo || 's/n'}</> : undefined}
+          aoFechar={fecharForm}
+          rodape={<>
+            <button type="button" className="btn" onClick={fecharForm}>Cancelar</button>
+            <button type="submit" form="form-treinamento" className="btn btn-primario">{editingTreinamento ? 'Salvar alterações' : 'Registrar'}</button>
+          </>}
+        >
+          <form id="form-treinamento" onSubmit={handleSubmit} className="space-y-4">
+            {errorMsg && <p role="alert" className="erro-form">{errorMsg}</p>}
+            <label className="block">
+              <span className="rotulo">Tema *</span>
+              <input type="text" required className="campo w-full" placeholder="Ex.: LNT e processo de promoções"
+                value={tema} onChange={(e) => setTema(e.target.value)} />
+            </label>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label className="block">
+                <span className="rotulo">Início *</span>
+                <input type="date" required className="campo w-full" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Término</span>
+                <input type="date" className="campo w-full" value={dataTermino} onChange={(e) => setDataTermino(e.target.value)} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Mês de referência</span>
+                <input type="text" className="campo w-full capitalize placeholder:normal-case" placeholder={`Automático: ${autoRefMonth}`}
+                  value={mesReferenciaOverride} onChange={(e) => setMesReferenciaOverride(e.target.value)} />
+              </label>
             </div>
 
-            {/* Modal Form */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-              {errorMsg && (
-                <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-semibold border border-red-100 flex items-center gap-2">
-                  <span className="w-5 h-5 flex items-center justify-center bg-red-100 rounded-full text-red-700 font-bold shrink-0">!</span>
-                  {errorMsg}
-                </div>
-              )}
-              <div>
-                <label htmlFor="tre-tema-da-qualificacao" className="block text-xs font-bold text-slate-500 uppercase mb-1">Tema da Qualificação *</label>
-                <input id="tre-tema-da-qualificacao"
-                  type="text"
-                  required
-                  placeholder="Ex: Treinamento LNT e Processo de Promoções"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl font-medium"
-                  value={tema}
-                  onChange={(e) => setTema(e.target.value)}
-                />
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block">
+                <span className="rotulo">Tipo</span>
+                <select className="campo w-full" value={tipo} onChange={(e) => setTipo(e.target.value as Treinamento['tipo'])}>
+                  {tiposList.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="rotulo">Facilitador *</span>
+                <input type="text" required className="campo w-full" placeholder="Ex.: Arlana Carvalho (RH)"
+                  value={facilitador} onChange={(e) => setFacilitador(e.target.value)} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Unidade</span>
+                <select className="campo w-full" value={unidade} onChange={(e) => setUnidade(e.target.value)}>
+                  {unidade && !unidadesList.includes(unidade) && <option value={unidade}>{unidade}</option>}
+                  {unidadesList.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="rotulo">Carga horária por pessoa (h)</span>
+                <input type="number" min={0} className="campo w-full tabular-nums" value={cargaHoraria} onChange={(e) => setCargaHoraria(Number(e.target.value))} />
+              </label>
+            </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data de Início *</label>
-                  <div className="relative">
-                    <input aria-label="Data de término"
-                      type="date"
-                      required
-                      className="w-full pl-8 pr-2 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl cursor-pointer"
-                      value={dataInicio}
-                      onChange={(e) => setDataInicio(e.target.value)}
-                    />
-                    <Calendar className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                  </div>
-                </div>
+            <label className="block">
+              <span className="rotulo">Público</span>
+              <input type="text" className="campo w-full" placeholder="Ex.: auxiliares e analistas"
+                value={publico} onChange={(e) => setPublico(e.target.value)} />
+            </label>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data Término</label>
-                  <div className="relative">
-                    <input aria-label="Data de término"
-                      type="date"
-                      className="w-full pl-8 pr-2 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl cursor-pointer"
-                      value={dataTermino}
-                      onChange={(e) => setDataTermino(e.target.value)}
-                    />
-                    <Calendar className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="tre-mes-ref-opcional" className="block text-xs font-bold text-slate-500 uppercase mb-1">Mês Ref. (Opcional)</label>
-                  <input id="tre-mes-ref-opcional"
-                    type="text"
-                    placeholder={`Auto (${autoRefMonth})`}
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl capitalize placeholder:lowercase"
-                    value={mesReferenciaOverride}
-                    onChange={(e) => setMesReferenciaOverride(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="tre-tipo-de-conteudo" className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Conteúdo</label>
-                  <select id="tre-tipo-de-conteudo"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={tipo}
-                    onChange={(e) => setTipo(e.target.value as Treinamento['tipo'])}
-                  >
-                    {tiposList.map((t, idx) => (
-                      <option key={idx} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="tre-facilitador-palestrante" className="block text-xs font-bold text-slate-500 uppercase mb-1">Facilitador / Palestrante *</label>
-                  <input id="tre-facilitador-palestrante"
-                    type="text"
-                    required
-                    placeholder="Ex: Arlana Carvalho (RH)"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={facilitador}
-                    onChange={(e) => setFacilitador(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="tre-carga-horaria-sessao" className="block text-xs font-bold text-slate-500 uppercase mb-1">Carga Horária (Sessão)</label>
-                  <input id="tre-carga-horaria-sessao"
-                    type="number"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={cargaHoraria}
-                    onChange={(e) => setCargaHoraria(Number(e.target.value))}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="tre-unidade-sede" className="block text-xs font-bold text-slate-500 uppercase mb-1">Unidade / Sede</label>
-                  <select id="tre-unidade-sede"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={unidade}
-                    onChange={(e) => setUnidade(e.target.value)}
-                  >
-                    {unidadesList.map((u, i) => (
-                      <option key={i} value={u}>{u}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="tre-publico-alvo-participantes" className="block text-xs font-bold text-slate-500 uppercase mb-1">Público Alvo / Participantes</label>
-                <input id="tre-publico-alvo-participantes"
-                  type="text"
-                  placeholder="Ex: Auxiliares e Analistas Gerais"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                  value={publico}
-                  onChange={(e) => setPublico(e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 mt-4">
-                <div>
-                  <label htmlFor="tre-qtd-prevista" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Qtd Prevista</label>
-                  <input id="tre-qtd-prevista"
-                    type="number"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                    value={qtdPrevista}
-                    onChange={(e) => setQtdPrevista(Number(e.target.value))}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="tre-qtd-realizada" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Qtd Realizada</label>
-                  <input id="tre-qtd-realizada"
-                    type="number"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                    value={qtdRealizada}
-                    onChange={(e) => setQtdRealizada(Number(e.target.value))}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="tre-valor-investido" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Valor Investido</label>
-                  <input id="tre-valor-investido"
-                    type="number"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                    value={valorInvestido}
-                    onChange={(e) => setValorInvestido(Number(e.target.value))}
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => { resetForm(); setShowAddForm(false); }}
-                  className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-sm font-bold rounded-xl text-slate-600 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-sm font-bold rounded-xl text-white shadow-lg shadow-orange-500/20 cursor-pointer"
-                >
-                  {editingTreinamento ? 'Atualizar Treinamento' : 'Salvar Treinamento'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+            <div className="grid grid-cols-3 gap-3">
+              <label className="block">
+                <span className="rotulo">Previstos</span>
+                <input type="number" min={0} className="campo w-full tabular-nums" value={qtdPrevista} onChange={(e) => setQtdPrevista(Number(e.target.value))} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Participaram</span>
+                <input type="number" min={0} className="campo w-full tabular-nums" value={qtdRealizada} onChange={(e) => setQtdRealizada(Number(e.target.value))} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Valor (R$)</span>
+                <input type="number" min={0} step="0.01" className="campo w-full tabular-nums" value={valorInvestido} onChange={(e) => setValorInvestido(Number(e.target.value))} />
+              </label>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

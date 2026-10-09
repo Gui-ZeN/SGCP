@@ -8,39 +8,26 @@ import { Entrevista } from '../types';
 import { MOTIVOS_SAIDA } from '../constants/hr';
 import { toISOInput, formatDateBR } from '../utils/date';
 import { exportToXlsx } from '../utils/xlsxExporter';
-import {
-  HeartCrack,
-  Search,
-  User,
-  PlusCircle,
-  Star,
-  Calendar,
-  Eye,
-  Trash2,
-  Pencil,
-  ThumbsUp,
-  ThumbsDown,
-  MessageSquare,
-  Download,
-  Link2,
-  Check
-} from 'lucide-react';
+import { Search, Plus, Star, Trash2, Pencil, Download, Link2, Check } from 'lucide-react';
+import { Modal } from './ui/Modal';
+import { FiltroMultiplo } from './ui/FiltroMultiplo';
+import { Kpi } from './indicadores/ui';
 
 const StarRatingInput = ({ value, onChange, label }: { value: number, onChange: (val: number) => void, label: string }) => {
   const [hoverValue, setHoverValue] = useState<number | null>(null);
   const displayValue = hoverValue !== null ? hoverValue : value;
 
   return (
-    <div className="flex flex-col bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm transition hover:border-slate-200">
-      <label className="block text-[10px] text-slate-500 font-bold uppercase mb-2 tracking-wider">{label}</label>
-      <div 
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-[13.5px]" style={{ color: 'var(--tinta-2)' }}>{label}</span>
+      <div
         className="flex items-center gap-1.5"
         onMouseLeave={() => setHoverValue(null)}
       >
         {[1, 2, 3, 4, 5].map((star) => {
           const isFull = displayValue >= star;
           const isHalf = displayValue >= star - 0.5 && displayValue < star;
-          
+
           return (
             <div
               key={star}
@@ -56,13 +43,13 @@ const StarRatingInput = ({ value, onChange, label }: { value: number, onChange: 
                 }
               }}
             >
-              <Star className="w-7 h-7 text-slate-200 fill-slate-100" />
+              <Star className="w-6 h-6 text-slate-200 fill-slate-100" />
               {(isFull || isHalf) && (
-                <div 
+                <div
                   className="absolute top-0 left-0 overflow-hidden pointer-events-none"
                   style={{ width: isHalf ? '50%' : '100%' }}
                 >
-                  <Star className="w-7 h-7 text-amber-400 fill-amber-400 drop-shadow-sm" />
+                  <Star className="w-6 h-6 text-amber-400 fill-amber-400" />
                 </div>
               )}
             </div>
@@ -95,6 +82,9 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
   canManage = true
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  // Todo filtro é de múltipla escolha (regra de 08/10/2026); nada marcado = todos.
+  const [unidadesSel, setUnidadesSel] = useState<string[]>([]);
+  const [motivosSel, setMotivosSel] = useState<string[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [viewingRecord, setViewingRecord] = useState<Entrevista | null>(null);
   const [editingEntrevista, setEditingEntrevista] = useState<Entrevista | null>(null);
@@ -137,7 +127,7 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
     // indicador — visível desde que o formulário público permite pular notas.
     const media = (pegar: (e: Entrevista) => number) => {
       const notas = relevantEntrevistas.map(pegar).filter(n => n > 0);
-      return notas.length ? (notas.reduce((a, b) => a + b, 0) / notas.length).toFixed(1) : '—';
+      return notas.length ? (notas.reduce((a, b) => a + b, 0) / notas.length).toFixed(1).replace('.', ',') : '—';
     };
     const totalSimVoltaria = relevantEntrevistas.filter(e => e.voltaria === 'Sim').length;
     const count = relevantEntrevistas.length || 1;
@@ -213,15 +203,23 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
     setShowAddForm(true);
   };
 
-  // Filtered
+  /** "Outros: mudou de cidade" conta como "Outros" no filtro. */
+  const motivoBase = (m?: string) => (m || '').startsWith('Outros') ? 'Outros' : (m || 'Não informado');
+  const opcoesUnidade = useMemo(() => [...new Set(relevantEntrevistas.map(e => e.unidade).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'pt-BR')).map(u => ({ valor: u, rotulo: u })), [relevantEntrevistas]);
+  const opcoesMotivo = useMemo(() => [...new Set(relevantEntrevistas.map(e => motivoBase(e.motivoSaida)))]
+    .sort((a, b) => a.localeCompare(b, 'pt-BR')).map(m => ({ valor: m, rotulo: m })), [relevantEntrevistas]);
+
   const filteredList = useMemo(() => {
-    return relevantEntrevistas.filter(e => {
-      return !searchTerm.trim() || 
-        e.colaborador.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        e.funcao.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        e.motivoSaida.toLowerCase().includes(searchTerm.toLowerCase());
-    });
-  }, [relevantEntrevistas, searchTerm]);
+    const termo = searchTerm.trim().toLowerCase();
+    return relevantEntrevistas.filter(e =>
+      (!unidadesSel.length || unidadesSel.includes(e.unidade)) &&
+      (!motivosSel.length || motivosSel.includes(motivoBase(e.motivoSaida))) &&
+      (!termo ||
+        e.colaborador.toLowerCase().includes(termo) ||
+        e.funcao.toLowerCase().includes(termo) ||
+        e.motivoSaida.toLowerCase().includes(termo)));
+  }, [relevantEntrevistas, searchTerm, unidadesSel, motivosSel]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -236,7 +234,7 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
     const formattedAdm = formatDateBR(admissao);
     const formattedDes = formatDateBR(desligamento);
 
-    const finalMotivo = motivoSaida === 'Outros' && motivoSaidaOutro.trim() 
+    const finalMotivo = motivoSaida === 'Outros' && motivoSaidaOutro.trim()
       ? `Outros: ${motivoSaidaOutro.trim()}`
       : motivoSaida;
 
@@ -285,7 +283,7 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
             <div key={star} className="relative">
               <Star className="w-3.5 h-3.5 text-slate-200 fill-slate-100" />
               {(isFull || isHalf) && (
-                <div 
+                <div
                   className="absolute top-0 left-0 overflow-hidden pointer-events-none"
                   style={{ width: isHalf ? '50%' : '100%' }}
                 >
@@ -366,549 +364,263 @@ export const EntrevistasSection: React.FC<EntrevistasSectionProps> = ({
     setTimeout(() => setLinkCopiado(false), 2000);
   };
 
+  const fecharForm = () => { resetForm(); setShowAddForm(false); };
+  const quemRespondeu = (e: Entrevista) =>
+    e.anonima ? 'Anônima' : e.origem === 'form-publico' ? 'Pelo próprio colaborador' : `RH · ${e.entrevistador || 'RH'}`;
+  const corDaResposta = (r?: string) =>
+    r === 'Sim' ? 'var(--etapa-admissao)' : r === 'Não' ? 'var(--atraso)' : 'var(--etapa-triagem)';
+  const nota = (n?: number) => (n ? n.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—');
+  const excluir = (e: Entrevista) => {
+    if (confirmAction) {
+      confirmAction('Excluir entrevista', `Remover a entrevista de "${e.colaborador}"? As respostas não podem ser recuperadas.`, () => deleteEntrevista(e.id));
+    } else if (confirm(`Remover definitivamente o registro de entrevista de ${e.colaborador}?`)) {
+      deleteEntrevista(e.id);
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
-        <div>
-          <h2 className="text-xl font-bold text-slate-850 flex items-center gap-2">
-            <HeartCrack className="w-6 h-6 text-rose-500" />
-            Entrevistas de Desligamento (Exit Interviews)
-          </h2>
-          <p className="text-slate-500 text-sm font-medium">Investigue motivos de saídas, colete sugestões e estude o nível de satisfação organizacional.</p>
+    <div className="space-y-5">
+      <header className="pagina-cab">
+        <div className="min-w-0">
+          <p className="pagina-trilha">Pessoas</p>
+          <h1 className="pagina-titulo">Entrevistas de desligamento</h1>
+          <p className="inicio-sub">Por que as pessoas saem, o que diriam do clima e se voltariam.</p>
         </div>
-        <div className="flex items-center gap-2 self-start">
-          <button
-            onClick={handleExportEntrevistas}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded-xl text-xs font-bold uppercase tracking-wider border border-slate-250 flex items-center gap-1.5 cursor-pointer transition-colors"
-            title="Baixar planilha Excel (.xlsx)"
-          >
-            <Download className="w-3.5 h-3.5 text-emerald-600" />
-            Exportar Excel
+        <div className="pagina-acoes">
+          <button type="button" className="btn" onClick={handleExportEntrevistas} title="Baixar planilha Excel (.xlsx)">
+            <Download aria-hidden="true" /> Exportar
           </button>
           {canManage && (
-            <button
-              onClick={copiarLinkForm}
-              title={linkForm}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border flex items-center gap-1.5 cursor-pointer transition-colors ${linkCopiado ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 hover:bg-slate-200 text-slate-750 border-slate-250'}`}
-            >
-              {linkCopiado ? <><Check className="w-3.5 h-3.5" /> Copiado!</> : <><Link2 className="w-3.5 h-3.5" /> Link do formulário</>}
+            <button type="button" className="btn" onClick={copiarLinkForm} title={linkForm}>
+              {linkCopiado ? <><Check aria-hidden="true" /> Link copiado</> : <><Link2 aria-hidden="true" /> Link do formulário</>}
             </button>
           )}
           {canManage && (
-            <button
-              onClick={openCreateForm}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Registrar Entrevista
+            <button type="button" className="btn btn-primario" onClick={openCreateForm}>
+              <Plus aria-hidden="true" /> Registrar entrevista
             </button>
           )}
         </div>
+      </header>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi rotulo="Clima da organização" valor={stats.climaMedio} unidade="de 5" detalhe={`média de ${stats.totalEntrevistadas} entrevistas`} />
+        <Kpi rotulo="Salário" valor={stats.salarioMedio} unidade="de 5" />
+        <Kpi rotulo="Crescimento" valor={stats.crescimentoMedio} unidade="de 5" />
+        <Kpi rotulo="Voltariam a trabalhar" valor={`${stats.retornoPct}%`} detalhe="responderam Sim"
+          tom={stats.retornoPct >= 60 ? 'bom' : stats.retornoPct >= 40 ? 'atencao' : 'critico'} />
       </div>
 
-      {/* Stats Bento Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Média Clima Org.</div>
-          <div className="text-md font-bold text-slate-800 flex items-center gap-1.5 mt-1">
-            <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
-            {stats.climaMedio} / 5
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Média Salários</div>
-          <div className="text-md font-bold text-slate-800 flex items-center gap-1.5 mt-1">
-            <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
-            {stats.salarioMedio} / 5
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Média Crescimento</div>
-          <div className="text-md font-bold text-slate-800 flex items-center gap-1.5 mt-1">
-            <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
-            {stats.crescimentoMedio} / 5
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Voltariam a Trabalhar (%)</div>
-          <div className="text-md font-bold text-slate-800 mt-1 flex items-center gap-1.5">
-            <ThumbsUp className="w-4 h-4 text-emerald-500" />
-            {stats.retornoPct}% diriam Sim
-          </div>
-        </div>
-      </div>
-
-      {/* Research Search */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-          <input aria-label="Pesquisar por Colaborador expulso, função ou motivo..."
-            type="text"
-            className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500"
-            placeholder="Pesquisar por Colaborador expulso, função ou motivo..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Exit list */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredList.length === 0 ? (
-          <div className="col-span-2 bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400 font-medium">
-            Nenhuma entrevista de desligamento arquivada.
-          </div>
-        ) : (
-          filteredList.map((e) => (
-            <div key={e.id} className="bg-white p-5 rounded-2xl border border-slate-200 hover:border-slate-350 transition flex flex-col justify-between space-y-4">
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[10px] uppercase bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-bold">
-                    #{e.codigo || 300}
-                  </span>
-                  <span className="text-xs text-slate-400 flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5" /> {e.dataEntrevista}
-                  </span>
-                </div>
-
-                <h3 className="text-md font-bold text-slate-800 mt-2">{e.colaborador}</h3>
-                <p className="text-xs text-slate-400 font-semibold">{e.funcao} • {e.unidade}</p>
-
-                <div className="mt-3.5 bg-rose-50/50 p-2.5 rounded-xl border border-rose-100 text-xs text-rose-800 font-medium">
-                  <strong>Motivo de Saída:</strong> {e.motivoSaida}
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-x-2 gap-y-1.5 text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl">
-                  <div className="flex items-center justify-between">
-                    <span>Clima:</span>
-                    {renderStars(e.notaClimaOrg)}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Salário:</span>
-                    {renderStars(e.notaSalario)}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Carreira:</span>
-                    {renderStars(e.notaCrescimento)}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Liderança:</span>
-                    {renderStars(e.notaRelacionamentoChefia)}
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-3.5 border-t border-slate-100 flex items-center justify-between">
-                {e.anonima ? (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5">
-                    Resposta anônima
-                  </span>
-                ) : e.origem === 'form-publico' ? (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
-                    Respondida pelo colaborador
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Entrevistador: <strong>{e.entrevistador || 'RH'}</strong>
-                  </span>
-                )}
-
-                <div className="flex items-center gap-2">
-                  {canManage && (
-                    <>
-                  <button
-                    onClick={() => setViewingRecord(e)}
-                    className="p-1 px-2.5 border border-slate-200 hover:bg-slate-50 hover:border-slate-350 text-xs font-bold rounded-lg text-slate-600 flex items-center gap-1 cursor-pointer transition"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-slate-400" />
-                    Ver Detalhes
-                  </button>
-                  <button
-                    onClick={() => openEditForm(e)}
-                    className="p-1 px-2.5 border border-slate-200 hover:bg-slate-50 hover:border-slate-350 text-xs font-bold rounded-lg text-slate-600 flex items-center gap-1 cursor-pointer transition"
-                  >
-                    <Pencil className="w-3.5 h-3.5 text-slate-400" />
-                    Editar
-                  </button>
-                    </>
-                  )}
-                  <button
-                    onClick={() => {
-                      if (confirmAction) {
-                        confirmAction(
-                          "Excluir Entrevista de Desligamento",
-                          `Deseja realmente remover definitivamente a ficha e as respostas de entrevista de desligamento do colaborador "${e.colaborador}"? Esta operação não pode ser revertida.`,
-                          () => deleteEntrevista(e.id)
-                        );
-                      } else {
-                        if (confirm(`Remover definitivamente o registro de entrevista de ${e.colaborador}?`)) {
-                          deleteEntrevista(e.id);
-                        }
-                      }
-                    }}
-                    className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg cursor-pointer transition"
-                    title="Excluir"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))
+      {/* Todo filtro é de múltipla escolha (regra de 08/10/2026). */}
+      <div className="filtros">
+        {opcoesUnidade.length > 1 && (
+          <FiltroMultiplo rotulo="Unidade" opcoes={opcoesUnidade} selecionados={unidadesSel} onChange={setUnidadesSel} todos="todas" />
         )}
+        <FiltroMultiplo rotulo="Motivo" opcoes={opcoesMotivo} selecionados={motivosSel} onChange={setMotivosSel} />
+        <label className="campo-busca">
+          <Search aria-hidden="true" />
+          <input type="search" className="campo" placeholder="Buscar nome, função ou motivo" aria-label="Buscar nome, função ou motivo"
+            value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        </label>
       </div>
 
-      {/* Record details popup */}
-      {viewingRecord && (
-        <div className="fixed inset-0 bg-slate-900/65 flex items-center justify-center p-4 z-50 backdrop-blur-sm shadow-2xl">
-          <div className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="p-5 bg-slate-950 text-white flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-mono uppercase bg-rose-500 text-white px-2 py-0.5 rounded-md font-bold">
-                  Exit Interview #{viewingRecord.codigo}
-                </span>
-                <h3 className="text-lg font-bold mt-1">{viewingRecord.colaborador}</h3>
-              </div>
-              {canManage && (
-              <button
-                onClick={() => openEditForm(viewingRecord)}
-                className="text-xs bg-white/10 hover:bg-white/15 text-white font-bold px-3 py-1.5 rounded-xl cursor-pointer transition mr-3"
-              >
-                Editar
-              </button>
-              )}
-              <button 
-                onClick={() => setViewingRecord(null)} 
-                className="text-slate-400 hover:text-white font-bold text-2xl cursor-pointer leading-none"
-              >
-                &times;
-              </button>
-            </div>
-
-            {/* Details report */}
-            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div>
-                  <span className="block font-bold text-slate-400 uppercase">Período</span>
-                  <span className="text-slate-800 font-medium">Admissão: {viewingRecord.admissao || 'Não inf.'} | Desligamento: {viewingRecord.desligamento || 'Não inf.'}</span>
-                </div>
-                <div>
-                  <span className="block font-bold text-slate-400 uppercase">Unidade</span>
-                  <span className="text-slate-800 font-semibold">{viewingRecord.unidade}</span>
-                </div>
-              </div>
-
-              <div className="bg-rose-50 p-3.5 rounded-2xl border border-rose-150 text-slate-800">
-                <span className="block text-[10px] uppercase font-bold text-rose-500 tracking-wider mb-0.5">Por quais motivos está saindo da empresa?</span>
-                <p className="text-sm font-semibold">{viewingRecord.motivoSaida}</p>
-              </div>
-
-              <div>
-                <span className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Avaliação de Atributos (1 a 5)</span>
-                <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <div className="flex justify-between items-center"><span className="pr-2">Satisfeito com salário:</span> {renderStars(viewingRecord.notaSalario)}</div>
-                  <div className="flex justify-between items-center"><span className="pr-2">Satisfeito com treinamentos:</span> {renderStars(viewingRecord.notaTreinamento)}</div>
-                  <div className="flex justify-between items-center"><span className="pr-2">Oportunidades de crescimento:</span> {renderStars(viewingRecord.notaCrescimento)}</div>
-                  <div className="flex justify-between items-center"><span className="pr-2">Relacionamento colegas:</span> {renderStars(viewingRecord.notaRelacionamentoColegas)}</div>
-                  <div className="flex justify-between items-center"><span className="pr-2">Relacionamento chefia:</span> {renderStars(viewingRecord.notaRelacionamentoChefia)}</div>
-                  <div className="flex justify-between items-center"><span className="pr-2">Clima da organização:</span> {renderStars(viewingRecord.notaClimaOrg)}</div>
-                </div>
-              </div>
-
-              <div className="space-y-3.5 text-xs">
-                <div className="flex items-center justify-between text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-100 font-bold">
-                  <span>Você gostava de seu trabalho?</span>
-                  <span className={`px-2.5 py-1 rounded bg-white text-[10px] uppercase tracking-wider ${
-                    viewingRecord.gostavaTrabalho === 'Sim' ? 'text-emerald-600' :
-                    viewingRecord.gostavaTrabalho === 'Não' ? 'text-rose-600' :
-                    'text-amber-500'
-                  }`}>
-                    {viewingRecord.gostavaTrabalho}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="block font-semibold text-slate-500 flex items-center gap-1.5">
-                    <ThumbsUp className="w-3.5 h-3.5 text-slate-400" />
-                    O que você mais gostava em seu trabalho?
-                  </span>
-                  <p className="bg-slate-50 p-2.5 rounded-xl text-slate-800 italic mt-1 leading-relaxed">
-                    "{viewingRecord.oqMaisGostava || 'Nenhum ponto destacado.'}"
-                  </p>
-                </div>
-
-                <div>
-                  <span className="block font-semibold text-slate-500 flex items-center gap-1.5">
-                    <ThumbsDown className="w-3.5 h-3.5 text-slate-400" />
-                    O que você menos gostava em seu trabalho?
-                  </span>
-                  <p className="bg-slate-50 p-2.5 rounded-xl text-slate-800 italic mt-1 leading-relaxed">
-                    "{viewingRecord.oqMenosGostava || 'Nenhum ponto destacado.'}"
-                  </p>
-                </div>
-
-                {viewingRecord.sugestoes && (
-                  <div>
-                    <span className="block font-semibold text-slate-500 flex items-center gap-1.5">
-                      <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
-                      Sugestões para o futuro:
+      <section className="painel overflow-hidden" aria-label="Entrevistas">
+        {filteredList.length === 0 ? (
+          <p className="text-center py-12 text-[14px]" style={{ color: 'var(--tinta-3)' }}>Nenhuma entrevista com esses filtros.</p>
+        ) : (
+          // Sem rolagem de lado (regra de 08/10/2026): em tela estreita, cartão.
+          <table className="tabela tabela-empilha">
+            <thead>
+              <tr>
+                <th scope="col">Quem saiu</th>
+                <th scope="col">Entrevista</th>
+                <th scope="col">Motivo</th>
+                <th scope="col" className="num-col">Clima</th>
+                <th scope="col">Voltaria?</th>
+                <th scope="col"><span className="sr-only">Ações</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredList.map((e) => (
+                <tr key={e.id}>
+                  <td>
+                    <span>
+                      <button type="button" className="font-semibold text-left hover:underline" onClick={() => setViewingRecord(e)}>{e.colaborador}</button>
+                      <span className="sub">{[e.funcao, e.unidade].filter(Boolean).join(' · ')}</span>
                     </span>
-                    <p className="bg-slate-50 p-2.5 rounded-xl text-slate-800 italic mt-1 leading-relaxed">
-                      "{viewingRecord.sugestoes}"
-                    </p>
-                  </div>
-                )}
+                  </td>
+                  <td className="whitespace-nowrap" data-rotulo="Entrevista">
+                    <span>{e.dataEntrevista}<span className="sub">{quemRespondeu(e)}</span></span>
+                  </td>
+                  <td data-rotulo="Motivo">{e.motivoSaida}</td>
+                  <td className="num-col" data-rotulo="Clima">{nota(e.notaClimaOrg)}</td>
+                  <td data-rotulo="Voltaria?"><b style={{ color: corDaResposta(e.voltaria) }}>{e.voltaria || '—'}</b></td>
+                  <td className="text-right whitespace-nowrap">
+                    <span className="inline-flex gap-1.5">
+                      <button type="button" className="btn btn-sm" onClick={() => setViewingRecord(e)}>Ver</button>
+                      {canManage && <button type="button" className="btn btn-sm" onClick={() => openEditForm(e)}>Editar</button>}
+                      {canManage && <button type="button" className="btn btn-sm btn-perigo" onClick={() => excluir(e)} aria-label={`Excluir entrevista de ${e.colaborador}`}><Trash2 aria-hidden="true" /></button>}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
 
-                <div className="bg-slate-900 text-white p-3.5 rounded-2xl flex items-center justify-between text-xs font-bold">
-                  <span>Voltaria a trabalhar conosco?</span>
-                  <span className={`px-2.5 py-1 rounded bg-white font-bold uppercase tracking-wider ${
-                    viewingRecord.voltaria === 'Sim' ? 'text-emerald-600' :
-                    viewingRecord.voltaria === 'Não' ? 'text-rose-600' :
-                    'text-blue-600'
-                  }`}>
-                    {viewingRecord.voltaria}
-                  </span>
+      {viewingRecord && (
+        <Modal
+          titulo={viewingRecord.colaborador}
+          antes={<>Entrevista nº {viewingRecord.codigo} · {viewingRecord.dataEntrevista}</>}
+          aoFechar={() => setViewingRecord(null)}
+          rodape={canManage ? <>
+            <button type="button" className="btn" onClick={() => setViewingRecord(null)}>Fechar</button>
+            <button type="button" className="btn btn-primario" onClick={() => openEditForm(viewingRecord)}><Pencil aria-hidden="true" /> Editar</button>
+          </> : undefined}
+        >
+          <section className="secao">
+            <dl className="ficha">
+              <div><dt>Função</dt><dd>{viewingRecord.funcao || '—'}</dd></div>
+              <div><dt>Unidade</dt><dd>{viewingRecord.unidade || '—'}</dd></div>
+              <div><dt>Admissão</dt><dd>{viewingRecord.admissao || 'não informada'}</dd></div>
+              <div><dt>Desligamento</dt><dd>{viewingRecord.desligamento || 'não informado'}</dd></div>
+              <div className="larga"><dt>Por que está saindo</dt><dd>{viewingRecord.motivoSaida}</dd></div>
+              <div><dt>Gostava do trabalho?</dt><dd style={{ color: corDaResposta(viewingRecord.gostavaTrabalho) }}>{viewingRecord.gostavaTrabalho}</dd></div>
+              <div><dt>Voltaria a trabalhar conosco?</dt><dd style={{ color: corDaResposta(viewingRecord.voltaria) }}>{viewingRecord.voltaria}</dd></div>
+              <div className="larga"><dt>Quem respondeu</dt><dd>{quemRespondeu(viewingRecord)}</dd></div>
+            </dl>
+          </section>
+          <section className="secao">
+            <h3 className="secao-titulo">Notas <small>de 1 a 5</small></h3>
+            <dl className="ficha">
+              {([
+                ['Salário', viewingRecord.notaSalario],
+                ['Treinamentos', viewingRecord.notaTreinamento],
+                ['Crescimento', viewingRecord.notaCrescimento],
+                ['Colegas', viewingRecord.notaRelacionamentoColegas],
+                ['Chefia', viewingRecord.notaRelacionamentoChefia],
+                ['Clima da organização', viewingRecord.notaClimaOrg],
+              ] as const).map(([r, n]) => (
+                <div key={r} className="flex items-center justify-between gap-3">
+                  <dt>{r}</dt>
+                  <dd className="flex items-center gap-2 m-0">{renderStars(n)}<span className="tabular-nums w-6 text-right">{nota(n)}</span></dd>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
+              ))}
+            </dl>
+          </section>
+          <section className="secao">
+            <h3 className="secao-titulo">Nas palavras de quem saiu</h3>
+            <dl className="ficha">
+              <div className="larga"><dt>O que mais gostava</dt><dd className="font-medium">{viewingRecord.oqMaisGostava || '—'}</dd></div>
+              <div className="larga"><dt>O que menos gostava</dt><dd className="font-medium">{viewingRecord.oqMenosGostava || '—'}</dd></div>
+              <div className="larga"><dt>Sugestões</dt><dd className="font-medium">{viewingRecord.sugestoes || '—'}</dd></div>
+            </dl>
+          </section>
+        </Modal>
       )}
 
-      {/* Registration popup */}
       {showAddForm && (
-        <div className="fixed inset-0 bg-slate-900/65 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="p-5 bg-slate-950 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <HeartCrack className="w-5 h-5 text-orange-500" />
-                <h3 className="text-lg font-bold">{editingEntrevista ? 'Editar Entrevista de Desligamento' : 'Registrar Entrevista de Desligamento'}</h3>
-              </div>
-              <button 
-                onClick={() => { resetForm(); setShowAddForm(false); }} 
-                className="text-slate-400 hover:text-white font-bold text-2xl cursor-pointer leading-none"
-              >
-                &times;
-              </button>
+        <Modal
+          titulo={editingEntrevista ? 'Editar entrevista' : 'Registrar entrevista'}
+          antes={editingEntrevista ? <>nº {editingEntrevista.codigo}</> : 'Entrevista de desligamento'}
+          largura="lg"
+          aoFechar={fecharForm}
+          rodape={<>
+            <button type="button" className="btn" onClick={fecharForm}>Cancelar</button>
+            <button type="submit" form="form-entrevista" className="btn btn-primario">{editingEntrevista ? 'Salvar alterações' : 'Registrar'}</button>
+          </>}
+        >
+          <form id="form-entrevista" onSubmit={handleSubmit} className="space-y-4">
+            {errorMsg && <p role="alert" className="erro-form">{errorMsg}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label className="block sm:col-span-2">
+                <span className="rotulo">Nome de quem saiu *</span>
+                <input type="text" required className="campo w-full" value={colaborador} onChange={(e) => setColaborador(e.target.value)} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Data da entrevista *</span>
+                <input type="date" required className="campo w-full" value={dataEntrevista} onChange={(e) => setDataEntrevista(e.target.value)} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Função *</span>
+                <input type="text" required className="campo w-full" value={funcao} onChange={(e) => setFuncao(e.target.value)} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Admissão</span>
+                <input type="date" className="campo w-full" value={admissao} onChange={(e) => setAdmissao(e.target.value)} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Desligamento</span>
+                <input type="date" className="campo w-full" value={desligamento} onChange={(e) => setDesligamento(e.target.value)} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Unidade</span>
+                <input type="text" className="campo w-full" value={unidade} onChange={(e) => setUnidade(e.target.value)} />
+              </label>
+              <label className="block sm:col-span-2">
+                <span className="rotulo">Entrevistador(a) no RH</span>
+                <input type="text" className="campo w-full" value={entrevistador} onChange={(e) => setEntrevistador(e.target.value)} />
+              </label>
             </div>
 
-            {/* Modal Form */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-              {errorMsg && (
-                <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-semibold border border-red-100 flex items-center gap-2">
-                  <span className="w-5 h-5 flex items-center justify-center bg-red-100 rounded-full text-red-700 font-bold shrink-0">!</span>
-                  {errorMsg}
-                </div>
-              )}
-              <div>
-                <label htmlFor="ent-nome-completo-do-ex-colaborador" className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome Completo do Ex-Colaborador *</label>
-                <input id="ent-nome-completo-do-ex-colaborador"
-                  type="text"
-                  required
-                  placeholder="Ex: Daniela Souza Santos"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl font-medium"
-                  value={colaborador}
-                  onChange={(e) => setColaborador(e.target.value)}
-                />
+            <label className="block">
+              <span className="rotulo">Por que está saindo?</span>
+              <select className="campo w-full" value={motivoSaida} onChange={(e) => setMotivoSaida(e.target.value)}>
+                {motivoOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            </label>
+            {motivoSaida === 'Outros' && (
+              <label className="block">
+                <span className="rotulo">Qual motivo? *</span>
+                <input type="text" required className="campo w-full" value={motivoSaidaOutro} onChange={(e) => setMotivoSaidaOutro(e.target.value)} />
+              </label>
+            )}
+
+            <fieldset>
+              <legend className="rotulo">Notas (1 a 5, 5 é ótimo)</legend>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 mt-1">
+                <StarRatingInput label="Salário" value={notaSalario} onChange={setNotaSalario} />
+                <StarRatingInput label="Treinamentos" value={notaTreinamento} onChange={setNotaTreinamento} />
+                <StarRatingInput label="Oportunidades de crescimento" value={notaCrescimento} onChange={setNotaCrescimento} />
+                <StarRatingInput label="Relacionamento com colegas" value={notaRelacionamentoColegas} onChange={setNotaRelacionamentoColegas} />
+                <StarRatingInput label="Relacionamento com a chefia" value={notaRelacionamentoChefia} onChange={setNotaRelacionamentoChefia} />
+                <StarRatingInput label="Clima da organização" value={notaClimaOrg} onChange={setNotaClimaOrg} />
               </div>
+            </fieldset>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="ent-funcao-desempenhada" className="block text-xs font-bold text-slate-500 uppercase mb-1">Função Desempenhada *</label>
-                  <input id="ent-funcao-desempenhada"
-                    type="text"
-                    required
-                    placeholder="Ex: Analista Comercial"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={funcao}
-                    onChange={(e) => setFuncao(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="ent-unidade-setor" className="block text-xs font-bold text-slate-500 uppercase mb-1">Unidade / Setor</label>
-                  <input id="ent-unidade-setor"
-                    type="text"
-                    placeholder="Ex: TI / Comercial"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={unidade}
-                    onChange={(e) => setUnidade(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label htmlFor="ent-data-admissao" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data Admissão</label>
-                  <input id="ent-data-admissao"
-                    type="date"
-                    className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg"
-                    value={admissao}
-                    onChange={(e) => setAdmissao(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="ent-data-desligamento" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data Desligamento</label>
-                  <input id="ent-data-desligamento"
-                    type="date"
-                    className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg"
-                    value={desligamento}
-                    onChange={(e) => setDesligamento(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="ent-data-entrevista" className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data Entrevista *</label>
-                  <input id="ent-data-entrevista"
-                    type="date"
-                    required
-                    className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg"
-                    value={dataEntrevista}
-                    onChange={(e) => setDataEntrevista(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="ent-por-quais-motivos-esta-saindo-da-empresa" className="block text-xs font-bold text-slate-500 uppercase mb-1">Por quais motivos está saindo da empresa?</label>
-                <select id="ent-por-quais-motivos-esta-saindo-da-empresa"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                  value={motivoSaida}
-                  onChange={(e) => setMotivoSaida(e.target.value)}
-                >
-                  {motivoOptions.map((opt, idx) => (
-                    <option key={idx} value={opt}>{opt}</option>
-                  ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block">
+                <span className="rotulo">Gostava do trabalho?</span>
+                <select className="campo w-full" value={gostavaTrabalho} onChange={(e) => setGostavaTrabalho(e.target.value as 'Sim' | 'Não' | 'Parcialmente')}>
+                  <option value="Sim">Sim</option>
+                  <option value="Não">Não</option>
+                  <option value="Parcialmente">Parcialmente</option>
                 </select>
-                {motivoSaida === 'Outros' && (
-                  <div className="mt-2">
-                    <input aria-label="Especifique o motivo..."
-                      type="text"
-                      className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                      placeholder="Especifique o motivo..."
-                      value={motivoSaidaOutro}
-                      onChange={(e) => setMotivoSaidaOutro(e.target.value)}
-                      required
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-3">Avaliação de Satisfação (1 a 5, onde 5 é ótimo)</label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-200">
-                  <StarRatingInput label="Satisfação com salário" value={notaSalario} onChange={setNotaSalario} />
-                  <StarRatingInput label="Satisfação com treinamentos" value={notaTreinamento} onChange={setNotaTreinamento} />
-                  <StarRatingInput label="Oportunidades de crescimento" value={notaCrescimento} onChange={setNotaCrescimento} />
-                  <StarRatingInput label="Relacionamento com colegas" value={notaRelacionamentoColegas} onChange={setNotaRelacionamentoColegas} />
-                  <StarRatingInput label="Relacionamento com chefia" value={notaRelacionamentoChefia} onChange={setNotaRelacionamentoChefia} />
-                  <StarRatingInput label="Clima da organização" value={notaClimaOrg} onChange={setNotaClimaOrg} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="ent-voce-gostava-de-seu-trabalho" className="block text-xs font-bold text-slate-500 uppercase mb-1">Você gostava de seu trabalho?</label>
-                  <select id="ent-voce-gostava-de-seu-trabalho"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={gostavaTrabalho}
-                    onChange={(e) => setGostavaTrabalho(e.target.value as 'Sim' | 'Não' | 'Parcialmente')}
-                  >
-                    <option value="Sim">Sim</option>
-                    <option value="Não">Não</option>
-                    <option value="Parcialmente">Parcialmente</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="ent-voltaria-a-trabalhar-conosco" className="block text-xs font-bold text-slate-500 uppercase mb-1">Voltaria a trabalhar conosco?</label>
-                  <select id="ent-voltaria-a-trabalhar-conosco"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={voltaria}
-                    onChange={(e) => setVoltaria(e.target.value as 'Sim' | 'Não' | 'Talvez')}
-                  >
-                    <option value="Sim">Sim</option>
-                    <option value="Não">Não</option>
-                    <option value="Talvez">Talvez</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="ent-o-que-voce-mais-gostava-no-trabalho" className="block text-xs font-bold text-slate-500 uppercase mb-1">O que você mais gostava no trabalho?</label>
-                  <input id="ent-o-que-voce-mais-gostava-no-trabalho"
-                    type="text"
-                    placeholder="Ex: Liberdade do projeto"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={oqMaisGostava}
-                    onChange={(e) => setOqMaisGostava(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="ent-o-que-voce-menos-gostava-no-trabalho" className="block text-xs font-bold text-slate-500 uppercase mb-1">O que você menos gostava no trabalho?</label>
-                  <input id="ent-o-que-voce-menos-gostava-no-trabalho"
-                    type="text"
-                    placeholder="Ex: Salário defasado"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={oqMenosGostava}
-                    onChange={(e) => setOqMenosGostava(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label htmlFor="ent-sugestoes-de-melhoria" className="block text-xs font-bold text-slate-500 uppercase mb-1">Sugestões de melhoria</label>
-                  <textarea id="ent-sugestoes-de-melhoria"
-                    rows={2}
-                    placeholder="Sugestões de crescimento profissional..."
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={sugestoes}
-                    onChange={(e) => setSugestoes(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label htmlFor="ent-entrevistador-responsavel-rh" className="block text-xs font-bold text-slate-500 uppercase mb-1">Entrevistador Responsável (RH)</label>
-                  <input id="ent-entrevistador-responsavel-rh"
-                    type="text"
-                    placeholder="Ex: Larissa Moura"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={entrevistador}
-                    onChange={(e) => setEntrevistador(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => { resetForm(); setShowAddForm(false); }}
-                  className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-sm font-bold rounded-xl text-slate-600 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-sm font-bold rounded-xl text-white shadow-lg shadow-orange-500/20 cursor-pointer"
-                >
-                  {editingEntrevista ? 'Atualizar Entrevista' : 'Salvar Entrevista'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+              </label>
+              <label className="block">
+                <span className="rotulo">Voltaria a trabalhar conosco?</span>
+                <select className="campo w-full" value={voltaria} onChange={(e) => setVoltaria(e.target.value as 'Sim' | 'Não' | 'Talvez')}>
+                  <option value="Sim">Sim</option>
+                  <option value="Não">Não</option>
+                  <option value="Talvez">Talvez</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="rotulo">O que mais gostava</span>
+                <input type="text" className="campo w-full" value={oqMaisGostava} onChange={(e) => setOqMaisGostava(e.target.value)} />
+              </label>
+              <label className="block">
+                <span className="rotulo">O que menos gostava</span>
+                <input type="text" className="campo w-full" value={oqMenosGostava} onChange={(e) => setOqMenosGostava(e.target.value)} />
+              </label>
+            </div>
+            <label className="block">
+              <span className="rotulo">Sugestões</span>
+              <textarea rows={2} className="campo w-full" value={sugestoes} onChange={(e) => setSugestoes(e.target.value)} />
+            </label>
+          </form>
+        </Modal>
       )}
     </div>
   );
