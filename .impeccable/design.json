@@ -1,293 +1,176 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-24T15:00:00-03:00",
+  "generatedAt": "2026-10-09T12:00:00-03:00",
   "title": "Design System: SGPC",
   "extensions": {
     "colorMeta": {
-      "cobalto": {
-        "role": "primary",
-        "displayName": "Cobalto",
-        "canonical": "#1B4DD8",
-        "tonalRamp": [
-          "#0B1F5C",
-          "#12308A",
-          "#1740B0",
-          "#1B4DD8",
-          "#5B7FE3",
-          "#C9D6F6",
-          "#DCE5FA",
-          "#F0F4FD"
-        ]
-      },
-      "canvas": {
-        "role": "neutral",
-        "displayName": "Chão",
-        "canonical": "#ECEDF0"
-      },
-      "papel": {
-        "role": "neutral",
-        "displayName": "Papel",
-        "canonical": "#FFFFFF"
-      },
-      "tinta": {
-        "role": "neutral",
-        "displayName": "Tinta",
-        "canonical": "#1A1B1F",
-        "tonalRamp": [
-          "#1A1B1F",
-          "#2E3036",
-          "#45474D",
-          "#5F6169",
-          "#8A8C93",
-          "#B7B9BF",
-          "#DDE0E6",
-          "#ECEDF0"
-        ]
-      },
-      "hairline": {
-        "role": "neutral",
-        "displayName": "Fio",
-        "canonical": "#DDE0E6"
-      },
-      "sucesso": {
-        "role": "semantic",
-        "displayName": "Sucesso",
-        "canonical": "#059669",
-        "tonalRamp": [
-          "#064E3B",
-          "#047857",
-          "#059669",
-          "#10B981",
-          "#6EE7B7",
-          "#A7F3D0",
-          "#D1FAE5",
-          "#ECFDF5"
-        ]
-      },
-      "alerta": {
-        "role": "semantic",
-        "displayName": "Alerta",
-        "canonical": "#D97706",
-        "tonalRamp": [
-          "#78350F",
-          "#B45309",
-          "#D97706",
-          "#F59E0B",
-          "#FCD34D",
-          "#FDE68A",
-          "#FEF3C7",
-          "#FFFBEB"
-        ]
-      },
-      "erro": {
-        "role": "semantic",
-        "displayName": "Erro",
-        "canonical": "#E11D48",
-        "tonalRamp": [
-          "#881337",
-          "#BE123C",
-          "#E11D48",
-          "#F43F5E",
-          "#FDA4AF",
-          "#FECDD3",
-          "#FFE4E6",
-          "#FFF1F2"
-        ]
-      },
-      "fio-forte": {
-        "role": "neutral",
-        "displayName": "Fio Forte",
-        "canonical": "#CAD5E2"
-      }
+      "tinta": { "role": "primary", "displayName": "Tinta Azul-Noite", "canonical": "#141B2D", "tonalRamp": ["#141B2D", "#26304A", "#3B4560", "#5D6782", "#737C93", "#AEB4C1", "#DCDFE5", "#F6F7F9"] },
+      "menu-fundo": { "role": "secondary", "displayName": "Marinho do Menu", "canonical": "#13213F", "tonalRamp": ["#0B142A", "#13213F", "#22335A", "#3A4C76", "#5D6E96", "#8E9BBA", "#D3DAE8", "#EEF1F7"] },
+      "menu-selo": { "role": "secondary", "displayName": "Selo Âmbar", "canonical": "#F2B33D" },
+      "atraso": { "role": "semantic", "displayName": "Atraso", "canonical": "#B4331F", "tonalRamp": ["#5A190F", "#7E2416", "#B4331F", "#D0563F", "#E5B4A9", "#F2D2CA", "#FBE9E5", "#FDF5F3"] },
+      "etapa-triagem": { "role": "tertiary", "displayName": "Triagem / pendente", "canonical": "#8A6A1F" },
+      "etapa-entrevista": { "role": "tertiary", "displayName": "Entrevista / atalho", "canonical": "#2B5EA7" },
+      "etapa-testes": { "role": "tertiary", "displayName": "Testes", "canonical": "#6A4BA0" },
+      "etapa-documentacao": { "role": "tertiary", "displayName": "Documentação", "canonical": "#1F7A6B" },
+      "etapa-admissao": { "role": "tertiary", "displayName": "Admissão / feito", "canonical": "#2E7D3A" },
+      "etapa-pausa": { "role": "tertiary", "displayName": "Pausa", "canonical": "#5D6782" },
+      "papel": { "role": "neutral", "displayName": "Papel", "canonical": "#FFFFFF" },
+      "chao": { "role": "neutral", "displayName": "Chão", "canonical": "#ECEDF0" },
+      "superficie": { "role": "neutral", "displayName": "Superfície", "canonical": "#ECEEF2" },
+      "fio": { "role": "neutral", "displayName": "Fio", "canonical": "#DCDFE5" },
+      "fio-campo": { "role": "neutral", "displayName": "Fio de campo", "canonical": "#C9CDD6" }
+    },
+    "campaigns": {
+      "setembro-amarelo": { "menu-fundo": "#3A2E07", "menu-texto": "#EFE4C4", "menu-suave": "#BCA873", "menu-selo": "#F5C518", "acento-graficos": "#A16207" },
+      "outubro-rosa": { "menu-fundo": "#4C1239", "menu-texto": "#F3D9E8", "menu-suave": "#C894B4", "menu-selo": "#F07AB8", "acento-graficos": "#AD2A8C" }
     },
     "typographyMeta": {
-      "display": {
-        "displayName": "Display",
-        "purpose": "Saudação do Início e título de página; um por tela."
-      },
-      "headline": {
-        "displayName": "Headline",
-        "purpose": "Título de painel grande."
-      },
-      "title": {
-        "displayName": "Title",
-        "purpose": "Título de painel/bloco, botões, nomes em lista."
-      },
-      "number": {
-        "displayName": "Número-chave",
-        "purpose": "Kpi e contagem de frente, sempre com rótulo."
-      },
-      "body": {
-        "displayName": "Body",
-        "purpose": "Texto corrido e células."
-      },
-      "label": {
-        "displayName": "Label",
-        "purpose": "Rótulo de campo, meta de linha, legenda."
-      },
-      "mono": {
-        "displayName": "Mono",
-        "purpose": "Só dado de máquina: códigos, ids, e-mails de usuário, linhas de log."
-      },
-      "nota": {
-        "displayName": "Nota",
-        "purpose": "Notas, ressalvas, cargo/meta do organograma. Piso de 11px."
-      }
+      "pagina-titulo": { "displayName": "Título de página", "purpose": "Um por tela, no cabeçalho da página, com a trilha acima." },
+      "numero": { "displayName": "Número", "purpose": "Valor do Kpi; sempre com rótulo e denominador." },
+      "modal-titulo": { "displayName": "Título de modal", "purpose": "Cabeçalho do Modal padrão." },
+      "titulo": { "displayName": "Título", "purpose": "Painel, seção de modal, cartão de lista, cartão de vaga." },
+      "corpo": { "displayName": "Corpo", "purpose": "Texto corrido, células, itens de lista." },
+      "controle": { "displayName": "Controle", "purpose": "Chip, campo, opção do controle segmentado." },
+      "rotulo": { "displayName": "Rótulo", "purpose": "Rótulo de campo, de Kpi, de tema." },
+      "apoio": { "displayName": "Apoio", "purpose": "Descrição, linha .sub, ajuda, meta, cabeçalho de tabela." },
+      "mono": { "displayName": "Mono", "purpose": "Só dado de máquina: id, código, linha de log." }
     },
     "shadows": [
-      {
-        "name": "sgpc-sombra-cartao",
-        "value": "0 1px 2px rgba(15, 23, 42, .05), 0 2px 8px -2px rgba(15, 23, 42, .06)",
-        "purpose": "A única sombra do sistema; qualquer shadow-* vira esta."
-      }
+      { "name": "cartao-quadro", "value": "0 1px 2px rgba(16,24,40,.08), 0 0 0 1px rgba(16,24,40,.04)", "purpose": "Cartão de vaga arrastável; no hover 0 2px 8px rgba(16,24,40,.1), 0 0 0 1px rgba(16,24,40,.1)." },
+      { "name": "painel-suspenso", "value": "0 8px 24px rgba(16,24,40,.14)", "purpose": "Painel de opções do FiltroMultiplo." },
+      { "name": "modal", "value": "0 24px 60px rgba(10,16,32,.3)", "purpose": "Modal padrão, sobre véu rgba(15,23,42,.5)." },
+      { "name": "menu-aberto", "value": "10px 0 30px rgba(10,16,32,.28)", "purpose": "Menu recolhido quando abre por cima do conteúdo." }
     ],
     "motion": [
-      {
-        "name": "estado",
-        "value": "150ms–250ms, transition-colors",
-        "purpose": "Hover e troca de estado; nada de coreografia de entrada. Gráficos sem animação."
-      }
+      { "name": "estado", "value": "150ms ease", "purpose": "Hover e troca de estado de botão, chip, linha, aba." },
+      { "name": "modal-entra", "value": "160–180ms ease-out", "purpose": "Véu e caixa do modal; desligado com prefers-reduced-motion." },
+      { "name": "menu-recorte", "value": "clip-path 180ms ease-out, 120ms de atraso", "purpose": "Abrir o menu recolhido sem recalcular o layout." }
     ],
     "breakpoints": [
-      {
-        "name": "sm",
-        "value": "640px"
-      },
-      {
-        "name": "md",
-        "value": "768px"
-      },
-      {
-        "name": "lg",
-        "value": "1024px"
-      },
-      {
-        "name": "xl",
-        "value": "1280px"
-      }
+      { "name": "empilha-tabela", "value": "900px" },
+      { "name": "quadro-coluna-unica", "value": "960px" },
+      { "name": "menu-gaveta", "value": "1024px" },
+      { "name": "alvo-notebook", "value": "1366x768" },
+      { "name": "menu-altura-media", "value": "max-height 700px" },
+      { "name": "menu-altura-baixa", "value": "max-height 600px" }
     ]
   },
   "components": [
     {
-      "name": "Botão principal",
+      "name": "Botão primário",
       "kind": "button",
-      "refersTo": "button-primary",
-      "description": "Uma ação principal por área: Salvar, Nova seleção, Registrar meu dia.",
-      "html": "<button class=\"ds-btn-primary\">Registrar meu dia</button>",
-      "css": ".ds-btn-primary { background: #1A1B1F; color: #fff; font: 600 14px/1.35 'Hanken Grotesk', system-ui, sans-serif; padding: 10px 16px; border: 0; border-radius: 6px; cursor: pointer; transition: background-color .15s; } .ds-btn-primary:hover { background: #1E293B; } .ds-btn-primary:focus-visible { outline: 2px solid #1B4DD8; outline-offset: 1px; }"
+      "refersTo": "button-primario",
+      "description": "Uma ação principal por área; o rótulo diz o que acontece.",
+      "html": "<button class=\"ds-btn ds-btn-primario\">Nova vaga</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 16px; border-radius: 7px; border: 1px solid #C9CDD6; background: #fff; color: #141B2D; font: 600 14px 'Public Sans', system-ui, sans-serif; cursor: pointer; transition: background-color .15s ease, border-color .15s ease; } .ds-btn-primario { background: #141B2D; border-color: #141B2D; color: #fff; font-weight: 700; } .ds-btn-primario:hover { background: #26304A; border-color: #26304A; } .ds-btn:focus-visible { outline: 2px solid #141B2D; outline-offset: 1px; }"
     },
     {
-      "name": "Botão fantasma",
+      "name": "Botão padrão",
       "kind": "button",
-      "refersTo": "button-ghost",
-      "description": "Cancelar e ações secundárias.",
-      "html": "<button class=\"ds-btn-ghost\">Cancelar</button>",
-      "css": ".ds-btn-ghost { background: transparent; color: #45474D; font: 600 14px/1.35 'Hanken Grotesk', system-ui, sans-serif; padding: 8px 16px; border: 0; border-radius: 6px; cursor: pointer; transition: background-color .15s; } .ds-btn-ghost:hover { background: #E3E5EA; color: #1A1B1F; } .ds-btn-ghost:focus-visible { outline: 2px solid #1B4DD8; outline-offset: 1px; }"
-    },
-    {
-      "name": "Campo",
-      "kind": "input",
-      "refersTo": "input",
-      "description": "Input/select com fio de campo e foco cobalto.",
-      "html": "<label class=\"ds-field\"><span>Sede *</span><input class=\"ds-input\" value=\"BN · BENFICA\"></label>",
-      "css": ".ds-field { display: block; font: 600 12px/1.4 'Hanken Grotesk', system-ui, sans-serif; color: #45474D; } .ds-field span { display: block; margin-bottom: 4px; } .ds-input { display: block; width: 240px; background: #fff; color: #1A1B1F; font: 500 14px/1.5 'Hanken Grotesk', system-ui, sans-serif; padding: 8px 12px; border: 1px solid #D8D7D1; border-radius: 4px; } .ds-input:focus-visible { outline: 2px solid #1B4DD8; outline-offset: 1px; }"
-    },
-    {
-      "name": "Painel",
-      "kind": "card",
-      "refersTo": "panel",
-      "description": "Bloco de conteúdo: papel, fio de 1px, título que é título.",
-      "html": "<section class=\"ds-panel\"><h3>Convocados por sede</h3><p>Ao lado, quanto dos convocados compareceu.</p></section>",
-      "css": ".ds-panel { background: #fff; border: 1px solid #DDE0E6; border-radius: 6px; padding: 20px; width: 320px; font-family: 'Hanken Grotesk', system-ui, sans-serif; } .ds-panel h3 { margin: 0; font-size: 14px; font-weight: 700; color: #1A1B1F; } .ds-panel p { margin: 2px 0 0; font-size: 12px; font-weight: 500; color: #5F6169; }"
-    },
-    {
-      "name": "Item de menu ativo",
-      "kind": "nav",
-      "refersTo": "nav-item-active",
-      "description": "Menu lateral: ícone monocromático, ativo em cobalto.",
-      "html": "<nav class=\"ds-nav\"><button class=\"ds-nav-item is-active\">Seleções</button><button class=\"ds-nav-item\">Resumo do Dia</button></nav>",
-      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; width: 200px; background: #ECEDF0; padding: 8px; } .ds-nav-item { text-align: left; background: transparent; color: #45474D; font: 600 14px/1.35 'Hanken Grotesk', system-ui, sans-serif; padding: 8px 12px; border: 0; border-radius: 6px; cursor: pointer; } .ds-nav-item:hover { background: #E3E5EA; color: #1A1B1F; } .ds-nav-item.is-active { background: #1B4DD8; color: #fff; } .ds-nav-item:focus-visible { outline: 2px solid #1B4DD8; outline-offset: 1px; }"
+      "refersTo": "button",
+      "description": "Ações secundárias da página e do rodapé de modal.",
+      "html": "<button class=\"ds-btn2\">Cancelar</button>",
+      "css": ".ds-btn2 { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 7px; border: 1px solid #C9CDD6; background: #fff; color: #141B2D; font: 600 14px 'Public Sans', system-ui, sans-serif; cursor: pointer; transition: background-color .15s ease, border-color .15s ease; } .ds-btn2:hover { background: #F6F7F9; border-color: #AEB4C1; } .ds-btn2:focus-visible { outline: 2px solid #141B2D; outline-offset: 1px; }"
     },
     {
       "name": "Controle segmentado",
       "kind": "chip",
-      "refersTo": "segmented-active",
-      "description": "Recortes (Todas / Geral / Pedagógico) e abas dos Indicadores.",
-      "html": "<div class=\"ds-seg\" role=\"group\"><button aria-pressed=\"true\">Todas</button><button aria-pressed=\"false\">Geral</button><button aria-pressed=\"false\">Pedagógico</button></div>",
-      "css": ".ds-seg { display: inline-flex; gap: 2px; padding: 4px; background: #E3E5EA; border-radius: 6px; } .ds-seg button { background: transparent; color: #45474D; font: 600 12px/1.4 'Hanken Grotesk', system-ui, sans-serif; padding: 6px 12px; border: 0; border-radius: 4px; cursor: pointer; } .ds-seg button:hover { color: #1A1B1F; } .ds-seg button[aria-pressed=\"true\"] { background: #fff; color: #1A1B1F; box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 2px 8px -2px rgba(15,23,42,.06); } .ds-seg button:focus-visible { outline: 2px solid #1B4DD8; outline-offset: 1px; }"
+      "refersTo": "seg-ativo",
+      "description": "Recorte com contagem; a opção ativa em Tinta cheia.",
+      "html": "<div class=\"ds-seg\" role=\"group\"><button aria-pressed=\"true\">Pendentes <b>4</b></button><button aria-pressed=\"false\">Histórico <b>31</b></button></div>",
+      "css": ".ds-seg { display: inline-flex; border: 1px solid #C9CDD6; border-radius: 7px; overflow: hidden; background: #fff; } .ds-seg button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; border: 0; background: transparent; font: 600 13.5px 'Public Sans', system-ui, sans-serif; color: #5D6782; cursor: pointer; transition: background-color .15s ease, color .15s ease; } .ds-seg button + button { border-left: 1px solid #C9CDD6; } .ds-seg button:hover { color: #141B2D; background: #F6F7F9; } .ds-seg button[aria-pressed=\"true\"] { background: #141B2D; color: #fff; } .ds-seg b { font-variant-numeric: tabular-nums; }"
     },
     {
-      "name": "Número-chave",
-      "kind": "custom",
-      "refersTo": "panel",
-      "description": "Kpi: rótulo, número tabular, denominador.",
-      "html": "<div class=\"ds-kpi\"><p class=\"r\">Compareceram</p><p class=\"v\">454</p><p class=\"d\">36% dos convocados</p></div>",
-      "css": ".ds-kpi { background: #fff; border: 1px solid #DDE0E6; border-radius: 6px; padding: 14px 16px; width: 180px; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-feature-settings: 'tnum' 1, 'ss01' 1; } .ds-kpi p { margin: 0; } .ds-kpi .r { font-size: 12px; font-weight: 600; color: #45474D; } .ds-kpi .v { margin-top: 4px; font-size: 28px; line-height: 1; font-weight: 700; letter-spacing: -0.015em; color: #1A1B1F; } .ds-kpi .d { margin-top: 6px; font-size: 11px; font-weight: 500; color: #5F6169; }"
+      "name": "Filtro de múltipla escolha",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Chip do FiltroMultiplo: rótulo + o que está marcado; nada marcado = todos.",
+      "html": "<div class=\"ds-filtros\"><button class=\"ds-chip\">Sede: <b>todas</b></button><button class=\"ds-chip\" aria-pressed=\"true\">Etapa: <b>Triagem, Testes</b></button></div>",
+      "css": ".ds-filtros { display: flex; gap: 8px; } .ds-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 13px; border: 1px solid #C9CDD6; border-radius: 7px; background: #fff; color: #3B4560; font: 600 13.5px 'Public Sans', system-ui, sans-serif; cursor: pointer; } .ds-chip:hover { border-color: #AEB4C1; color: #141B2D; } .ds-chip[aria-pressed=\"true\"] { border-color: #141B2D; box-shadow: inset 0 0 0 1px #141B2D; color: #141B2D; } .ds-chip:focus-visible { outline: 2px solid #141B2D; outline-offset: 1px; }"
     },
     {
-      "name": "Frente do Início",
+      "name": "Campo",
+      "kind": "input",
+      "refersTo": "campo",
+      "description": "Campo com rótulo por extenso em cima e ajuda embaixo.",
+      "html": "<label class=\"ds-f\"><span class=\"r\">Cargo da vaga</span><input class=\"ds-campo\" placeholder=\"Ex.: Auxiliar de Serviços Gerais\"><span class=\"a\">O mesmo nome usado na requisição.</span></label>",
+      "css": ".ds-f { display: block; width: 300px; font-family: 'Public Sans', system-ui, sans-serif; } .ds-f .r { display: block; margin-bottom: 4px; font-size: 13px; font-weight: 600; color: #141B2D; } .ds-f .a { display: block; margin-top: 4px; font-size: 12.5px; color: #5D6782; } .ds-campo { width: 100%; min-height: 36px; padding: 0 12px; border: 1px solid #C9CDD6; border-radius: 7px; background: #fff; color: #141B2D; font: 500 13.5px 'Public Sans', system-ui, sans-serif; } .ds-campo:hover { border-color: #AEB4C1; } .ds-campo::placeholder { color: #737C93; } .ds-campo:focus-visible { outline: 2px solid #141B2D; outline-offset: 1px; }"
+    },
+    {
+      "name": "Menu lateral",
+      "kind": "nav",
+      "refersTo": "menu-item-ativo",
+      "description": "Marinho institucional; ativo em pílula branca; contador no selo.",
+      "html": "<nav class=\"ds-menu\"><p class=\"g\">Recrutamento</p><a aria-current=\"page\">Quadro de Vagas</a><a>Seleções <em>3</em></a><a>Requisições</a></nav>",
+      "css": ".ds-menu { width: 240px; padding: 8px 12px; background: #13213F; color: #D3DAE8; font: 500 14px 'Public Sans', system-ui, sans-serif; } .ds-menu .g { margin: 0; padding: 0 11px; height: 22px; display: flex; align-items: center; font-size: 11.5px; font-weight: 600; color: #8E9BBA; } .ds-menu a { display: flex; align-items: center; gap: 12px; height: 32px; padding: 0 11px; border-radius: 6px; color: #D3DAE8; cursor: pointer; transition: background-color .15s ease, color .15s ease; } .ds-menu a:hover { background: rgba(255,255,255,.08); color: #fff; } .ds-menu a[aria-current=\"page\"] { background: #fff; color: #13213F; font-weight: 700; } .ds-menu em { margin-left: auto; font-style: normal; font-size: 12px; font-weight: 700; line-height: 18px; padding: 0 6px; border-radius: 4px; background: #F2B33D; color: #13213F; } .ds-menu a:focus-visible { outline: 2px solid #F2B33D; outline-offset: 2px; }"
+    },
+    {
+      "name": "Régua do funil",
       "kind": "custom",
-      "refersTo": "panel",
-      "description": "Linha de 'Para hoje': número colorido pelo estado, título, itens com o 'quando' à direita.",
-      "html": "<div class=\"ds-frente\"><div class=\"n\">3</div><div class=\"t\">Avaliações de experiência</div><ul><li><b>João Lima</b> <span>90 dias · ASG</span><em class=\"crit\">venceu há 4 dias</em></li><li><b>Maria Souza</b> <span>45 dias · BN</span><em class=\"aten\">vence em 2 dias</em></li></ul></div>",
-      "css": ".ds-frente { display: grid; grid-template-columns: 9rem 1fr; gap: 4px 24px; width: 560px; padding: 16px 20px; background: #fff; border-top: 1px solid #DDE0E6; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-feature-settings: 'tnum' 1; } .ds-frente .n { grid-row: span 2; font-size: 32px; line-height: 1; font-weight: 700; color: #BE123C; } .ds-frente .t { display: none; } .ds-frente ul { grid-column: 2; grid-row: 1 / span 2; margin: 0; padding: 0; list-style: none; } .ds-frente li { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; font-size: 14px; } .ds-frente b { font-weight: 600; color: #1A1B1F; } .ds-frente span { font-size: 12px; color: #5F6169; flex: 1; } .ds-frente em { font-style: normal; font-size: 12px; font-weight: 600; } .ds-frente .crit { color: #BE123C; } .ds-frente .aten { color: #B45309; }"
+      "refersTo": "painel",
+      "description": "Resumo do funil: frase com o atraso, barra por etapa na cor da etapa, legenda com números.",
+      "html": "<section class=\"ds-regua\"><p class=\"t\"><b>3 de 41 vagas</b> passaram da meta de 15 dias na etapa · 2 pausadas ou suspensas</p><div class=\"bar\"><span style=\"flex:12;background:#8A6A1F\"></span><span style=\"flex:10;background:#2B5EA7\"></span><span style=\"flex:6;background:#6A4BA0\"></span><span style=\"flex:8;background:#1F7A6B\"></span><span style=\"flex:3;background:#2E7D3A\"></span></div><div class=\"leg\"><span><i style=\"background:#8A6A1F\"></i>Triagem <b>12</b></span><span><i style=\"background:#2B5EA7\"></i>Entrevista <b>10</b></span><span><i style=\"background:#6A4BA0\"></i>Testes <b>6</b></span><span><i style=\"background:#1F7A6B\"></i>Documentação <b>8</b></span><span><i style=\"background:#2E7D3A\"></i>Admissão <b>3</b></span></div></section>",
+      "css": ".ds-regua { width: 620px; padding: 13px 16px 14px; background: #fff; border: 1px solid #DCDFE5; border-radius: 8px; font-family: 'Public Sans', system-ui, sans-serif; font-variant-numeric: tabular-nums; } .ds-regua .t { margin: 0; font-size: 13.5px; color: #3B4560; } .ds-regua .t b { color: #B4331F; } .ds-regua .bar { display: flex; gap: 3px; margin-top: 10px; } .ds-regua .bar span { height: 10px; border-radius: 3px; } .ds-regua .leg { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 9px; font-size: 13px; color: #3B4560; } .ds-regua .leg span { display: inline-flex; align-items: center; gap: 6px; } .ds-regua .leg i { width: 9px; height: 9px; border-radius: 2px; }"
+    },
+    {
+      "name": "Cartão de vaga",
+      "kind": "card",
+      "refersTo": "cartao-vaga",
+      "description": "Cartão do quadro: sede, título, setor, prazo na etapa, avançar na cor da próxima etapa.",
+      "html": "<article class=\"ds-cartao\"><div class=\"topo\"><span class=\"sede\">BN</span><a class=\"lv\">nº 124</a></div><p class=\"tit\">Auxiliar de Serviços Gerais</p><p class=\"set\">Infraestrutura</p><div class=\"prazo\"><span>Na etapa há <b class=\"at\">19 dias</b></span><span>meta 15</span></div><div class=\"trilho\"><i></i></div><button class=\"av\">Mover para Entrevista →</button></article>",
+      "css": ".ds-cartao { width: 240px; padding: 12px 13px; background: #fff; border-radius: 8px; box-shadow: 0 1px 2px rgba(16,24,40,.08), 0 0 0 1px rgba(16,24,40,.04); color: #141B2D; font-family: 'Public Sans', system-ui, sans-serif; font-variant-numeric: tabular-nums; transition: box-shadow .15s ease; } .ds-cartao:hover { box-shadow: 0 2px 8px rgba(16,24,40,.1), 0 0 0 1px rgba(16,24,40,.1); } .ds-cartao p { margin: 0; } .ds-cartao .topo { display: flex; justify-content: space-between; font-size: 12px; } .ds-cartao .sede { font-weight: 700; background: #ECEEF2; border-radius: 4px; padding: 0 6px; } .ds-cartao .lv { font-weight: 700; color: #2B5EA7; background: #E5EDF8; border-radius: 4px; padding: 1px 6px; } .ds-cartao .tit { margin: 7px 0 2px; font-size: 15px; line-height: 1.25; font-weight: 700; } .ds-cartao .set { font-size: 13px; color: #5D6782; } .ds-cartao .prazo { margin-top: 10px; display: flex; justify-content: space-between; font-size: 12.5px; color: #3B4560; } .ds-cartao .at { color: #B4331F; } .ds-cartao .trilho { height: 4px; margin-top: 5px; background: #ECEEF2; border-radius: 2px; overflow: hidden; } .ds-cartao .trilho i { display: block; width: 100%; height: 100%; background: #B4331F; } .ds-cartao .av { width: 100%; margin-top: 10px; min-height: 34px; border: 0; border-radius: 7px; background: #2B5EA7; color: #fff; font: 700 13px 'Public Sans', system-ui, sans-serif; cursor: pointer; } .ds-cartao .av:hover { filter: brightness(1.1); }"
+    },
+    {
+      "name": "Kpi",
+      "kind": "custom",
+      "refersTo": "painel",
+      "description": "Número-chave: rótulo, número tabular colorido pelo tom, denominador.",
+      "html": "<div class=\"ds-kpi\"><p class=\"r\">Vagas fechadas no prazo</p><p class=\"v\">34<span>vagas</span></p><p class=\"d\">de 41 fechadas</p></div>",
+      "css": ".ds-kpi { width: 200px; padding: 14px 16px; background: #fff; border: 1px solid #DCDFE5; border-radius: 8px; font-family: 'Public Sans', system-ui, sans-serif; font-variant-numeric: tabular-nums; } .ds-kpi p { margin: 0; } .ds-kpi .r { font-size: 13px; font-weight: 600; color: #3B4560; } .ds-kpi .v { margin-top: 4px; font-size: 28px; line-height: 1; font-weight: 700; letter-spacing: -0.02em; color: #2E7D3A; } .ds-kpi .v span { margin-left: 4px; font-size: 14px; font-weight: 600; color: #5D6782; } .ds-kpi .d { margin-top: 6px; font-size: 12px; color: #5D6782; }"
     }
   ],
   "narrative": {
-    "northStar": "A Prancheta do RH",
-    "overview": "O SGPC é a ferramenta em que o RH do Grupo Christus passa o dia: abre vaga, conduz seleção, lança candidato, cobra avaliação de experiência. O visual existe para sair da frente do trabalho, como uma prancheta bem organizada: grade, fio fino, um só azul e números alinhados. Quem abre a tela deve achar o que precisa em segundos e seguir o dia.\n\nO sistema é uma camada de re-skin (`src/styles/swiss.css`, sob `html[data-theme=\"swiss\"]`), que é o tema único. Ela remapeia as classes utilitárias do Tailwind para tokens `--sgpc-*`. Toda cor nova entra como token nesse arquivo, nunca como hexadecimal solto num componente. É isso que permite que uma campanha (Setembro Amarelo) troque o acento inteiro num bloco só.\n\nO Suíço veio substituir três coisas, que não voltam: o SaaS genérico colorido (uma cor por módulo, gradiente, bolha desfocada, texto com gradiente), o painel feito de cartões iguais (ícone + número grande + rótulo como estrutura da página) e a planilha crua (tudo em tabela cinza, sem hierarquia).",
+    "northStar": "A Mesa do RH",
+    "overview": "O SGPC é onde o RH do Grupo Christus passa o dia: abre vaga, conduz seleção, lança candidato, decide a experiência. As usuárias não são técnicas, então o rework de outubro/2026 escolheu **estrutura familiar** (menu lateral, quadro Kanban, tabela, modal no meio da tela, botão que diz o que faz) e pôs a identidade nos detalhes: o menu azul-marinho institucional, a tinta azul-noite no lugar do preto, a régua do funil e as cores de etapa que atravessam o sistema inteiro.\n\nA cor não enfeita. Ela tem significado fixo (atraso, etapa, feito, pendente) e é a mesma em todas as telas. A campanha sazonal (Setembro Amarelo, Outubro Rosa) pinta o menu e o acento dos gráficos, nunca o significado. A tela-alvo é o notebook do escritório (1366×768, também 1024); celular não é alvo.\n\nAs telas novas são feitas com as classes próprias de `src/styles/ui.css` e `src/styles/casca.css`. O `src/styles/swiss.css` é a camada legada do tema \"Suíço\", que ainda remapeia utilitários Tailwind (`bg-slate-*`, `rounded-*`, `shadow-*`) das telas que não migraram. Está em retirada: não é sistema, não recebe regra nova e não serve de modelo.",
     "keyCharacteristics": [
-      "Um acento só (cobalto), usado para estado e ação, nunca para enfeite.",
-      "Hairline de 1px no lugar de sombra para desenhar a grade.",
-      "Hanken Grotesk com números tabulares em todo o sistema.",
-      "Cantos discretos: 4px nos controles, 6px nos painéis.",
-      "Cor semântica (verde, âmbar, vermelho) só quando informa um estado."
+      "Estrutura que a usuária já conhece; identidade no menu, na tinta e nas cores de etapa.",
+      "Cor com significado fixo, igual em todas as telas e imune à campanha.",
+      "Public Sans com números tabulares em todo o sistema.",
+      "Papel branco com fio de 1px; sombra só no que se move (cartão arrastável, modal, menu aberto, painel de filtro).",
+      "Cabe no notebook: nada rola de lado, o menu não rola."
     ],
     "rules": [
-      {
-        "name": "The One Voice Rule",
-        "body": "Existe um azul e ele significa \"aqui\". Cor decorativa (roxo, ciano, rosa, laranja da marca antiga) é remapeada para o cobalto pelo `swiss.css`; não se cria outra.",
-        "section": "colors"
-      },
-      {
-        "name": "The Campaign Rule",
-        "body": "Campanha troca a família inteira do acento (base, forte, borda e tints), nunca só a base. Sucesso, alerta e erro não mudam com campanha: status precisa continuar legível.",
-        "section": "colors"
-      },
-      {
-        "name": "The Status Is Earned Rule",
-        "body": "Verde, âmbar e vermelho só aparecem quando carregam um estado e vêm sempre com texto (\"venceu há 4 dias\"), nunca sozinhos.",
-        "section": "colors"
-      },
-      {
-        "name": "The No Eyebrow Rule",
-        "body": "Nenhum rótulo em caixa alta acima de um título. O título fala sozinho; a data e o contexto vão abaixo dele ou ao lado.",
-        "section": "typography"
-      },
-      {
-        "name": "The Number Needs A Noun Rule",
-        "body": "Todo número grande vem com o rótulo e, quando existe, o denominador (\"de 41 fechadas\", \"245 convocados\").",
-        "section": "typography"
-      },
-      {
-        "name": "The Hairline Over Shadow Rule",
-        "body": "Separar é trabalho do fio (`{colors.hairline}`). Sombra nova, brilho colorido ou gradiente não entram: o `swiss.css` zera `bg-gradient-*` e remove os orbs desfocados.",
-        "section": "elevation"
-      }
+      { "name": "The Fixed Meaning Rule", "body": "Cada cor tem um significado e só um, em todas as telas: `{colors.atraso}` é atraso ou desligado; as cores de etapa são a etapa do funil, as mesmas no Kanban, na régua e nos Indicadores; verde (`{colors.etapa-admissao}`) é feito/entrou; âmbar (`{colors.etapa-triagem}`) é pendente/pediu para sair. Cor nova de estado não se inventa: usa-se uma destas.", "section": "colors" },
+      { "name": "The Campaign Paints The Menu Rule", "body": "A campanha (`data-campanha`) troca só a família `--menu-*` (fundo, texto, suave, selo) e o acento dos gráficos (`--sgpc-acento`, lido por `useCoresGrafico`). Atraso, etapas, tinta e papel nunca mudam com campanha: status precisa continuar legível.", "section": "colors" },
+      { "name": "The One Red Rule", "body": "`{colors.atraso}` é o único vermelho. Vale para prazo estourado, desligamento, ação destrutiva (`.btn-perigo`, remover nome) e erro de formulário (`.erro-form`).", "section": "colors" },
+      { "name": "The Plain Label Rule", "body": "Rótulo por extenso, em pt-BR, em caixa normal. Nada de caixa-alta pequena decorativa, sobrelinha (\"eyebrow\") acima do título ou abreviação que a usuária precise decifrar. O que vai acima do título é a trilha da página ou a linha `.modal-antes` (número, situação), em caixa normal.", "section": "typography" },
+      { "name": "The Number Needs A Noun Rule", "body": "Todo número grande vem com o rótulo do que é e, quando existe, o denominador (`detalhe` do `Kpi`: \"de 41 fechadas\").", "section": "typography" },
+      { "name": "The No Sideways Scroll Rule", "body": "Nenhuma tabela, quadro ou página rola na horizontal no notebook (1366 e 1024). Junte colunas (detalhe em `.sub`) ou use `.tabela-empilha`. A única exceção é o desenho do organograma, que rola dentro da própria folha.", "section": "layout" },
+      { "name": "The Menu Never Scrolls Rule", "body": "O menu lateral não rola na vertical. Em tela baixa ele aperta (item de 32 → 29 → 27px; abaixo de 600px de altura os títulos de grupo somem). A partir de 1024px pode ficar recolhido em 64px, só ícones, e abre por cima do conteúdo ao passar o mouse ou receber foco, sem empurrar a página.", "section": "layout" },
+      { "name": "The Flat Unless Lifted Rule", "body": "Painel, tabela, Kpi e cartão de lista ficam planos, com fio. Sombra só para o que está por cima de outra coisa ou pode ser arrastado.", "section": "elevation" }
     ],
     "dos": [
-      "Do declarar toda cor nova como token `--sgpc-*` em `src/styles/swiss.css` e usá-la por `var()`.",
-      "Do usar o cobalto só para estado, seleção e ação, e cor semântica só com texto junto.",
-      "Do separar blocos com o fio de 1px (`{colors.hairline}`) e o respiro de 20–24px.",
-      "Do manter os números tabulares e dar a cada número grande o seu rótulo e o denominador.",
-      "Do desligar a animação dos gráficos (`isAnimationActive={false}`) e manter as transições de interface em 150–250ms."
+      "**Do** montar tela nova com as classes de `src/styles/ui.css` e `casca.css` e os componentes de `src/components/ui/` (Modal, FiltroMultiplo, ListaDeNomes, Atalhos) e `indicadores/ui.tsx` (Painel, Kpi, ListaComBarra, useEixos).",
+      "**Do** fazer todo filtro de múltipla escolha com `FiltroMultiplo`, nada marcado = todos. Exceção consciente: Ano e Mês dos Indicadores são período e têm escolha única, porque os gráficos são mês a mês de um ano.",
+      "**Do** caber em 1366×768 e em 1024 sem rolagem lateral: juntar colunas com `.sub`, `.num-col` ou `.tabela-empilha`.",
+      "**Do** abrir todo detalhe, formulário e confirmação no `Modal` centralizado.",
+      "**Do** usar cor só pelo significado fixo: Atraso para atraso/desligado, cor de etapa para etapa, verde para feito/entrou, âmbar para pendente/pediu para sair, e sempre com texto junto.",
+      "**Do** marcar vaga como atrasada só pelo critério único `vagaAtrasada` (`utils/vaga.ts`): mais de 15 dias na mesma etapa, pausada não conta.",
+      "**Do** pedir confirmação em modal antes de ação destrutiva ou de decisão sobre pessoas (ex.: \"Registrar decisão\" da Experiência, com `.opcao-decisao`).",
+      "**Do** transformar em link tudo que o sistema já sabe (vaga, seleção, dia, pessoa), com `LinkVaga`/`Atalho` e `linkPara`.",
+      "**Do** escrever rótulo por extenso em pt-BR e dar a cada número grande o seu rótulo e denominador.",
+      "**Do** manter transições em 150–250ms, desligar com `prefers-reduced-motion` e manter os gráficos sem animação."
     ],
     "donts": [
-      "Don't usar gradiente, texto com gradiente, bolha desfocada ou uma cor por módulo (o SaaS genérico colorido que o Suíço substituiu).",
-      "Don't montar a página como uma grade de cartões iguais de ícone + número + rótulo.",
-      "Don't cair na planilha crua: toda tela tem hierarquia (título, o que pede ação, depois o resto).",
-      "Don't pôr rótulo em caixa alta acima de um título, nem borda colorida lateral acima de 1px em cartão, item ou alerta.",
-      "Don't criar um segundo azul: `info` é o próprio cobalto."
+      "**Don't** usar gaveta lateral para detalhe ou formulário; o modal é sempre centralizado.",
+      "**Don't** fazer o menu rolar na vertical nem empurrar o conteúdo ao abrir.",
+      "**Don't** deixar tabela rolar de lado no notebook.",
+      "**Don't** usar filtro de escolha única fora do período dos Indicadores.",
+      "**Don't** deixar a campanha tocar em cor de estado, de etapa ou de atraso; ela pinta só o menu e o acento dos gráficos.",
+      "**Don't** criar uma cor nova para estado nem um segundo vermelho.",
+      "**Don't** pôr rótulo em caixa-alta pequena decorativa ou sobrelinha acima de título.",
+      "**Don't** construir com utilitários remapeados pelo `swiss.css` (`bg-slate-*`, `rounded-*`, `shadow-*`) nem criar token `--sgpc-*` novo: é camada legada em retirada.",
+      "**Don't** pôr sombra em painel, tabela ou Kpi parados."
     ]
   }
 }

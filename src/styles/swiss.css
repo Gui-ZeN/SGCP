@@ -10,7 +10,7 @@
 
 /* ===== Base: grotesca + números tabulares (alinham em tabelas/dashboards) ===== */
 html[data-theme="swiss"] {
-  --font-sans: 'Hanken Grotesk', system-ui, sans-serif;
+  --font-sans: 'Public Sans', system-ui, sans-serif;
 
   /* ═══ DESIGN TOKENS ═══════════════════════════════════════════════════════
      Nenhuma cor literal deve aparecer nas regras abaixo — só var(). É isto que
@@ -18,7 +18,7 @@ html[data-theme="swiss"] {
      bloco, sem caçar hexadecimal espalhado pelo arquivo. */
 
   /* Superfícies e tinta (não mudam com campanha) */
-  --sgpc-canvas: #ECEDF0;          /* chão da aplicação */
+  --sgpc-canvas: var(--chao, #ECEDF0); /* chão da aplicação — fonte única em ui.css */
   --sgpc-papel: #FFFFFF;           /* cartões, painéis */
   --sgpc-tinta: #1A1B1F;           /* preto do texto/blocos sólidos */
   --sgpc-hairline: #DDE0E6;        /* fio de 1px que desenha a grade suíça */
@@ -44,6 +44,16 @@ html[data-theme="swiss"] {
   --sgpc-acento-tint: #EAEFFC;
   --sgpc-acento-tint-medio: #DCE5FA;
   --sgpc-acento-tint-suave: #F0F4FD;
+
+  /* ⚠️ Acento de INTERFACE — foco, seleção e o acento das telas antigas. NÃO
+     segue campanha (regra do rework 10/2026: a campanha pinta só o menu, a
+     logo e os gráficos). Antes tudo isso usava --sgpc-acento e virava rosa no
+     Outubro Rosa. É a mesma tinta dos botões novos (styles/ui.css). */
+  --sgpc-ui: #141B2D;
+  --sgpc-ui-forte: #26304A;
+  --sgpc-ui-borda: #C9CDD6;
+  --sgpc-ui-tint: #ECEEF2;
+  --sgpc-ui-tint-suave: #F6F7F9;
 }
 
 /* ═══ Campanha: Setembro Amarelo (enfeite no Painel Admin) ═══════════════════
@@ -78,9 +88,11 @@ html[data-theme="swiss"][data-campanha="outubro-rosa"] {
 }
 html[data-theme="swiss"] body {
   background-color: var(--sgpc-canvas) !important;
-  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-family: 'Public Sans', system-ui, sans-serif;
+  /* ⚠️ Antes de trocar a fonte, meça a vírgula com `tnum`: na Schibsted Grotesk
+     (escolhida no mockup) ela ganhava a largura de um dígito e "4,5" saía
+     "4 , 5" no sistema todo. A Public Sans mantém a vírgula estreita. */
   font-variant-numeric: tabular-nums;
-  font-feature-settings: 'tnum' 1, 'ss01' 1;
 }
 html[data-theme="swiss"] h1,
 html[data-theme="swiss"] h2,
@@ -102,10 +114,6 @@ html[data-theme="swiss"] [class*="shadow"] {
 html[data-theme="swiss"] [class*="bg-gradient-"] { background-image: none !important; }
 /* Texto com gradiente recortado (bg-clip-text + text-transparent) ficaria invisível
    sem o gradiente — devolve o preenchimento em cobalto (vira um acento da marca). */
-html[data-theme="swiss"] .bg-clip-text {
-  -webkit-text-fill-color: var(--sgpc-acento) !important;
-  color: var(--sgpc-acento) !important;
-}
 
 /* ===== Superfícies: sistema de papel COESO (mesma temperatura, sem branco puro).
    "Chão" = canvas + sidebar (papel); "painéis" = cards + header (off-white levemente
@@ -114,12 +122,10 @@ html[data-theme="swiss"] .bg-clip-text {
 html[data-theme="swiss"] .bg-slate-50 { background-color: var(--sgpc-canvas) !important; }   /* chão */
 html[data-theme="swiss"] .bg-white { background-color: var(--sgpc-papel) !important; }      /* painel */
 html[data-theme="swiss"] .bg-slate-100 { background-color: var(--sgpc-superficie) !important; }
-/* Sidebar = chão (não um bloco branco). Seletor com classe vence o .bg-white !important.
-   `#nav-principal` porque o menu lateral virou <nav> (era <aside>): navegação
-   primária anunciada como landmark de navegação, não como complementar. */
+/* <aside> = chão (não um bloco branco). Seletor com classe vence o .bg-white !important.
+   O menu lateral saiu daqui: é da casca nova (styles/casca.css). */
 html[data-theme="swiss"] aside.bg-white,
-html[data-theme="swiss"] aside,
-html[data-theme="swiss"] #nav-principal { background-color: var(--sgpc-canvas) !important; }
+html[data-theme="swiss"] aside { background-color: var(--sgpc-canvas) !important; }
 
 /* Cartões ganham hairline crisp (substitui a profundidade que vinha da sombra) */
 html[data-theme="swiss"] .rounded-2xl,
@@ -132,54 +138,32 @@ html[data-theme="swiss"] .border-slate-300 { border-color: var(--sgpc-hairline) 
 
 /* Blocos escuros do CONTEÚDO (botões primários: Nova Vaga, Consultar...) → preto neutro */
 html[data-theme="swiss"] .bg-slate-900,
-html[data-theme="swiss"] .bg-slate-850,
 html[data-theme="swiss"] .bg-slate-800 { background-color: var(--sgpc-tinta) !important; }
 html[data-theme="swiss"] .border-slate-950,
 html[data-theme="swiss"] .border-slate-900 { border-color: var(--sgpc-tinta) !important; }
 /* No menu lateral, o item selecionado usa o acento cobalto (não preto) — fica mais
    "você está aqui" e menos pesado. Vale também pro chip de tema. */
-html[data-theme="swiss"] aside .bg-slate-900,
-html[data-theme="swiss"] #nav-principal .bg-slate-900 { background-color: var(--sgpc-acento) !important; }
+html[data-theme="swiss"] aside .bg-slate-900 { background-color: var(--sgpc-ui) !important; }
 
-/* ===== Acento único: laranja (marca) + índigo (dados) → cobalto ===== */
+/* ===== Acento único: laranja (marca) + índigo (dados) → tinta (--sgpc-ui) ===== */
 /* Disciplina suíça de UM acento: tudo que era laranja ou índigo vira cobalto.
    Cobertura completa dos tons em uso (sólidos, washes /opacidade, rings, bordas). */
 
 /* Texto de acento → cobalto (todos os tons, claros e escuros) */
-html[data-theme="swiss"] .text-orange-400,
 html[data-theme="swiss"] .text-orange-500,
-html[data-theme="swiss"] .text-orange-550,
-html[data-theme="swiss"] .text-orange-600,
-html[data-theme="swiss"] .text-orange-650,
 html[data-theme="swiss"] .text-orange-700,
-html[data-theme="swiss"] .text-orange-750,
-html[data-theme="swiss"] .text-orange-800,
-html[data-theme="swiss"] .text-orange-850,
 html[data-theme="swiss"] .text-orange-900,
 html[data-theme="swiss"] .text-orange-950,
-html[data-theme="swiss"] .text-indigo-400,
-html[data-theme="swiss"] .text-indigo-500,
 html[data-theme="swiss"] .text-indigo-600,
-html[data-theme="swiss"] .text-indigo-650,
-html[data-theme="swiss"] .text-indigo-700,
-html[data-theme="swiss"] .text-indigo-800 { color: var(--sgpc-acento) !important; }
+html[data-theme="swiss"] .text-indigo-700 { color: var(--sgpc-ui) !important; }
 
 /* Preenchimentos sólidos fortes → cobalto */
-html[data-theme="swiss"] .bg-orange-400,
 html[data-theme="swiss"] .bg-orange-500,
-html[data-theme="swiss"] .bg-orange-600,
-html[data-theme="swiss"] .bg-indigo-500,
-html[data-theme="swiss"] .bg-indigo-600 { background-color: var(--sgpc-acento) !important; }
-html[data-theme="swiss"] .bg-orange-700,
-html[data-theme="swiss"] .bg-indigo-700 { background-color: var(--sgpc-acento-forte) !important; }
-html[data-theme="swiss"] .bg-indigo-300,
-html[data-theme="swiss"] .bg-indigo-400 { background-color: var(--sgpc-acento) !important; }
+html[data-theme="swiss"] .bg-indigo-600 { background-color: var(--sgpc-ui) !important; }
 
 /* Tints claros → wash cobalto */
 html[data-theme="swiss"] .bg-orange-50,
-html[data-theme="swiss"] .bg-orange-55,
-html[data-theme="swiss"] .bg-indigo-50 { background-color: var(--sgpc-acento-tint) !important; }
-html[data-theme="swiss"] .bg-orange-100 { background-color: var(--sgpc-acento-tint-medio) !important; }
+html[data-theme="swiss"] .bg-indigo-50 { background-color: var(--sgpc-ui-tint) !important; }
 /* Washes com opacidade (tokens com /) → wash cobalto sutil */
 html[data-theme="swiss"] [class~="bg-orange-50/15"],
 html[data-theme="swiss"] [class~="bg-orange-50/20"],
@@ -188,39 +172,22 @@ html[data-theme="swiss"] [class~="bg-orange-50/45"],
 html[data-theme="swiss"] [class~="bg-orange-50/50"],
 html[data-theme="swiss"] [class~="bg-orange-500/10"],
 html[data-theme="swiss"] [class~="bg-indigo-500/5"],
-html[data-theme="swiss"] [class~="bg-indigo-600/10"] { background-color: var(--sgpc-acento-tint-suave) !important; }
+html[data-theme="swiss"] [class~="bg-indigo-600/10"] { background-color: var(--sgpc-ui-tint-suave) !important; }
 
 /* Bordas de acento → hairline cobalto claro (fortes ficam cobalto pleno) */
 html[data-theme="swiss"] .border-orange-100,
-html[data-theme="swiss"] .border-orange-150,
 html[data-theme="swiss"] .border-orange-200,
-html[data-theme="swiss"] .border-orange-300,
-html[data-theme="swiss"] .border-indigo-100,
-html[data-theme="swiss"] .border-indigo-150,
-html[data-theme="swiss"] .border-indigo-200,
-html[data-theme="swiss"] .border-indigo-300,
 html[data-theme="swiss"] [class~="border-orange-100/50"],
 html[data-theme="swiss"] [class~="border-orange-100/70"],
-html[data-theme="swiss"] [class~="border-orange-500/20"] { border-color: var(--sgpc-acento-borda) !important; }
-html[data-theme="swiss"] .border-orange-500,
-html[data-theme="swiss"] .border-orange-600,
-html[data-theme="swiss"] .border-indigo-500,
-html[data-theme="swiss"] .border-indigo-700 { border-color: var(--sgpc-acento) !important; }
+html[data-theme="swiss"] [class~="border-orange-500/20"] { border-color: var(--sgpc-ui-borda) !important; }
 
 /* Anéis (ring-*) → cobalto via --tw-ring-color */
-html[data-theme="swiss"] .ring-orange-400,
-html[data-theme="swiss"] .ring-orange-500,
 html[data-theme="swiss"] [class~="ring-orange-500/5"],
 html[data-theme="swiss"] [class~="ring-orange-500/10"],
-html[data-theme="swiss"] [class~="ring-orange-500/20"] { --tw-ring-color: var(--sgpc-acento) !important; }
-html[data-theme="swiss"] .ring-indigo-50 { --tw-ring-color: var(--sgpc-acento-borda) !important; }
+html[data-theme="swiss"] [class~="ring-orange-500/20"] { --tw-ring-color: var(--sgpc-ui) !important; }
 
 /* Hover de acento → cobalto mais escuro */
-html[data-theme="swiss"] .hover\:bg-orange-600:hover,
-html[data-theme="swiss"] .hover\:bg-orange-700:hover,
-html[data-theme="swiss"] .hover\:bg-indigo-600:hover { background-color: var(--sgpc-acento-forte) !important; }
-html[data-theme="swiss"] .hover\:text-orange-500:hover,
-html[data-theme="swiss"] .hover\:text-orange-600:hover { color: var(--sgpc-acento-forte) !important; }
+html[data-theme="swiss"] .hover\:bg-orange-600:hover { background-color: var(--sgpc-ui-forte) !important; }
 
 /* Divisores (divide-*) → mesma hairline coesa */
 html[data-theme="swiss"] [class*="divide-slate"] > * { border-color: var(--sgpc-hairline) !important; }
@@ -229,45 +196,18 @@ html[data-theme="swiss"] [class*="divide-slate"] > * { border-color: var(--sgpc-
    Estas não carregam significado (eram só "variedade" do tema SaaS). Já verde
    (emerald), âmbar (amber) e vermelho (rose) ficam INTACTOS: são semânticos
    (sucesso / alerta / erro-saída) — cor que informa é correta no estilo suíço. */
-html[data-theme="swiss"] .text-blue-400, html[data-theme="swiss"] .text-blue-500,
-html[data-theme="swiss"] .text-blue-600, html[data-theme="swiss"] .text-blue-700,
-html[data-theme="swiss"] .text-blue-800, html[data-theme="swiss"] .text-sky-500,
-html[data-theme="swiss"] .text-sky-600, html[data-theme="swiss"] .text-cyan-500,
-html[data-theme="swiss"] .text-cyan-600, html[data-theme="swiss"] .text-purple-500,
-html[data-theme="swiss"] .text-purple-600, html[data-theme="swiss"] .text-purple-650,
-html[data-theme="swiss"] .text-purple-700, html[data-theme="swiss"] .text-violet-500,
-html[data-theme="swiss"] .text-violet-600, html[data-theme="swiss"] .text-pink-500,
-html[data-theme="swiss"] .text-pink-600, html[data-theme="swiss"] .text-pink-700,
-html[data-theme="swiss"] .text-teal-500, html[data-theme="swiss"] .text-teal-600,
-html[data-theme="swiss"] .text-fuchsia-600 { color: var(--sgpc-acento) !important; }
+html[data-theme="swiss"] .text-blue-700 { color: var(--sgpc-ui) !important; }
 
-html[data-theme="swiss"] .bg-blue-400, html[data-theme="swiss"] .bg-blue-500,
-html[data-theme="swiss"] .bg-blue-600, html[data-theme="swiss"] .bg-sky-500,
-html[data-theme="swiss"] .bg-cyan-500, html[data-theme="swiss"] .bg-purple-500,
-html[data-theme="swiss"] .bg-purple-600, html[data-theme="swiss"] .bg-violet-500,
-html[data-theme="swiss"] .bg-pink-500, html[data-theme="swiss"] .bg-teal-500 { background-color: var(--sgpc-acento) !important; }
+html[data-theme="swiss"] .bg-blue-50 { background-color: var(--sgpc-ui-tint) !important; }
 
-html[data-theme="swiss"] .bg-blue-50, html[data-theme="swiss"] .bg-sky-50,
-html[data-theme="swiss"] .bg-cyan-50, html[data-theme="swiss"] .bg-purple-50,
-html[data-theme="swiss"] .bg-violet-50, html[data-theme="swiss"] .bg-pink-50,
-html[data-theme="swiss"] .bg-blue-100, html[data-theme="swiss"] .bg-teal-50 { background-color: var(--sgpc-acento-tint) !important; }
-
-html[data-theme="swiss"] .border-blue-100, html[data-theme="swiss"] .border-blue-200,
-html[data-theme="swiss"] .border-blue-300, html[data-theme="swiss"] .border-sky-200,
-html[data-theme="swiss"] .border-cyan-100, html[data-theme="swiss"] .border-purple-100,
-html[data-theme="swiss"] .border-purple-150, html[data-theme="swiss"] .border-pink-200,
-html[data-theme="swiss"] [class~="border-blue-200/95"] { border-color: var(--sgpc-acento-borda) !important; }
+html[data-theme="swiss"] .border-blue-100, html[data-theme="swiss"] [class~="border-blue-200/95"] { border-color: var(--sgpc-ui-borda) !important; }
 
 /* Topo colorido das colunas do Kanban (status e etapa) → acento cobalto uniforme.
    O ponto/dot de cada coluna continua semântico (verde/âmbar/cinza). */
-html[data-theme="swiss"] .border-t-amber-500, html[data-theme="swiss"] .border-t-indigo-500,
-html[data-theme="swiss"] .border-t-blue-500, html[data-theme="swiss"] .border-t-emerald-500,
-html[data-theme="swiss"] .border-t-slate-400, html[data-theme="swiss"] .border-t-rose-500 { border-top-color: var(--sgpc-acento) !important; }
 
 /* Ícones das abas do menu: monocromáticos (herdam a cor do botão) — acaba com o
    "arco-íris" da lateral. Só no Suíço; o tema Clássico segue colorido. */
-html[data-theme="swiss"] aside button[id^="tab-"] svg,
-html[data-theme="swiss"] #nav-principal button[id^="tab-"] svg { color: inherit !important; }
+html[data-theme="swiss"] aside button[id^="tab-"] svg { color: inherit !important; }
 
 /* ===== Form controls: caixa hairline precisa ===== */
 html[data-theme="swiss"] input,
@@ -282,16 +222,16 @@ html[data-theme="swiss"] textarea {
    célula fica sem borda, ganha o fio ao passar o mouse e o acento ao editar. */
 html[data-theme="swiss"] .celula-planilha { border-color: transparent !important; }
 html[data-theme="swiss"] .celula-planilha:hover:not(:disabled) { border-color: var(--sgpc-hairline) !important; }
-html[data-theme="swiss"] .celula-planilha:focus { border-color: var(--sgpc-acento) !important; background: var(--sgpc-papel) !important; }
+html[data-theme="swiss"] .celula-planilha:focus { border-color: var(--sgpc-ui) !important; background: var(--sgpc-papel) !important; }
 
-/* ===== Foco: anel cobalto nítido em vez de halo difuso ===== */
+/* ===== Foco: anel nítido na tinta, igual em qualquer campanha ===== */
 html[data-theme="swiss"] *:focus-visible {
-  outline: 2px solid var(--sgpc-acento) !important;
+  outline: 2px solid var(--sgpc-ui) !important;
   outline-offset: 1px;
 }
 
 /* ===== Detalhes finos: seleção, scrollbar, e orbs do login removidos ===== */
-html[data-theme="swiss"] ::selection { background: var(--sgpc-acento); color: var(--sgpc-papel); }
+html[data-theme="swiss"] ::selection { background: var(--sgpc-ui); color: var(--sgpc-papel); }
 html[data-theme="swiss"] *::-webkit-scrollbar { width: 9px; height: 9px; }
 html[data-theme="swiss"] *::-webkit-scrollbar-thumb { background: var(--sgpc-scroll-polegar); border-radius: 0; }
 html[data-theme="swiss"] *::-webkit-scrollbar-track { background: transparent; }
@@ -302,8 +242,8 @@ html[data-theme="swiss"] [class*="blur-\["] { background: transparent !important
    Sucesso/alerta/erro NÃO seguem a campanha — status precisa continuar legível
    e previsível. Ficam em tokens pelo mesmo motivo do acento: uma fonte única,
    ajustável num bloco. Valores = os tons atuais do Tailwind, para o refactor
-   não mudar a aparência. `info` (azul) segue o acento de propósito: evita um
-   segundo azul competindo com a cor do sistema. */
+   não mudar a aparência. `info` é o azul da etapa Entrevista (ui.css): antes
+   seguia o acento, e no Outubro Rosa a informação virava rosa. */
 html[data-theme="swiss"] {
   --sgpc-sucesso: #059669;  --sgpc-sucesso-forte: #047857;
   --sgpc-sucesso-borda: #A7F3D0;  --sgpc-sucesso-tint: #ECFDF5;  --sgpc-sucesso-tint-medio: #D1FAE5;
@@ -316,424 +256,54 @@ html[data-theme="swiss"] {
   --sgpc-erro: #E11D48;     --sgpc-erro-forte: #BE123C;
   --sgpc-erro-borda: #FECDD3;     --sgpc-erro-tint: #FFF1F2;     --sgpc-erro-tint-medio: #FFE4E6;
 
-  --sgpc-info: var(--sgpc-acento);            --sgpc-info-forte: var(--sgpc-acento-forte);
-  --sgpc-info-borda: var(--sgpc-acento-borda); --sgpc-info-tint: var(--sgpc-acento-tint);
-  --sgpc-info-tint-medio: var(--sgpc-acento-tint-medio);
+  --sgpc-info: #2B5EA7;     --sgpc-info-forte: #234C88;
+  --sgpc-info-borda: #C3D4EE;     --sgpc-info-tint: #E5EDF8;     --sgpc-info-tint-medio: #D3E1F4;
 }
 
 /* Mapeamento das classes utilitárias → tokens (gerado por faixa de tom, o que
    também cobre tons inexistentes no Tailwind — emerald-55, rose-150, red-650… —
    que hoje simplesmente não pintavam nada). */
 html[data-theme="swiss"] .bg-emerald-50,
-html[data-theme="swiss"] .bg-emerald-55,
-html[data-theme="swiss"] .bg-emerald-100,
-html[data-theme="swiss"] .hover\:bg-emerald-50:hover,
-html[data-theme="swiss"] .hover\:bg-emerald-55:hover,
 html[data-theme="swiss"] .hover\:bg-emerald-100:hover { background-color: var(--sgpc-sucesso-tint) !important; }
-html[data-theme="swiss"] .bg-emerald-150,
-html[data-theme="swiss"] .bg-emerald-200,
-html[data-theme="swiss"] .bg-emerald-300,
-html[data-theme="swiss"] .hover\:bg-emerald-150:hover,
-html[data-theme="swiss"] .hover\:bg-emerald-200:hover,
-html[data-theme="swiss"] .hover\:bg-emerald-300:hover { background-color: var(--sgpc-sucesso-tint-medio) !important; }
-html[data-theme="swiss"] .bg-emerald-400,
-html[data-theme="swiss"] .bg-emerald-500,
-html[data-theme="swiss"] .bg-emerald-600,
-html[data-theme="swiss"] .hover\:bg-emerald-400:hover,
-html[data-theme="swiss"] .hover\:bg-emerald-500:hover,
-html[data-theme="swiss"] .hover\:bg-emerald-600:hover { background-color: var(--sgpc-sucesso) !important; }
-html[data-theme="swiss"] .bg-emerald-700,
-html[data-theme="swiss"] .bg-emerald-755,
-html[data-theme="swiss"] .bg-emerald-800,
-html[data-theme="swiss"] .bg-emerald-850,
-html[data-theme="swiss"] .bg-emerald-900,
-html[data-theme="swiss"] .bg-emerald-950,
-html[data-theme="swiss"] .hover\:bg-emerald-700:hover,
-html[data-theme="swiss"] .hover\:bg-emerald-755:hover,
-html[data-theme="swiss"] .hover\:bg-emerald-800:hover,
-html[data-theme="swiss"] .hover\:bg-emerald-850:hover,
-html[data-theme="swiss"] .hover\:bg-emerald-900:hover,
-html[data-theme="swiss"] .hover\:bg-emerald-950:hover { background-color: var(--sgpc-sucesso-forte) !important; }
-html[data-theme="swiss"] .text-emerald-50,
-html[data-theme="swiss"] .text-emerald-55,
-html[data-theme="swiss"] .text-emerald-100,
-html[data-theme="swiss"] .hover\:text-emerald-50:hover,
-html[data-theme="swiss"] .hover\:text-emerald-55:hover,
-html[data-theme="swiss"] .hover\:text-emerald-100:hover { color: var(--sgpc-sucesso-tint) !important; }
-html[data-theme="swiss"] .text-emerald-150,
-html[data-theme="swiss"] .text-emerald-200,
-html[data-theme="swiss"] .text-emerald-300,
-html[data-theme="swiss"] .hover\:text-emerald-150:hover,
-html[data-theme="swiss"] .hover\:text-emerald-200:hover,
-html[data-theme="swiss"] .hover\:text-emerald-300:hover { color: var(--sgpc-sucesso-borda) !important; }
-html[data-theme="swiss"] .text-emerald-400,
+html[data-theme="swiss"] .bg-emerald-500 { background-color: var(--sgpc-sucesso) !important; }
 html[data-theme="swiss"] .text-emerald-500,
-html[data-theme="swiss"] .text-emerald-600,
-html[data-theme="swiss"] .hover\:text-emerald-400:hover,
-html[data-theme="swiss"] .hover\:text-emerald-500:hover,
-html[data-theme="swiss"] .hover\:text-emerald-600:hover { color: var(--sgpc-sucesso) !important; }
+html[data-theme="swiss"] .text-emerald-600 { color: var(--sgpc-sucesso) !important; }
 html[data-theme="swiss"] .text-emerald-700,
-html[data-theme="swiss"] .text-emerald-755,
-html[data-theme="swiss"] .text-emerald-800,
-html[data-theme="swiss"] .text-emerald-850,
-html[data-theme="swiss"] .text-emerald-900,
-html[data-theme="swiss"] .text-emerald-950,
-html[data-theme="swiss"] .hover\:text-emerald-700:hover,
-html[data-theme="swiss"] .hover\:text-emerald-755:hover,
-html[data-theme="swiss"] .hover\:text-emerald-800:hover,
-html[data-theme="swiss"] .hover\:text-emerald-850:hover,
-html[data-theme="swiss"] .hover\:text-emerald-900:hover,
-html[data-theme="swiss"] .hover\:text-emerald-950:hover { color: var(--sgpc-sucesso-forte) !important; }
-html[data-theme="swiss"] .border-emerald-50,
-html[data-theme="swiss"] .border-emerald-55,
-html[data-theme="swiss"] .border-emerald-100,
-html[data-theme="swiss"] .hover\:border-emerald-50:hover,
-html[data-theme="swiss"] .hover\:border-emerald-55:hover,
-html[data-theme="swiss"] .hover\:border-emerald-100:hover { border-color: var(--sgpc-sucesso-tint) !important; }
-html[data-theme="swiss"] .border-emerald-150,
-html[data-theme="swiss"] .border-emerald-200,
-html[data-theme="swiss"] .border-emerald-300,
-html[data-theme="swiss"] .border-emerald-400,
-html[data-theme="swiss"] .border-emerald-500,
-html[data-theme="swiss"] .border-emerald-600,
-html[data-theme="swiss"] .hover\:border-emerald-150:hover,
-html[data-theme="swiss"] .hover\:border-emerald-200:hover,
-html[data-theme="swiss"] .hover\:border-emerald-300:hover,
-html[data-theme="swiss"] .hover\:border-emerald-400:hover,
-html[data-theme="swiss"] .hover\:border-emerald-500:hover,
-html[data-theme="swiss"] .hover\:border-emerald-600:hover { border-color: var(--sgpc-sucesso-borda) !important; }
-html[data-theme="swiss"] .border-emerald-700,
-html[data-theme="swiss"] .border-emerald-755,
-html[data-theme="swiss"] .border-emerald-800,
-html[data-theme="swiss"] .border-emerald-850,
-html[data-theme="swiss"] .border-emerald-900,
-html[data-theme="swiss"] .border-emerald-950,
-html[data-theme="swiss"] .hover\:border-emerald-700:hover,
-html[data-theme="swiss"] .hover\:border-emerald-755:hover,
-html[data-theme="swiss"] .hover\:border-emerald-800:hover,
-html[data-theme="swiss"] .hover\:border-emerald-850:hover,
-html[data-theme="swiss"] .hover\:border-emerald-900:hover,
-html[data-theme="swiss"] .hover\:border-emerald-950:hover { border-color: var(--sgpc-sucesso-forte) !important; }
-html[data-theme="swiss"] .ring-emerald-50,
-html[data-theme="swiss"] .ring-emerald-55,
-html[data-theme="swiss"] .ring-emerald-100 { --tw-ring-color: var(--sgpc-sucesso-tint) !important; }
-html[data-theme="swiss"] .ring-emerald-150,
-html[data-theme="swiss"] .ring-emerald-200,
-html[data-theme="swiss"] .ring-emerald-300,
-html[data-theme="swiss"] .ring-emerald-400,
-html[data-theme="swiss"] .ring-emerald-500,
-html[data-theme="swiss"] .ring-emerald-600 { --tw-ring-color: var(--sgpc-sucesso-borda) !important; }
-html[data-theme="swiss"] .ring-emerald-700,
-html[data-theme="swiss"] .ring-emerald-755,
-html[data-theme="swiss"] .ring-emerald-800,
-html[data-theme="swiss"] .ring-emerald-850,
-html[data-theme="swiss"] .ring-emerald-900,
-html[data-theme="swiss"] .ring-emerald-950 { --tw-ring-color: var(--sgpc-sucesso-forte) !important; }
+html[data-theme="swiss"] .text-emerald-800 { color: var(--sgpc-sucesso-forte) !important; }
+html[data-theme="swiss"] .border-emerald-100 { border-color: var(--sgpc-sucesso-tint) !important; }
+html[data-theme="swiss"] .border-emerald-200 { border-color: var(--sgpc-sucesso-borda) !important; }
 html[data-theme="swiss"] .bg-amber-50,
-html[data-theme="swiss"] .bg-amber-100,
-html[data-theme="swiss"] .hover\:bg-amber-50:hover,
 html[data-theme="swiss"] .hover\:bg-amber-100:hover { background-color: var(--sgpc-alerta-tint) !important; }
-html[data-theme="swiss"] .bg-amber-150,
-html[data-theme="swiss"] .bg-amber-200,
-html[data-theme="swiss"] .bg-amber-205,
-html[data-theme="swiss"] .bg-amber-300,
-html[data-theme="swiss"] .hover\:bg-amber-150:hover,
-html[data-theme="swiss"] .hover\:bg-amber-200:hover,
-html[data-theme="swiss"] .hover\:bg-amber-205:hover,
-html[data-theme="swiss"] .hover\:bg-amber-300:hover { background-color: var(--sgpc-alerta-tint-medio) !important; }
-html[data-theme="swiss"] .bg-amber-400,
 html[data-theme="swiss"] .bg-amber-500,
-html[data-theme="swiss"] .bg-amber-600,
-html[data-theme="swiss"] .hover\:bg-amber-400:hover,
-html[data-theme="swiss"] .hover\:bg-amber-500:hover,
-html[data-theme="swiss"] .hover\:bg-amber-600:hover { background-color: var(--sgpc-alerta) !important; }
-html[data-theme="swiss"] .bg-amber-700,
-html[data-theme="swiss"] .bg-amber-800,
-html[data-theme="swiss"] .bg-amber-850,
-html[data-theme="swiss"] .bg-amber-900,
-html[data-theme="swiss"] .bg-amber-950,
-html[data-theme="swiss"] .hover\:bg-amber-700:hover,
-html[data-theme="swiss"] .hover\:bg-amber-800:hover,
-html[data-theme="swiss"] .hover\:bg-amber-850:hover,
-html[data-theme="swiss"] .hover\:bg-amber-900:hover,
-html[data-theme="swiss"] .hover\:bg-amber-950:hover { background-color: var(--sgpc-alerta-forte) !important; }
-html[data-theme="swiss"] .text-amber-50,
-html[data-theme="swiss"] .text-amber-100,
-html[data-theme="swiss"] .hover\:text-amber-50:hover,
-html[data-theme="swiss"] .hover\:text-amber-100:hover { color: var(--sgpc-alerta-tint) !important; }
-html[data-theme="swiss"] .text-amber-150,
-html[data-theme="swiss"] .text-amber-200,
-html[data-theme="swiss"] .text-amber-205,
-html[data-theme="swiss"] .text-amber-300,
-html[data-theme="swiss"] .hover\:text-amber-150:hover,
-html[data-theme="swiss"] .hover\:text-amber-200:hover,
-html[data-theme="swiss"] .hover\:text-amber-205:hover,
-html[data-theme="swiss"] .hover\:text-amber-300:hover { color: var(--sgpc-alerta-borda) !important; }
+html[data-theme="swiss"] .bg-amber-600 { background-color: var(--sgpc-alerta) !important; }
+html[data-theme="swiss"] .hover\:bg-amber-700:hover { background-color: var(--sgpc-alerta-forte) !important; }
 html[data-theme="swiss"] .text-amber-400,
 html[data-theme="swiss"] .text-amber-500,
-html[data-theme="swiss"] .text-amber-600,
-html[data-theme="swiss"] .hover\:text-amber-400:hover,
-html[data-theme="swiss"] .hover\:text-amber-500:hover,
-html[data-theme="swiss"] .hover\:text-amber-600:hover { color: var(--sgpc-alerta) !important; }
+html[data-theme="swiss"] .text-amber-600 { color: var(--sgpc-alerta) !important; }
 html[data-theme="swiss"] .text-amber-700,
 html[data-theme="swiss"] .text-amber-800,
-html[data-theme="swiss"] .text-amber-850,
-html[data-theme="swiss"] .text-amber-900,
-html[data-theme="swiss"] .text-amber-950,
-html[data-theme="swiss"] .hover\:text-amber-700:hover,
-html[data-theme="swiss"] .hover\:text-amber-800:hover,
-html[data-theme="swiss"] .hover\:text-amber-850:hover,
-html[data-theme="swiss"] .hover\:text-amber-900:hover,
-html[data-theme="swiss"] .hover\:text-amber-950:hover { color: var(--sgpc-alerta-forte) !important; }
-html[data-theme="swiss"] .border-amber-50,
-html[data-theme="swiss"] .border-amber-100,
-html[data-theme="swiss"] .hover\:border-amber-50:hover,
-html[data-theme="swiss"] .hover\:border-amber-100:hover { border-color: var(--sgpc-alerta-tint) !important; }
-html[data-theme="swiss"] .border-amber-150,
+html[data-theme="swiss"] .text-amber-900 { color: var(--sgpc-alerta-forte) !important; }
+html[data-theme="swiss"] .border-amber-100 { border-color: var(--sgpc-alerta-tint) !important; }
 html[data-theme="swiss"] .border-amber-200,
-html[data-theme="swiss"] .border-amber-205,
-html[data-theme="swiss"] .border-amber-300,
-html[data-theme="swiss"] .border-amber-400,
-html[data-theme="swiss"] .border-amber-500,
-html[data-theme="swiss"] .border-amber-600,
-html[data-theme="swiss"] .hover\:border-amber-150:hover,
-html[data-theme="swiss"] .hover\:border-amber-200:hover,
-html[data-theme="swiss"] .hover\:border-amber-205:hover,
-html[data-theme="swiss"] .hover\:border-amber-300:hover,
-html[data-theme="swiss"] .hover\:border-amber-400:hover,
-html[data-theme="swiss"] .hover\:border-amber-500:hover,
-html[data-theme="swiss"] .hover\:border-amber-600:hover { border-color: var(--sgpc-alerta-borda) !important; }
-html[data-theme="swiss"] .border-amber-700,
-html[data-theme="swiss"] .border-amber-800,
-html[data-theme="swiss"] .border-amber-850,
-html[data-theme="swiss"] .border-amber-900,
-html[data-theme="swiss"] .border-amber-950,
-html[data-theme="swiss"] .hover\:border-amber-700:hover,
-html[data-theme="swiss"] .hover\:border-amber-800:hover,
-html[data-theme="swiss"] .hover\:border-amber-850:hover,
-html[data-theme="swiss"] .hover\:border-amber-900:hover,
-html[data-theme="swiss"] .hover\:border-amber-950:hover { border-color: var(--sgpc-alerta-forte) !important; }
-html[data-theme="swiss"] .ring-amber-50,
-html[data-theme="swiss"] .ring-amber-100 { --tw-ring-color: var(--sgpc-alerta-tint) !important; }
-html[data-theme="swiss"] .ring-amber-150,
-html[data-theme="swiss"] .ring-amber-200,
-html[data-theme="swiss"] .ring-amber-205,
-html[data-theme="swiss"] .ring-amber-300,
-html[data-theme="swiss"] .ring-amber-400,
-html[data-theme="swiss"] .ring-amber-500,
-html[data-theme="swiss"] .ring-amber-600 { --tw-ring-color: var(--sgpc-alerta-borda) !important; }
-html[data-theme="swiss"] .ring-amber-700,
-html[data-theme="swiss"] .ring-amber-800,
-html[data-theme="swiss"] .ring-amber-850,
-html[data-theme="swiss"] .ring-amber-900,
-html[data-theme="swiss"] .ring-amber-950 { --tw-ring-color: var(--sgpc-alerta-forte) !important; }
+html[data-theme="swiss"] .border-amber-300 { border-color: var(--sgpc-alerta-borda) !important; }
 html[data-theme="swiss"] .bg-rose-50,
-html[data-theme="swiss"] .bg-rose-100,
-html[data-theme="swiss"] .hover\:bg-rose-50:hover,
-html[data-theme="swiss"] .hover\:bg-rose-100:hover { background-color: var(--sgpc-erro-tint) !important; }
-html[data-theme="swiss"] .bg-rose-150,
-html[data-theme="swiss"] .bg-rose-200,
-html[data-theme="swiss"] .bg-rose-300,
-html[data-theme="swiss"] .hover\:bg-rose-150:hover,
-html[data-theme="swiss"] .hover\:bg-rose-200:hover,
-html[data-theme="swiss"] .hover\:bg-rose-300:hover { background-color: var(--sgpc-erro-tint-medio) !important; }
-html[data-theme="swiss"] .bg-rose-400,
-html[data-theme="swiss"] .bg-rose-500,
-html[data-theme="swiss"] .bg-rose-600,
-html[data-theme="swiss"] .hover\:bg-rose-400:hover,
-html[data-theme="swiss"] .hover\:bg-rose-500:hover,
-html[data-theme="swiss"] .hover\:bg-rose-600:hover { background-color: var(--sgpc-erro) !important; }
-html[data-theme="swiss"] .bg-rose-700,
-html[data-theme="swiss"] .bg-rose-800,
-html[data-theme="swiss"] .hover\:bg-rose-700:hover,
-html[data-theme="swiss"] .hover\:bg-rose-800:hover { background-color: var(--sgpc-erro-forte) !important; }
-html[data-theme="swiss"] .text-rose-50,
-html[data-theme="swiss"] .text-rose-100,
-html[data-theme="swiss"] .hover\:text-rose-50:hover,
-html[data-theme="swiss"] .hover\:text-rose-100:hover { color: var(--sgpc-erro-tint) !important; }
-html[data-theme="swiss"] .text-rose-150,
-html[data-theme="swiss"] .text-rose-200,
-html[data-theme="swiss"] .text-rose-300,
-html[data-theme="swiss"] .hover\:text-rose-150:hover,
-html[data-theme="swiss"] .hover\:text-rose-200:hover,
-html[data-theme="swiss"] .hover\:text-rose-300:hover { color: var(--sgpc-erro-borda) !important; }
+html[data-theme="swiss"] .hover\:bg-rose-50:hover { background-color: var(--sgpc-erro-tint) !important; }
+html[data-theme="swiss"] .bg-rose-500 { background-color: var(--sgpc-erro) !important; }
 html[data-theme="swiss"] .text-rose-400,
 html[data-theme="swiss"] .text-rose-500,
 html[data-theme="swiss"] .text-rose-600,
-html[data-theme="swiss"] .hover\:text-rose-400:hover,
-html[data-theme="swiss"] .hover\:text-rose-500:hover,
 html[data-theme="swiss"] .hover\:text-rose-600:hover { color: var(--sgpc-erro) !important; }
 html[data-theme="swiss"] .text-rose-700,
-html[data-theme="swiss"] .text-rose-800,
-html[data-theme="swiss"] .hover\:text-rose-700:hover,
-html[data-theme="swiss"] .hover\:text-rose-800:hover { color: var(--sgpc-erro-forte) !important; }
-html[data-theme="swiss"] .border-rose-50,
-html[data-theme="swiss"] .border-rose-100,
-html[data-theme="swiss"] .hover\:border-rose-50:hover,
-html[data-theme="swiss"] .hover\:border-rose-100:hover { border-color: var(--sgpc-erro-tint) !important; }
-html[data-theme="swiss"] .border-rose-150,
+html[data-theme="swiss"] .text-rose-800 { color: var(--sgpc-erro-forte) !important; }
+html[data-theme="swiss"] .border-rose-100 { border-color: var(--sgpc-erro-tint) !important; }
 html[data-theme="swiss"] .border-rose-200,
-html[data-theme="swiss"] .border-rose-300,
-html[data-theme="swiss"] .border-rose-400,
-html[data-theme="swiss"] .border-rose-500,
-html[data-theme="swiss"] .border-rose-600,
-html[data-theme="swiss"] .hover\:border-rose-150:hover,
-html[data-theme="swiss"] .hover\:border-rose-200:hover,
-html[data-theme="swiss"] .hover\:border-rose-300:hover,
-html[data-theme="swiss"] .hover\:border-rose-400:hover,
-html[data-theme="swiss"] .hover\:border-rose-500:hover,
-html[data-theme="swiss"] .hover\:border-rose-600:hover { border-color: var(--sgpc-erro-borda) !important; }
-html[data-theme="swiss"] .border-rose-700,
-html[data-theme="swiss"] .border-rose-800,
-html[data-theme="swiss"] .hover\:border-rose-700:hover,
-html[data-theme="swiss"] .hover\:border-rose-800:hover { border-color: var(--sgpc-erro-forte) !important; }
-html[data-theme="swiss"] .ring-rose-50,
-html[data-theme="swiss"] .ring-rose-100 { --tw-ring-color: var(--sgpc-erro-tint) !important; }
-html[data-theme="swiss"] .ring-rose-150,
-html[data-theme="swiss"] .ring-rose-200,
-html[data-theme="swiss"] .ring-rose-300,
-html[data-theme="swiss"] .ring-rose-400,
-html[data-theme="swiss"] .ring-rose-500,
-html[data-theme="swiss"] .ring-rose-600 { --tw-ring-color: var(--sgpc-erro-borda) !important; }
-html[data-theme="swiss"] .ring-rose-700,
-html[data-theme="swiss"] .ring-rose-800 { --tw-ring-color: var(--sgpc-erro-forte) !important; }
+html[data-theme="swiss"] .hover\:border-rose-300:hover { border-color: var(--sgpc-erro-borda) !important; }
 html[data-theme="swiss"] .bg-red-50,
-html[data-theme="swiss"] .bg-red-100,
-html[data-theme="swiss"] .hover\:bg-red-50:hover,
-html[data-theme="swiss"] .hover\:bg-red-100:hover { background-color: var(--sgpc-erro-tint) !important; }
-html[data-theme="swiss"] .bg-red-150,
-html[data-theme="swiss"] .bg-red-200,
-html[data-theme="swiss"] .hover\:bg-red-150:hover,
-html[data-theme="swiss"] .hover\:bg-red-200:hover { background-color: var(--sgpc-erro-tint-medio) !important; }
-html[data-theme="swiss"] .bg-red-500,
-html[data-theme="swiss"] .bg-red-600,
-html[data-theme="swiss"] .hover\:bg-red-500:hover,
-html[data-theme="swiss"] .hover\:bg-red-600:hover { background-color: var(--sgpc-erro) !important; }
-html[data-theme="swiss"] .bg-red-650,
-html[data-theme="swiss"] .bg-red-700,
-html[data-theme="swiss"] .bg-red-750,
-html[data-theme="swiss"] .bg-red-800,
-html[data-theme="swiss"] .bg-red-900,
-html[data-theme="swiss"] .bg-red-950,
-html[data-theme="swiss"] .hover\:bg-red-650:hover,
-html[data-theme="swiss"] .hover\:bg-red-700:hover,
-html[data-theme="swiss"] .hover\:bg-red-750:hover,
-html[data-theme="swiss"] .hover\:bg-red-800:hover,
-html[data-theme="swiss"] .hover\:bg-red-900:hover,
-html[data-theme="swiss"] .hover\:bg-red-950:hover { background-color: var(--sgpc-erro-forte) !important; }
-html[data-theme="swiss"] .text-red-50,
-html[data-theme="swiss"] .text-red-100,
-html[data-theme="swiss"] .hover\:text-red-50:hover,
-html[data-theme="swiss"] .hover\:text-red-100:hover { color: var(--sgpc-erro-tint) !important; }
-html[data-theme="swiss"] .text-red-150,
-html[data-theme="swiss"] .text-red-200,
-html[data-theme="swiss"] .hover\:text-red-150:hover,
-html[data-theme="swiss"] .hover\:text-red-200:hover { color: var(--sgpc-erro-borda) !important; }
+html[data-theme="swiss"] .bg-red-100 { background-color: var(--sgpc-erro-tint) !important; }
 html[data-theme="swiss"] .text-red-500,
-html[data-theme="swiss"] .text-red-600,
-html[data-theme="swiss"] .hover\:text-red-500:hover,
-html[data-theme="swiss"] .hover\:text-red-600:hover { color: var(--sgpc-erro) !important; }
-html[data-theme="swiss"] .text-red-650,
-html[data-theme="swiss"] .text-red-700,
-html[data-theme="swiss"] .text-red-750,
-html[data-theme="swiss"] .text-red-800,
-html[data-theme="swiss"] .text-red-900,
-html[data-theme="swiss"] .text-red-950,
-html[data-theme="swiss"] .hover\:text-red-650:hover,
-html[data-theme="swiss"] .hover\:text-red-700:hover,
-html[data-theme="swiss"] .hover\:text-red-750:hover,
-html[data-theme="swiss"] .hover\:text-red-800:hover,
-html[data-theme="swiss"] .hover\:text-red-900:hover,
-html[data-theme="swiss"] .hover\:text-red-950:hover { color: var(--sgpc-erro-forte) !important; }
-html[data-theme="swiss"] .border-red-50,
-html[data-theme="swiss"] .border-red-100,
-html[data-theme="swiss"] .hover\:border-red-50:hover,
-html[data-theme="swiss"] .hover\:border-red-100:hover { border-color: var(--sgpc-erro-tint) !important; }
-html[data-theme="swiss"] .border-red-150,
-html[data-theme="swiss"] .border-red-200,
-html[data-theme="swiss"] .border-red-500,
-html[data-theme="swiss"] .border-red-600,
-html[data-theme="swiss"] .hover\:border-red-150:hover,
-html[data-theme="swiss"] .hover\:border-red-200:hover,
-html[data-theme="swiss"] .hover\:border-red-500:hover,
-html[data-theme="swiss"] .hover\:border-red-600:hover { border-color: var(--sgpc-erro-borda) !important; }
-html[data-theme="swiss"] .border-red-650,
-html[data-theme="swiss"] .border-red-700,
-html[data-theme="swiss"] .border-red-750,
-html[data-theme="swiss"] .border-red-800,
-html[data-theme="swiss"] .border-red-900,
-html[data-theme="swiss"] .border-red-950,
-html[data-theme="swiss"] .hover\:border-red-650:hover,
-html[data-theme="swiss"] .hover\:border-red-700:hover,
-html[data-theme="swiss"] .hover\:border-red-750:hover,
-html[data-theme="swiss"] .hover\:border-red-800:hover,
-html[data-theme="swiss"] .hover\:border-red-900:hover,
-html[data-theme="swiss"] .hover\:border-red-950:hover { border-color: var(--sgpc-erro-forte) !important; }
-html[data-theme="swiss"] .ring-red-50,
-html[data-theme="swiss"] .ring-red-100 { --tw-ring-color: var(--sgpc-erro-tint) !important; }
-html[data-theme="swiss"] .ring-red-150,
-html[data-theme="swiss"] .ring-red-200,
-html[data-theme="swiss"] .ring-red-500,
-html[data-theme="swiss"] .ring-red-600 { --tw-ring-color: var(--sgpc-erro-borda) !important; }
-html[data-theme="swiss"] .ring-red-650,
-html[data-theme="swiss"] .ring-red-700,
-html[data-theme="swiss"] .ring-red-750,
-html[data-theme="swiss"] .ring-red-800,
-html[data-theme="swiss"] .ring-red-900,
-html[data-theme="swiss"] .ring-red-950 { --tw-ring-color: var(--sgpc-erro-forte) !important; }
-html[data-theme="swiss"] .bg-blue-50,
-html[data-theme="swiss"] .bg-blue-100,
-html[data-theme="swiss"] .hover\:bg-blue-50:hover,
-html[data-theme="swiss"] .hover\:bg-blue-100:hover { background-color: var(--sgpc-info-tint) !important; }
-html[data-theme="swiss"] .bg-blue-200,
-html[data-theme="swiss"] .bg-blue-300,
-html[data-theme="swiss"] .hover\:bg-blue-200:hover,
-html[data-theme="swiss"] .hover\:bg-blue-300:hover { background-color: var(--sgpc-info-tint-medio) !important; }
-html[data-theme="swiss"] .bg-blue-500,
-html[data-theme="swiss"] .bg-blue-600,
-html[data-theme="swiss"] .hover\:bg-blue-500:hover,
-html[data-theme="swiss"] .hover\:bg-blue-600:hover { background-color: var(--sgpc-info) !important; }
-html[data-theme="swiss"] .bg-blue-700,
-html[data-theme="swiss"] .bg-blue-800,
-html[data-theme="swiss"] .hover\:bg-blue-700:hover,
-html[data-theme="swiss"] .hover\:bg-blue-800:hover { background-color: var(--sgpc-info-forte) !important; }
-html[data-theme="swiss"] .text-blue-50,
-html[data-theme="swiss"] .text-blue-100,
-html[data-theme="swiss"] .hover\:text-blue-50:hover,
-html[data-theme="swiss"] .hover\:text-blue-100:hover { color: var(--sgpc-info-tint) !important; }
-html[data-theme="swiss"] .text-blue-200,
-html[data-theme="swiss"] .text-blue-300,
-html[data-theme="swiss"] .hover\:text-blue-200:hover,
-html[data-theme="swiss"] .hover\:text-blue-300:hover { color: var(--sgpc-info-borda) !important; }
-html[data-theme="swiss"] .text-blue-500,
-html[data-theme="swiss"] .text-blue-600,
-html[data-theme="swiss"] .hover\:text-blue-500:hover,
-html[data-theme="swiss"] .hover\:text-blue-600:hover { color: var(--sgpc-info) !important; }
-html[data-theme="swiss"] .text-blue-700,
-html[data-theme="swiss"] .text-blue-800,
-html[data-theme="swiss"] .hover\:text-blue-700:hover,
-html[data-theme="swiss"] .hover\:text-blue-800:hover { color: var(--sgpc-info-forte) !important; }
-html[data-theme="swiss"] .border-blue-50,
-html[data-theme="swiss"] .border-blue-100,
-html[data-theme="swiss"] .hover\:border-blue-50:hover,
-html[data-theme="swiss"] .hover\:border-blue-100:hover { border-color: var(--sgpc-info-tint) !important; }
-html[data-theme="swiss"] .border-blue-200,
-html[data-theme="swiss"] .border-blue-300,
-html[data-theme="swiss"] .border-blue-500,
-html[data-theme="swiss"] .border-blue-600,
-html[data-theme="swiss"] .hover\:border-blue-200:hover,
-html[data-theme="swiss"] .hover\:border-blue-300:hover,
-html[data-theme="swiss"] .hover\:border-blue-500:hover,
-html[data-theme="swiss"] .hover\:border-blue-600:hover { border-color: var(--sgpc-info-borda) !important; }
-html[data-theme="swiss"] .border-blue-700,
-html[data-theme="swiss"] .border-blue-800,
-html[data-theme="swiss"] .hover\:border-blue-700:hover,
-html[data-theme="swiss"] .hover\:border-blue-800:hover { border-color: var(--sgpc-info-forte) !important; }
-html[data-theme="swiss"] .ring-blue-50,
-html[data-theme="swiss"] .ring-blue-100 { --tw-ring-color: var(--sgpc-info-tint) !important; }
-html[data-theme="swiss"] .ring-blue-200,
-html[data-theme="swiss"] .ring-blue-300,
-html[data-theme="swiss"] .ring-blue-500,
-html[data-theme="swiss"] .ring-blue-600 { --tw-ring-color: var(--sgpc-info-borda) !important; }
-html[data-theme="swiss"] .ring-blue-700,
-html[data-theme="swiss"] .ring-blue-800 { --tw-ring-color: var(--sgpc-info-forte) !important; }
+html[data-theme="swiss"] .text-red-600 { color: var(--sgpc-erro) !important; }
+html[data-theme="swiss"] .text-red-700 { color: var(--sgpc-erro-forte) !important; }
+html[data-theme="swiss"] .border-red-100 { border-color: var(--sgpc-erro-tint) !important; }
+html[data-theme="swiss"] .bg-blue-50 { background-color: var(--sgpc-info-tint) !important; }
+html[data-theme="swiss"] .text-blue-700 { color: var(--sgpc-info-forte) !important; }
+html[data-theme="swiss"] .border-blue-100 { border-color: var(--sgpc-info-tint) !important; }

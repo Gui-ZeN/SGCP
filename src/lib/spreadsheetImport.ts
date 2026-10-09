@@ -185,7 +185,7 @@ async function parseTreinamentos(file: File, warnings: string[]): Promise<Import
     return [{
       codigo: Math.trunc(numberValue(value(row, 'Código'), 101 + index)),
       dataInicio: formatDateBR(value(row, 'Data início')),
-      dataTermino: undefined,
+      dataTermino: undefined as string | undefined,
       mesReferencia: cleanText(value(row, 'Mês referência')).toLowerCase() || MONTHS_FULL[new Date().getMonth()],
       tema,
       tipo: normalizeTrainingType(value(row, 'Tipo')),
