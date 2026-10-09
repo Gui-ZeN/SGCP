@@ -1,17 +1,5 @@
 import React, { useState } from 'react';
-import { 
-  Users, 
-  Building2, 
-  Map, 
-  Briefcase, 
-  ShieldAlert,
-  History,
-  FolderTree,
-  Upload,
-  FileSpreadsheet,
-  Sparkles,
-  Mail
-} from 'lucide-react';
+import { History, Upload, FileSpreadsheet, Sparkles } from 'lucide-react';
 import { Usuario, Sede, Regiao, Cargo, Setor, type UserRole } from '../hooks/useMetadata';
 import type { Vaga } from '../types';
 import { SystemLog } from '../hooks/useLogs';
@@ -132,132 +120,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onBackfillPausas
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'usuarios' | 'sedes' | 'regioes' | 'cargos' | 'setores' | 'logs' | 'importacao' | 'enfeites' | 'notificacoes'>('usuarios');
-  
-  return (
-    <div className="bg-transparent space-y-6">
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl shadow-sm">
-              <ShieldAlert className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-800 tracking-tight">Painel Administrativo{isCoordenador && ` · ${coordUnidadeNome}`}</h1>
-              <p className="text-xs text-slate-400 font-semibold tracking-wide uppercase mt-0.5">{isCoordenador ? `Usuários, sedes e logs — ${coordUnidadeNome}` : 'Configurações globais e permissões'}</p>
-            </div>
-          </div>
-          
-          <div className="flex overflow-x-auto gap-1 border border-slate-100 p-1.5 rounded-2xl bg-slate-50/50">
-            <button
-              onClick={() => setActiveSubTab('usuarios')}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
-                activeSubTab === 'usuarios' 
-                  ? 'bg-slate-900 text-white shadow-md' 
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              Usuários
-            </button>
-            <button
-              onClick={() => setActiveSubTab('sedes')}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
-                activeSubTab === 'sedes' 
-                  ? 'bg-slate-900 text-white shadow-md' 
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              Sedes
-            </button>
-            {!isCoordenador && (<>
-            <button
-              onClick={() => setActiveSubTab('regioes')}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
-                activeSubTab === 'regioes' 
-                  ? 'bg-slate-900 text-white shadow-md' 
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Map className="w-3.5 h-3.5" />
-              Regiões
-            </button>
-            <button
-              onClick={() => setActiveSubTab('cargos')}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
-                activeSubTab === 'cargos' 
-                  ? 'bg-slate-900 text-white shadow-md' 
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Briefcase className="w-3.5 h-3.5" />
-              Cargos
-            </button>
-            <button
-              onClick={() => setActiveSubTab('setores')}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
-                activeSubTab === 'setores' 
-                  ? 'bg-slate-900 text-white shadow-md' 
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <FolderTree className="w-3.5 h-3.5" />
-              Setores
-            </button>
-            </>)}
-            <button
-              onClick={() => setActiveSubTab('logs')}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
-                activeSubTab === 'logs' 
-                  ? 'bg-slate-900 text-white shadow-md' 
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <History className="w-3.5 h-3.5" />
-              Logs de Auditoria
-            </button>
-            {!isCoordenador && (
-            <button
-              onClick={() => setActiveSubTab('importacao')}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
-                activeSubTab === 'importacao' 
-                  ? 'bg-slate-900 text-white shadow-md' 
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Upload className="w-3.5 h-3.5" />
-              Importar Excel
-            </button>
-            )}
-            {!isCoordenador && (
-            <button
-              onClick={() => setActiveSubTab('enfeites')}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
-                activeSubTab === 'enfeites'
-                  ? 'bg-slate-900 text-white shadow-md'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              Enfeites
-            </button>
-            )}
-            {!isCoordenador && notificacoes && salvarNotificacoes && (
-            <button
-              onClick={() => setActiveSubTab('notificacoes')}
-              className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shrink-0 transition ${
-                activeSubTab === 'notificacoes'
-                  ? 'bg-slate-900 text-white shadow-md'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Mail className="w-3.5 h-3.5" />
-              Notificações
-            </button>
-            )}
-          </div>
-        </div>
 
+  type Aba = typeof activeSubTab;
+  // Uma lista só: antes eram nove blocos de botão copiados, numa faixa que
+  // rolava de lado quando não cabia.
+  const abas: { id: Aba; rotulo: string; mostrar: boolean }[] = [
+    { id: 'usuarios', rotulo: 'Usuários', mostrar: true },
+    { id: 'sedes', rotulo: 'Sedes', mostrar: true },
+    { id: 'regioes', rotulo: 'Regiões', mostrar: !isCoordenador },
+    { id: 'cargos', rotulo: 'Cargos', mostrar: !isCoordenador },
+    { id: 'setores', rotulo: 'Setores', mostrar: !isCoordenador },
+    { id: 'logs', rotulo: 'Auditoria', mostrar: true },
+    { id: 'importacao', rotulo: 'Importar Excel', mostrar: !isCoordenador },
+    { id: 'enfeites', rotulo: 'Enfeites', mostrar: !isCoordenador },
+    { id: 'notificacoes', rotulo: 'Notificações', mostrar: !isCoordenador && !!notificacoes && !!salvarNotificacoes },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <header className="pagina-cab">
+        <div className="min-w-0">
+          <p className="pagina-trilha">Sistema</p>
+          <h1 className="pagina-titulo">Administração{isCoordenador && ` · ${coordUnidadeNome}`}</h1>
+          <p className="inicio-sub">{isCoordenador ? `Usuários, sedes e auditoria da unidade ${coordUnidadeNome}.` : 'Usuários, cadastros, importações e configurações do sistema.'}</p>
+        </div>
+      </header>
+
+      <nav role="tablist" aria-label="Seções da administração" className="abas">
+        {abas.filter(a => a.mostrar).map(a => (
+          <button key={a.id} type="button" role="tab" aria-selected={activeSubTab === a.id} onClick={() => setActiveSubTab(a.id)}>{a.rotulo}</button>
+        ))}
+      </nav>
+
+      <div className="painel p-5 md:p-6">
         {activeSubTab === 'notificacoes' && !isCoordenador && notificacoes && salvarNotificacoes && (
           <AdminNotificacoesTab notificacoes={notificacoes} salvar={salvarNotificacoes} />
         )}

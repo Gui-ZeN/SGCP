@@ -84,8 +84,8 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div className="md:col-span-1 bg-slate-50/70 p-5 rounded-2xl border border-slate-100 flex flex-col justify-between">
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="xl:col-span-1 bg-slate-50/70 p-5 rounded-2xl border border-slate-100 flex flex-col justify-between">
         <div>
           <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-1">
             {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
@@ -204,16 +204,16 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
         </div>
       </div>
 
-      <div className="md:col-span-2 space-y-3">
+      <div className="xl:col-span-2 space-y-3 min-w-0">
         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Usuários Registrados ({usuarios.length})</h3>
         
         <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse tabela-empilha">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 font-mono text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                 <th className="px-5 py-3">E-mail</th>
-                <th className="px-5 py-3">Nível</th>
-                <th className="px-5 py-3">Sede</th>
+                {/* Nível e sede numa coluna só: a tabela cabe sem rolar de lado. */}
+                <th className="px-5 py-3">Acesso</th>
                 <th className="px-5 py-3 text-right">Ações</th>
               </tr>
             </thead>
@@ -221,17 +221,20 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
               {usuarios.filter(u => u != null).map(u => (
                 <tr key={u.id || u.email || Math.random().toString()} className="hover:bg-slate-50/50 transition">
                   <td className="px-5 py-3.5 font-medium text-slate-700">
+                    {/* Um bloco só: em tela estreita a célula vira linha de cartão (flex). */}
+                    <div className="min-w-0">
                     {/* Nome em cima quando existe; sem ele, a linha avisa — é o
                         que falta para o e-mail diário dessa pessoa sair com nome. */}
                     {u.nome
                       ? <span className="block font-bold text-slate-800">{u.nome}</span>
                       : <span className="block text-[10px] font-bold uppercase tracking-wide text-amber-700">sem nome</span>}
-                    <span className="text-xs text-slate-600">{u.email || 'Sem E-mail'}</span>
+                    <span className="text-xs text-slate-600 [overflow-wrap:anywhere]">{u.email || 'Sem E-mail'}</span>
                     {u.email && currentUserEmail && u.email.toLowerCase() === currentUserEmail.toLowerCase() && (
                       <span className="ml-2 text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md font-bold uppercase">atual</span>
                     )}
+                    </div>
                   </td>
-                  <td className="px-5 py-3.5">
+                  <td className="px-5 py-3.5 whitespace-nowrap" data-rotulo="Acesso">
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
                       u.role === 'Administrador' 
                         ? 'bg-rose-50 text-rose-700 border-rose-100' 
@@ -241,9 +244,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                     }`}>
                       {u.role}
                     </span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className="px-2.5 py-0.5 bg-slate-100 text-slate-700 rounded-full font-mono text-[10px] uppercase font-bold border border-slate-200">
+                    <span className="ml-1.5 inline-block px-2.5 py-0.5 bg-slate-100 text-slate-700 rounded-full font-mono text-[10px] uppercase font-bold border border-slate-200">
                       {u.role === 'Visualizador' ? 'TODAS' : (u.sede || 'DT')}
                     </span>
                   </td>
@@ -251,7 +252,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                     <div className="flex items-center justify-end gap-2.5">
                       <button
                         onClick={() => startEdit(u)}
-                        className="p-1 px-2.5 border border-slate-200 bg-white rounded-lg hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 transition text-[10px] uppercase tracking-wider font-bold text-slate-500 cursor-pointer flex items-center gap-1"
+                        className="btn btn-sm"
                       >
                         <Edit className="w-3.5 h-3.5" />
                         Editar
@@ -274,7 +275,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                             }
                           }
                         }}
-                        className="p-1 px-2.5 border border-slate-200 bg-white rounded-lg hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 transition text-[10px] uppercase tracking-wider font-bold text-slate-500 cursor-pointer flex items-center gap-1"
+                        className="btn btn-sm btn-perigo"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         Excluir
@@ -285,7 +286,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
               ))}
               {usuarios.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-5 py-8 text-center text-slate-400 font-medium font-sans">
+                  <td colSpan={3} className="px-5 py-8 text-center text-slate-400 font-medium font-sans">
                     Nenhum usuário secundário configurado.
                   </td>
                 </tr>

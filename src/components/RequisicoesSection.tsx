@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Requisicao } from '../types';
-import { Inbox, Check, X, ChevronDown, ChevronUp, Clock, MapPin, User, Briefcase, Link2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Link2 } from 'lucide-react';
+import { LinkVaga } from './ui/Atalhos';
+import { Modal } from './ui/Modal';
 
 interface RequisicoesSectionProps {
   requisicoes: Requisicao[];
@@ -9,95 +11,85 @@ interface RequisicoesSectionProps {
   canManage?: boolean;
 }
 
-const STATUS_BADGE: Record<string, string> = {
-  pendente: 'bg-amber-50 text-amber-700 border-amber-200',
-  aceita: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  recusada: 'bg-rose-50 text-rose-700 border-rose-200'
+/** Cor da situação (tokens de ui.css). */
+const COR_STATUS: Record<string, string> = {
+  pendente: 'var(--etapa-triagem)',
+  aceita: 'var(--etapa-admissao)',
+  recusada: 'var(--atraso)',
+};
+const ROTULO_STATUS: Record<string, string> = { pendente: 'Pendente', aceita: 'Aceita', recusada: 'Recusada' };
+
+const idade = (criadaEm: string) => {
+  const d = Math.floor((Date.now() - new Date(criadaEm).getTime()) / 86400000);
+  return isNaN(d) ? '' : d <= 0 ? 'hoje' : d === 1 ? 'ontem' : `há ${d} dias`;
 };
 
-const Linha: React.FC<{ rotulo: string; valor?: string }> = ({ rotulo, valor }) =>
-  valor && valor.trim() ? (
-    <div className="text-xs">
-      <span className="font-bold text-slate-500">{rotulo}: </span>
-      <span className="text-slate-700 whitespace-pre-wrap">{valor}</span>
-    </div>
-  ) : null;
-
-const RequisicaoCard: React.FC<{ req: Requisicao; onAceitar: (r: Requisicao) => void; onRecusar: (r: Requisicao, m: string) => void; canManage: boolean }> = ({ req, onAceitar, onRecusar, canManage }) => {
+const RequisicaoCard: React.FC<{ req: Requisicao; onAceitar: (r: Requisicao) => void; recusar: (r: Requisicao) => void; canManage: boolean }> = ({ req, onAceitar, recusar, canManage }) => {
   const [aberto, setAberto] = useState(false);
-  const [recusando, setRecusando] = useState(false);
-  const [motivo, setMotivo] = useState('');
   const data = (() => { try { return new Date(req.criadaEm).toLocaleDateString('pt-BR'); } catch { return ''; } })();
+  const detalhes: [string, string | undefined][] = [
+    ['Tipo de seleção', req.selecao],
+    ['Tipo de contratação', req.tipoContratacao],
+    ['Jornada / horário', req.jornada],
+    ['Idade', req.idade],
+    ['Experiência', req.experiencia],
+    ['Salário e benefícios', req.salarioBeneficios],
+    ['Justificativa', req.justificativa],
+    ['Hard skills', req.hardSkills],
+    ['Soft skills', req.softSkills],
+    ['Responsabilidades', req.responsabilidades],
+    ['E-mail do gestor', req.gestorEmail],
+    ...(req.status === 'recusada' ? [['Motivo da recusa', req.motivoRecusa] as [string, string | undefined]] : []),
+  ];
+  const longos = ['Justificativa', 'Hard skills', 'Soft skills', 'Responsabilidades', 'Motivo da recusa'];
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="p-4 flex flex-wrap items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-          <Briefcase className="w-5 h-5" />
-        </div>
-        <div className="flex-1 min-w-0">
+    <article className="painel p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm font-bold text-slate-800 truncate">{req.cargo}</h3>
-            <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${STATUS_BADGE[req.status] || ''}`}>{req.status}</span>
+            <h3 className="text-[15.5px] font-bold" style={{ color: 'var(--tinta)' }}>{req.cargo}</h3>
+            <b className="text-[13px]" style={{ color: COR_STATUS[req.status] }}>{ROTULO_STATUS[req.status] || req.status}</b>
+            {/* A vaga que nasceu desta requisição (gravado ao aceitar, desde 08/10/2026). */}
+            {req.status === 'aceita' && req.vagaCodigo != null && <LinkVaga codigo={req.vagaCodigo} />}
           </div>
-          <div className="flex items-center gap-3 text-[11px] text-slate-500 font-semibold mt-0.5 flex-wrap">
-            <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{req.sede}</span>
-            {req.setor && <span>{req.setor}</span>}
-            <span className="flex items-center gap-1"><User className="w-3 h-3" />{req.gestorSolicitante}</span>
-            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{data}</span>
-          </div>
+          <p className="mt-1 text-[13px]" style={{ color: 'var(--tinta-2)' }}>
+            {[req.sede, req.setor, `pedido por ${req.gestorSolicitante}`, `${data}${req.status === 'pendente' ? ` (${idade(req.criadaEm)})` : ''}`].filter(Boolean).join(' · ')}
+          </p>
         </div>
-        <button onClick={() => setAberto(a => !a)} className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer shrink-0">
-          {aberto ? <>Fechar <ChevronUp className="w-3.5 h-3.5" /></> : <>Detalhes <ChevronDown className="w-3.5 h-3.5" /></>}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button type="button" className="btn btn-sm" onClick={() => setAberto(a => !a)} aria-expanded={aberto}>
+            {aberto ? <>Fechar <ChevronUp aria-hidden="true" /></> : <>Detalhes <ChevronDown aria-hidden="true" /></>}
+          </button>
+          {canManage && req.status === 'pendente' && (
+            <>
+              <button type="button" className="btn btn-sm btn-perigo" onClick={() => recusar(req)}>Recusar</button>
+              <button type="button" className="btn btn-sm btn-primario" onClick={() => onAceitar(req)}><Check aria-hidden="true" /> Aceitar e criar vaga</button>
+            </>
+          )}
+        </div>
       </div>
 
       {aberto && (
-        <div className="px-4 pb-4 pt-1 space-y-1.5 border-t border-slate-100">
-          <Linha rotulo="Tipo de seleção" valor={req.selecao} />
-          <Linha rotulo="Tipo de contratação" valor={req.tipoContratacao} />
-          <Linha rotulo="Justificativa" valor={req.justificativa} />
-          <Linha rotulo="Jornada/Horário" valor={req.jornada} />
-          <Linha rotulo="Idade" valor={req.idade} />
-          <Linha rotulo="Experiência" valor={req.experiencia} />
-          <Linha rotulo="Salário/Benefícios" valor={req.salarioBeneficios} />
-          <Linha rotulo="Hard Skills" valor={req.hardSkills} />
-          <Linha rotulo="Soft Skills" valor={req.softSkills} />
-          <Linha rotulo="Responsabilidades" valor={req.responsabilidades} />
-          <Linha rotulo="E-mail do gestor" valor={req.gestorEmail} />
-          {req.status === 'recusada' && <Linha rotulo="Motivo da recusa" valor={req.motivoRecusa} />}
-        </div>
-      )}
-
-      {canManage && req.status === 'pendente' && (
-        <div className="px-4 pb-4">
-          {!recusando ? (
-            <div className="flex gap-2">
-              <button onClick={() => onAceitar(req)} className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition">
-                <Check className="w-4 h-4" /> Aceitar e criar vaga
-              </button>
-              <button onClick={() => setRecusando(true)} className="px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition">
-                <X className="w-4 h-4" /> Recusar
-              </button>
+        <dl className="ficha mt-4 pt-4" style={{ borderTop: '1px solid var(--fio)' }}>
+          {detalhes.filter(([, v]) => v && v.trim()).map(([r, v]) => (
+            <div key={r} className={longos.includes(r) ? 'larga' : undefined}>
+              <dt>{r}</dt>
+              <dd className="whitespace-pre-wrap font-medium">{v}</dd>
             </div>
-          ) : (
-            <div className="space-y-2">
-              <textarea aria-label="Motivo da recusa" autoFocus value={motivo} onChange={e => setMotivo(e.target.value)} rows={2} placeholder="Motivo da recusa (o gestor verá)…" className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-slate-800" />
-              <div className="flex gap-2">
-                <button onClick={() => { onRecusar(req, motivo.trim()); setRecusando(false); }} className="flex-1 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg cursor-pointer">Confirmar recusa</button>
-                <button onClick={() => { setRecusando(false); setMotivo(''); }} className="px-3 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg cursor-pointer">Cancelar</button>
-              </div>
-            </div>
-          )}
-        </div>
+          ))}
+        </dl>
       )}
-    </div>
+    </article>
   );
 };
 
 export const RequisicoesSection: React.FC<RequisicoesSectionProps> = ({ requisicoes, onAceitar, onRecusar, canManage = true }) => {
   const pendentes = requisicoes.filter(r => r.status === 'pendente');
   const decididas = requisicoes.filter(r => r.status !== 'pendente');
+  const [aba, setAba] = useState<'pendentes' | 'historico'>('pendentes');
+  const [recusando, setRecusando] = useState<Requisicao | null>(null);
+  const [motivo, setMotivo] = useState('');
 
   const [copiado, setCopiado] = useState(false);
   const linkForm = (typeof window !== 'undefined' ? window.location.origin : '') + '/requisicao';
@@ -114,36 +106,56 @@ export const RequisicoesSection: React.FC<RequisicoesSectionProps> = ({ requisic
     setTimeout(() => setCopiado(false), 2000);
   };
 
+  const lista = aba === 'pendentes' ? pendentes : decididas;
+  const abrirRecusa = (r: Requisicao) => { setRecusando(r); setMotivo(''); };
+
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Requisições de Vaga</h1>
-          <p className="text-sm text-slate-500 font-medium">Pedidos de abertura enviados pelos gestores. Aceite para criar a vaga.</p>
+    <div className="space-y-5">
+      <header className="pagina-cab">
+        <div className="min-w-0">
+          <p className="pagina-trilha">Recrutamento</p>
+          <h1 className="pagina-titulo">Requisições de vaga</h1>
+          <p className="inicio-sub">Pedidos de abertura enviados pelos gestores. Aceite para criar a vaga.</p>
         </div>
-        <button onClick={copiarLink} title={linkForm} className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition shrink-0 border ${copiado ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
-          {copiado ? <><Check className="w-4 h-4" /> Link copiado!</> : <><Link2 className="w-4 h-4" /> Copiar link do formulário</>}
-        </button>
+        <div className="pagina-acoes">
+          <button type="button" className="btn" onClick={copiarLink} title={linkForm}>
+            {copiado ? <><Check aria-hidden="true" /> Link copiado</> : <><Link2 aria-hidden="true" /> Link do formulário</>}
+          </button>
+        </div>
+      </header>
+
+      <div className="seg" role="group" aria-label="Requisições">
+        <button type="button" aria-pressed={aba === 'pendentes'} onClick={() => setAba('pendentes')}>Pendentes <b className="tabular-nums">{pendentes.length}</b></button>
+        <button type="button" aria-pressed={aba === 'historico'} onClick={() => setAba('historico')}>Histórico <b className="tabular-nums">{decididas.length}</b></button>
       </div>
 
-      <section className="space-y-3">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-          <Inbox className="w-4 h-4" /> Pendentes ({pendentes.length})
-        </h2>
-        {pendentes.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-10 text-center text-sm text-slate-400 font-semibold">
-            Nenhuma requisição pendente. 🎉
-          </div>
-        ) : (
-          pendentes.map(r => <RequisicaoCard key={r.id} req={r} onAceitar={onAceitar} onRecusar={onRecusar} canManage={canManage} />)
-        )}
-      </section>
+      {lista.length === 0 ? (
+        <p className="painel text-center py-12 text-[14px]" style={{ color: 'var(--tinta-3)' }}>
+          {aba === 'pendentes' ? 'Nenhuma requisição esperando resposta.' : 'Nenhuma requisição decidida ainda.'}
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {lista.map(r => <RequisicaoCard key={r.id} req={r} onAceitar={onAceitar} recusar={abrirRecusa} canManage={canManage && aba === 'pendentes'} />)}
+        </div>
+      )}
 
-      {decididas.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">Histórico ({decididas.length})</h2>
-          {decididas.map(r => <RequisicaoCard key={r.id} req={r} onAceitar={onAceitar} onRecusar={onRecusar} canManage={false} />)}
-        </section>
+      {recusando && (
+        <Modal
+          titulo={`Recusar: ${recusando.cargo}`}
+          antes={<>{recusando.sede} · pedido por {recusando.gestorSolicitante}</>}
+          largura="sm"
+          aoFechar={() => setRecusando(null)}
+          rodape={<>
+            <button type="button" className="btn" onClick={() => setRecusando(null)}>Cancelar</button>
+            <button type="button" className="btn btn-perigo" onClick={() => { onRecusar(recusando, motivo.trim()); setRecusando(null); }}>Recusar requisição</button>
+          </>}
+        >
+          <label className="block">
+            <span className="rotulo">Motivo da recusa</span>
+            <textarea autoFocus rows={3} className="campo w-full" value={motivo} onChange={e => setMotivo(e.target.value)} />
+            <span className="ajuda block">O gestor vê este texto.</span>
+          </label>
+        </Modal>
       )}
     </div>
   );

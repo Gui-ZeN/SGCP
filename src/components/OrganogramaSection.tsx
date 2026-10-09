@@ -1,11 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Funcionario } from '../types';
 import type { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import type { NoOrganogramaDoc } from '../hooks/useOrganograma';
 import { montarArvore, profundidade, descendentes, iniciais, admissaoDoQuadro, type ArvoreNo } from '../utils/organograma';
 import {
-  Network, Plus, X, Pencil, Trash2, Printer, ChevronDown, ChevronRight, UserPlus, AlertTriangle,
+  Network, Plus, Pencil, Trash2, Printer, ChevronDown, ChevronRight, UserPlus, AlertTriangle,
 } from 'lucide-react';
+import { Modal } from './ui/Modal';
+import { FiltroMultiplo } from './ui/FiltroMultiplo';
 
 /**
  * Organograma — montado à mão, de cima para baixo.
@@ -31,8 +33,6 @@ interface OrganogramaSectionProps {
   confirmAction?: (titulo: string, mensagem: string, onConfirm: () => void | Promise<void>) => void;
 }
 
-const campoCls = 'w-full text-sm px-3 py-2.5 border border-slate-200 rounded-xl outline-none bg-white font-medium focus:border-slate-800';
-const rotuloCls = 'block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1';
 const chave = (t?: string) =>
   String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
@@ -55,6 +55,7 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
   const podeEditar = !!adicionarNo;
   const LIMITE_VISIVEL = 8;
 
+
   /**
    * Um organograma POR SETOR. "Tudo junto" desenhava Infra e Pedagógico na
    * mesma árvore, e eles não se encontram em lugar nenhum do dia a dia.
@@ -69,13 +70,19 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
   }, [setores, nos]);
 
   const semSetor = useMemo(() => nos.filter(n => !(n.setor || '').trim()).length, [nos]);
-  const [setorAtivo, setSetorAtivo] = useState<string>('__todos__');
+  // Múltipla escolha (regra de 08/10/2026); nada marcado = todos os setores.
+  // '__sem__' é a caixa sem setor lançado.
+  const [setoresSel, setSetoresSel] = useState<string[]>([]);
+  const todosOsSetores = setoresSel.length === 0;
+  /** Um setor só marcado (e não o "sem setor"): é nele que a caixa nova nasce. */
+  const setorUnico = setoresSel.length === 1 && setoresSel[0] !== '__sem__' ? setoresSel[0] : '';
 
   const doRecorte = useMemo(() => {
-    if (setorAtivo === '__todos__') return nos;
-    if (setorAtivo === '__sem__') return nos.filter(n => !(n.setor || '').trim());
-    return nos.filter(n => chave(n.setor) === chave(setorAtivo));
-  }, [nos, setorAtivo]);
+    if (todosOsSetores) return nos;
+    const chaves = setoresSel.filter(x => x !== '__sem__').map(chave);
+    const comSem = setoresSel.includes('__sem__');
+    return nos.filter(n => (n.setor || '').trim() ? chaves.includes(chave(n.setor)) : comSem);
+  }, [nos, setoresSel, todosOsSetores]);
 
   const idsExistentes = useMemo(() => new Set(nos.map(n => n.id)), [nos]);
 
@@ -103,9 +110,16 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
     [setoresDoDesenho, contagemPorSetor]
   );
 
-  const rotuloDoRecorte = setorAtivo === '__todos__'
+  const rotuloDoRecorte = todosOsSetores
     ? 'todos os setores'
-    : setorAtivo === '__sem__' ? 'sem setor' : setorAtivo;
+    : setoresSel.map(x => (x === '__sem__' ? 'sem setor' : x)).join(', ');
+
+  /** Com desenho primeiro (com o tamanho), depois os pendentes e os vazios do catálogo. */
+  const opcoesSetor = useMemo(() => [
+    ...comDesenho.map(nome => ({ valor: nome, rotulo: `${nome} (${contagemPorSetor.get(nome)})` })),
+    ...(semSetor > 0 ? [{ valor: '__sem__', rotulo: `Sem setor (${semSetor})` }] : []),
+    ...vaziosDoCatalogo.map(nome => ({ valor: nome, rotulo: `${nome} (vazio)` })),
+  ], [comDesenho, contagemPorSetor, semSetor, vaziosDoCatalogo]);
 
   /**
    * Nomes sugeridos para o cargo escolhido — é todo o papel do quadro aqui.
@@ -128,7 +142,7 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
       sede: sob?.sede || '',
       // O subordinado nasce no setor do chefe; sem chefe, no setor que está
       // aberto na tela. Fora isso, a caixa sumiria do recorte ao ser criada.
-      setor: sob?.setor || (setorAtivo.startsWith('__') ? '' : setorAtivo),
+      setor: sob?.setor || setorUnico,
       // Turno nasce vazio mesmo tendo chefe: o subordinado noturno de um chefe
       // diurno e o caso comum, nao a excecao.
       turno: '',
@@ -207,6 +221,32 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
     catch (e: any) { setAviso(`Não foi possível mover: ${e?.message || e}`); }
   };
 
+  /**
+   * Cada setor encolhe para caber na folha, em vez de rolar de lado (regra de
+   * 08/10/2026: nada rola de lado no notebook). O piso de 60% mantém o nome
+   * legível; abaixo disso a folha rola como último recurso. Na impressão o
+   * zoom volta a 1 (index.css, @media print).
+   */
+  const folha = useRef<HTMLDivElement>(null);
+  const ESCALA_MINIMA = 0.6;
+  useLayoutEffect(() => {
+    const el = folha.current;
+    if (!el) return;
+    const ajustar = () => {
+      const largura = el.clientWidth - 40; // o padding da folha (p-5)
+      el.querySelectorAll<HTMLElement>('.org-t > li').forEach(li => {
+        li.style.zoom = '';
+        const natural = li.scrollWidth;
+        li.style.zoom = natural > largura ? String(Math.max(ESCALA_MINIMA, largura / natural)) : '';
+      });
+    };
+    ajustar();
+    const ro = new ResizeObserver(ajustar);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // A largura da árvore só muda com o recorte, o recolher e o "mostrar os outros".
+  }, [doRecorte, recolhidos, mostrarTodos]);
+
   const alternarRecolhido = (id: string) =>
     setRecolhidos(s => {
       const novo = new Set(s);
@@ -234,7 +274,7 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
     const alvo = arrastandoSobre === no.id;
     const saindo = arrastando === no.id;
     const admissao = admissaoDoQuadro(funcionarios, no.nome);
-    // Só a fileira de FOLHAS quebra em várias linhas. Quebrar um nível com ramos
+    // Só a equipe de FOLHAS desce em coluna. Empilhar um nível com ramos
     // embaixo jogaria um ramo debaixo do outro e sugeriria hierarquia que não
     // existe — ver o comentário de `.org-t-folhas` no index.css.
     const soFolhas = temFilhos && item.filhos.every(f => f.filhos.length === 0);
@@ -277,7 +317,7 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
             {no.turno && <span className="org-meta">Turno {no.turno}</span>}
             {admissao && <span className="org-meta">Admissão {admissao}</span>}
             {no.sede && (
-              <span className={`org-meta uppercase tracking-wider ${item.nivel === 1 ? '' : 'text-slate-400'}`}>
+              <span className={`org-meta ${item.nivel === 1 ? '' : 'text-slate-400'}`}>
                 {no.sede}
               </span>
             )}
@@ -356,64 +396,22 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
-        <div>
-          <h2 className="text-xl font-bold text-slate-850 flex items-center gap-2">
-            <Network className="w-6 h-6 text-indigo-500" />
-            Organograma
-          </h2>
-          <p className="text-sm text-slate-500 font-medium mt-1">
-            Monte a estrutura de cima para baixo. O cargo sugere nomes do quadro.
-          </p>
+      <header className="pagina-cab no-print">
+        <div className="min-w-0">
+          <p className="pagina-trilha">Pessoas</p>
+          <h1 className="pagina-titulo">Organograma</h1>
+          <p className="inicio-sub">Monte a estrutura de cima para baixo. O cargo sugere nomes do quadro.</p>
         </div>
-
-        <div className="flex items-center gap-2 self-start no-print">
-          {(setoresDoDesenho.length > 0 || semSetor > 0) && (
-            <select
-              value={setorAtivo}
-              onChange={e => setSetorAtivo(e.target.value)}
-              aria-label="Setor do organograma"
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 cursor-pointer outline-none focus:border-slate-800"
-            >
-              <option value="__todos__">Todos os setores ({nos.length})</option>
-              {/* Quem JÁ tem desenho vem primeiro: o catálogo tem 24 setores e
-                  listar os vazios junto transformava o seletor numa parede de
-                  "(0)" entre os dois que a pessoa usa. */}
-              {comDesenho.length > 0 && (
-                <optgroup label="Com organograma">
-                  {comDesenho.map(nome => (
-                    <option key={nome} value={nome}>{nome} ({contagemPorSetor.get(nome)})</option>
-                  ))}
-                </optgroup>
-              )}
-              {semSetor > 0 && (
-                <optgroup label="Pendente">
-                  <option value="__sem__">Sem setor ({semSetor})</option>
-                </optgroup>
-              )}
-              {vaziosDoCatalogo.length > 0 && (
-                <optgroup label="Ainda sem ninguém">
-                  {vaziosDoCatalogo.map(nome => <option key={nome} value={nome}>{nome}</option>)}
-                </optgroup>
-              )}
-            </select>
+        <div className="pagina-acoes">
+          {opcoesSetor.length > 0 && (
+            <FiltroMultiplo rotulo="Setor" selecionados={setoresSel} onChange={setSetoresSel} opcoes={opcoesSetor} />
           )}
-          <button
-            onClick={imprimir}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded-xl text-xs font-bold uppercase tracking-wider border border-slate-250 flex items-center gap-1.5 cursor-pointer transition-colors"
-          >
-            <Printer className="w-3.5 h-3.5" /> Imprimir
-          </button>
+          <button type="button" className="btn" onClick={imprimir}><Printer aria-hidden="true" /> Imprimir</button>
           {podeEditar && (
-            <button
-              onClick={() => abrirNovo(null)}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition"
-            >
-              <Plus className="w-4 h-4" /> Nova caixa
-            </button>
+            <button type="button" className="btn btn-primario" onClick={() => abrirNovo(null)}><Plus aria-hidden="true" /> Nova caixa</button>
           )}
         </div>
-      </div>
+      </header>
 
       {aviso && (
         <p role="alert" className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-3.5 py-2.5 text-[11px] font-semibold">
@@ -432,12 +430,12 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
         </div>
       )}
 
-      <div className="org-folha bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+      <div ref={folha} className="org-folha painel p-5">
         {raizes.length === 0 ? (
           <div className="py-14 text-center">
             <Network className="w-8 h-8 text-slate-300 mx-auto mb-2" />
             <p className="text-sm font-bold text-slate-600">
-              {setorAtivo === '__todos__'
+              {todosOsSetores
                 ? 'O organograma está vazio.'
                 : `Nenhuma caixa em ${rotuloDoRecorte}.`}
             </p>
@@ -449,7 +447,7 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
           <>
             <div className="print-only mb-3">
               <p className="text-sm font-bold">
-                Organograma{setorAtivo === '__todos__' ? '' : ` — ${rotuloDoRecorte}`}
+                Organograma{todosOsSetores ? '' : ` — ${rotuloDoRecorte}`}
               </p>
               <p className="text-[11px]">
                 {total} {total === 1 ? 'caixa' : 'caixas'} · {profundidade(raizes)} {profundidade(raizes) === 1 ? 'nível' : 'níveis'} ·
@@ -459,7 +457,7 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
 
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                {setorAtivo === '__todos__' ? '' : `${rotuloDoRecorte} · `}
+                {todosOsSetores ? '' : `${rotuloDoRecorte} · `}
                 {total} {total === 1 ? 'caixa' : 'caixas'} · {profundidade(raizes)} {profundidade(raizes) === 1 ? 'nível' : 'níveis'}
               </p>
               {podeEditar && (
@@ -486,130 +484,94 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
       </div>
 
       {abrindo && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div role="dialog" aria-modal="true" aria-labelledby="org-titulo"
-            className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-            <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-              <div className="min-w-0">
-                <h3 id="org-titulo" className="text-sm font-bold text-slate-800">
-                  {editando ? `Editar ${editando.nome}` : novoSob ? 'Adicionar subordinado' : 'Nova caixa'}
-                </h3>
-                {novoSob && (
-                  <p className="text-[11px] text-slate-600 font-semibold truncate">responde a {novoSob.nome}</p>
-                )}
-              </div>
-              <button onClick={() => setAbrindo(false)} aria-label="Fechar"
-                className="w-8 h-8 rounded-full bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer shrink-0">
-                <X className="w-3.5 h-3.5" />
-              </button>
+        <Modal
+          titulo={editando ? `Editar ${editando.nome}` : novoSob ? 'Adicionar subordinado' : 'Nova caixa'}
+          antes={novoSob ? <>responde a {novoSob.nome}</> : 'Organograma'}
+          aoFechar={() => setAbrindo(false)}
+          rodape={<>
+            <button type="button" className="btn" onClick={() => setAbrindo(false)}>Cancelar</button>
+            <button type="button" className="btn btn-primario" onClick={salvar} disabled={salvando}>{salvando ? 'Salvando…' : 'Salvar'}</button>
+          </>}
+        >
+          <div className="space-y-4">
+            {/* O CARGO vem primeiro: é ele que sugere os nomes. */}
+            <label className="block">
+              <span className="rotulo">Cargo</span>
+              <input className="campo w-full" list="org-cargos" placeholder="Ex.: Supervisor(a)"
+                value={form.cargo} onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))} />
+              <datalist id="org-cargos">
+                {cargos.filter(c => c?.nome).map(c => <option key={c.id} value={c.nome} />)}
+              </datalist>
+            </label>
+
+            <label className="block">
+              <span className="rotulo">Nome *</span>
+              <input className="campo w-full" list="org-sugestoes" autoComplete="off"
+                placeholder={form.cargo ? 'Digite ou escolha da lista' : 'Digite o nome'}
+                value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} />
+              <datalist id="org-sugestoes">
+                {sugestoes.map(f => <option key={f.id} value={f.nome}>{f.sede || ''}</option>)}
+              </datalist>
+              <span className="ajuda block">
+                {!form.cargo
+                  ? 'Informe o cargo para o sistema sugerir nomes do quadro.'
+                  : sugestoes.length === 0
+                  ? 'Ninguém no quadro com esse cargo (ou já estão no desenho). Dá para digitar livremente.'
+                  : `${sugestoes.length === 1 ? '1 nome sugerido' : `${sugestoes.length} nomes sugeridos`} do quadro, ou digite outro, inclusive posição vaga.`}
+              </span>
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="rotulo">Setor</span>
+                <input className="campo w-full" list="org-setores" placeholder="Ex.: Infra"
+                  value={form.setor} onChange={e => setForm(f => ({ ...f, setor: e.target.value }))} />
+                <datalist id="org-setores">
+                  {setoresDoDesenho.map(nome => <option key={nome} value={nome} />)}
+                </datalist>
+                <span className="ajuda block">Cada setor tem o seu organograma.</span>
+              </label>
+              <label className="block">
+                <span className="rotulo">Sede (opcional)</span>
+                <input className="campo w-full" list="org-sedes"
+                  value={form.sede} onChange={e => setForm(f => ({ ...f, sede: e.target.value }))} />
+                <datalist id="org-sedes">
+                  {sedes.map(s => <option key={s.nome} value={s.nome} />)}
+                </datalist>
+              </label>
             </div>
 
-            <div className="p-6 space-y-4 overflow-y-auto">
-              {/* O CARGO vem primeiro: é ele que sugere os nomes. */}
-              <div>
-                <label htmlFor="org-cargo" className={rotuloCls}>Cargo</label>
-                <input id="org-cargo" className={campoCls} list="org-cargos" placeholder="Ex.: Supervisor(a)…"
-                  value={form.cargo} onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))} />
-                <datalist id="org-cargos">
-                  {cargos.filter(c => c?.nome).map(c => <option key={c.id} value={c.nome} />)}
-                </datalist>
-              </div>
+            {/* Turno: lista fechada, e não texto livre. Digitado à mão, o
+                mesmo turno vira "Noturno", "noturno" e "NOT" em três caixas
+                do mesmo desenho — e aí o cartão deixa de alinhar. */}
+            <label className="block">
+              <span className="rotulo">Turno (opcional)</span>
+              <select className="campo w-full" value={form.turno} onChange={e => setForm(f => ({ ...f, turno: e.target.value }))}>
+                <option value="">Sem turno</option>
+                <option value="Diurno">Diurno</option>
+                <option value="Noturno">Noturno</option>
+                <option value="ADM">ADM</option>
+              </select>
+            </label>
 
-              <div>
-                <label htmlFor="org-nome" className={rotuloCls}>Nome *</label>
-                <input id="org-nome" className={campoCls} list="org-sugestoes" autoComplete="off"
-                  placeholder={form.cargo ? 'Digite ou escolha da lista…' : 'Digite o nome'}
-                  value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} />
-                <datalist id="org-sugestoes">
-                  {sugestoes.map(f => <option key={f.id} value={f.nome}>{f.sede || ''}</option>)}
-                </datalist>
-                <p className="text-[10px] text-slate-500 font-semibold mt-1">
-                  {!form.cargo
-                    ? 'Informe o cargo para o sistema sugerir nomes do quadro.'
-                    : sugestoes.length === 0
-                    ? 'Ninguém no quadro com esse cargo (ou já estão no desenho). Dá para digitar livremente.'
-                    : `${sugestoes.length === 1 ? '1 nome sugerido' : `${sugestoes.length} nomes sugeridos`} do quadro — ou digite outro, inclusive posição vaga.`}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="org-setor" className={rotuloCls}>Setor</label>
-                  <input id="org-setor" className={campoCls} list="org-setores"
-                    placeholder="Ex.: Infra…"
-                    value={form.setor} onChange={e => setForm(f => ({ ...f, setor: e.target.value }))} />
-                  <datalist id="org-setores">
-                    {setoresDoDesenho.map(nome => <option key={nome} value={nome} />)}
-                  </datalist>
-                  <p className="text-[10px] text-slate-500 font-semibold mt-1">
-                    Cada setor tem o seu organograma.
-                  </p>
-                </div>
-                <div>
-                  <label htmlFor="org-sede" className={rotuloCls}>Sede (opcional)</label>
-                  <input id="org-sede" className={campoCls} list="org-sedes"
-                    value={form.sede} onChange={e => setForm(f => ({ ...f, sede: e.target.value }))} />
-                  <datalist id="org-sedes">
-                    {sedes.map(s => <option key={s.nome} value={s.nome} />)}
-                  </datalist>
-                </div>
-              </div>
-
-              {/* Turno: lista fechada, e não texto livre. Digitado à mão, o
-                  mesmo turno vira "Noturno", "noturno" e "NOT" em três caixas
-                  do mesmo desenho — e aí o cartão deixa de alinhar. */}
-              <div>
-                <label htmlFor="org-turno" className={rotuloCls}>Turno (opcional)</label>
-                <select
-                  id="org-turno"
-                  className={`${campoCls} cursor-pointer`}
-                  value={form.turno}
-                  onChange={e => setForm(f => ({ ...f, turno: e.target.value }))}
-                >
-                  <option value="">Sem turno</option>
-                  <option value="Diurno">Diurno</option>
-                  <option value="Noturno">Noturno</option>
-                  <option value="ADM">ADM</option>
+            {editando && (
+              <label className="block">
+                <span className="rotulo">Responde a</span>
+                <select className="campo w-full" value={form.respondeA} onChange={e => setForm(f => ({ ...f, respondeA: e.target.value }))}>
+                  <option value="">— ninguém (fica no topo) —</option>
+                  {nos
+                    .filter(n => n.id !== editando.id && !descendentes(raizes, editando.id).has(n.id))
+                    .map(n => (
+                      <option key={n.id} value={n.id}>{n.nome}{n.cargo ? ` — ${n.cargo}` : ''}</option>
+                    ))}
                 </select>
-              </div>
+                <span className="ajuda block">A própria equipe dela não aparece na lista: evita o desenho virar um laço.</span>
+              </label>
+            )}
 
-              {editando && (
-                <div>
-                  <label htmlFor="org-responde" className={rotuloCls}>Responde a</label>
-                  <select id="org-responde" className={campoCls} value={form.respondeA}
-                    onChange={e => setForm(f => ({ ...f, respondeA: e.target.value }))}>
-                    <option value="">— ninguém (fica no topo) —</option>
-                    {nos
-                      .filter(n => n.id !== editando.id && !descendentes(raizes, editando.id).has(n.id))
-                      .map(n => (
-                        <option key={n.id} value={n.id}>{n.nome}{n.cargo ? ` — ${n.cargo}` : ''}</option>
-                      ))}
-                  </select>
-                  <p className="text-[10px] text-slate-500 font-semibold mt-1">
-                    A própria equipe dela não aparece na lista — evita o desenho virar um laço.
-                  </p>
-                </div>
-              )}
-
-              {erro && (
-                <p role="alert" className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-3.5 py-2.5 text-[11px] font-semibold">
-                  {erro}
-                </p>
-              )}
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
-              <button onClick={() => setAbrindo(false)}
-                className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold rounded-xl text-slate-650 cursor-pointer">
-                Cancelar
-              </button>
-              <button onClick={salvar} disabled={salvando}
-                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-xs font-bold rounded-xl text-white shadow-md cursor-pointer disabled:opacity-60">
-                {salvando ? 'Salvando…' : 'Salvar'}
-              </button>
-            </div>
+            {erro && <p role="alert" className="erro-form">{erro}</p>}
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

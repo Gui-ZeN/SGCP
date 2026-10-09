@@ -4,29 +4,18 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { LinkVaga } from './ui/Atalhos';
 import { Experiencia } from '../types';
 import { Sede, Setor } from '../hooks/useMetadata';
 import { dateFromValue, toISOInput, formatDateBR } from '../utils/date';
-import { 
-  ShieldCheck, 
-  Search, 
-  MapPin, 
-  User, 
-  Clock, 
-  TrendingUp, 
-  PlusCircle, 
-  Calendar,
-  CheckCircle,
-  AlertCircle,
-  ArrowUpRight,
-  ChevronRight,
-  Sparkles,
-  Pencil,
-  Trash2,
-  UserMinus
-} from 'lucide-react';
+import { Search, Plus, Trash2, Upload, Loader2 } from 'lucide-react';
+import { Modal } from './ui/Modal';
+import { FiltroMultiplo } from './ui/FiltroMultiplo';
+import { Kpi } from './indicadores/ui';
 
 interface ExperienciasSectionProps {
+  /** Pessoa a mostrar, vinda de outra tela (#/experiencia?pessoa=…). O token reaplica. */
+  foco?: { pessoa: string; token: number } | null;
   experiencias: Experiencia[];
   addExperiencia: (input: Omit<Experiencia, 'id' | 'termino1' | 'termino2'>) => Promise<void>;
   updateExperiencia: (id: string, updatedFields: Partial<Experiencia>) => Promise<void>;
@@ -151,6 +140,7 @@ const getReviewAlert = (e: Experiencia): ReviewAlert => {
 };
 
 export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
+  foco,
   experiencias,
   addExperiencia,
   updateExperiencia,
@@ -166,23 +156,30 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [importandoUni, setImportandoUni] = useState(false);
   const uniFileRef = React.useRef<HTMLInputElement>(null);
-  // Modal de rescisão a pedido (colaborador pediu demissão na experiência)
-  const [rescisao, setRescisao] = useState<Experiencia | null>(null);
+  // Rescisão a pedido (colaborador pediu demissão na experiência): data e observação.
   const [rescisaoData, setRescisaoData] = useState('');
   const [rescisaoObs, setRescisaoObs] = useState('');
   const [activeTableTab, setActiveTableTab] = useState<'ativos' | 'efetivados' | 'encerrados'>('ativos');
-  const [selectedSede, setSelectedSede] = useState(() => {
-    return !isAdmin && userSede ? userSede : '';
-  });
+  // Filtros de múltipla escolha (regra de 08/10/2026); nada marcado = todos.
+  // Quem não é admin fica travado na própria sede, como antes.
+  const sedeTravada = !isAdmin && !!userSede;
+  const [sedesSel, setSedesSel] = useState<string[]>([]);
+  const [setoresSel, setSetoresSel] = useState<string[]>([]);
+  /** Só quem tem avaliação vencida ou vencendo em 7 dias (substitui a antiga "Central de Avisos"). */
+  const [soUrgentes, setSoUrgentes] = useState(false);
+
+  // Veio de outra tela ("ver na Experiência", nos detalhes da vaga): busca a
+  // pessoa e abre a aba onde ela está (em andamento, efetivados ou encerrados).
+  React.useEffect(() => {
+    if (!foco?.pessoa) return;
+    setSearchTerm(foco.pessoa);
+    const achada = experiencias.find(e => e.colaborador.trim().toLowerCase() === foco.pessoa.trim().toLowerCase());
+    if (achada) setActiveTableTab(achada.status === 'EFETIVADO' ? 'efetivados' : achada.status === 'ENCERRADO' ? 'encerrados' : 'ativos');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [foco?.token, experiencias.length]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingExperiencia, setEditingExperiencia] = useState<Experiencia | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
-
-  React.useEffect(() => {
-    if (!isAdmin && userSede) {
-      setSelectedSede(userSede);
-    }
-  }, [userSede, isAdmin]);
 
   // New review form
   const [colaborador, setColaborador] = useState('');
@@ -194,12 +191,16 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
   const [observacoes, setObservacoes] = useState('');
 
   // Secure relevant experiences list restricted by Sede
+  // Sede e setor valem também para os números do topo.
   const relevantExperiencias = useMemo(() => {
-    if (selectedSede) {
-      return experiencias.filter(e => e.sede && e.sede.toLowerCase() === selectedSede.toLowerCase());
-    }
-    return experiencias;
-  }, [experiencias, selectedSede]);
+    const sedesAlvo = (sedeTravada ? [userSede!] : sedesSel).map(x => x.toLowerCase());
+    return experiencias.filter(e =>
+      (!sedesAlvo.length || sedesAlvo.includes((e.sede || '').toLowerCase())) &&
+      (!setoresSel.length || setoresSel.includes(e.setor)));
+  }, [experiencias, sedeTravada, userSede, sedesSel, setoresSel]);
+
+  const opcoesSetor = useMemo(() => [...new Set(experiencias.map(e => e.setor).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'pt-BR')).map(x => ({ valor: x, rotulo: x })), [experiencias]);
 
   // Stats
   const stats = useMemo(() => {
@@ -297,12 +298,13 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
         matchesTab = e.status === 'ENCERRADO';
       }
 
-      // Sede filter for Admins
-      const matchSede = !selectedSede || e.sede === selectedSede;
+      const matchUrgente = !soUrgentes || ['danger', 'warning'].includes(getReviewAlert(e).type);
 
-      return matchText && matchesTab && matchSede;
-    });
-  }, [relevantExperiencias, searchTerm, activeTableTab, selectedSede]);
+      return matchText && matchesTab && matchUrgente;
+    })
+      // Em andamento, o prazo mais apertado primeiro: é a ordem de trabalho.
+      .sort((a, b) => activeTableTab === 'ativos' ? getReviewAlert(a).days - getReviewAlert(b).days : 0);
+  }, [relevantExperiencias, searchTerm, activeTableTab, soUrgentes]);
 
   // Due / Urgent reviews summary for Notification Center
   const dueReviewsSummary = useMemo(() => {
@@ -320,35 +322,6 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
 
     return { overdue, urgent };
   }, [relevantExperiencias]);
-
-  const renderAlertBadge = (alert: ReviewAlert) => {
-    if (alert.type === 'none' || alert.type === 'success') {
-      if (alert.type === 'success') {
-        return null;
-      }
-      return (
-        <span className="inline-flex mt-1 text-[9.5px] font-extrabold text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded leading-none whitespace-nowrap">
-          {alert.label} ({alert.days}d rest.)
-        </span>
-      );
-    }
-
-    const colorClasses = 
-      alert.type === 'danger' 
-        ? 'bg-red-50 text-red-700 border-red-200/90' 
-        : alert.type === 'warning' 
-        ? 'bg-amber-50 text-amber-850 border-amber-205/90' 
-        : 'bg-blue-50 text-blue-700 border-blue-200/95';
-
-    return (
-      <div className={`inline-flex items-center gap-1.5 mt-1 px-1.5 py-0.5 text-[9.5px] font-extrabold uppercase rounded border ${colorClasses} leading-none max-w-full truncate whitespace-nowrap`} title={alert.message}>
-        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-          alert.type === 'danger' ? 'bg-red-600 animate-pulse' : 'bg-amber-500 animate-pulse'
-        }`} />
-        <span className="truncate">{alert.label}</span>
-      </div>
-    );
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -395,18 +368,9 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
   };
 
   // Rescisão a pedido: colaborador pediu demissão antes de fechar 45/90 dias.
-  const abrirRescisao = (e: Experiencia) => {
-    setRescisao(e);
-    setRescisaoData(toISOInput(new Date().toISOString()));
-    setRescisaoObs('');
-  };
-
-  const confirmarRescisao = async () => {
-    if (!rescisao) return;
-    const alvo = rescisao;
+  const confirmarRescisao = async (alvo: Experiencia) => {
     const dataPedido = rescisaoData ? formatDateBR(rescisaoData) : '';
     const nota = `Rescisão a pedido do colaborador${dataPedido ? ` em ${dataPedido}` : ''}.${rescisaoObs.trim() ? ` ${rescisaoObs.trim()}` : ''}`;
-    setRescisao(null);
     await updateExperiencia(alvo.id, {
       status: 'ENCERRADO',
       tipoEncerramento: 'a_pedido',
@@ -416,18 +380,63 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
     });
   };
 
+  // ── Decisão da experiência ────────────────────────────────────────────────
+  // ⚠️ Antes eram quatro botões soltos na linha, e "Encerrar" desligava a
+  // pessoa com UM clique, sem confirmação, colado no "Efetivar". Agora a
+  // decisão abre um modal: escolhe, confere o nome, confirma.
+  type Escolha = 'EFETIVADO' | 'PRORROGADO' | 'a_pedido' | 'empresa';
+  const [decidindo, setDecidindo] = useState<Experiencia | null>(null);
+  const [escolha, setEscolha] = useState<Escolha | null>(null);
+  const abrirDecisao = (e: Experiencia) => {
+    setDecidindo(e);
+    setEscolha(null);
+    setRescisaoData(toISOInput(new Date().toISOString()));
+    setRescisaoObs('');
+  };
+  const confirmarDecisao = async () => {
+    if (!decidindo || !escolha) return;
+    const alvo = decidindo;
+    setDecidindo(null);
+    if (escolha === 'a_pedido') await confirmarRescisao(alvo);
+    else await handleStatusChange(alvo.id, escolha === 'empresa' ? 'ENCERRADO' : escolha);
+  };
+
+  /** Próximo marco e quanto falta, para a coluna "Próximo prazo". */
+  const prazo = (e: Experiencia) => {
+    const a = getReviewAlert(e);
+    const marco = e.status === 'PRORROGADO' ? `90 dias · ${e.termino2}` : `45 dias · ${e.termino1}`;
+    const texto = a.days < 0 ? `atrasada há ${-a.days} dia${a.days === -1 ? '' : 's'}`
+      : a.days === 0 ? 'vence hoje'
+      : `em ${a.days} dia${a.days === 1 ? '' : 's'}`;
+    const cor = a.type === 'danger' ? 'var(--atraso)' : a.type === 'warning' ? 'var(--etapa-triagem)' : 'var(--tinta-3)';
+    return { marco, texto, cor };
+  };
+  const situacao = (e: Experiencia): { rotulo: string; cor: string } =>
+    e.status === 'EM_ANALISE' ? { rotulo: 'Em análise (45 dias)', cor: 'var(--etapa-entrevista)' }
+    : e.status === 'PRORROGADO' ? { rotulo: 'Prorrogado (90 dias)', cor: 'var(--etapa-testes)' }
+    : e.status === 'EFETIVADO' ? { rotulo: 'Efetivado', cor: 'var(--etapa-admissao)' }
+    : e.tipoEncerramento === 'a_pedido' ? { rotulo: e.dataPedidoRescisao ? `Saiu a pedido em ${e.dataPedidoRescisao}` : 'Saiu a pedido', cor: 'var(--etapa-triagem)' }
+    : { rotulo: 'Desligado pela empresa', cor: 'var(--atraso)' };
+
+  const excluir = (e: Experiencia) => {
+    if (confirmAction) {
+      confirmAction('Excluir acompanhamento', `Remover o acompanhamento de experiência de "${e.colaborador}"? A admissão em si não é afetada.`, () => deleteExperiencia(e.id));
+    } else if (confirm(`Remover definitivamente acompanhamento de ${e.colaborador}?`)) {
+      deleteExperiencia(e.id);
+    }
+  };
+  const fecharForm = () => { resetForm(); setShowAddForm(false); };
+  const pedemAvaliacao = dueReviewsSummary.overdue.length + dueReviewsSummary.urgent.length;
+
   return (
-    <div className="space-y-6">
-      {/* Tab Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
-        <div>
-          <h2 className="text-xl font-bold text-slate-850 flex items-center gap-2">
-            <ShieldCheck className="w-6 h-6 text-orange-500" />
-            Controle de Experiência (45 e 90 dias)
-          </h2>
-          <p className="text-slate-500 text-sm font-medium">Monitore datas limites de vencimento de períodos de teste de novos colaboradores.</p>
+    <div className="space-y-5">
+      <header className="pagina-cab">
+        <div className="min-w-0">
+          <p className="pagina-trilha">Pessoas</p>
+          <h1 className="pagina-titulo">Experiência</h1>
+          <p className="inicio-sub">Prazos de 45 e 90 dias dos novos colaboradores.</p>
         </div>
-        <div className="flex items-center gap-2 self-start">
+        <div className="pagina-acoes">
           {canManage && onImportUniversidade && (
             <>
               <input
@@ -444,637 +453,199 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                   finally { setImportandoUni(false); if (uniFileRef.current) uniFileRef.current.value = ''; }
                 }}
               />
-              <button
-                onClick={() => uniFileRef.current?.click()}
-                disabled={importandoUni}
-                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-750 rounded-xl text-xs font-bold uppercase tracking-wider border border-slate-250 flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-60"
-                title="Importar a planilha de acompanhamento (abas por campus)"
-              >
-                Importar (Universidade)
+              <button type="button" className="btn" onClick={() => uniFileRef.current?.click()} disabled={importandoUni}
+                title="Importar a planilha de acompanhamento (abas por campus)">
+                {importandoUni ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Upload aria-hidden="true" />} Importar (Universidade)
               </button>
             </>
           )}
           {canManage && (
-            <button
-              onClick={openCreateForm}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Novo Acompanhamento
-            </button>
+            <button type="button" className="btn btn-primario" onClick={openCreateForm}><Plus aria-hidden="true" /> Novo acompanhamento</button>
           )}
         </div>
+      </header>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi rotulo="Em experiência" valor={stats.totalAtivos} detalhe={`${stats.emAnalise} em 45 dias · ${stats.prorrogado} prorrogados`} />
+        <Kpi rotulo="Avaliações atrasadas" valor={dueReviewsSummary.overdue.length} tom={dueReviewsSummary.overdue.length ? 'critico' : 'neutro'} detalhe="vencidas ou vencendo hoje" />
+        <Kpi rotulo="Vencem em 7 dias" valor={dueReviewsSummary.urgent.length} tom={dueReviewsSummary.urgent.length ? 'atencao' : 'neutro'} />
+        <Kpi rotulo="Retenção" valor={`${stats.taxaRetencao}%`} detalhe={`${stats.efetivado} efetivados de ${stats.efetivado + stats.encerrado} concluídos`} />
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Ativos */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
-            <Clock className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Período de Teste</div>
-            <div className="text-md font-bold text-slate-800">{stats.totalAtivos} ativos</div>
-          </div>
-        </div>
-
-        {/* Efetivados */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-            <CheckCircle className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Efetivados</div>
-            <div className="text-md font-bold text-slate-800">{stats.efetivado} colaboradores</div>
-          </div>
-        </div>
-
-        {/* Retenção */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <TrendingUp className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Taxa de Retenção</div>
-            <div className="text-md font-bold text-slate-800">{stats.taxaRetencao}%</div>
-          </div>
-        </div>
-
-        {/* Encerrados */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-            <AlertCircle className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Desligados / Encerrados</div>
-            <div className="text-md font-bold text-slate-800">{stats.encerrado} colaboradores</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-          <input aria-label="Pesquisar por Colaborador ou Supervisor..."
-            type="text"
-            className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500"
-            placeholder="Pesquisar por Colaborador ou Supervisor..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        <select aria-label="Todas as Sedes / Unidades"
-          className="px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500 font-medium disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-          value={selectedSede}
-          onChange={(e) => setSelectedSede(e.target.value)}
-        >
-          <option value="">Todas as Sedes / Unidades</option>
-          {sedes.map((s) => (
-            <option key={s.id} value={s.nome}>{s.nome}</option>
+      <div className="filtros">
+        <div className="seg" role="group" aria-label="Situação">
+          {([['ativos', 'Em experiência', stats.totalAtivos], ['efetivados', 'Efetivados', stats.efetivado], ['encerrados', 'Encerrados', stats.encerrado]] as const).map(([id, rotulo, n]) => (
+            <button key={id} type="button" aria-pressed={activeTableTab === id} onClick={() => setActiveTableTab(id)}>{rotulo} <b className="tabular-nums">{n}</b></button>
           ))}
-        </select>
-      </div>
-
-      {/* Experience Alert/Notification Center */}
-      {(dueReviewsSummary.overdue.length > 0 || dueReviewsSummary.urgent.length > 0) && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-4 animate-in fade-in duration-250">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2 flex-wrap gap-2">
-            <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-              <AlertCircle className="w-4.5 h-4.5 text-red-500 animate-bounce" />
-              <span>Central de Avisos: Prazos de Experiência</span>
-            </h3>
-            <span className="text-[9.5px] bg-red-100 text-red-750 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border border-red-200">
-              {dueReviewsSummary.overdue.length + dueReviewsSummary.urgent.length} Avaliações Requeridas
-            </span>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Overdue Alerts */}
-            {dueReviewsSummary.overdue.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-[10px] font-black text-red-650 uppercase tracking-widest flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
-                  Prazo Vencido (Ação Urgente)
-                </div>
-                <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
-                  {dueReviewsSummary.overdue.map(({ exp, alert }) => (
-                    <div key={exp.id} className="p-2.5 rounded-xl bg-red-50/40 border border-red-100/70 flex items-center justify-between gap-3 text-xs">
-                      <div className="min-w-0">
-                        <span className="font-extrabold text-slate-800 block truncate">{exp.colaborador}</span>
-                        <span className="text-[10px] text-red-800 font-bold block truncate mt-0.5">{alert.message}</span>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {exp.status === 'EM_ANALISE' ? (
-                          <>
-                            <button
-                              onClick={() => handleStatusChange(exp.id, 'PRORROGADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-white hover:bg-slate-50 text-blue-700 border border-blue-200 rounded-lg cursor-pointer transition"
-                            >
-                              Prorrogar
-                            </button>
-                            <button
-                              onClick={() => handleStatusChange(exp.id, 'EFETIVADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition"
-                            >
-                              Efetivar
-                            </button>
-                          </>
-                        ) : exp.status === 'PRORROGADO' ? (
-                          <>
-                            <button
-                              onClick={() => handleStatusChange(exp.id, 'EFETIVADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition"
-                            >
-                              Efetivar
-                            </button>
-                            <button
-                              onClick={() => handleStatusChange(exp.id, 'ENCERRADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-lg cursor-pointer transition"
-                            >
-                              Encerrar
-                            </button>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Urgent Alerts */}
-            {dueReviewsSummary.urgent.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  Vencendo nos próximos 7 dias
-                </div>
-                <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
-                  {dueReviewsSummary.urgent.map(({ exp, alert }) => (
-                    <div key={exp.id} className="p-2.5 rounded-xl bg-amber-50/40 border border-amber-100/70 flex items-center justify-between gap-3 text-xs">
-                      <div className="min-w-0">
-                        <span className="font-extrabold text-slate-800 block truncate">{exp.colaborador}</span>
-                        <span className="text-[10px] text-amber-800 font-bold block truncate mt-0.5">{alert.message}</span>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {exp.status === 'EM_ANALISE' ? (
-                          <>
-                            <button
-                              onClick={() => handleStatusChange(exp.id, 'PRORROGADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-white hover:bg-slate-50 text-blue-700 border border-blue-200 rounded-lg cursor-pointer transition"
-                            >
-                              Prorrogar
-                            </button>
-                            <button
-                              onClick={() => handleStatusChange(exp.id, 'EFETIVADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition"
-                            >
-                              Efetivar
-                            </button>
-                          </>
-                        ) : exp.status === 'PRORROGADO' ? (
-                          <>
-                            <button
-                              onClick={() => handleStatusChange(exp.id, 'EFETIVADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer transition"
-                            >
-                              Efetivar
-                            </button>
-                            <button
-                              onClick={() => handleStatusChange(exp.id, 'ENCERRADO')}
-                              className="px-2 py-1 text-[9px] uppercase font-black bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-lg cursor-pointer transition"
-                            >
-                              Encerrar
-                            </button>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
-      )}
-
-      {/* Segment Tabs */}
-      <div className="flex border-b border-slate-200 overflow-x-auto scrollbar-none gap-1.5 md:gap-6 mt-2 select-none">
-        <button
-          onClick={() => setActiveTableTab('ativos')}
-          className={`pb-3 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
-            activeTableTab === 'ativos'
-              ? 'border-orange-500 text-orange-600'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <Clock className={`w-4 h-4 ${activeTableTab === 'ativos' ? 'text-orange-500 animate-pulse' : 'text-slate-450'}`} />
-          <span>Em Experiência</span>
-          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${activeTableTab === 'ativos' ? 'bg-orange-100 text-orange-750' : 'bg-slate-100 text-slate-500'}`}>
-            {stats.emAnalise + stats.prorrogado}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTableTab('efetivados')}
-          className={`pb-3 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
-            activeTableTab === 'efetivados'
-              ? 'border-emerald-500 text-emerald-600'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <CheckCircle className={`w-4 h-4 ${activeTableTab === 'efetivados' ? 'text-emerald-500' : 'text-slate-450'}`} />
-          <span>Efetivados</span>
-          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${activeTableTab === 'efetivados' ? 'bg-emerald-100 text-emerald-755' : 'bg-slate-100 text-slate-500'}`}>
-            {stats.efetivado}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTableTab('encerrados')}
-          className={`pb-3 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition flex items-center gap-2 cursor-pointer shrink-0 ${
-            activeTableTab === 'encerrados'
-              ? 'border-slate-500 text-slate-705'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <AlertCircle className={`w-4 h-4 ${activeTableTab === 'encerrados' ? 'text-slate-600' : 'text-slate-450'}`} />
-          <span>Encerrados</span>
-          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${activeTableTab === 'encerrados' ? 'bg-slate-200 text-slate-750' : 'bg-slate-100 text-slate-500'}`}>
-            {stats.encerrado}
-          </span>
-        </button>
+        {activeTableTab === 'ativos' && pedemAvaliacao > 0 && (
+          <button type="button" className="chip" aria-pressed={soUrgentes} onClick={() => setSoUrgentes(v => !v)}>
+            Pedem avaliação <b>{pedemAvaliacao}</b>
+          </button>
+        )}
+        {/* Todo filtro é de múltipla escolha (regra de 08/10/2026). */}
+        {sedeTravada
+          ? <span className="chip" title="Seu acesso é desta sede">Sede: <b>{userSede}</b></span>
+          : <FiltroMultiplo rotulo="Sede" todos="todas" selecionados={sedesSel} onChange={setSedesSel} opcoes={sedes.map(s => ({ valor: s.nome, rotulo: s.sigla ? `${s.sigla} · ${s.nome}` : s.nome }))} />}
+        <FiltroMultiplo rotulo="Setor" selecionados={setoresSel} onChange={setSetoresSel} opcoes={opcoesSetor} />
+        <label className="campo-busca">
+          <Search aria-hidden="true" />
+          <input type="search" className="campo" placeholder="Buscar nome, função ou supervisor" aria-label="Buscar nome, função ou supervisor"
+            value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        </label>
       </div>
 
-      {/* Main List Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+      <section className="painel overflow-hidden" aria-label="Acompanhamentos">
+        {filteredList.length === 0 ? (
+          <p className="text-center py-12 text-[14px]" style={{ color: 'var(--tinta-3)' }}>Ninguém com esses filtros.</p>
+        ) : (
+          // Sem rolagem de lado (regra de 08/10/2026): em tela estreita, cartão.
+          <table className="tabela tabela-empilha">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-                <th className="py-3.5 px-4 w-1/3">Colaborador / Posição</th>
-                <th className="py-3.5 px-4">Ciclo de Avaliação</th>
-                <th className="py-3.5 px-4">Supervisor</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4 text-right">Ação</th>
+              <tr>
+                <th scope="col">Colaborador</th>
+                <th scope="col">Admissão</th>
+                <th scope="col">{activeTableTab === 'ativos' ? 'Próximo prazo' : 'Prazos'}</th>
+                <th scope="col">Supervisor</th>
+                <th scope="col">Situação</th>
+                {canManage && <th scope="col"><span className="sr-only">Ações</span></th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-150 text-xs text-slate-700">
-              {filteredList.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-12 text-slate-400 font-medium">
-                    Nenhum colaborador em período de experiência registrado.
-                  </td>
-                </tr>
-              ) : (
-                filteredList.map((e) => (
-                  <tr key={e.id} className="hover:bg-slate-50/40 transition">
-                    <td className="py-3.5 px-4">
-                      <div className="font-bold text-slate-900">{e.colaborador}</div>
-                      <div className="font-semibold text-slate-600 mt-0.5">{e.funcao}</div>
-                      <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-                        {e.sede ? (
-                          <span className="inline-flex items-center gap-1 text-[9.5px] font-black text-orange-700 bg-orange-50 border border-orange-150 px-1.5 py-0.5 rounded-md uppercase tracking-wider leading-none">
-                            <MapPin className="w-2.5 h-2.5 shrink-0" />
-                            {e.sede}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[9.5px] font-black text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md uppercase tracking-wider leading-none">
-                            <MapPin className="w-2.5 h-2.5 shrink-0" />
-                            Sem Sede
-                          </span>
-                        )}
-                        <span className="text-[9.5px] text-slate-400 font-black tracking-widest">•</span>
-                        <span className="text-[10px] text-slate-500 font-extrabold bg-slate-100/70 border border-slate-200/70 px-1.5 py-0.5 rounded-md leading-none">{e.setor}</span>
-                      </div>
+            <tbody>
+              {filteredList.map((e) => {
+                const ativo = e.status === 'EM_ANALISE' || e.status === 'PRORROGADO';
+                const p = prazo(e);
+                const sit = situacao(e);
+                return (
+                  <tr key={e.id}>
+                    <td>
+                      <span>
+                        <b>{e.colaborador}</b>
+                        {e.vagaCodigo != null && <span className="ml-2 align-middle"><LinkVaga codigo={e.vagaCodigo} /></span>}
+                        <span className="sub">{[e.funcao, e.sede || 'sem sede', e.setor].filter(Boolean).join(' · ')}</span>
+                      </span>
                     </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Admissão: <span className="text-slate-600">{e.dataAdmissao}</span></div>
-                      <div className="flex flex-col gap-1 items-start">
-                        <div className="flex items-center gap-1">
-                          <span className="font-mono text-xs text-orange-800 font-bold bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100">45d: {e.termino1}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="font-mono text-xs text-orange-850 font-bold bg-orange-50/50 px-1.5 py-0.5 rounded border border-orange-100">90d: {e.termino2}</span>
-                        </div>
-                        {renderAlertBadge(getReviewAlert(e))}
-                      </div>
+                    <td className="whitespace-nowrap" data-rotulo="Admissão">{e.dataAdmissao}</td>
+                    <td className="whitespace-nowrap" data-rotulo={ativo ? 'Próximo prazo' : 'Prazos'}>
+                      {ativo
+                        ? <span>{p.marco}<span className="sub" style={{ color: p.cor, fontWeight: 700 }}>{p.texto}</span></span>
+                        : <span>45 dias · {e.termino1}<span className="sub">90 dias · {e.termino2}</span></span>}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-700 font-bold whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{e.supervisor || 'RH'}</span>
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      {e.status === 'EM_ANALISE' && (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                          <Clock className="w-3 h-3 text-amber-600 animate-pulse" />
-                          Sob Análise
+                    <td data-rotulo="Supervisor">{e.supervisor || 'RH'}</td>
+                    <td data-rotulo="Situação"><b style={{ color: sit.cor }}>{sit.rotulo}</b></td>
+                    {canManage && (
+                      <td className="text-right whitespace-nowrap">
+                        <span className="inline-flex gap-1.5">
+                          {ativo && <button type="button" className="btn btn-sm btn-primario" onClick={() => abrirDecisao(e)}>Registrar decisão</button>}
+                          <button type="button" className="btn btn-sm" onClick={() => openEditForm(e)}>Editar</button>
+                          <button type="button" className="btn btn-sm btn-perigo" onClick={() => excluir(e)} aria-label={`Excluir acompanhamento de ${e.colaborador}`}><Trash2 aria-hidden="true" /></button>
                         </span>
-                      )}
-                      {e.status === 'PRORROGADO' && (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                          Prorrogado
-                        </span>
-                      )}
-                      {e.status === 'EFETIVADO' && (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                          <CheckCircle className="w-3 h-3 text-emerald-600" />
-                          Efetivado!
-                        </span>
-                      )}
-                      {e.status === 'ENCERRADO' && (
-                        e.tipoEncerramento === 'a_pedido' ? (
-                          <span
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] uppercase font-bold bg-amber-50 text-amber-800 border border-amber-200"
-                            title={e.dataPedidoRescisao ? `Pediu demissão em ${e.dataPedidoRescisao}` : 'Rescisão a pedido do colaborador'}
-                          >
-                            Saiu a pedido
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] uppercase font-bold bg-rose-50 text-rose-800 border border-rose-200">
-                            Desligado
-                          </span>
-                        )
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      {canManage ? (
-                      <>
-                        {/* Ações de status em grade 2×2 (não estica a coluna) + editar/excluir ao lado */}
-                        <div className="flex items-center justify-end gap-1.5">
-                        {(e.status === 'EM_ANALISE' || e.status === 'PRORROGADO') && (
-                          <div className="grid grid-cols-2 gap-1 w-[170px] shrink-0">
-                            {e.status === 'EM_ANALISE' && (
-                              <button
-                                onClick={() => handleStatusChange(e.id, 'PRORROGADO')}
-                                className="w-full px-2 py-1 text-[10px] uppercase font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg cursor-pointer"
-                                title="Prorrogar contrato"
-                              >
-                                Prorrogar
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleStatusChange(e.id, 'EFETIVADO')}
-                              className="w-full px-2 py-1 text-[10px] uppercase font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg cursor-pointer"
-                              title="Efetivar contratação"
-                            >
-                              Efetivar
-                            </button>
-                            <button
-                              onClick={() => abrirRescisao(e)}
-                              className="w-full px-2 py-1 text-[10px] uppercase font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg cursor-pointer"
-                              title="Rescisão a pedido do colaborador (pediu demissão)"
-                            >
-                              A pedido
-                            </button>
-                            <button
-                              onClick={() => handleStatusChange(e.id, 'ENCERRADO')}
-                              className="w-full px-2 py-1 text-[10px] uppercase font-bold bg-rose-50 hover:bg-rose-150 text-rose-700 border border-rose-200 rounded-lg cursor-pointer"
-                              title="Encerrar/Desligar colaborador (iniciativa da empresa)"
-                            >
-                              Encerrar
-                            </button>
-                          </div>
-                        )}
-                        <button
-                          onClick={() => openEditForm(e)}
-                          className="p-1 px-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 rounded-lg cursor-pointer transition border border-transparent hover:border-slate-200 shrink-0"
-                          title="Editar acompanhamento"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        {/* Always allow manual deletion of any record (including mock/demo items) seamlessly */}
-                        <button
-                          onClick={() => {
-                            if (confirmAction) {
-                              confirmAction(
-                                "Excluir Acompanhamento",
-                                `Você tem certeza de que deseja remover permanentemente o acompanhamento de período de experiência de "${e.colaborador}"? Esta ação não afetará sua admissão primária.`,
-                                () => deleteExperiencia(e.id)
-                              );
-                            } else {
-                              if (confirm(`Remover definitivamente acompanhamento de ${e.colaborador}?`)) {
-                                deleteExperiencia(e.id);
-                              }
-                            }
-                          }}
-                          className="p-1 px-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-700 rounded-lg cursor-pointer transition border border-transparent hover:border-rose-100 shrink-0"
-                          title="Limpar registro"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                        </div>
-                      </>
-                      ) : (
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Leitura</span>
-                      )}
-                    </td>
+                      </td>
+                    )}
                   </tr>
-                ))
-              )}
+                );
+              })}
             </tbody>
           </table>
-        </div>
-      </div>
+        )}
+      </section>
 
-      {/* PopUp Creation Form Modal */}
-      {showAddForm && (
-        <div className="fixed inset-0 bg-slate-900/65 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="p-5 bg-slate-950 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-orange-500" />
-                <h3 className="text-lg font-bold">{editingExperiencia ? 'Editar Acompanhamento de Experiência' : 'Adicionar Acompanhamento de Experiência'}</h3>
-              </div>
-              <button 
-                onClick={() => { resetForm(); setShowAddForm(false); }} 
-                className="text-slate-400 hover:text-white font-bold text-2xl cursor-pointer leading-none"
-              >
-                &times;
-              </button>
-            </div>
-
-            {/* Modal Form */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-              {errorMsg && (
-                <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-semibold border border-red-100 flex items-center gap-2">
-                  <span className="w-5 h-5 flex items-center justify-center bg-red-100 rounded-full text-red-700 font-bold shrink-0">!</span>
-                  {errorMsg}
-                </div>
-              )}
-              <div>
-                <label htmlFor="exp-nome-completo-do-colaborador" className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome Completo do Colaborador *</label>
-                <input id="exp-nome-completo-do-colaborador"
-                  type="text"
-                  required
-                  placeholder="Ex: Camila Ferreira de Oliveira"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl font-medium"
-                  value={colaborador}
-                  onChange={(e) => setColaborador(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="exp-cargo-funcao" className="block text-xs font-bold text-slate-500 uppercase mb-1">Cargo / Função *</label>
-                <input id="exp-cargo-funcao"
-                  type="text"
-                  required
-                  placeholder="Ex: Analista de RH"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                  value={funcao}
-                  onChange={(e) => setFuncao(e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="exp-sede-unidade" className="block text-xs font-bold text-slate-500 uppercase mb-1">Sede / Unidade *</label>
-                  <select id="exp-sede-unidade"
-                    required
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={sede}
-                    onChange={(e) => setSede(e.target.value)}
-                  >
-                    <option value="">Selecione a Sede *</option>
-                    {sedes.map((s) => (
-                      <option key={s.id} value={s.nome}>{s.nome}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="exp-setor-area" className="block text-xs font-bold text-slate-500 uppercase mb-1">Setor / Área</label>
-                  <select id="exp-setor-area"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={setor}
-                    onChange={(e) => setSetor(e.target.value)}
-                  >
-                    {sectorsList.map((opt, idx) => (
-                      <option key={idx} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="exp-data-admissao" className="block text-xs font-bold text-slate-500 uppercase mb-1">Data Admissão *</label>
-                  <input id="exp-data-admissao"
-                    type="date"
-                    required
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={dataAdmissao}
-                    onChange={(e) => setDataAdmissao(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="exp-supervisor-imediato" className="block text-xs font-bold text-slate-500 uppercase mb-1">Supervisor Imediato</label>
-                  <input id="exp-supervisor-imediato"
-                    type="text"
-                    placeholder="Ex: Eveline Santiago"
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                    value={supervisor}
-                    onChange={(e) => setSupervisor(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="exp-observacoes-requisitos-avaliados" className="block text-xs font-bold text-slate-500 uppercase mb-1">Observações / Requisitos Avaliados</label>
-                <textarea id="exp-observacoes-requisitos-avaliados"
-                  rows={3}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none rounded-xl"
-                  placeholder="Particularidades avaliadas na adaptação comercial ou industrial..."
-                  value={observacoes}
-                  onChange={(e) => setObservacoes(e.target.value)}
-                />
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => { resetForm(); setShowAddForm(false); }}
-                  className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-sm font-bold rounded-xl text-slate-600 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-sm font-bold rounded-xl text-white shadow-lg shadow-orange-500/20 cursor-pointer"
-                >
-                  {editingExperiencia ? 'Atualizar Acompanhamento' : 'Salvar Acompanhamento'}
-                </button>
-              </div>
-            </form>
+      {decidindo && (
+        <Modal
+          titulo={decidindo.colaborador}
+          antes={<>Decisão da experiência · {situacao(decidindo).rotulo}</>}
+          largura="sm"
+          aoFechar={() => setDecidindo(null)}
+          rodape={<>
+            <button type="button" className="btn" onClick={() => setDecidindo(null)}>Cancelar</button>
+            <button type="button" className={`btn ${escolha === 'empresa' || escolha === 'a_pedido' ? 'btn-perigo' : 'btn-primario'}`}
+              disabled={!escolha || (escolha === 'a_pedido' && !rescisaoData)} onClick={confirmarDecisao}>
+              Confirmar
+            </button>
+          </>}
+        >
+          <p className="text-[14px] mb-3" style={{ color: 'var(--tinta-2)' }}>
+            {decidindo.funcao} · admitido(a) em {decidindo.dataAdmissao} · {prazo(decidindo).marco} ({prazo(decidindo).texto})
+          </p>
+          <div className="space-y-2" role="radiogroup" aria-label="Decisão">
+            {([
+              ['EFETIVADO', 'Efetivar', 'Passou na experiência e segue na empresa.'],
+              ...(decidindo.status === 'EM_ANALISE' ? [['PRORROGADO', 'Prorrogar até 90 dias', `Nova avaliação em ${decidindo.termino2}.`]] : []),
+              ['a_pedido', 'Pediu para sair', 'Rescisão a pedido do colaborador.'],
+              ['empresa', 'Desligar', 'Encerramento por iniciativa da empresa.'],
+            ] as [Escolha, string, string][]).map(([id, rotulo, ajuda]) => (
+              <label key={id} className="opcao-decisao" data-marcada={escolha === id}>
+                <input type="radio" name="decisao" checked={escolha === id} onChange={() => setEscolha(id)} />
+                <span><b>{rotulo}</b><span>{ajuda}</span></span>
+              </label>
+            ))}
           </div>
-        </div>
+          {escolha === 'a_pedido' && (
+            <div className="grid grid-cols-1 gap-3 mt-4">
+              <label className="block">
+                <span className="rotulo">Data do pedido *</span>
+                <input type="date" className="campo w-full" value={rescisaoData} onChange={(e) => setRescisaoData(e.target.value)} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Observação</span>
+                <textarea rows={2} className="campo w-full" value={rescisaoObs} onChange={(e) => setRescisaoObs(e.target.value)} placeholder="Motivo relatado, detalhes do desligamento" />
+              </label>
+            </div>
+          )}
+        </Modal>
       )}
 
-      {/* Modal: rescisão a pedido do colaborador (pediu demissão na experiência) */}
-      {rescisao && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
-            <div className="p-5 bg-amber-50/60 border-b border-slate-100 flex items-center gap-3">
-              <div className="w-10 h-10 bg-amber-100 text-amber-700 rounded-xl flex items-center justify-center shrink-0">
-                <UserMinus className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-sm font-bold text-slate-800">Rescisão a pedido</h3>
-                <p className="text-[11px] text-slate-500 font-semibold truncate">{rescisao.colaborador} · {rescisao.funcao}</p>
-              </div>
+      {showAddForm && (
+        <Modal
+          titulo={editingExperiencia ? 'Editar acompanhamento' : 'Novo acompanhamento'}
+          antes={editingExperiencia ? editingExperiencia.colaborador : 'Experiência de 45 e 90 dias'}
+          aoFechar={fecharForm}
+          rodape={<>
+            <button type="button" className="btn" onClick={fecharForm}>Cancelar</button>
+            <button type="submit" form="form-experiencia" className="btn btn-primario">{editingExperiencia ? 'Salvar alterações' : 'Cadastrar'}</button>
+          </>}
+        >
+          <form id="form-experiencia" onSubmit={handleSubmit} className="space-y-4">
+            {errorMsg && <p role="alert" className="erro-form">{errorMsg}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block sm:col-span-2">
+                <span className="rotulo">Nome completo *</span>
+                <input type="text" required className="campo w-full" value={colaborador} onChange={(e) => setColaborador(e.target.value)} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Função *</span>
+                <input type="text" required className="campo w-full" value={funcao} onChange={(e) => setFuncao(e.target.value)} />
+              </label>
+              <label className="block">
+                <span className="rotulo">Admissão *</span>
+                <input type="date" required className="campo w-full" value={dataAdmissao} onChange={(e) => setDataAdmissao(e.target.value)} />
+                <span className="ajuda block">Os prazos de 45 e 90 dias saem daqui.</span>
+              </label>
+              <label className="block">
+                <span className="rotulo">Sede *</span>
+                <select required className="campo w-full" value={sede} onChange={(e) => setSede(e.target.value)}>
+                  <option value="">Escolha…</option>
+                  {sede && !sedes.some(s => s.nome === sede) && <option value={sede}>{sede}</option>}
+                  {sedes.map((s) => <option key={s.id} value={s.nome}>{s.sigla ? `${s.sigla} · ${s.nome}` : s.nome}</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="rotulo">Setor</span>
+                <select className="campo w-full" value={setor} onChange={(e) => setSetor(e.target.value)}>
+                  {sectorsList.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </label>
+              <label className="block sm:col-span-2">
+                <span className="rotulo">Supervisor imediato</span>
+                <input type="text" className="campo w-full" value={supervisor} onChange={(e) => setSupervisor(e.target.value)} />
+              </label>
+              <label className="block sm:col-span-2">
+                <span className="rotulo">Observações</span>
+                <textarea rows={3} className="campo w-full" value={observacoes} onChange={(e) => setObservacoes(e.target.value)} />
+              </label>
             </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label htmlFor="resc-data" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Data do pedido *</label>
-                <input
-                  id="resc-data"
-                  type="date"
-                  value={rescisaoData}
-                  onChange={(e) => setRescisaoData(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:outline-none rounded-xl cursor-pointer"
-                />
-                <p className="text-[11px] text-slate-400 font-medium mt-1 leading-relaxed">Quando o colaborador comunicou o pedido de demissão.</p>
-              </div>
-              <div>
-                <label htmlFor="resc-obs" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Observação</label>
-                <textarea
-                  id="resc-obs"
-                  rows={3}
-                  value={rescisaoObs}
-                  onChange={(e) => setRescisaoObs(e.target.value)}
-                  placeholder="Motivo relatado, detalhes do desligamento…"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:outline-none rounded-xl"
-                />
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setRescisao(null)}
-                className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold rounded-xl text-slate-650 transition cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmarRescisao}
-                disabled={!rescisaoData}
-                className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-xs font-bold rounded-xl text-white shadow-md transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <UserMinus className="w-4 h-4" /> Registrar rescisão
-              </button>
-            </div>
-          </div>
-        </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

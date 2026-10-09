@@ -88,7 +88,7 @@ export function montarArvore(nos: NoOrganograma[], idsExistentes?: Set<string>):
   emCiclo.forEach(id => paiDe.delete(id));
 
   const criados = new Map<string, ArvoreNo>(
-    nos.map(n => [n.id, { no: n, nivel: 1, filhos: [] }])
+    nos.map(n => [n.id, { no: n, nivel: 1, filhos: [] as ArvoreNo[] }])
   );
 
   const raizes: ArvoreNo[] = [];
