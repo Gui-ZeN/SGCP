@@ -192,8 +192,9 @@ export const PainelAbsenteismo: React.FC<{ dados: Absenteismo; sedeFiltrada: boo
               <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar nome, matrícula, cargo ou sede…"
                 className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-md" />
             </label>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            {/* Sem rolagem de lado (regra de 08/10/2026): em tela estreita, cartão. */}
+            <div>
+              <table className="w-full text-sm tabela-empilha">
                 <thead>
                   <tr className="border-b border-slate-200 text-xs text-slate-500">
                     <th scope="col" className="py-2 pr-3 text-left font-semibold">Pessoa</th>
@@ -211,11 +212,11 @@ export const PainelAbsenteismo: React.FC<{ dados: Absenteismo; sedeFiltrada: boo
                         <span className="font-semibold text-slate-900">{p.nome}</span>
                         {p.matricula && <span className="ml-2 text-xs text-slate-500 tabular-nums">{p.matricula}</span>}
                       </td>
-                      <td className="py-2 px-3 text-xs text-slate-600">{[p.cargo, p.sede].filter(Boolean).join(' · ')}</td>
-                      <td className="py-2 px-3 text-right tabular-nums">{num(p.faltas)}</td>
-                      <td className="py-2 px-3 text-right tabular-nums">{celulaTipo(p.porTipo.injustificada, 'text-amber-700')}</td>
-                      <td className="py-2 px-3 text-right tabular-nums">{celulaTipo(p.porTipo.atestado, 'text-slate-900')}</td>
-                      <td className="py-2 pl-3 text-right tabular-nums font-bold text-slate-900">{dec(Math.round(p.taxa * 1000) / 10)}%</td>
+                      <td className="py-2 px-3 text-xs text-slate-600" data-rotulo="Cargo · Sede">{[p.cargo, p.sede].filter(Boolean).join(' · ')}</td>
+                      <td className="py-2 px-3 text-right tabular-nums" data-rotulo="Faltas">{num(p.faltas)}</td>
+                      <td className="py-2 px-3 text-right tabular-nums" data-rotulo="Injustificada">{celulaTipo(p.porTipo.injustificada, 'text-amber-700')}</td>
+                      <td className="py-2 px-3 text-right tabular-nums" data-rotulo="Atestado">{celulaTipo(p.porTipo.atestado, 'text-slate-900')}</td>
+                      <td className="py-2 pl-3 text-right tabular-nums font-bold text-slate-900" data-rotulo="Taxa">{dec(Math.round(p.taxa * 1000) / 10)}%</td>
                     </tr>
                   ))}
                 </tbody>

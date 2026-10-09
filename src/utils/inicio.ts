@@ -3,8 +3,7 @@
  * vitrine de números para lista do que pede ação). Puro, para ser testado.
  */
 import type { Vaga, Experiencia, Selecao, Requisicao, Consulta } from '../types';
-import { getDiasEmAberto } from './vaga';
-import { SLA_META_DIAS } from '../constants/hr';
+import { diasNestaEtapa, vagaAtrasada } from './vaga';
 import { ehRealizada, estaAtrasada } from './selecao';
 import { diasEntre } from './date';
 import { avaliacoesAVencer, LIMITE_ATRASO_DIAS } from '../components/indicadores/AbaPessoas';
@@ -41,10 +40,10 @@ export function pendenciasDoDia(entrada: {
       .map(r => ({ r, dias: diasEntre((r.criadaEm || '').slice(0, 10), hojeISO) ?? 0 }))
       .sort((a, b) => b.dias - a.dias),
     // Pausadas/suspensas ficam de fora: o relógio delas está congelado.
+    // Dias NA ETAPA, o mesmo critério do badge do menu e do Quadro.
     vagasForaDoPrazo: vagas
-      .filter(v => ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO'].includes((v.status || '').toUpperCase()))
-      .map(v => ({ v, dias: getDiasEmAberto(v) }))
-      .filter(x => x.dias > SLA_META_DIAS)
+      .filter(vagaAtrasada)
+      .map(v => ({ v, dias: diasNestaEtapa(v) }))
       .sort((a, b) => b.dias - a.dias),
     consultas: consultas.filter(c => c.status === 'No aguardo').sort((a, b) => ordemBR(a.dataSolicitacao) - ordemBR(b.dataSolicitacao)),
   };

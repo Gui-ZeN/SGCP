@@ -10,11 +10,13 @@ import React, { useMemo } from 'react';
 import type { Vaga } from '../../types';
 import type { Sede } from '../../hooks/useMetadata';
 import { SLA_META_DIAS } from '../../constants/hr';
-import { ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa, getDiasEmAberto } from '../../utils/vaga';
+import { ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa, getDiasEmAberto, vagaAtrasada } from '../../utils/vaga';
+import { corEtapa } from '../vagas/CartaoVaga';
 import { siglaDaSede, anoMes, noPeriodo, MESES_CURTOS, type Periodo } from '../../utils/filtroIndicadores';
 import { TabelaDoGrafico } from '../TabelaDoGrafico';
 import { Painel, Kpi, Nota, Vazio, Dica, ListaComBarra, useEixos, num, pct } from './ui';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LabelList } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LabelList, Cell } from 'recharts';
+import { LinkVaga } from '../ui/Atalhos';
 
 const EM_ANDAMENTO = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO'];
 const st = (v: Vaga) => (v.status || '').toUpperCase();
@@ -23,7 +25,8 @@ export const AbaVagas: React.FC<{ vagas: Vaga[]; sedes: Sede[]; periodo: Periodo
   const { C, grade, eixo, cursorBarra, legenda } = useEixos();
 
   const abertasAgora = useMemo(() => vagas.filter(v => EM_ANDAMENTO.includes(st(v))), [vagas]);
-  const acimaDoPrazo = abertasAgora.filter(v => getDiasEmAberto(v) > SLA_META_DIAS).length;
+  // Mesmo critério do menu e do Quadro: dias NA ETAPA.
+  const acimaDoPrazo = abertasAgora.filter(vagaAtrasada).length;
   const abertasNoPeriodo = useMemo(() => vagas.filter(v => noPeriodo(periodo, anoMes(v.solicitacao))), [vagas, periodo]);
   const fechadasNoPeriodo = useMemo(() => vagas.filter(v => st(v) === 'FECHADA' && noPeriodo(periodo, anoMes(v.conclusao))), [vagas, periodo]);
   // Denominador honesto: fechada com tempo 0 ou negativo (herança do Excel) fica
@@ -95,7 +98,7 @@ export const AbaVagas: React.FC<{ vagas: Vaga[]; sedes: Sede[]; periodo: Periodo
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi rotulo="Em aberto agora" valor={num(abertasAgora.length)}
           tom={acimaDoPrazo ? 'atencao' : 'neutro'}
-          detalhe={abertasAgora.length ? `${acimaDoPrazo} acima de ${SLA_META_DIAS} dias` : 'nenhuma vaga em andamento'} />
+          detalhe={abertasAgora.length ? `${acimaDoPrazo} passaram de ${SLA_META_DIAS} dias na etapa` : 'nenhuma vaga em andamento'} />
         <Kpi rotulo="Abertas no período" valor={num(abertasNoPeriodo.length)} detalhe="pela data de solicitação" />
         <Kpi rotulo="Fechadas no período" valor={num(fechadasNoPeriodo.length)} tom={fechadasNoPeriodo.length ? 'bom' : 'neutro'} detalhe="pela data de conclusão" />
         <Kpi rotulo="Tempo médio de fechamento" valor={tempoMedio ?? '—'} unidade={tempoMedio !== null ? 'dias' : undefined}
@@ -137,7 +140,9 @@ export const AbaVagas: React.FC<{ vagas: Vaga[]; sedes: Sede[]; periodo: Periodo
                     <YAxis dataKey="etapa" type="category" {...eixo} width={150} />
                     <Tooltip cursor={cursorBarra} content={<Dica formatar={(v: number, d: any) => `${v} · ${d.dias} dias em média`} />} />
                     <Bar isAnimationActive={false} dataKey="vagas" name="Vagas" fill={C.primary} radius={[0, 4, 4, 0]} barSize={16}>
-                      <LabelList dataKey="dias" position="right" fontSize={11} fill={C.rotulo} formatter={(d: number) => `${d} d`} />
+                      {/* A cor de cada etapa é a mesma do Quadro e da régua. */}
+                      {porEtapa.map(e => <Cell key={e.etapa} fill={corEtapa(e.etapa)} />)}
+                      <LabelList dataKey="dias" position="right" fontSize={11} fill={C.rotulo} formatter={(d) => `${d} d`} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -153,10 +158,11 @@ export const AbaVagas: React.FC<{ vagas: Vaga[]; sedes: Sede[]; periodo: Periodo
         </Painel>
       </div>
 
-      <Painel titulo="As mais antigas em aberto" descricao={`Em vermelho, acima da meta de ${SLA_META_DIAS} dias.`}>
+      <Painel titulo="As mais antigas em aberto" descricao={`Em vermelho, as que passaram de ${SLA_META_DIAS} dias na mesma etapa (o critério do Quadro).`}>
         {maisAntigas.length === 0 ? <Vazio>Nenhuma vaga em andamento.</Vazio> : (
-          <div className="overflow-x-auto -mx-1">
-            <table className="w-full min-w-[560px] text-xs">
+          // Sem rolagem de lado (regra de 08/10/2026): em tela estreita, cartão.
+          <div className="-mx-1">
+            <table className="w-full text-xs tabela-empilha">
               <thead>
                 <tr className="text-left text-[11px] font-semibold text-slate-500 border-b border-slate-200">
                   <th scope="col" className="py-2 px-1 font-semibold">Código</th>
@@ -169,11 +175,11 @@ export const AbaVagas: React.FC<{ vagas: Vaga[]; sedes: Sede[]; periodo: Periodo
               <tbody className="divide-y divide-slate-100">
                 {maisAntigas.map(({ v, dias }) => (
                   <tr key={v.id}>
-                    <td className="py-2 px-1 tabular-nums text-slate-500">#{v.codigo}</td>
+                    <td className="py-2 px-1" data-rotulo="Código"><LinkVaga codigo={v.codigo} /></td>
                     <td className="py-2 px-1 font-semibold text-slate-800">{v.vaga}</td>
-                    <td className="py-2 px-1 text-slate-700">{siglaDaSede(sedes, v.sede) || '—'}</td>
-                    <td className="py-2 px-1 text-slate-700">{normalizeEtapa(v)}</td>
-                    <td className={`py-2 px-1 text-right tabular-nums font-bold ${dias > SLA_META_DIAS ? 'text-rose-700' : 'text-slate-900'}`}>{num(dias)}</td>
+                    <td className="py-2 px-1 text-slate-700" data-rotulo="Sede">{siglaDaSede(sedes, v.sede) || '—'}</td>
+                    <td className="py-2 px-1 text-slate-700" data-rotulo="Etapa">{normalizeEtapa(v)}</td>
+                    <td data-rotulo="Dias em aberto" className={`py-2 px-1 text-right tabular-nums font-bold ${vagaAtrasada(v) ? 'text-rose-700' : 'text-slate-900'}`}>{num(dias)}</td>
                   </tr>
                 ))}
               </tbody>

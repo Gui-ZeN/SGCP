@@ -8,9 +8,12 @@
  * Substitui os "Destaques Operacionais" antigos, que geravam frases genéricas
  * ("Indicadores estáveis… operam em níveis saudáveis") — texto que parece
  * análise e não diz o que fazer.
+ *
+ * Rework 10/2026: cada pendência leva também à tela onde ela se RESOLVE
+ * (`resolver`) — o detalhe do número fica na aba; a ação, no módulo.
  */
 import React from 'react';
-import { AlertTriangle, Clock, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Clock, ChevronRight, CheckCircle2, ArrowRight } from 'lucide-react';
 
 export type AbaId = 'geral' | 'vagas' | 'selecoes' | 'pessoas' | 'absenteismo' | 'clima';
 
@@ -20,6 +23,8 @@ export interface ItemDeAtencao {
   texto: string;
   detalhe?: string;
   aba: AbaId;
+  /** A tela onde se resolve: rótulo curto + link. */
+  resolver?: { rotulo: string; href: string };
 }
 
 export interface ResumoDoTema {
@@ -34,31 +39,35 @@ export const AbaVisaoGeral: React.FC<{
   temas: ResumoDoTema[];
   irPara: (aba: AbaId) => void;
 }> = ({ atencao, temas, irPara }) => (
-  <div className="space-y-6">
-    <section aria-labelledby="vg-atencao" className="bg-white rounded-2xl border border-slate-200">
-      <header className="px-5 pt-4 pb-3 border-b border-slate-100">
-        <h3 id="vg-atencao" className="text-sm font-bold text-slate-900">Precisa de atenção</h3>
+  <div className="space-y-5">
+    <section aria-labelledby="vg-atencao" className="painel">
+      <header className="inicio-cab">
+        <h2 id="vg-atencao">Precisa de atenção</h2>
       </header>
       {atencao.length === 0 ? (
-        <p className="flex items-center gap-2 px-5 py-5 text-sm font-medium text-slate-600">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" aria-hidden="true" />
+        <p className="flex items-center gap-2 px-5 py-5 text-[14px] font-medium" style={{ color: 'var(--tinta-2)' }}>
+          <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--etapa-admissao)' }} aria-hidden="true" />
           Nada pendente com os filtros escolhidos.
         </p>
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="ind-atencao">
           {atencao.map(a => (
             <li key={a.id}>
-              <button type="button" onClick={() => irPara(a.aba)}
-                className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-slate-50 cursor-pointer transition-colors group">
+              <button type="button" onClick={() => irPara(a.aba)} className="ind-atencao-item" title="Ver o detalhe nesta tela">
                 {a.gravidade === 'critico'
-                  ? <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" aria-label="Crítico" />
-                  : <Clock className="w-4 h-4 shrink-0 text-amber-600" aria-label="Atenção" />}
+                  ? <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: 'var(--atraso)' }} aria-label="Crítico" />
+                  : <Clock className="w-4 h-4 shrink-0" style={{ color: 'var(--etapa-triagem)' }} aria-label="Atenção" />}
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-slate-900">{a.texto}</span>
-                  {a.detalhe && <span className="block text-xs text-slate-500 font-medium mt-0.5 truncate">{a.detalhe}</span>}
+                  <b>{a.texto}</b>
+                  {a.detalhe && <span>{a.detalhe}</span>}
                 </span>
-                <ChevronRight className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-slate-700" aria-hidden="true" />
+                <ChevronRight className="w-4 h-4 shrink-0 ind-seta" aria-hidden="true" />
               </button>
+              {a.resolver && (
+                <a href={a.resolver.href} className="btn btn-sm shrink-0">
+                  {a.resolver.rotulo} <ArrowRight aria-hidden="true" />
+                </a>
+              )}
             </li>
           ))}
         </ul>
@@ -67,19 +76,18 @@ export const AbaVisaoGeral: React.FC<{
 
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
       {temas.map(t => (
-        <button key={t.aba} type="button" onClick={() => irPara(t.aba)}
-          className="text-left bg-white rounded-2xl border border-slate-200 p-5 hover:border-slate-400 cursor-pointer transition-colors group min-w-0">
-          <span className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">
+        <button key={t.aba} type="button" onClick={() => irPara(t.aba)} className="painel ind-tema">
+          <span className="ind-tema-titulo">
             {t.titulo}
-            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700" aria-hidden="true" />
+            <ChevronRight className="w-4 h-4 ind-seta" aria-hidden="true" />
           </span>
-          <span className="block mt-2 text-[32px] leading-none font-bold tabular-nums tracking-tight text-slate-900">{t.principal.valor}</span>
-          <span className="block mt-1 text-xs font-medium text-slate-500">{t.principal.rotulo}</span>
-          <span className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 gap-3">
+          <span className="ind-tema-valor">{t.principal.valor}</span>
+          <span className="ind-tema-rotulo">{t.principal.rotulo}</span>
+          <span className="ind-tema-apoio">
             {t.apoio.map(a => (
               <span key={a.rotulo} className="min-w-0">
-                <span className="block text-base font-bold tabular-nums text-slate-900">{a.valor}</span>
-                <span className="block text-[11px] font-medium text-slate-500 leading-snug">{a.rotulo}</span>
+                <b>{a.valor}</b>
+                <span>{a.rotulo}</span>
               </span>
             ))}
           </span>
@@ -88,4 +96,3 @@ export const AbaVisaoGeral: React.FC<{
     </div>
   </div>
 );
-

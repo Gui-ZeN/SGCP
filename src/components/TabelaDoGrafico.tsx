@@ -44,13 +44,14 @@ export function TabelaDoGrafico<T>({ titulo, linhas, colunas, rotulo = 'Ver dado
   return (
     <details className="no-print mt-3 group/tab">
       <summary
-        className="cursor-pointer list-none text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sgpc-acento,#1B4DD8)] rounded transition"
+        className="btn-texto cursor-pointer list-none inline-flex items-center rounded"
       >
         <span aria-hidden="true" className="inline-block mr-1 transition-transform group-open/tab:rotate-90">›</span>
         {rotulo}
       </summary>
-      <div className="mt-2 overflow-x-auto">
-        <table className="w-full text-left border-collapse" aria-describedby={idLegenda}>
+      {/* Sem rolagem de lado (regra de 08/10/2026): em tela estreita, cartão. */}
+      <div className="mt-2">
+        <table className="w-full text-left border-collapse tabela-empilha" aria-describedby={idLegenda}>
           <caption id={idLegenda} className="sr-only">{titulo} — dados em tabela</caption>
           <thead>
             <tr className="border-b border-[var(--sgpc-hairline,#DDE0E6)]">
@@ -71,6 +72,7 @@ export function TabelaDoGrafico<T>({ titulo, linhas, colunas, rotulo = 'Ver dado
                 {colunas.map(c => (
                   <td
                     key={c.titulo}
+                    data-rotulo={c.titulo}
                     className={`py-1.5 pr-3 text-[11px] text-slate-600 ${c.numerica ? 'text-right pr-0 tabular-nums font-semibold text-slate-800' : 'font-medium'}`}
                   >
                     {c.valor(linha)}

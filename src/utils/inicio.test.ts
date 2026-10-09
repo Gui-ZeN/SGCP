@@ -42,6 +42,22 @@ describe('pendenciasDoDia', () => {
   });
 });
 
+describe('vagas fora do prazo', () => {
+  it('conta dias NA ETAPA (o critério do menu e do Quadro); pausada e fechada não entram', () => {
+    const hoje = new Date();
+    const ha = (d: number) => new Date(hoje.getTime() - d * 86400000).toISOString();
+    const vagas: any[] = [
+      // aberta há muito, mas entrou na etapa há 3 dias: dentro da meta
+      { id: 'recente', status: 'ABERTA', solicitacao: '01/01/2025', etapaDesde: ha(3) },
+      { id: 'parada', status: 'ABERTA', solicitacao: '01/01/2025', etapaDesde: ha(40) },
+      { id: 'pausada', status: 'PAUSADA', solicitacao: '01/01/2025', etapaDesde: ha(40), pausadaDesde: ha(1) },
+      { id: 'fechada', status: 'FECHADA', solicitacao: '01/01/2025', etapaDesde: ha(40) },
+    ];
+    const p = pendenciasDoDia({ ...base, vagas });
+    expect(p.vagasForaDoPrazo.map(x => [x.v.id, x.dias])).toEqual([['parada', 40]]);
+  });
+});
+
 describe('quandoVence', () => {
   it('fala como gente', () => {
     expect([0, 1, 3, -1, -5].map(quandoVence)).toEqual(['vence hoje', 'vence amanhã', 'vence em 3 dias', 'venceu ontem', 'venceu há 5 dias']);

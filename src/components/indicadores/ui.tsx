@@ -25,11 +25,11 @@ export const Painel: React.FC<{
   className?: string;
   children: React.ReactNode;
 }> = ({ titulo, descricao, acoes, className = '', children }) => (
-  <section className={`bg-white rounded-2xl border border-slate-200 p-5 min-w-0 ${className}`}>
+  <section className={`painel p-5 min-w-0 ${className}`}>
     <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-4">
       <div className="min-w-0">
-        <h3 className="text-sm font-bold text-slate-900 leading-snug">{titulo}</h3>
-        {descricao && <p className="text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">{descricao}</p>}
+        <h3 className="ind-titulo">{titulo}</h3>
+        {descricao && <p className="ind-desc">{descricao}</p>}
       </div>
       {acoes && <div className="shrink-0">{acoes}</div>}
     </header>
@@ -39,10 +39,10 @@ export const Painel: React.FC<{
 
 type Tom = 'neutro' | 'bom' | 'atencao' | 'critico';
 const COR_DO_TOM: Record<Tom, string> = {
-  neutro: 'text-slate-900',
-  bom: 'text-emerald-700',
-  atencao: 'text-amber-700',
-  critico: 'text-rose-700',
+  neutro: 'var(--tinta)',
+  bom: 'var(--etapa-admissao)',
+  atencao: 'var(--etapa-triagem)',
+  critico: 'var(--atraso)',
 };
 
 /**
@@ -57,39 +57,39 @@ export const Kpi: React.FC<{
   detalhe?: React.ReactNode;
   tom?: Tom;
 }> = ({ rotulo, valor, unidade, detalhe, tom = 'neutro' }) => (
-  <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3.5 min-w-0">
-    <p className="text-xs font-semibold text-slate-600 truncate">{rotulo}</p>
-    <p className={`mt-1 text-[28px] leading-none font-bold tabular-nums tracking-tight ${COR_DO_TOM[tom]}`}>
+  <div className="painel ind-kpi">
+    <p className="ind-kpi-rotulo">{rotulo}</p>
+    <p className="ind-kpi-valor" style={{ color: COR_DO_TOM[tom] }}>
       {valor}
-      {unidade && <span className="ml-1 text-sm font-semibold text-slate-500">{unidade}</span>}
+      {unidade && <span>{unidade}</span>}
     </p>
-    {detalhe && <p className="mt-1.5 text-[11px] font-medium text-slate-500 leading-snug">{detalhe}</p>}
+    {detalhe && <p className="ind-kpi-detalhe">{detalhe}</p>}
   </div>
 );
 
 /** Ressalva sobre o dado — dita onde o número aparece, não num rodapé. */
 export const Nota: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
-  <p className={`flex items-start gap-1.5 text-[11px] font-medium text-slate-500 leading-relaxed ${className}`}>
-    <Info className="w-3.5 h-3.5 shrink-0 mt-px text-slate-400" aria-hidden="true" />
+  <p className={`flex items-start gap-1.5 text-[12px] leading-relaxed ${className}`} style={{ color: 'var(--tinta-3)' }}>
+    <Info className="w-3.5 h-3.5 shrink-0 mt-px" aria-hidden="true" />
     <span>{children}</span>
   </p>
 );
 
 export const Vazio: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <p className="text-xs font-medium text-slate-500 py-8 text-center">{children}</p>
+  <p className="text-[13px] py-8 text-center" style={{ color: 'var(--tinta-3)' }}>{children}</p>
 );
 
 /** Tooltip único dos gráficos: rótulo em cima, uma linha por série. */
 export const Dica: React.FC<any> = ({ active, payload, label, sufixo = '', formatar }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-slate-200 rounded-lg shadow-md px-3 py-2 text-[11px]">
-      {label !== undefined && label !== '' && <p className="font-bold text-slate-900 mb-1">{label}</p>}
+    <div className="painel px-3 py-2 text-[12px]" style={{ boxShadow: '0 4px 14px -4px rgba(20,27,45,.18)' }}>
+      {label !== undefined && label !== '' && <p className="font-bold mb-1" style={{ color: 'var(--tinta)' }}>{label}</p>}
       {payload.map((p: any) => (
-        <p key={p.dataKey} className="flex items-center gap-2 text-slate-600">
+        <p key={p.dataKey} className="flex items-center gap-2" style={{ color: 'var(--tinta-2)' }}>
           <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: p.color || p.fill }} aria-hidden="true" />
           <span>{p.name}</span>
-          <span className="ml-auto pl-4 font-bold text-slate-900 tabular-nums">
+          <span className="ml-auto pl-4 font-bold tabular-nums" style={{ color: 'var(--tinta)' }}>
             {formatar ? formatar(p.value, p.payload) : `${typeof p.value === 'number' ? num(p.value) : p.value}${sufixo}`}
           </span>
         </p>
@@ -138,15 +138,15 @@ export const ListaComBarra: React.FC<{
     <ul className="space-y-2.5">
       {itens.map(i => (
         <li key={i.nome}>
-          <div className="flex items-baseline justify-between gap-3 text-xs">
-            <span className="font-semibold text-slate-800 min-w-0">{i.nome}</span>
-            <span className="shrink-0 tabular-nums font-bold text-slate-900">
+          <div className="flex items-baseline justify-between gap-3 text-[13px]">
+            <span className="font-semibold min-w-0" style={{ color: 'var(--tinta-2)' }}>{i.nome}</span>
+            <span className="shrink-0 tabular-nums font-bold" style={{ color: 'var(--tinta)' }}>
               {num(i.valor)}{sufixo}
-              {i.detalhe && <span className="ml-1.5 font-medium text-slate-500">{i.detalhe}</span>}
+              {i.detalhe && <span className="ml-1.5 font-medium" style={{ color: 'var(--tinta-3)' }}>{i.detalhe}</span>}
             </span>
           </div>
-          <div className="mt-1 h-1.5 rounded-full bg-slate-100" aria-hidden="true">
-            <div className="h-full rounded-full" style={{ width: `${Math.max(2, (i.valor / topo) * 100)}%`, background: cor || C.primary }} />
+          <div className="barra-fina mt-1" aria-hidden="true">
+            <span style={{ width: `${Math.max(2, (i.valor / topo) * 100)}%`, background: cor || C.primary }} />
           </div>
         </li>
       ))}

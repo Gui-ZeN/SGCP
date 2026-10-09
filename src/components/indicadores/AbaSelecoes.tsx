@@ -147,7 +147,7 @@ export const AbaSelecoes: React.FC<{
                     <Tooltip cursor={cursorBarra} content={<Dica formatar={(v: number, d: any) => `${num(v)} · ${d.taxa}% vieram`} />} />
                     <Bar isAnimationActive={false} dataKey="convocados" name="Convocados" fill={C.primary} radius={[0, 4, 4, 0]} barSize={16}>
                       <LabelList dataKey="convocados" position="right" fontSize={11} fill={C.rotulo}
-                        formatter={(v: number) => num(v)} />
+                        formatter={(v) => num(Number(v))} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>

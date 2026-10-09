@@ -22,7 +22,9 @@ import { Printer } from 'lucide-react';
 import type { Vaga, Treinamento, Experiencia, Entrevista, Turnover, Integracao, Selecao } from '../types';
 import type { Sede } from '../hooks/useMetadata';
 import { SLA_META_DIAS } from '../constants/hr';
-import { getDiasEmAberto } from '../utils/vaga';
+import { diasNestaEtapa, vagaAtrasada } from '../utils/vaga';
+import { linkPara } from '../lib/rotas';
+import { FiltroMultiplo } from './ui/FiltroMultiplo';
 import { estaAtrasada } from '../utils/selecao';
 import { normalizeKey } from '../lib/spreadsheetImport';
 import { indicadoresSelecao, taxaTurnover } from '../utils/indicadores';
@@ -65,7 +67,6 @@ const ABAS: { id: AbaId; rotulo: string }[] = [
 ];
 const EM_ANDAMENTO = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO'];
 
-const campoFiltro = 'text-sm bg-white border border-slate-200 rounded-lg pl-3 pr-8 py-2 font-semibold text-slate-800 outline-none focus:border-slate-800 cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed';
 
 export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   vagas, treinamentos = [], experiencias = [], entrevistas = [], turnover = [], integracoes = [],
@@ -75,8 +76,9 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
 
   // ── filtros ──────────────────────────────────────────────────────────────
   // Quem não é admin vê a própria sede (como antes), já pela sigla do cadastro.
+  // Sede é de múltipla escolha (regra de 08/10/2026); nada marcado = todas.
   const sedeTravada = !isAdmin && !!userSede;
-  const [sede, setSede] = useState<string | null>(() => (sedeTravada ? siglaDaSede(sedes, userSede) || userSede! : null));
+  const [sedesSel, setSedesSel] = useState<string[]>(() => (sedeTravada ? [siglaDaSede(sedes, userSede) || userSede!] : []));
   const opcoes = useMemo(() => opcoesDeSede(sedes, [
     ...vagas.map(v => v.sede), ...selecoes.map(s => s.sede), ...treinamentos.map(t => t.unidade),
     ...experiencias.map(e => e.sede), ...integracoes.map(i => i.sede), ...entrevistas.map(e => e.unidade),
@@ -99,7 +101,11 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
     setPeriodoBruto(p => (p.ano === padrao ? p : { ano: padrao, mes: null }));
   }, [anos, anoAtual]);
 
-  const daSede = useMemo(() => naSede(sedes, sede), [sedes, sede]);
+  const daSede = useMemo(() => {
+    if (!sedesSel.length) return () => true;
+    const testes = sedesSel.map(s => naSede(sedes, s));
+    return (rotulo?: string) => testes.some(t => t(rotulo));
+  }, [sedes, sedesSel]);
   const f = useMemo(() => {
     const noP = (d?: string) => noPeriodo(periodo, anoMes(d));
     const integSede = integracoes.filter(i => daSede(i.sede));
@@ -128,7 +134,8 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   // ── visão geral ──────────────────────────────────────────────────────────
   const geral = useMemo(() => {
     const abertas = f.vagas.filter(v => EM_ANDAMENTO.includes((v.status || '').toUpperCase()));
-    const atrasadasVaga = abertas.map(v => ({ v, d: getDiasEmAberto(v) })).filter(x => x.d > SLA_META_DIAS).sort((a, b) => b.d - a.d);
+    // Mesmo critério do menu, do Quadro e do Início: dias NA ETAPA.
+    const atrasadasVaga = abertas.filter(vagaAtrasada).map(v => ({ v, d: diasNestaEtapa(v) })).sort((a, b) => b.d - a.d);
     const fechadas = f.vagas.filter(v => (v.status || '').toUpperCase() === 'FECHADA' && noPeriodo(periodo, anoMes(v.conclusao)));
     const comTempo = fechadas.filter(v => (v.tempoProcesso || 0) > 0);
     const tempo = comTempo.length ? Math.round(comTempo.reduce((t, v) => t + (v.tempoProcesso || 0), 0) / comTempo.length) : null;
@@ -150,25 +157,30 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
     const saidas = f.turnover.reduce((t, x) => t + (x.pediramSair || 0) + (x.foramDesligados || 0), 0);
 
     const atencao: ItemDeAtencao[] = [];
-    if (atrasadasExp.length) atencao.push({ id: 'exp-atrasada', gravidade: 'critico', aba: 'pessoas',
+    const naExperiencia = { rotulo: 'Resolver na Experiência', href: linkPara('experiencias') };
+    if (atrasadasExp.length) atencao.push({ id: 'exp-atrasada', gravidade: 'critico', aba: 'pessoas', resolver: naExperiencia,
       texto: `${atrasadasExp.length} avaliação(ões) de experiência atrasada(s)`,
       detalhe: atrasadasExp.slice(0, 3).map(x => `${x.e.colaborador} (${x.marco}, ${-x.dias} d)`).join(' · ') });
     if (atrasadasVaga.length) atencao.push({ id: 'vaga-prazo', gravidade: atrasadasVaga.length > 10 ? 'critico' : 'atencao', aba: 'vagas',
-      texto: `${atrasadasVaga.length} vaga(s) em aberto há mais de ${SLA_META_DIAS} dias`,
-      detalhe: atrasadasVaga.slice(0, 3).map(x => `#${x.v.codigo} ${x.v.vaga} · ${x.d} d`).join(' · ') });
+      resolver: { rotulo: 'Resolver em Vagas', href: linkPara('vagas') },
+      texto: `${atrasadasVaga.length} vaga(s) passaram de ${SLA_META_DIAS} dias na mesma etapa`,
+      detalhe: atrasadasVaga.slice(0, 3).map(x => `nº ${x.v.codigo} ${x.v.vaga} · ${x.d} d`).join(' · ') });
     if (semConfirmar.length) atencao.push({ id: 'sel-confirmar', gravidade: 'atencao', aba: 'selecoes',
+      resolver: { rotulo: 'Resolver no Resumo do Dia', href: linkPara('selecoes') },
       texto: `${semConfirmar.length} seleção(ões) passaram sem confirmar quem compareceu`,
       detalhe: 'Confirme na aba Resumo do Dia — até lá, ficam fora dos números.' });
-    if (semDesfecho) atencao.push({ id: 'exp-sem-desfecho', gravidade: 'atencao', aba: 'pessoas',
+    if (semDesfecho) atencao.push({ id: 'exp-sem-desfecho', gravidade: 'atencao', aba: 'pessoas', resolver: naExperiencia,
       texto: `${semDesfecho} experiência(s) sem desfecho lançado há mais de ${LIMITE_ATRASO_DIAS} dias`,
       detalhe: 'O prazo já passou faz tempo: é efetivar ou encerrar na aba Experiência.' });
     const proximas = aVencer.filter(x => x.dias >= 0);
-    if (proximas.length) atencao.push({ id: 'exp-proximas', gravidade: 'atencao', aba: 'pessoas',
+    if (proximas.length) atencao.push({ id: 'exp-proximas', gravidade: 'atencao', aba: 'pessoas', resolver: naExperiencia,
       texto: `${proximas.length} avaliação(ões) de experiência nos próximos 7 dias`,
       detalhe: proximas.slice(0, 3).map(x => `${x.e.colaborador} · ${x.dias === 0 ? 'hoje' : `em ${x.dias} d`}`).join(' · ') });
     if (mostrarIntegracao && pendInteg) atencao.push({ id: 'integ', gravidade: 'atencao', aba: 'pessoas',
+      resolver: { rotulo: 'Resolver na Integração', href: linkPara('integracao') },
       texto: `${pendInteg} integração(ões) pendente(s)`, detalhe: 'Admitidos no período que ainda não fizeram a integração.' });
     if (previstos && pct(treinados, previstos) < 70) atencao.push({ id: 'trein', gravidade: 'atencao', aba: 'pessoas',
+      resolver: { rotulo: 'Ver Treinamentos', href: linkPara('treinamentos') },
       texto: `Aproveitamento dos treinamentos em ${pct(treinados, previstos)}%`, detalhe: `${num(treinados)} presentes de ${num(previstos)} previstos.` });
 
     const temas: ResumoDoTema[] = [
@@ -184,44 +196,33 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
     return { atencao, temas };
   }, [f, periodo, mostrarIntegracao]);
 
-  const rotuloSede = sede ? (opcoes.find(o => o.valor === sede)?.rotulo || sede) : 'Todas as sedes';
+  const rotuloSede = sedesSel.length ? sedesSel.map(v => opcoes.find(o => o.valor === v)?.rotulo || v).join(', ') : 'Todas as sedes';
 
   return (
     <div className="space-y-6">
       {/* Cabeçalho: o que é, o recorte, e os filtros numa linha só */}
-      <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+      <header className="pagina-cab">
         <div className="min-w-0">
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Indicadores</h2>
-          <p className="text-sm text-slate-500 font-medium mt-1">
-            {rotuloSede} · {rotuloDoPeriodo(periodo)}
-          </p>
+          <h1 className="pagina-titulo">Indicadores</h1>
+          <p className="inicio-sub">{rotuloSede} · {rotuloDoPeriodo(periodo)}</p>
         </div>
-        <div className="no-print flex flex-wrap items-end gap-2.5">
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-semibold text-slate-600">Sede</span>
-            <select value={sede ?? ''} disabled={sedeTravada} onChange={e => setSede(e.target.value || null)} className={campoFiltro}>
-              <option value="">Todas as sedes</option>
-              {opcoes.map(o => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-semibold text-slate-600">Ano</span>
-            <select value={periodo.ano ?? ''} onChange={e => setPeriodo({ ano: e.target.value ? Number(e.target.value) : null, mes: null })} className={campoFiltro}>
-              {anos.map(a => <option key={a} value={a}>{a}</option>)}
-              <option value="">Todo o período</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-semibold text-slate-600">Mês</span>
-            <select value={periodo.mes ?? ''} disabled={periodo.ano === null}
-              onChange={e => setPeriodo(p => ({ ...p, mes: e.target.value ? Number(e.target.value) : null }))} className={campoFiltro}>
-              <option value="">Ano inteiro</option>
-              {MESES_LONGOS.map((m, i) => <option key={m} value={i + 1}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>)}
-            </select>
-          </label>
-          <button onClick={() => window.print()} title="Gerar PDF (pela impressão do navegador)"
-            className="inline-flex items-center gap-1.5 h-[38px] px-3.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors">
-            <Printer className="w-4 h-4" aria-hidden="true" /> Exportar PDF
+        <div className="no-print pagina-acoes">
+          {sedeTravada
+            ? <span className="chip" title="Seu acesso é desta sede">Sede: {rotuloSede}</span>
+            : <FiltroMultiplo rotulo="Sede" opcoes={opcoes} selecionados={sedesSel} onChange={setSedesSel} todos="todas" />}
+          <label className="sr-only" htmlFor="ind-ano">Ano</label>
+          <select id="ind-ano" value={periodo.ano ?? ''} onChange={e => setPeriodo({ ano: e.target.value ? Number(e.target.value) : null, mes: null })} className="campo campo-sel">
+            {anos.map(a => <option key={a} value={a}>{a}</option>)}
+            <option value="">Todo o período</option>
+          </select>
+          <label className="sr-only" htmlFor="ind-mes">Mês</label>
+          <select id="ind-mes" value={periodo.mes ?? ''} disabled={periodo.ano === null}
+            onChange={e => setPeriodo(p => ({ ...p, mes: e.target.value ? Number(e.target.value) : null }))} className="campo campo-sel">
+            <option value="">Ano inteiro</option>
+            {MESES_LONGOS.map((m, i) => <option key={m} value={i + 1}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>)}
+          </select>
+          <button type="button" onClick={() => window.print()} title="Gerar PDF (pela impressão do navegador)" className="btn">
+            <Printer aria-hidden="true" /> Exportar PDF
           </button>
         </div>
       </header>
@@ -232,13 +233,10 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
         <div className="text-sm text-slate-500 font-semibold">{rotuloSede} · {rotuloDoPeriodo(periodo)} · gerado em {new Date().toLocaleDateString('pt-BR')}</div>
       </div>
 
-      <nav role="tablist" aria-label="Temas dos indicadores" className="no-print flex gap-1 overflow-x-auto border-b border-slate-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <nav role="tablist" aria-label="Temas dos indicadores" className="no-print abas">
         {ABAS.map(a => (
           <button key={a.id} role="tab" type="button" aria-selected={aba === a.id} aria-controls={`painel-${a.id}`} id={`aba-${a.id}`}
-            onClick={() => setAba(a.id)}
-            className={`shrink-0 px-3.5 py-2.5 text-sm font-semibold border-b-2 -mb-px cursor-pointer transition-colors ${
-              aba === a.id ? 'border-[var(--sgpc-acento,#1B4DD8)] text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}>
+            onClick={() => setAba(a.id)}>
             {a.rotulo}
           </button>
         ))}
@@ -263,8 +261,8 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
             />
           </div>
         )}
-        {aba === 'absenteismo' && <AbaAbsenteismo periodo={periodo} sedeFiltrada={!!sede} />}
-        {aba === 'clima' && <AbaClima turnover={f.turnover} entrevistas={f.entrevistas} sedeFiltrada={!!sede} />}
+        {aba === 'absenteismo' && <AbaAbsenteismo periodo={periodo} sedeFiltrada={sedesSel.length > 0} />}
+        {aba === 'clima' && <AbaClima turnover={f.turnover} entrevistas={f.entrevistas} sedeFiltrada={sedesSel.length > 0} />}
       </div>
     </div>
   );
