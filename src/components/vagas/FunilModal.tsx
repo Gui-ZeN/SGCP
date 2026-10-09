@@ -5,6 +5,7 @@ import { Modal } from '../ui/Modal';
 import { ListaDeNomes, nomesPreenchidos } from '../ui/ListaDeNomes';
 import { RESULTADOS } from '../../utils/candidatos';
 import { ehRealizada, type FunilEfetivo } from '../../utils/selecao';
+import { formatDateBR, dataISOLocal } from '../../utils/date';
 import { listaParaDocumentacao, listaParaTestes, veio, type CandidatoNaVaga } from '../../utils/funilCandidatos';
 
 /**
@@ -35,6 +36,12 @@ interface Props {
   atualizar: (alteracoes: Alteracao[], resumo: string) => Promise<void>;
   /** Move a vaga para `para` (sincroniza o status). */
   mover: () => Promise<void>;
+  /**
+   * Registra, aqui mesmo, a entrevista que já aconteceu (data + nomes), para a
+   * vaga que chegou à Entrevista sem nenhuma ligada (vaga antiga, ou movida
+   * antes do funil existir). Os nomes caem na tabela logo abaixo.
+   */
+  registrarEntrevista?: (dataBR: string, nomes: string[]) => Promise<void>;
 }
 
 const rotulo = 'block text-[13px] font-semibold mb-1';
@@ -114,6 +121,8 @@ function PassoCandidatos(p: Props) {
   const [segue, setSegue] = useState<Record<string, boolean>>(() => Object.fromEntries(base.map(c => [c.id, testes ? c.etapa === 'testes' : c.etapa === 'documentacao' && c.vagaId === p.vaga.id])));
   const [vagaDe, setVagaDe] = useState<Record<string, string>>(() => Object.fromEntries(base.map(c => [c.id, c.vagaId || p.vaga.id])));
   const [novos, setNovos] = useState<string[]>(['']);
+  const [dataEntrevista, setDataEntrevista] = useState(dataISOLocal());
+  const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
   const ultimaSelecao = p.selecoesLigadas[0];
 
@@ -153,6 +162,21 @@ function PassoCandidatos(p: Props) {
     try { await p.registrarNomes(ultimaSelecao, nomesPreenchidos(novos)); setNovos(['']); } finally { setSalvando(false); }
   };
 
+  // ⚠️ Antes, sem entrevista ligada, o modal mandava VOLTAR e passar por
+  // Triagem → Entrevista (relato do RH em 09/10/2026: "pede para ela adicionar
+  // os nomes nesse modal"). Agora registra a entrevista aqui e segue.
+  const registrarEntrevista = async () => {
+    const nomes = nomesPreenchidos(novos);
+    if (!p.registrarEntrevista || !nomes.length) return;
+    setSalvando(true); setErro('');
+    try {
+      await p.registrarEntrevista(formatDateBR(dataEntrevista), nomes);
+      setNovos(['']);
+    } catch (e: any) {
+      setErro(e?.message || 'Não deu para registrar a entrevista.');
+    } finally { setSalvando(false); }
+  };
+
   // Sem nomes: avisa, mostra os números que existem e deixa lançar ali mesmo.
   if (base.length === 0) {
     const naoVieram = Math.max(0, p.funil.chamados - p.funil.compareceram);
@@ -163,11 +187,12 @@ function PassoCandidatos(p: Props) {
             ? 'Esta vaga ainda não tem nomes lançados. Dá para seguir só com os números, ou lançar os nomes agora.'
             : 'Ninguém está nos testes desta vaga. Volte e marque quem foi para os testes, ou siga mesmo assim.'}
         </Aviso>
-        <dl className="ficha" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+        {/* Sem entrevista nenhuma, os números são 0/0/0 e não dizem nada. */}
+        {ultimaSelecao && <dl className="ficha" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
           <div><dt>Convocados</dt><dd className="text-[22px] tabular-nums">{p.funil.chamados}</dd></div>
           <div><dt>Compareceram</dt><dd className="text-[22px] tabular-nums">{p.funil.compareceram}</dd></div>
           <div><dt>Não compareceram</dt><dd className="text-[22px] tabular-nums">{naoVieram}</dd></div>
-        </dl>
+        </dl>}
         {p.lista.length === 0 && (ultimaSelecao ? (
           <div>
             <span className={rotulo}>Lançar os nomes agora <span className="font-normal" style={{ color: 'var(--tinta-3)' }}>(seleção de {ultimaSelecao.data})</span></span>
@@ -176,8 +201,26 @@ function PassoCandidatos(p: Props) {
               Lançar {nomesPreenchidos(novos).length || ''} {nomesPreenchidos(novos).length === 1 ? 'nome' : 'nomes'}
             </button>
           </div>
+        ) : p.registrarEntrevista && testes ? (
+          <div className="space-y-3">
+            <p className="text-[13.5px]" style={{ color: 'var(--tinta-2)' }}>
+              Esta vaga ainda não tem a entrevista registrada. Registre aqui quem foi chamado: depois é só marcar, na lista, quem veio e quem vai para os testes.
+            </p>
+            <label className="block max-w-[220px]">
+              <span className={rotulo}>Dia da entrevista</span>
+              <input type="date" className="campo w-full" value={dataEntrevista} onChange={e => setDataEntrevista(e.target.value)} />
+            </label>
+            <div>
+              <span className={rotulo}>Quem foi chamado</span>
+              <ListaDeNomes nomes={novos} onChange={setNovos} />
+            </div>
+            {erro && <p role="alert" className="erro-form">{erro}</p>}
+            <button type="button" className="btn btn-primario" disabled={salvando || !dataEntrevista || !nomesPreenchidos(novos).length} onClick={registrarEntrevista}>
+              {salvando ? 'Registrando…' : !nomesPreenchidos(novos).length ? 'Registrar a entrevista' : `Registrar a entrevista com ${nomesPreenchidos(novos).length} ${nomesPreenchidos(novos).length === 1 ? 'nome' : 'nomes'}`}
+            </button>
+          </div>
         ) : (
-          <p className="text-[13.5px]" style={{ color: 'var(--tinta-3)' }}>Nenhuma entrevista ligada a esta vaga. Para ter nomes, marque a entrevista pela passagem Triagem → Entrevista.</p>
+          <p className="text-[13.5px]" style={{ color: 'var(--tinta-3)' }}>Nenhuma entrevista ligada a esta vaga.</p>
         ))}
         <Rodape>
           <button type="button" className="btn" onClick={p.aoFechar}>Cancelar</button>

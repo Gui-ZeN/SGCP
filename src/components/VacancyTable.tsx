@@ -36,7 +36,7 @@ import { exportToXlsx } from '../utils/xlsxExporter';
 import { SLA_META_DIAS } from '../constants/hr';
 import { ReguaFunil, funilDasVagas } from './vagas/ReguaFunil';
 import { parseDateDDMMYYYY, isPausedOrSuspended, getDiasEmAberto, ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa, statusForEtapa, vagaAtrasada } from '../utils/vaga';
-import { funilDaVaga, funilEfetivo, selecoesDaVaga, atendeVaga, type FunilDaVaga } from '../utils/selecao';
+import { funilDaVaga, funilEfetivo, selecoesDaVaga, atendeVaga, camposDoFormulario, type FunilDaVaga } from '../utils/selecao';
 
 interface VacancyTableProps {
   vagas: Vaga[];
@@ -1105,6 +1105,12 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           registrarNomes={registrarCandidatos!}
           atualizar={atualizarCandidatos!}
           mover={() => moverParaEtapa(funilMove.vaga, funilMove.para)}
+          registrarEntrevista={criarSelecao ? async (data, nomes) => {
+            // A mesma seleção que o formulário único criaria, com a vaga marcada.
+            const { erros, campos } = camposDoFormulario(formularioDaVaga(funilMove.vaga, { data, responsavel: responsavelPadrao, convocados: nomes.length }));
+            if (erros.length) throw new Error(erros.join(' '));
+            await criarSelecao(campos, nomes);
+          } : undefined}
         />
       )}
 
