@@ -44,6 +44,14 @@ const celula = 'celula-planilha w-full min-w-0 text-xs px-2 py-1 border rounded 
 const th = 'px-2.5 py-2 text-left text-[12.5px] font-bold text-slate-600 bg-slate-50 whitespace-nowrap border-r border-slate-200 last:border-r-0';
 // Linha de grade entre colunas, como no Excel.
 const td = 'border-r border-slate-100 last:border-r-0';
+/**
+ * ⚠️ Quantas linhas desenhar de uma vez. Sem limite, "Candidatos" sem um dia
+ * escolhido desenhava o ano inteiro: com 2.400 pessoas eram 5.160 listas de
+ * opções e 6 s de tela parada a cada troca (relato do RH em 09/10/2026).
+ * Mostra as mais recentes (embaixo, onde se digita); o resto vem por botão.
+ * A busca continua olhando TODAS.
+ */
+const LOTE = 150;
 
 export const CandidatosPlanilha: React.FC<Props> = ({
   selecoes, busca, candidatos, sedes, soPedagogico, onSalvar, onRegistrar, onRemover, onNovaSelecao, confirmAction,
@@ -60,6 +68,13 @@ export const CandidatosPlanilha: React.FC<Props> = ({
       .filter(({ c, s }) => !q || normalizarNome([c.nome, s.cargo, s.setor, s.gestor, s.responsavel].join(' ')).includes(q))
       .sort((a, b) => ordem(a.s.data) - ordem(b.s.data) || a.s.cargo.localeCompare(b.s.cargo, 'pt-BR') || a.c.nome.localeCompare(b.c.nome, 'pt-BR'));
   }, [candidatos, porId, busca]);
+
+  // Busca nova começa do lote inicial (sem efeito: um setState em efeito
+  // redesenhava a lista inteira de novo logo depois de montar).
+  const [lote, setLote] = useState({ busca, n: LOTE });
+  const quantas = lote.busca === busca ? lote.n : LOTE;
+  const ocultas = Math.max(0, linhas.length - quantas);
+  const visiveis = ocultas ? linhas.slice(ocultas) : linhas;
 
   // Abre rolada até o fim — o lugar onde se continua digitando.
   const rolagem = useRef<HTMLDivElement>(null);
@@ -123,7 +138,19 @@ export const CandidatosPlanilha: React.FC<Props> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {linhas.map(({ c, s }) => (
+              {ocultas > 0 && (
+                <tr>
+                  <td colSpan={9} className="px-3 py-2.5 text-center">
+                    <button type="button" className="btn btn-sm" onClick={() => setLote({ busca, n: quantas + LOTE * 2 })}>
+                      Mostrar {Math.min(ocultas, LOTE * 2)} anteriores
+                    </button>
+                    <span className="ml-3 text-[12.5px]" style={{ color: 'var(--tinta-3)' }}>
+                      mostrando as {visiveis.length} mais recentes de {linhas.length} · a busca procura em todas
+                    </span>
+                  </td>
+                </tr>
+              )}
+              {visiveis.map(({ c, s }) => (
                 <tr key={c.id} className={c.resultado === 'convocado' ? 'bg-amber-50/40' : ''}>
                   <td className={`${td} px-1 py-0.5 min-w-[170px]`} data-rotulo="Nome">
                     {editavel ? (
