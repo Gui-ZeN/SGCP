@@ -245,7 +245,9 @@ html[data-campanha="outubro-rosa"] {
     width: 240px;
     overflow: hidden;
     clip-path: inset(0 176px 0 0);
-    transition: clip-path .18s ease-out, box-shadow .18s ease-out, background-color .25s ease;
+    /* Curva que desacelera no fim: abre rápido e assenta, sem tranco. */
+    transition: clip-path .24s cubic-bezier(.22, .8, .3, 1), box-shadow .24s ease, background-color .25s ease;
+    will-change: clip-path;
   }
   .casca-menu.recolhido:hover,
   /* ⚠️ :has(:focus-visible), não :focus-within: o clique de mouse deixa o
@@ -256,15 +258,24 @@ html[data-campanha="outubro-rosa"] {
     box-shadow: 10px 0 30px rgba(10, 16, 32, .28);
     transition-delay: .12s; /* passar o mouse de raspão não abre */
   }
+  /* ⚠️ Os textos ENTRAM junto com o recorte (mesmo atraso + um pouco), e não de
+     uma vez: antes eles surgiam inteiros antes do menu começar a abrir, e a
+     abertura parecia dar uma travadinha (relato do RH em 09/10/2026). */
+  .casca-menu.recolhido :is(.casca-marca > div, .casca-alternar, .casca-grupo h2, .casca-grupo a span, .casca-usuario > div, .casca-usuario button) {
+    transition: opacity .18s ease .16s;
+  }
   .casca-menu.recolhido:not(:hover):not(:has(:focus-visible)) :is(.casca-marca > div, .casca-alternar, .casca-grupo h2, .casca-grupo a span, .casca-usuario > div, .casca-usuario button) {
     opacity: 0;
+    transition: opacity .08s ease;
   }
-  /* o número continua visível, preso ao ícone */
-  .casca-menu.recolhido:not(:hover):not(:has(:focus-visible)) .casca-grupo a em {
+  /* O número fica preso ao ícone nos DOIS estados do menu recolhível: quando
+     ele voltava para o fim da linha ao abrir, o salto acontecia no meio da
+     animação. */
+  .casca-menu.recolhido .casca-grupo a em {
     position: absolute; left: 27px; top: 50%; transform: translateY(-15px);
     font-size: 10px; padding: 0 4px; line-height: 15px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .casca-menu, .casca-menu.recolhido, .casca-grupo a { transition: none; }
+  .casca-menu, .casca-menu.recolhido, .casca-grupo a, .casca-menu.recolhido * { transition: none !important; }
 }
