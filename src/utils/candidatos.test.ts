@@ -47,7 +47,7 @@ describe('numerosDoDia', () => {
   });
 });
 
-import { nomesDoTexto } from '../components/CandidatosDoDia';
+import { nomesDoTexto } from '../components/ui/ListaDeNomes';
 
 describe('nomesDoTexto (colar a lista da convocação)', () => {
   it('um nome por linha; linha vazia e espaço sobrando não viram candidato', () => {

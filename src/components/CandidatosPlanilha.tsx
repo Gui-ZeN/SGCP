@@ -20,7 +20,8 @@ import type { Sede } from '../hooks/useMetadata';
 import { RESULTADOS, CONTRATACOES, MOTIVOS_DESISTENCIA, type ResultadoCandidato, type Contratacao } from '../utils/candidatos';
 import { anoMes, siglaDaSede } from '../utils/filtroIndicadores';
 import { normalizarNome } from '../utils/catalogo';
-import { comMudanca, nomesDoTexto, type Dados } from './CandidatosDoDia';
+import { comMudanca, type Dados } from './CandidatosDoDia';
+import { ListaDeNomes, nomesPreenchidos } from './ui/ListaDeNomes';
 import { Trash2, UserPlus } from 'lucide-react';
 
 interface Props {
@@ -40,7 +41,7 @@ interface Props {
 
 const ordem = (d: string) => { const am = anoMes(d); return am ? am[0] * 10000 + am[1] * 100 + Number(d.slice(0, 2)) : 0; };
 const celula = 'celula-planilha w-full min-w-0 text-xs px-2 py-1 border rounded bg-transparent font-medium text-slate-800 outline-none disabled:cursor-default';
-const th = 'px-2.5 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600 bg-slate-50 whitespace-nowrap border-r border-slate-200 last:border-r-0';
+const th = 'px-2.5 py-2 text-left text-[12.5px] font-bold text-slate-600 bg-slate-50 whitespace-nowrap border-r border-slate-200 last:border-r-0';
 // Linha de grade entre colunas, como no Excel.
 const td = 'border-r border-slate-100 last:border-r-0';
 
@@ -75,16 +76,16 @@ export const CandidatosPlanilha: React.FC<Props> = ({
   // Filtrada numa seleção só (veio do clique na aba Seleções): ela já vem
   // escolhida — é só colar os nomes.
   const [selId, setSelId] = useState(() => (selecoes.length === 1 ? selecoes[0].id : ''));
-  const [texto, setTexto] = useState('');
+  const [lista, setLista] = useState<string[]>(['']);
   const [adicionando, setAdicionando] = useState(false);
-  const nomes = nomesDoTexto(texto);
+  const nomes = nomesPreenchidos(lista);
   const adicionar = async () => {
     const s = porId.get(selId);
     if (!s || !nomes.length || !onRegistrar) return;
     setAdicionando(true);
     try {
       await onRegistrar(s, nomes);
-      setTexto('');
+      setLista(['']);
       requestAnimationFrame(() => { if (rolagem.current) rolagem.current.scrollTop = rolagem.current.scrollHeight; });
     } finally { setAdicionando(false); }
   };
@@ -97,6 +98,8 @@ export const CandidatosPlanilha: React.FC<Props> = ({
     else acao();
   };
 
+  const umaSelecao = selecoes.length === 1;
+
   return (
     <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden" aria-label="Candidatos">
       {linhas.length === 0 ? (
@@ -104,63 +107,65 @@ export const CandidatosPlanilha: React.FC<Props> = ({
           Nenhum candidato com esses filtros{editavel ? ' — adicione abaixo, escolhendo a seleção do dia.' : '.'}
         </p>
       ) : (
-        <div ref={rolagem} className="overflow-auto max-h-[68vh]">
-          <table className="w-full min-w-[1180px] text-xs border-collapse">
+        // Sem rolagem de lado (regra de 08/10/2026): data, cargo, sede, setor,
+        // gestor e RH viram UMA coluna ("Seleção", em duas linhas) — e ela some
+        // quando a lista é de uma seleção só, que já está no cartão de cima.
+        <div ref={rolagem} className="overflow-y-auto max-h-[68vh]">
+          <table className="w-full text-xs border-collapse tabela-empilha">
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-slate-200">
-                <th scope="col" className={th}>Data</th>
-                <th scope="col" className={`${th} min-w-[200px]`}>Nome</th>
-                <th scope="col" className={th}>Cargo</th>
-                <th scope="col" className={th}>Sede</th>
-                {!soPedagogico && <th scope="col" className={th}>Setor</th>}
-                <th scope="col" className={th}>Gestor</th>
-                <th scope="col" className={th}>RH</th>
+                <th scope="col" className={th}>Nome</th>
+                {!umaSelecao && <th scope="col" className={th}>Seleção</th>}
                 <th scope="col" className={`${th} w-40`}>{soPedagogico ? 'Teste' : 'Teste / entrevista'}</th>
                 {!soPedagogico && <th scope="col" className={`${th} w-32`}>Contratado</th>}
-                <th scope="col" className={`${th} min-w-[260px]`}>{soPedagogico ? 'Observações' : 'Motivo da desistência / observações'}</th>
+                <th scope="col" className={th}>{soPedagogico ? 'Observações' : 'Desistência / observações'}</th>
                 {onRemover && <th scope="col" className={`${th} w-8`}><span className="sr-only">Remover</span></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {linhas.map(({ c, s }) => (
                 <tr key={c.id} className={c.resultado === 'convocado' ? 'bg-amber-50/40' : ''}>
-                  <td className={`${td} px-2.5 py-0.5 tabular-nums text-slate-600 whitespace-nowrap`}>{s.data}</td>
-                  <td className={`${td} px-1 py-0.5`}>
+                  <td className={`${td} px-1 py-0.5 min-w-[170px]`} data-rotulo="Nome">
                     {editavel ? (
                       <input aria-label={`Nome (${c.nome})`} className={`${celula} font-semibold`} defaultValue={c.nome} maxLength={150}
                         onBlur={e => { const v = e.target.value.replace(/\s+/g, ' ').trim(); if (v && v !== c.nome) salvar(s, c, { nome: v }); }} />
                     ) : <span className="px-2 font-semibold text-slate-800">{c.nome}</span>}
                   </td>
-                  <td className={`${td} px-2.5 py-0.5 text-slate-700 whitespace-nowrap max-w-[220px] truncate`} title={s.cargo}>{s.cargo}</td>
-                  <td className={`${td} px-2.5 py-0.5 text-slate-700 whitespace-nowrap`}>{siglaDaSede(sedes, s.sede) || '—'}</td>
-                  {!soPedagogico && <td className={`${td} px-2.5 py-0.5 text-slate-700`}>{s.setor || '—'}</td>}
-                  <td className={`${td} px-2.5 py-0.5 text-slate-700`}>{s.gestor || '—'}</td>
-                  <td className={`${td} px-2.5 py-0.5 text-slate-700`}>{s.responsavel || '—'}</td>
-                  <td className={`${td} px-1 py-0.5`}>
+                  {!umaSelecao && (
+                    <td className={`${td} px-2.5 py-1`} data-rotulo="Seleção">
+                      <span className="min-w-0">
+                        <span className="block font-semibold text-slate-800 truncate max-w-[260px]" title={s.cargo}>{s.data} · {s.cargo}</span>
+                        <span className="block text-[11.5px] text-slate-500 truncate max-w-[260px]">
+                          {[siglaDaSede(sedes, s.sede), !soPedagogico && s.setor, s.gestor && `gestor ${s.gestor}`, s.responsavel && `RH ${s.responsavel}`].filter(Boolean).join(' · ') || 'sem sede'}
+                        </span>
+                      </span>
+                    </td>
+                  )}
+                  <td className={`${td} px-1 py-0.5`} data-rotulo={soPedagogico ? 'Teste' : 'Teste / entrevista'}>
                     <select aria-label={`Resultado de ${c.nome}`} disabled={!editavel} className={celula} value={c.resultado}
                       onChange={e => salvar(s, c, { resultado: e.target.value as ResultadoCandidato })}>
                       {RESULTADOS.map(r => <option key={r.id} value={r.id}>{r.id === 'convocado' ? '—' : r.rotulo}</option>)}
                     </select>
                   </td>
                   {!soPedagogico && (
-                    <td className={`${td} px-1 py-0.5`}>
+                    <td className={`${td} px-1 py-0.5`} data-rotulo="Contratado">
                       <select aria-label={`Contratado: ${c.nome}`} disabled={!editavel} className={celula} value={c.contratado || ''}
                         onChange={e => salvar(s, c, { contratado: e.target.value as Contratacao })}>
                         {CONTRATACOES.map(o => <option key={o.id} value={o.id}>{o.id === 'sim' ? 'Sim' : o.rotulo}</option>)}
                       </select>
                     </td>
                   )}
-                  <td className={`${td} px-1 py-0.5`}>
-                    <div className="flex gap-1">
+                  <td className={`${td} px-1 py-0.5`} data-rotulo="Observações">
+                    <div className="flex gap-1 w-full min-w-0">
                       {c.resultado === 'desistiu' && (
-                        <select aria-label={`Motivo da desistência de ${c.nome}`} disabled={!editavel} className={`${celula} max-w-[190px]`} value={c.motivo || ''}
+                        <select aria-label={`Motivo da desistência de ${c.nome}`} disabled={!editavel} className={`${celula} max-w-[170px]`} value={c.motivo || ''}
                           onChange={e => salvar(s, c, { motivo: e.target.value })}>
                           <option value="">Motivo…</option>
                           {MOTIVOS_DESISTENCIA.map(m => <option key={m} value={m}>{m}</option>)}
                           {c.motivo && !MOTIVOS_DESISTENCIA.includes(c.motivo) && <option value={c.motivo}>{c.motivo}</option>}
                         </select>
                       )}
-                      <input aria-label={`Observação sobre ${c.nome}`} disabled={!editavel} className={celula} defaultValue={c.observacao || ''} maxLength={300}
+                      <input aria-label={`Observação sobre ${c.nome}`} disabled={!editavel} className={`${celula} min-w-0`} defaultValue={c.observacao || ''} maxLength={300}
                         onBlur={e => { const v = e.target.value.trim(); if (v !== (c.observacao || '')) salvar(s, c, { observacao: v }); }} />
                     </div>
                   </td>
@@ -183,7 +188,7 @@ export const CandidatosPlanilha: React.FC<Props> = ({
         <div className="border-t border-slate-200 bg-slate-50 p-4">
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,320px)_1fr_auto] gap-3 items-start">
             <label className="block">
-              <span className="block text-[11px] font-semibold text-slate-600 mb-1">Seleção do dia</span>
+              <span className="block text-[12.5px] font-semibold text-slate-600 mb-1">Seleção do dia</span>
               <select className="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg bg-white font-medium text-slate-800 outline-none focus:border-slate-800"
                 value={selId} onChange={e => setSelId(e.target.value)}>
                 <option value="">Escolha a seleção…</option>
@@ -192,17 +197,15 @@ export const CandidatosPlanilha: React.FC<Props> = ({
                 ))}
               </select>
               {onNovaSelecao && (
-                <button type="button" onClick={onNovaSelecao} className="mt-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 underline underline-offset-2 cursor-pointer">
+                <button type="button" onClick={onNovaSelecao} className="mt-1 text-[12.5px] font-semibold text-slate-600 hover:text-slate-900 underline underline-offset-2 cursor-pointer">
                   A seleção ainda não existe? Crie antes
                 </button>
               )}
             </label>
-            <label className="block">
-              <span className="block text-[11px] font-semibold text-slate-600 mb-1">Nomes</span>
-              <textarea rows={2} value={texto} onChange={e => setTexto(e.target.value)}
-                placeholder="Um nome por linha — dá para colar a coluna NOME inteira da convocação"
-                className="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg outline-none bg-white font-medium focus:border-slate-800 resize-y" />
-            </label>
+            <div>
+              <span className="block text-[12.5px] font-semibold text-slate-600 mb-1">Nomes</span>
+              <ListaDeNomes nomes={lista} onChange={setLista} />
+            </div>
             <button onClick={adicionar} disabled={adicionando || !selId || !nomes.length}
               className="lg:mt-[22px] inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold disabled:opacity-40 cursor-pointer disabled:cursor-default">
               <UserPlus className="w-4 h-4" aria-hidden="true" />

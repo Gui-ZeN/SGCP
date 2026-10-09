@@ -6,14 +6,19 @@ import type { Candidato } from '../types';
 import { CandidatosDoDia } from './CandidatosDoDia';
 import { relatoPorPessoa, TAREFAS_PADRAO, totalContado, type EntradaLog, type Diario, type Tarefa } from '../utils/resumoDia';
 import { siglaCanonica } from '../utils/unidade';
-import { montarAgendaDoDia, resumoDeOutrosModulos } from '../utils/agenda';
+import { montarAgendaDoDia } from '../utils/agenda';
+import { FiltroMultiplo } from './ui/FiltroMultiplo';
+import { Modal } from './ui/Modal';
+import { ModalSelecao, formularioVazio, sugestoesDeSelecoes } from './selecoes/ModalSelecao';
+import { Atalho, LinkVaga } from './ui/Atalhos';
+import type { Aba } from '../lib/rotas';
 import { formatDateBR, toISOInput, dataISOLocal } from '../utils/date';
 import {
   ehRealizada, estaAtrasada, totaisDeSelecoes, codigosDasVagas,
-  validarAgendamento, validarConfirmacao, camposDaConfirmacao,
+  validarConfirmacao, camposDaConfirmacao,
 } from '../utils/selecao';
 import {
-  Users, ChevronLeft, ChevronRight, ChevronDown, PlusCircle, X, CalendarClock, AlertTriangle, Trash2, Pencil,
+  Users, ChevronLeft, ChevronRight, ChevronDown, PlusCircle, CalendarClock, AlertTriangle, Trash2, Pencil,
   Minus, Plus, Lock,
 } from 'lucide-react';
 
@@ -37,6 +42,8 @@ import {
  */
 interface SelecoesSectionProps {
   selecoes: Selecao[];
+  /** Dia a abrir, vindo de outra tela (#/resumo-do-dia?dia=…). O token reaplica. */
+  foco?: { dia: string; token: number } | null;
   /**
    * O que o RH fez no dia e não foi seleção. Lista SEPARADA de propósito:
    * atividade não tem cargo, vaga nem comparecimento, e somada às seleções
@@ -87,7 +94,8 @@ interface SelecoesSectionProps {
   registrarCandidatos?: (selecao: Selecao, nomes: string[]) => Promise<void>;
   removerCandidato?: (selecao: Selecao, id: string) => Promise<void>;
   /** Ausentes = somente leitura (Visualizador). */
-  agendarSelecao?: (dados: Omit<Selecao, 'id'>) => Promise<void>;
+  /** Criar seleção pelo formulário único (o mesmo de Seleções e do Kanban). */
+  criarSelecao?: (campos: Omit<Selecao, 'id'>, nomes: string[]) => Promise<void>;
   confirmarSelecao?: (id: string, campos: Partial<Selecao>) => Promise<void>;
   sedes?: Sede[];
   /** Sede do usuário — o agendamento já abre nela. Vazio para quem vê todas. */
@@ -96,12 +104,12 @@ interface SelecoesSectionProps {
   responsavelPadrao?: string;
 }
 
-const campoCls = 'w-full text-sm px-3 py-2.5 border border-slate-200 rounded-xl outline-none bg-white font-medium focus:border-slate-800';
-const rotuloCls = 'block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1';
-const thCls = 'px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-wider text-slate-500';
-const numCls = 'px-4 py-3 text-sm font-bold tabular-nums text-right';
+const campoCls = 'campo w-full';
+const rotuloCls = 'block text-[12.5px] font-semibold text-slate-600 mb-1';
+const thCls = 'px-4 py-2.5 text-left text-[12.5px] font-semibold text-slate-500';
+const numCls = 'px-4 py-3 text-[14px] font-semibold tabular-nums text-right';
 /** Título de cada bloco da tela. */
-const tituloCls = 'text-sm font-bold text-slate-900';
+const tituloCls = 'text-[16px] font-bold text-slate-900';
 
 /** Soma dias a uma data ISO (YYYY-MM-DD) sem passar por fuso. */
 function somarDias(iso: string, dias: number): string {
@@ -111,21 +119,21 @@ function somarDias(iso: string, dias: number): string {
 
 export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
   const {
-    agendarSelecao, confirmarSelecao, sedes = [], sedePadrao = '', responsavelPadrao = '',
+    criarSelecao, confirmarSelecao, sedes = [], sedePadrao = '', responsavelPadrao = '',
     atividades = [], adicionarAtividade, atualizarAtividade, removerAtividade, confirmAction,
     logs, usuarios = [], diarios = [], salvarMeuDia, emailAtual = '', meuLog = [],
     tarefas = TAREFAS_PADRAO, criarTarefa, ajustarTarefa, apagarTarefa,
-    candidatos, salvarCandidato, registrarCandidatos, removerCandidato, excluirSelecao,
+    candidatos, salvarCandidato, registrarCandidatos, removerCandidato, foco, excluirSelecao,
     ...fontes
   } = props;
-  const [diaISO, setDiaISO] = useState(() => dataISOLocal());
+  const [diaISO, setDiaISO] = useState(() => foco?.dia || dataISOLocal());
+  React.useEffect(() => {
+    if (foco?.dia && /^\d{4}-\d{2}-\d{2}$/.test(foco.dia)) setDiaISO(foco.dia);
+  }, [foco?.token]);
   const hojeISO = dataISOLocal();
 
-  const [abrindoAgenda, setAbrindoAgenda] = useState(false);
-  const [form, setForm] = useState({
-    dataISO: '', cargo: '', sede: '', convocados: 0, responsavel: '', vagaIds: [] as string[],
-  });
-  const [erros, setErros] = useState<string[]>([]);
+  // "Agendar seleção" abre o formulário único (selecoes/ModalSelecao).
+  const [agendando, setAgendando] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   // Dia de seleção com a lista de candidatos aberta.
@@ -151,13 +159,16 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
    * Vale para a tabela, os totais, a cobrança de atrasadas e as próximas: um
    * filtro que muda a lista mas não os números seria pior que nenhum.
    */
-  const [filtroSede, setFiltroSede] = useState('TODAS');
+  const [filtroSede, setFiltroSede] = useState<string[]>([]);
+  const siglasFiltro = useMemo(() => new Set(filtroSede.map(x => siglaCanonica(sedes, x))), [filtroSede, sedes]);
+  // Para frases e para a sede de uma atividade nova: só vale quando há UMA sede marcada.
+  const sedeUnica = filtroSede.length === 1 ? filtroSede[0] : '';
+  const rotuloFiltro = filtroSede.map(x => sedes.find(s => s.nome === x)?.sigla || x).join(', ');
 
   const naSede = useMemo(() => {
-    if (filtroSede === 'TODAS') return () => true;
-    const alvo = siglaCanonica(sedes, filtroSede);
-    return (s: Selecao) => siglaCanonica(sedes, s.sede) === alvo;
-  }, [filtroSede, sedes]);
+    if (!filtroSede.length) return () => true;
+    return (s: Selecao) => siglasFiltro.has(siglaCanonica(sedes, s.sede));
+  }, [filtroSede, siglasFiltro, sedes]);
 
   const doDia = useMemo(
     () => fontes.selecoes.filter(s => (s.data || '').trim() === dia && naSede(s)),
@@ -171,12 +182,11 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
    * Atividade sem sede aparece sempre — é trabalho da equipe toda.
    */
   const atividadesDoDia = useMemo(() => {
-    const alvo = filtroSede === 'TODAS' ? null : siglaCanonica(sedes, filtroSede);
     return atividades.filter(a =>
       (a.data || '').trim() === dia &&
-      (!alvo || !(a.sede || '').trim() || siglaCanonica(sedes, a.sede) === alvo)
+      (!filtroSede.length || !(a.sede || '').trim() || siglasFiltro.has(siglaCanonica(sedes, a.sede)))
     );
-  }, [atividades, dia, filtroSede, sedes]);
+  }, [atividades, dia, filtroSede, siglasFiltro, sedes]);
 
   // `editandoAtiv` guarda o id quando é edição, e null quando é registro novo.
   // O formulário é o MESMO nos dois casos: dois formulários iguais lado a lado
@@ -226,7 +236,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
           data: dia,
           // A sede do filtro, e não a do usuário: quem está olhando Benfica
           // registrando uma atividade está registrando a atividade de Benfica.
-          sede: filtroSede === 'TODAS' ? (sedePadrao || '') : filtroSede,
+          sede: sedeUnica || sedePadrao || '',
         });
       }
       setFormAtiv(null);
@@ -322,7 +332,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
     if (!titulo || !adicionarAtividade) return;
     setSalvandoAlgo(true);
     try {
-      await adicionarAtividade({ titulo, data: dia, sede: filtroSede === 'TODAS' ? (sedePadrao || '') : filtroSede, responsavel: responsavelPadrao || '' });
+      await adicionarAtividade({ titulo, data: dia, sede: sedeUnica || sedePadrao || '', responsavel: responsavelPadrao || '' });
       setAlgoMais('');
     } finally {
       setSalvandoAlgo(false);
@@ -360,10 +370,17 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
   };
 
   /** O resto do RH no mesmo dia — contexto, não lista. */
-  const contexto = useMemo(
-    () => resumoDeOutrosModulos(montarAgendaDoDia(dia, fontes).resumo),
-    [dia, fontes]
-  );
+  const contexto = useMemo(() => {
+    const r = montarAgendaDoDia(dia, fontes).resumo;
+    const p = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+    return ([
+      [r.vagasAbertas, p(r.vagasAbertas, 'vaga aberta', 'vagas abertas'), 'vagas'],
+      [r.vagasConcluidas, p(r.vagasConcluidas, 'vaga concluída', 'vagas concluídas'), 'vagas'],
+      [r.integracoes, p(r.integracoes, 'integração', 'integrações'), 'integracao'],
+      [r.entrevistas, p(r.entrevistas, 'entrevista de saída', 'entrevistas de saída'), 'entrevistas'],
+      [r.prazos, p(r.prazos, 'prazo de experiência', 'prazos de experiência'), 'experiencias'],
+    ] as [number, string, Aba][]).filter(([n]) => n > 0).map(([, texto, aba]) => ({ texto, aba }));
+  }, [dia, fontes]);
 
   /**
    * Agendamentos cuja data passou sem ninguém confirmar. A Agenda não cobrava
@@ -388,92 +405,6 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
     const [a, m, d] = diaISO.split('-').map(Number);
     return new Date(a, m - 1, d).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
   }, [diaISO]);
-
-  const vagasAbertas = useMemo(
-    () => fontes.vagas
-      .filter(v => ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO'].includes(v.status))
-      .sort((a, b) => a.vaga.localeCompare(b.vaga, 'pt-BR')),
-    [fontes.vagas]
-  );
-
-  /**
-   * Vagas da sede escolhida. Comparação pela SIGLA CANÔNICA, não pela string:
-   * o campo `sede` das vagas mistura nome e sigla da mesma unidade ("DT" e
-   * "DIONISIO TORRES"), e comparar cru esconderia metade das vagas do lugar.
-   */
-  const vagasDaSede = useMemo(() => {
-    if (!form.sede) return [];
-    const alvo = siglaCanonica(sedes, form.sede);
-    return vagasAbertas.filter(v => siglaCanonica(sedes, v.sede) === alvo);
-  }, [vagasAbertas, sedes, form.sede]);
-
-  const abrirAgendamento = (dataInicial = diaISO) => {
-    // Sede e responsável já vêm de quem está logado: o RH agenda para a própria
-    // sede e conduz a própria seleção. Ambos continuam editáveis.
-    setForm({
-      dataISO: dataInicial, cargo: '', sede: sedePadrao, convocados: 0,
-      responsavel: responsavelPadrao, vagaIds: [],
-    });
-    setErros([]);
-    setAbrindoAgenda(true);
-  };
-
-  /** Trocar a sede invalida as vagas marcadas — eram de outro lugar. */
-  const escolherSede = (sede: string) => {
-    setForm(f => ({ ...f, sede, vagaIds: [], cargo: f.vagaIds.length ? '' : f.cargo }));
-  };
-
-  /**
-   * Marca/desmarca uma vaga. O cargo só é preenchido sozinho quando todas as
-   * vagas marcadas têm o MESMO cargo — é o caso comum (2 vagas de ASG, uma
-   * seleção). Com cargos diferentes o campo fica para quem está agendando: o
-   * sistema não tem como saber se o dia é de "ASG" ou de "ASG e Porteiro".
-   */
-  const alternarVaga = (vagaId: string) => {
-    setForm(f => {
-      const vagaIds = f.vagaIds.includes(vagaId)
-        ? f.vagaIds.filter(id => id !== vagaId)
-        : [...f.vagaIds, vagaId];
-      const cargos = [...new Set(
-        vagaIds.map(id => vagasDaSede.find(v => v.id === id)?.vaga).filter(Boolean)
-      )];
-      return { ...f, vagaIds, cargo: cargos.length === 1 ? cargos[0]! : f.cargo };
-    });
-  };
-
-  const salvarAgendamento = async () => {
-    const data = formatDateBR(form.dataISO);
-    const problemas = validarAgendamento({ data, cargo: form.cargo, sede: form.sede, convocados: form.convocados });
-    setErros(problemas);
-    if (problemas.length || !agendarSelecao) return;
-
-    const escolhidas = vagasDaSede.filter(v => form.vagaIds.includes(v.id));
-    setSalvando(true);
-    try {
-      await agendarSelecao({
-        data,
-        cargo: form.cargo.trim(),
-        sede: form.sede.trim(),
-        responsavel: form.responsavel.trim(),
-        origem: 'geral',
-        status: 'agendado',
-        convocados: form.convocados,
-        compareceram: 0,
-        ausentes: 0,
-        contratados: 0,
-        desistiram: 0,
-        ...(escolhidas.length
-          ? { vagaIds: escolhidas.map(v => v.id), vagaCodigos: escolhidas.map(v => Number(v.codigo)) }
-          : {}),
-      });
-      setAbrindoAgenda(false);
-      setDiaISO(form.dataISO);
-    } catch (e: any) {
-      setErros([`Não foi possível agendar: ${e?.message || e}`]);
-    } finally {
-      setSalvando(false);
-    }
-  };
 
   const abrirConfirmacao = (s: Selecao) => {
     setConfirmando({ id: s.id, convocados: s.convocados || 0, titulo: `${s.cargo} · ${s.sede} · ${s.data}` });
@@ -510,7 +441,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
    * tela se contradizendo.
    */
   const resumoDoDia = doDia.length === 0
-    ? `Nenhuma seleção neste dia${filtroSede === 'TODAS' ? '' : ` em ${filtroSede}`}.`
+    ? `Nenhuma seleção neste dia${filtroSede.length ? ` em ${rotuloFiltro}` : ''}.`
     : [
         totais.convocados > 0 &&
           `${totais.convocados} convocados · ${totais.compareceram} compareceram${totais.taxa !== null ? ` · ${totais.taxa}%` : ''}`,
@@ -518,16 +449,17 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
           `${convocadosAConfirmar} convocados em ${totais.aConfirmar === 1 ? '1 seleção' : `${totais.aConfirmar} seleções`} a confirmar`,
       ].filter(Boolean).join(' · ');
 
-  const cards = [
-    { n: totais.convocados, t: 'Convocados', cor: 'text-slate-800' },
-    { n: totais.compareceram, t: 'Compareceram', cor: 'text-emerald-600' },
-    { n: totais.ausentes, t: 'Ausentes', cor: 'text-rose-600' },
-    { n: totais.contratados, t: 'Contratados', cor: 'text-sky-600' },
-    { n: totais.desistiram, t: 'Desistiram', cor: 'text-amber-600' },
-    ...(totais.aConfirmar > 0
-      ? [{ n: convocadosAConfirmar, t: 'A confirmar', cor: 'text-amber-600' }]
-      : []),
-  ];
+  // O que pede ação vem primeiro: as seleções do dia que esperam o resultado.
+  const esperando = doDia.filter(x => !ehRealizada(x));
+  /** O botão de ação de uma seleção agendada (com lista: por nome; sem: o número). */
+  const acaoDaSelecao = (x: Selecao) =>
+    x.numerosPelaLista && porSelecao.get(x.id)?.length ? (
+      <button type="button" className="btn btn-sm btn-primario" onClick={() => setCandidatosDe(x.id)}>Lançar resultados</button>
+    ) : confirmarSelecao ? (
+      <button type="button" className="btn btn-sm btn-primario" onClick={() => abrirConfirmacao(x)} title="Registrar quantos apareceram">Confirmar presença</button>
+    ) : (
+      <span className="etiqueta"><CalendarClock className="w-3 h-3" /> Agendada</span>
+    );
 
   /**
    * Motivos de desistência do dia, somados — as 18 colunas discriminadas que a
@@ -545,59 +477,28 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
+      <header className="pagina-cab">
         <div>
-          <h2 className="text-xl font-bold text-slate-850 flex items-center gap-2">
-            <Users className="w-6 h-6 text-indigo-500" />
-            Resumo do Dia
-          </h2>
+          <p className="pagina-trilha">Recrutamento › Resumo do Dia</p>
+          <h2 className="pagina-titulo">Resumo do Dia</h2>
           {/* O dia vale para a tela inteira — Meu dia, equipe e seleções —, por
               isso mora aqui, e não dentro do bloco de seleções. */}
-          <p className="text-sm text-slate-500 font-semibold mt-1 first-letter:uppercase">
+          <p className="text-[15px] font-semibold mt-1.5 first-letter:uppercase" style={{ color: 'var(--tinta-2)' }}>
             {nomeDoDia}{diaISO === hojeISO && ' · hoje'}
           </p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2 self-start">
-          <button
-            onClick={() => setDiaISO(d => somarDias(d, -1))}
-            aria-label="Dia anterior"
-            className="p-2 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-slate-600 cursor-pointer transition"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <input
-            type="date"
-            value={toISOInput(dia)}
-            onChange={e => e.target.value && setDiaISO(e.target.value)}
-            aria-label="Escolher o dia"
-            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 cursor-pointer outline-none focus:border-slate-800"
-          />
-          <button
-            onClick={() => setDiaISO(d => somarDias(d, 1))}
-            aria-label="Próximo dia"
-            className="p-2 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-slate-600 cursor-pointer transition"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-          {diaISO !== hojeISO && (
-            <button
-              onClick={() => setDiaISO(hojeISO)}
-              className="px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition"
-            >
-              Hoje
-            </button>
-          )}
-          {agendarSelecao && (
-            <button
-              onClick={() => abrirAgendamento()}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/15 transition"
-            >
-              <PlusCircle className="w-4 h-4" /> Agendar seleção
-            </button>
+        <div className="pagina-acoes">
+          <div className="seg" role="group" aria-label="Escolher o dia">
+            <button type="button" onClick={() => setDiaISO(d => somarDias(d, -1))} aria-label="Dia anterior"><ChevronLeft className="w-4 h-4" /></button>
+            <button type="button" aria-pressed={diaISO === hojeISO} onClick={() => setDiaISO(hojeISO)}>Hoje</button>
+            <button type="button" onClick={() => setDiaISO(d => somarDias(d, 1))} aria-label="Próximo dia"><ChevronRight className="w-4 h-4" /></button>
+          </div>
+          <input type="date" className="campo" value={toISOInput(dia)} onChange={e => e.target.value && setDiaISO(e.target.value)} aria-label="Escolher o dia" />
+          {criarSelecao && (
+            <button type="button" className="btn btn-primario" onClick={() => setAgendando(true)}><Plus />Agendar seleção</button>
           )}
         </div>
-      </div>
+      </header>
 
       {/* Cobrança: agendamento vencido sem presença confirmada */}
       {atrasadas.length > 0 && (
@@ -614,13 +515,13 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                 <button
                   key={s.id}
                   onClick={() => setDiaISO(toISOInput(s.data))}
-                  className="px-2 py-1 bg-white border border-amber-200 rounded-lg text-[10px] font-bold text-amber-800 hover:bg-amber-100 cursor-pointer transition"
+                  className="px-2 py-1 bg-white border border-amber-200 rounded-lg text-[12px] font-bold text-amber-800 hover:bg-amber-100 cursor-pointer transition"
                 >
                   {s.data} · {s.cargo}
                 </button>
               ))}
               {atrasadas.length > 6 && (
-                <span className="px-2 py-1 text-[10px] font-bold text-amber-700">
+                <span className="px-2 py-1 text-[12px] font-bold text-amber-700">
                   +{atrasadas.length - 6}
                 </span>
               )}
@@ -649,12 +550,12 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
             {/* ── o formulário ─────────────────────────────────────────── */}
             <div className="min-w-0">
               <div className="flex items-center justify-between gap-2 mb-1.5">
-                <p className="text-[11px] font-bold text-slate-700">O que o sistema não vê</p>
+                <p className="text-[12.5px] font-bold text-slate-700">O que o sistema não vê</p>
                 {ajustarTarefa && (
                   <button
                     type="button"
                     onClick={() => setGerenciando(g => !g)}
-                    className="text-[10px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-800 cursor-pointer"
+                    className="text-[12px] font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
                   >
                     {gerenciando ? 'Concluir' : 'Gerenciar tarefas'}
                   </button>
@@ -682,7 +583,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                       <button
                         type="button"
                         onClick={() => ajustarTarefa(t.id, { arquivada: !t.arquivada })}
-                        className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-800 cursor-pointer"
+                        className="shrink-0 text-[12px] font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
                       >
                         {t.arquivada ? 'Reativar' : 'Arquivar'}
                       </button>
@@ -716,7 +617,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                       <label key={t.id} className="block border border-slate-200 rounded-xl p-2.5 cursor-text focus-within:border-slate-800">
                         {/* Duas linhas de leading-snug (1,375 × 2): rótulo curto
                             ao lado de um que quebra não desalinha os botões. */}
-                        <span className="block text-[11px] font-bold text-slate-700 leading-snug min-h-[2.75em]">{t.nome}</span>
+                        <span className="block text-[12.5px] font-bold text-slate-700 leading-snug min-h-[2.75em]">{t.nome}</span>
                         <span className="flex items-center gap-1.5 mt-1">
                           <button
                             type="button"
@@ -750,20 +651,20 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                       o estado (salvo / não salvo / erro) mora num lugar só. */}
                   <div className="flex items-center justify-end gap-3 mt-2.5">
                     {mudouMeuDia ? (
-                      <span role="status" className="text-[11px] font-bold text-amber-700">
+                      <span role="status" className="text-[12.5px] font-bold text-amber-700">
                         Não salvo — a prévia já mostra, o e-mail ainda não.
                       </span>
                     ) : avisoMeuDia ? (
-                      <span role="status" className={`text-[11px] font-bold ${avisoMeuDia === 'Salvo.' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      <span role="status" className={`text-[12.5px] font-bold ${avisoMeuDia === 'Salvo.' ? 'text-emerald-700' : 'text-rose-700'}`}>
                         {avisoMeuDia}
                       </span>
                     ) : meuDiarioSalvo ? (
-                      <span className="text-[11px] font-bold text-emerald-700">Salvo.</span>
+                      <span className="text-[12.5px] font-bold text-emerald-700">Salvo.</span>
                     ) : null}
                     <button
                       onClick={salvarMeuDiaAgora}
                       disabled={salvandoMeuDia || !mudouMeuDia}
-                      className="px-4 py-2 rounded-xl bg-slate-900 text-white text-[11px] font-bold uppercase tracking-wider hover:bg-slate-800 disabled:opacity-40 cursor-pointer disabled:cursor-default"
+                      className="px-4 py-2 rounded-xl bg-slate-900 text-white text-[12.5px] font-bold hover:bg-slate-800 disabled:opacity-40 cursor-pointer disabled:cursor-default"
                     >
                       {salvandoMeuDia ? 'Salvando...' : 'Salvar contagens'}
                     </button>
@@ -774,7 +675,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
               {/* Tarefa nova — de qualquer pessoa do RH, para a equipe toda. */}
               {criarTarefa && !gerenciando && (
                 <div className="mt-4">
-                  <label htmlFor="nova-tarefa" className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                  <label htmlFor="nova-tarefa" className="block text-[12.5px] font-bold text-slate-700 mb-1.5">
                     Falta uma tarefa?
                   </label>
                   <div className="flex gap-2">
@@ -791,20 +692,20 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                       type="button"
                       onClick={criarTarefaAgora}
                       disabled={!novaTarefa.trim()}
-                      className="shrink-0 px-3 rounded-xl border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer disabled:cursor-default"
+                      className="shrink-0 px-3 rounded-xl border border-slate-200 text-[12.5px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer disabled:cursor-default"
                     >
                       Criar
                     </button>
                   </div>
                   {erroTarefa
-                    ? <p role="alert" className="text-[11px] font-semibold text-rose-700 mt-1">{erroTarefa}</p>
-                    : <p className="text-[10px] text-slate-500 font-medium mt-1">Vira um contador para toda a equipe do RH.</p>}
+                    ? <p role="alert" className="text-[12.5px] font-semibold text-rose-700 mt-1">{erroTarefa}</p>
+                    : <p className="text-[12px] text-slate-500 font-medium mt-1">Vira um contador para toda a equipe do RH.</p>}
                 </div>
               )}
 
               {adicionarAtividade && (
                 <div className="mt-4 pt-4 border-t border-slate-100">
-                  <label htmlFor="algo-mais" className="block text-[11px] font-bold text-slate-700 mb-1.5">Algo mais</label>
+                  <label htmlFor="algo-mais" className="block text-[12.5px] font-bold text-slate-700 mb-1.5">Algo mais</label>
                   <div className="flex gap-2">
                     <input
                       id="algo-mais"
@@ -817,12 +718,12 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                     <button
                       onClick={adicionarAlgoMais}
                       disabled={salvandoAlgo || !algoMais.trim()}
-                      className="shrink-0 px-3 rounded-xl border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer disabled:cursor-default"
+                      className="shrink-0 px-3 rounded-xl border border-slate-200 text-[12.5px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer disabled:cursor-default"
                     >
                       {salvandoAlgo ? 'Adicionando...' : 'Adicionar'}
                     </button>
                   </div>
-                  <p className="text-[10px] text-slate-500 font-medium mt-1">
+                  <p className="text-[12px] text-slate-500 font-medium mt-1">
                     Entra no e-mail na hora, sem precisar salvar. Para editar, use “Também no dia”, mais abaixo.
                   </p>
                 </div>
@@ -831,7 +732,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
 
             {/* ── a prévia do e-mail ───────────────────────────────────── */}
             <div className="min-w-0">
-              <p className="text-[11px] font-bold text-slate-700 mb-1.5">Como os diretores recebem</p>
+              <p className="text-[12.5px] font-bold text-slate-700 mb-1.5">Como os diretores recebem</p>
               <div className="rounded-xl bg-slate-100/80 p-4">
                 {!minhaPrevia || minhaPrevia.secoes.length === 0 ? (
                   <p className="text-xs text-slate-600 font-medium">
@@ -844,14 +745,14 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                     <p className="text-xs font-bold text-indigo-700 mt-0.5">Resumo do dia · {dia}</p>
                     {minhaPrevia.secoes.map(s => (
                       <div key={s.titulo} className="mt-3 pt-2.5 border-t border-slate-100">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{s.titulo}</p>
+                        <p className="text-[12px] font-bold text-slate-500 mb-1">{s.titulo}</p>
                         {s.frases.map((f, i) => (
                           <p key={i} className="text-xs text-slate-800 leading-relaxed">• {f}</p>
                         ))}
                       </div>
                     ))}
                     {(minhaPrevia.acumulado.mes.length > 0 || minhaPrevia.acumulado.ano.length > 0) && (
-                      <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-[11px] text-slate-600 font-medium space-y-0.5">
+                      <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-[12.5px] text-slate-600 font-medium space-y-0.5">
                         {minhaPrevia.acumulado.mes.length > 0 && <p><strong className="text-slate-700">No mês:</strong> {minhaPrevia.acumulado.mes.join(' · ')}</p>}
                         {minhaPrevia.acumulado.ano.length > 0 && <p><strong className="text-slate-700">No ano:</strong> {minhaPrevia.acumulado.ano.join(' · ')}</p>}
                       </div>
@@ -859,7 +760,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                   </div>
                 )}
                 {temDoSistema && (
-                  <p className="text-[10px] text-slate-600 font-medium mt-2 flex items-start gap-1.5">
+                  <p className="text-[12px] text-slate-600 font-medium mt-2 flex items-start gap-1.5">
                     <Lock className="w-3 h-3 shrink-0 mt-px" />
                     Seleções, vagas e pessoas vêm do que você registrou no sistema. Para corrigir um número, ajuste na própria seleção ou vaga.
                   </p>
@@ -900,7 +801,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                           <span className={`block text-sm font-bold truncate ${semNome ? 'text-slate-600' : 'text-slate-800'}`}>{p.nome}</span>
                           {semNome && (
                             // O e-mail das 18h sai com este mesmo texto no assunto.
-                            <span className="block text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                            <span className="block text-[12px] font-bold text-amber-700">
                               sem nome no cadastro de usuários
                             </span>
                           )}
@@ -915,7 +816,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                       <div className="mt-3 ml-5.5 space-y-3">
                         {p.secoes.map(s => (
                           <div key={s.titulo}>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{s.titulo}</p>
+                            <p className="text-[12px] font-bold text-slate-500 mb-1">{s.titulo}</p>
                             <ul className="space-y-0.5">
                               {s.frases.map((f, i) => (
                                 <li key={i} className="text-xs text-slate-700 leading-relaxed">{f}</li>
@@ -924,7 +825,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                           </div>
                         ))}
                         {(p.acumulado.mes.length > 0 || p.acumulado.ano.length > 0) && (
-                          <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-600 font-medium space-y-0.5">
+                          <div className="pt-2 border-t border-slate-100 text-[12.5px] text-slate-600 font-medium space-y-0.5">
                             {p.acumulado.mes.length > 0 && <p><strong className="text-slate-700">No mês:</strong> {p.acumulado.mes.join(' · ')}</p>}
                             {p.acumulado.ano.length > 0 && <p><strong className="text-slate-700">No ano:</strong> {p.acumulado.ano.join(' · ')}</p>}
                           </div>
@@ -943,51 +844,54 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className={tituloCls}>Seleções</h3>
           {sedes.length > 1 && (
-            <div className="flex items-center gap-2 shrink-0">
-              <label htmlFor="filtro-sede" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Sede
-              </label>
-              <select
-                id="filtro-sede"
-                value={filtroSede}
-                onChange={e => setFiltroSede(e.target.value)}
-                className="text-xs px-3 py-1.5 border border-slate-200 rounded-xl bg-white font-bold text-slate-700 outline-none focus:border-slate-800 cursor-pointer"
-              >
-                <option value="TODAS">Todas as sedes</option>
-                {sedes.map(s => <option key={s.nome} value={s.nome}>{s.nome}</option>)}
-              </select>
-            </div>
+            <FiltroMultiplo
+              rotulo="Sede"
+              todos="todas"
+              opcoes={sedes.map(x => ({ valor: x.nome, rotulo: x.sigla ? `${x.sigla} · ${x.nome}` : x.nome }))}
+              selecionados={filtroSede}
+              onChange={setFiltroSede}
+            />
           )}
         </div>
         <p className="text-sm font-bold text-slate-700 mt-1">{resumoDoDia}</p>
-        {contexto && (
-          <p className="text-[11px] text-slate-500 font-semibold mt-1.5">
-            No mesmo dia, fora de seleção: {contexto}.
+        {contexto.length > 0 && (
+          <p className="text-[13px] mt-1.5" style={{ color: 'var(--tinta-3)' }}>
+            No mesmo dia, fora de seleção:{' '}
+            {contexto.map((c, i) => (
+              <React.Fragment key={c.texto}>{i > 0 && ' · '}<Atalho para={c.aba}>{c.texto}</Atalho></React.Fragment>
+            ))}
           </p>
         )}
 
         {motivosDoDia.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+            <span className="text-[12px] font-bold text-slate-500">
               Por que desistiram:
             </span>
             {motivosDoDia.map(([motivo, n]) => (
               <span key={motivo}
-                className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-800">
+                className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-[12px] font-bold text-amber-800">
                 {motivo} · {n}
               </span>
             ))}
           </div>
         )}
 
-        <div className="grid grid-cols-3 lg:grid-cols-6 gap-2.5 mt-4">
-          {cards.map(c => (
-            <div key={c.t} className="bg-slate-50 rounded-xl p-3 text-center">
-              <span className={`block text-xl font-black ${c.n ? c.cor : 'text-slate-300'}`}>{c.n}</span>
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{c.t}</span>
-            </div>
-          ))}
-        </div>
+        {esperando.length > 0 && (
+          <div className="mt-4 rounded-lg px-4 py-3" style={{ background: '#FDF3DC' }}>
+            <p className="text-[14px] font-bold" style={{ color: '#7A4E0B' }}>
+              {esperando.length === 1 ? '1 seleção esperando o resultado' : `${esperando.length} seleções esperando o resultado`}
+            </p>
+            <ul className="mt-2 space-y-2">
+              {esperando.map(x => (
+                <li key={x.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-[14px]">
+                  <span><b>{x.cargo}</b> <span style={{ color: 'var(--tinta-2)' }}>· {siglaCanonica(sedes, x.sede) || x.sede} · {x.convocados} convocados</span></span>
+                  {acaoDaSelecao(x)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* A aba QUANTI, coluna por coluna */}
@@ -996,140 +900,115 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
           <div className="py-14 text-center px-6">
             <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
             <p className="text-sm font-bold text-slate-600">
-              Nenhuma seleção registrada neste dia{filtroSede === 'TODAS' ? '' : ` em ${filtroSede}`}.
+              Nenhuma seleção registrada neste dia{filtroSede.length ? ` em ${rotuloFiltro}` : ''}.
             </p>
             {/* Com filtro ligado, o vazio pode ser do filtro e não do dia —
                 dizer isso evita o RH concluir que o dia está em branco. */}
-            {filtroSede !== 'TODAS' ? (
+            {filtroSede.length ? (
               <button
-                onClick={() => setFiltroSede('TODAS')}
-                className="text-[11px] text-slate-600 font-bold mt-1 underline cursor-pointer hover:text-slate-900"
+                onClick={() => setFiltroSede([])}
+                className="text-[12.5px] text-slate-600 font-bold mt-1 underline cursor-pointer hover:text-slate-900"
               >
                 Ver todas as sedes deste dia
               </button>
             ) : (
-              <p className="text-[11px] text-slate-500 font-medium mt-1">
+              <p className="text-[12.5px] text-slate-500 font-medium mt-1">
                 Use “Agendar seleção” para lançar quem foi chamado — a presença é confirmada depois.
               </p>
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px]">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className={thCls}>Cargo</th>
-                  <th className={thCls}>Sede</th>
-                  <th className={thCls}>Responsável RH</th>
-                  <th className={`${thCls} text-right`}>Convocados</th>
-                  <th className={`${thCls} text-right`}>Compareceram</th>
-                  <th className={`${thCls} text-right`}>Ausentes</th>
-                  <th className={`${thCls} text-right`}>Contratados</th>
-                  <th className={`${thCls} text-right`}>Desistiram</th>
-                  {/* Presa à direita: em linha larga a tabela rola, e a ação do
-                      dia não pode ser justamente o que sai da tela. */}
-                  <th className={`${thCls} sticky right-0 bg-slate-50 border-l border-slate-200`}>
-                    Motivo / situação
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {doDia.map(s => {
-                  const realizada = ehRealizada(s);
-                  const motivos = Object.entries(s.motivos || {});
-                  return (
-                    <tr key={s.id} className="group hover:bg-slate-50/60">
-                      <td className="px-4 py-3">
-                        <span className="text-sm font-bold text-slate-800">{s.cargo}</span>
+          // Sem rolagem de lado (regra de 08/10/2026): sede e responsável viram a
+          // 2ª linha do cargo, e em tela estreita cada seleção vira um cartão.
+          <table className="w-full tabela-empilha">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className={thCls}>Cargo</th>
+                <th className={`${thCls} text-right`}>Convocados</th>
+                <th className={`${thCls} text-right`}>Vieram</th>
+                <th className={`${thCls} text-right`}>Faltaram</th>
+                <th className={`${thCls} text-right`}>Contratados</th>
+                <th className={`${thCls} text-right`}>Desistiram</th>
+                <th className={thCls}>Situação</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {doDia.map(s => {
+                const realizada = ehRealizada(s);
+                const motivos = Object.entries(s.motivos || {});
+                return (
+                  <tr key={s.id} className="hover:bg-slate-50/60">
+                    <td className="px-4 py-3">
+                      <div>
+                        <span className="text-[14.5px] font-bold text-slate-800">{s.cargo}</span>
                         {codigosDasVagas(s).map(codigo => (
-                          <span key={codigo} className="ml-1.5 text-[10px] font-bold text-slate-500 tabular-nums">
-                            #{codigo}
-                          </span>
+                          <span key={codigo} className="ml-1.5"><LinkVaga codigo={codigo} /></span>
                         ))}
-                        <span className={`ml-2 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border ${
-                          s.origem === 'pedagogico'
-                            ? 'bg-violet-50 text-violet-700 border-violet-200'
-                            : 'bg-slate-100 text-slate-600 border-slate-200'
-                        }`}>
-                          {s.origem === 'pedagogico' ? 'Pedagógico' : 'Geral'}
+                        <span className="etiqueta ml-2">{s.origem === 'pedagogico' ? 'Pedagógico' : 'Geral'}</span>
+                        <span className="block text-[12.5px] mt-0.5" style={{ color: 'var(--tinta-3)' }}>
+                          {[s.sede, s.responsavel && `RH ${s.responsavel}`].filter(Boolean).join(' · ') || 'sem sede'}
                         </span>
-                        {candidatos && (
-                          <button
-                            onClick={() => setCandidatosDe(a => (a === s.id ? null : s.id))}
-                            aria-expanded={candidatosDe === s.id}
-                            className="block mt-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-900 hover:underline cursor-pointer"
-                          >
-                            {porSelecao.get(s.id)?.length
-                              ? `${porSelecao.get(s.id)!.length} candidato(s)`
-                              : '+ Candidatos'}
-                          </button>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm font-semibold text-slate-700">{s.sede || '—'}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-slate-700">{s.responsavel || '—'}</td>
-                      <td className={`${numCls} text-slate-800`}>{s.convocados}</td>
-                      <td className={`${numCls} ${realizada ? 'text-emerald-700' : 'text-slate-300'}`}>
-                        {realizada ? s.compareceram : '—'}
-                      </td>
-                      <td className={`${numCls} ${realizada ? 'text-rose-700' : 'text-slate-300'}`}>
-                        {realizada ? s.ausentes : '—'}
-                      </td>
-                      <td className={`${numCls} ${s.contratados ? 'text-sky-700' : 'text-slate-300'}`}>
-                        {realizada ? (s.contratados || '—') : '—'}
-                      </td>
-                      <td className={`${numCls} ${s.desistiram ? 'text-amber-700' : 'text-slate-300'}`}>
-                        {s.desistiram || '—'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap sticky right-0 bg-white group-hover:bg-slate-50 border-l border-slate-100">
-                        {!realizada && s.numerosPelaLista && porSelecao.get(s.id)?.length ? (
-                          // Com lista, a presença é lançada candidato a candidato.
-                          <button
-                            onClick={() => setCandidatosDe(s.id)}
-                            className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition"
-                          >
-                            Lançar resultados
-                          </button>
-                        ) : !realizada ? (
-                          confirmarSelecao ? (
+                        <span className="block mt-1">
+                          {candidatos && (
                             <button
-                              onClick={() => abrirConfirmacao(s)}
-                              title="Registrar quantos apareceram"
-                              className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition"
+                              onClick={() => setCandidatosDe(a => (a === s.id ? null : s.id))}
+                              aria-expanded={candidatosDe === s.id}
+                              className="atalho text-[12.5px] mr-3 cursor-pointer"
                             >
-                              Confirmar
+                              {porSelecao.get(s.id)?.length
+                                ? `${porSelecao.get(s.id)!.length} candidato(s)`
+                                : '+ Candidatos'}
                             </button>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
-                              <CalendarClock className="w-3 h-3" /> Agendada
-                            </span>
-                          )
-                        ) : motivos.length ? (
-                          <span className="flex flex-wrap gap-1 max-w-[280px] whitespace-normal">
+                          )}
+                          <Atalho para="selecoesLista" params={{ selecao: s.id }} className="atalho text-[12.5px]" title="Abrir esta seleção na tela de Seleções (dados e candidatos)">
+                            Abrir em Seleções
+                          </Atalho>
+                        </span>
+                      </div>
+                    </td>
+                    <td className={`${numCls} text-slate-800`} data-rotulo="Convocados">{s.convocados}</td>
+                    <td className={`${numCls} ${realizada ? 'text-emerald-700' : 'text-slate-300'}`} data-rotulo="Vieram">
+                      {realizada ? s.compareceram : '—'}
+                    </td>
+                    <td className={`${numCls} ${realizada ? 'text-rose-700' : 'text-slate-300'}`} data-rotulo="Faltaram">
+                      {realizada ? s.ausentes : '—'}
+                    </td>
+                    <td className={`${numCls} ${s.contratados ? 'text-sky-700' : 'text-slate-300'}`} data-rotulo="Contratados">
+                      {realizada ? (s.contratados || '—') : '—'}
+                    </td>
+                    <td className={`${numCls} ${s.desistiram ? 'text-amber-700' : 'text-slate-300'}`} data-rotulo="Desistiram">
+                      {s.desistiram || '—'}
+                    </td>
+                    <td className="px-4 py-3" data-rotulo="Situação">
+                      <div>
+                        {!realizada ? acaoDaSelecao(s) : motivos.length ? (
+                          <span className="flex flex-wrap gap-1 max-w-[260px]">
                             {motivos.map(([m, n]) => (
                               <span key={m} title={m}
-                                className="inline-block max-w-[170px] truncate px-1.5 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-800">
+                                className="inline-block max-w-[170px] truncate px-1.5 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-[12px] font-bold text-amber-800">
                                 {m}{n > 1 && ` (${n})`}
                               </span>
                             ))}
                           </span>
                         ) : (
-                          <span className="text-[11px] text-slate-400">—</span>
+                          <span className="text-[12.5px] text-slate-400">—</span>
                         )}
                         {excluirSelecao && !realizada && (
                           <button
                             onClick={() => excluirSelecao(s)}
-                            className="block mt-1.5 text-[11px] font-bold text-rose-700 hover:text-rose-900 hover:underline cursor-pointer"
+                            className="block mt-1.5 text-[12.5px] font-bold cursor-pointer hover:underline"
+                            style={{ color: 'var(--atraso)' }}
                           >
                             Excluir seleção
                           </button>
                         )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
 
@@ -1163,7 +1042,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
           {adicionarAtividade && !formAtiv && (
             <button
               onClick={abrirAtividade}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-50 cursor-pointer inline-flex items-center gap-1.5 transition"
+              className="px-3 py-1.5 rounded-xl border border-slate-200 text-[12.5px] font-bold text-slate-600 hover:bg-slate-50 cursor-pointer inline-flex items-center gap-1.5 transition"
             >
               <PlusCircle className="w-3.5 h-3.5" />
               Registrar atividade
@@ -1207,21 +1086,21 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
               </div>
             </div>
             {erroAtiv && (
-              <p role="alert" className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+              <p role="alert" className="text-[12.5px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
                 {erroAtiv}
               </p>
             )}
             <div className="flex items-center justify-end gap-2">
               <button
                 onClick={() => { setFormAtiv(null); setErroAtiv(''); }}
-                className="px-3 py-2 rounded-xl text-[11px] font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                className="px-3 py-2 rounded-xl text-[12.5px] font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 onClick={salvarAtividade}
                 disabled={salvandoAtiv}
-                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-[11px] font-bold uppercase tracking-wider hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-[12.5px] font-bold hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
               >
                 {salvandoAtiv ? 'Salvando...' : formAtiv.id ? 'Salvar' : 'Registrar'}
               </button>
@@ -1242,7 +1121,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                   <p className="text-sm font-bold text-slate-800">{a.titulo}</p>
                   {a.detalhe && <p className="text-xs text-slate-600 font-medium mt-0.5">{a.detalhe}</p>}
                   {(a.sede || a.responsavel) && (
-                    <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                    <p className="text-[12.5px] text-slate-500 font-semibold mt-0.5">
                       {[a.sede, a.responsavel].filter(Boolean).join(' · ')}
                     </p>
                   )}
@@ -1286,7 +1165,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
                 <span className="text-sm font-bold text-slate-700 truncate">
                   {s.data} · {s.cargo}
                 </span>
-                <span className="text-[11px] font-bold text-slate-500 shrink-0 tabular-nums">
+                <span className="text-[12.5px] font-bold text-slate-500 shrink-0 tabular-nums">
                   {s.sede} · {s.convocados} convocados
                 </span>
               </button>
@@ -1295,154 +1174,48 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
         </div>
       )}
 
-      {/* Agendar seleção */}
-      {abrindoAgenda && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div role="dialog" aria-modal="true" aria-labelledby="ag-titulo"
-            className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-            <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-              <h3 id="ag-titulo" className="text-sm font-bold text-slate-800">Agendar seleção</h3>
-              <button onClick={() => setAbrindoAgenda(false)} aria-label="Fechar"
-                className="w-8 h-8 rounded-full bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 overflow-y-auto">
-              {/* A sede vem PRIMEIRO: é ela que decide quais vagas existem. */}
-              <div>
-                <label htmlFor="ag-sede" className={rotuloCls}>Sede *</label>
-                {sedes.length > 0 ? (
-                  <select id="ag-sede" className={campoCls} value={form.sede} onChange={e => escolherSede(e.target.value)}>
-                    <option value="">Selecione…</option>
-                    {sedes.map(s => <option key={s.nome} value={s.nome}>{s.nome}</option>)}
-                  </select>
-                ) : (
-                  <input id="ag-sede" className={campoCls} value={form.sede} onChange={e => escolherSede(e.target.value)} />
-                )}
-              </div>
-
-              <fieldset>
-                <legend className={rotuloCls}>Vagas atendidas (opcional)</legend>
-                {!form.sede ? (
-                  <p className="text-[11px] text-slate-500 font-semibold py-2">
-                    Escolha a sede para ver as vagas abertas dela.
-                  </p>
-                ) : vagasDaSede.length === 0 ? (
-                  <p className="text-[11px] text-slate-500 font-semibold py-2">
-                    Nenhuma vaga aberta nesta sede — dá para agendar sem vaga.
-                  </p>
-                ) : (
-                  <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-44 overflow-y-auto">
-                    {vagasDaSede.map(v => (
-                      <label key={v.id}
-                        className="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-slate-50">
-                        <input type="checkbox" checked={form.vagaIds.includes(v.id)}
-                          onChange={() => alternarVaga(v.id)}
-                          className="w-4 h-4 accent-slate-900 cursor-pointer shrink-0" />
-                        <span className="text-[11px] font-bold text-slate-500 tabular-nums shrink-0">#{v.codigo}</span>
-                        <span className="text-sm font-semibold text-slate-700 truncate">{v.vaga}</span>
-                        {v.setor && (
-                          <span className="text-[10px] font-semibold text-slate-500 truncate ml-auto shrink-0">{v.setor}</span>
-                        )}
-                      </label>
-                    ))}
-                  </div>
-                )}
-                <p className="text-[10px] text-slate-500 font-semibold mt-1">
-                  {form.vagaIds.length > 1
-                    ? `${form.vagaIds.length} vagas neste mesmo dia — os convocados valem para todas elas.`
-                    : 'Dá para marcar mais de uma: chamar 20 pessoas para as 2 vagas de ASG é uma seleção só.'}
-                </p>
-              </fieldset>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="ag-data" className={rotuloCls}>Data *</label>
-                  <input id="ag-data" type="date" className={`${campoCls} cursor-pointer`}
-                    value={form.dataISO} onChange={e => setForm(f => ({ ...f, dataISO: e.target.value }))} />
-                </div>
-                <div>
-                  <label htmlFor="ag-convocados" className={rotuloCls}>Convocados *</label>
-                  <input id="ag-convocados" type="number" min={1} className={campoCls}
-                    value={form.convocados || ''} onChange={e => setForm(f => ({ ...f, convocados: Number(e.target.value) }))} />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="ag-cargo" className={rotuloCls}>Cargo *</label>
-                <input id="ag-cargo" className={campoCls} placeholder="Ex.: Professor(a)…"
-                  value={form.cargo} onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))} />
-              </div>
-
-              <div>
-                <label htmlFor="ag-responsavel" className={rotuloCls}>Responsável (RH)</label>
-                <input id="ag-responsavel" className={campoCls}
-                  value={form.responsavel} onChange={e => setForm(f => ({ ...f, responsavel: e.target.value }))} />
-              </div>
-
-              {erros.length > 0 && (
-                <ul role="alert" className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-3.5 py-2.5 text-[11px] font-semibold space-y-1">
-                  {erros.map(e => <li key={e}>{e}</li>)}
-                </ul>
-              )}
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
-              <button onClick={() => setAbrindoAgenda(false)}
-                className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold rounded-xl text-slate-650 cursor-pointer">
-                Cancelar
-              </button>
-              <button onClick={salvarAgendamento} disabled={salvando}
-                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-xs font-bold rounded-xl text-white shadow-md cursor-pointer disabled:opacity-60">
-                {salvando ? 'Agendando…' : 'Agendar'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Agendar seleção: o formulário único, já no dia que está na tela */}
+      {agendando && criarSelecao && (
+        <ModalSelecao
+          titulo="Agendar seleção"
+          inicial={formularioVazio({ data: dia, sede: sedeUnica || sedePadrao, responsavel: responsavelPadrao })}
+          sedes={sedes}
+          vagas={fontes.vagas}
+          sugestoes={sugestoesDeSelecoes(fontes.selecoes)}
+          comNomes
+          rotuloSalvar="Agendar"
+          onSalvar={async (campos, nomes) => {
+            await criarSelecao(campos, nomes);
+            setDiaISO(toISOInput(campos.data));
+          }}
+          aoFechar={() => setAgendando(false)}
+        />
       )}
 
       {/* Confirmar presença */}
       {confirmando && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div role="dialog" aria-modal="true" aria-labelledby="cf-titulo"
-            className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-5 bg-slate-50 border-b border-slate-100">
-              <h3 id="cf-titulo" className="text-sm font-bold text-slate-800">Confirmar presença</h3>
-              <p className="text-[11px] text-slate-600 font-semibold mt-0.5">{confirmando.titulo}</p>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label htmlFor="cf-presentes" className={rotuloCls}>
-                  Quantos compareceram? (de {confirmando.convocados} convocados)
-                </label>
-                <input id="cf-presentes" type="number" min={0} max={confirmando.convocados} className={campoCls}
-                  value={presentes} onChange={e => setPresentes(Number(e.target.value))} />
-                <p className="text-[10px] text-slate-500 font-semibold mt-1">
-                  Ausentes: <strong>{Math.max(0, confirmando.convocados - presentes)}</strong> — calculado, não digitado.
-                </p>
-              </div>
-
-              {erroConfirmar && (
-                <p role="alert" className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-3.5 py-2.5 text-[11px] font-semibold">
-                  {erroConfirmar}
-                </p>
-              )}
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
-              <button onClick={() => setConfirmando(null)}
-                className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold rounded-xl text-slate-650 cursor-pointer">
-                Cancelar
-              </button>
-              <button onClick={salvarConfirmacao} disabled={salvando}
-                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-xs font-bold rounded-xl text-white shadow-md cursor-pointer disabled:opacity-60">
-                {salvando ? 'Salvando…' : 'Confirmar'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <Modal
+          largura="sm"
+          titulo="Confirmar presença"
+          antes={<span>{confirmando.titulo}</span>}
+          aoFechar={() => setConfirmando(null)}
+          rodape={<>
+            <button type="button" className="btn" onClick={() => setConfirmando(null)}>Cancelar</button>
+            <button type="button" className="btn btn-primario" onClick={salvarConfirmacao} disabled={salvando}>{salvando ? 'Salvando…' : 'Confirmar'}</button>
+          </>}
+        >
+          <label className="block">
+            <span className="block text-[13px] font-semibold mb-1">Quantos compareceram? (de {confirmando.convocados} convocados)</span>
+            <input id="cf-presentes" type="number" min={0} max={confirmando.convocados} className="campo w-full"
+              value={presentes} onChange={e => setPresentes(Number(e.target.value))} autoFocus />
+          </label>
+          <p className="text-[13px] mt-2" style={{ color: 'var(--tinta-3)' }}>
+            Não vieram: <b style={{ color: 'var(--tinta)' }}>{Math.max(0, confirmando.convocados - presentes)}</b> (a conta é do sistema).
+          </p>
+          {erroConfirmar && (
+            <p role="alert" className="mt-3 rounded-md px-3 py-2 text-[13.5px] font-semibold" style={{ background: 'var(--atraso-fundo)', color: 'var(--atraso)' }}>{erroConfirmar}</p>
+          )}
+        </Modal>
       )}
     </div>
   );
