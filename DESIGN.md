@@ -220,7 +220,7 @@ Duas delas também carregam estado fora do funil: o verde de Admissão quer dize
 ### Named Rules
 **The Fixed Meaning Rule.** Cada cor tem um significado e só um, em todas as telas: `{colors.atraso}` é atraso ou desligado; as cores de etapa são a etapa do funil, as mesmas no Kanban, na régua e nos Indicadores; verde (`{colors.etapa-admissao}`) é feito/entrou; âmbar (`{colors.etapa-triagem}`) é pendente/pediu para sair. Cor nova de estado não se inventa: usa-se uma destas.
 
-**The Campaign Paints The Menu Rule.** A campanha (`data-campanha`) troca só a família `--menu-*` (fundo, texto, suave, selo) e o acento dos gráficos (`--sgpc-acento`, lido por `useCoresGrafico`). Atraso, etapas, tinta, papel, anel de foco, seleção de texto e o acento das telas antigas (`--sgpc-ui`, em `swiss.css`) nunca mudam com campanha: status precisa continuar legível.
+**The Campaign Paints The Menu Rule.** A campanha (`data-campanha`) troca só a família `--menu-*` (fundo, texto, suave, selo — no menu e na faixa do cabeçalho dos modais) e o acento dos gráficos (`--sgpc-acento`, lido por `useCoresGrafico`). Atraso, etapas, tinta, papel, anel de foco, seleção de texto e o acento das telas antigas (`--sgpc-ui`, em `swiss.css`) nunca mudam com campanha: status precisa continuar legível.
 
 **The One Red Rule.** `{colors.atraso}` é o único vermelho. Vale para prazo estourado, desligamento, ação destrutiva (`.btn-perigo`, remover nome) e erro de formulário (`.erro-form`).
 
@@ -316,7 +316,7 @@ Discretos e explícitos: o rótulo diz o que acontece ("Concluir a vaga", "Regis
 - `.tabela`: 13,5px, cabeçalho 12,5px 600 em Tinta 3 sobre `{colors.papel-cabecalho}`, células 10×14px, divisor `{colors.fio-interno}`, hover de linha. Ordenação por botão no cabeçalho. `.sub` para o detalhe sob o valor principal; `.num-col` para número. `.paginacao` no rodapé.
 
 ### Modal
-- `Modal` (`ui/Modal.tsx`): sempre no meio da tela, sobre véu escuro; entra em 160–180ms (desligado com `prefers-reduced-motion`). Cabeçalho com linha `.modal-antes` opcional, título de 20px e X de 36px; corpo rola por dentro; rodapé com ações à direita sobre `{colors.papel-cabecalho}`. Fecha no X, no Esc e clicando fora; o Esc fecha só o de cima da pilha; a página de trás não rola; o foco volta para quem abriu.
+- `Modal` (`ui/Modal.tsx`): sempre no meio da tela, sobre véu escuro; entra em 160–180ms (desligado com `prefers-reduced-motion`). Cabeçalho "faixa da casa": fundo `--menu-fundo` (a mesma família do menu, que segue a campanha), linha `.modal-antes` opcional no selo (`--menu-selo`), título branco de 20px e X de 36px com anel de foco no selo; corpo rola por dentro; rodapé com ações à direita sobre `{colors.papel-cabecalho}`. Fecha no X, no Esc e clicando fora; o Esc fecha só o de cima da pilha; a página de trás não rola; o foco volta para quem abriu.
 - **Ficha** (`.ficha`): dados em grade de 2 colunas, rótulo (12,5px) em cima e valor (14,5px 600) embaixo. **Seção** (`.secao`): blocos separados por fio, com título de 15px.
 - **Opção de decisão** (`.opcao-decisao`): opção grande (rádio + título + explicação); a marcada ganha contorno duplo em Tinta. Usada no modal "Registrar decisão" da Experiência.
 
