@@ -248,16 +248,19 @@ html[data-campanha="outubro-rosa"] {
     transition: clip-path .18s ease-out, box-shadow .18s ease-out, background-color .25s ease;
   }
   .casca-menu.recolhido:hover,
-  .casca-menu.recolhido:focus-within {
+  /* ⚠️ :has(:focus-visible), não :focus-within: o clique de mouse deixa o
+     foco no link clicado, e com :focus-within o menu ficava aberto até a
+     janela perder o foco. Foco de TECLADO (Tab) continua abrindo. */
+  .casca-menu.recolhido:has(:focus-visible) {
     clip-path: inset(0 -40px 0 0); /* -40px deixa a sombra aparecer */
     box-shadow: 10px 0 30px rgba(10, 16, 32, .28);
     transition-delay: .12s; /* passar o mouse de raspão não abre */
   }
-  .casca-menu.recolhido:not(:hover):not(:focus-within) :is(.casca-marca > div, .casca-alternar, .casca-grupo h2, .casca-grupo a span, .casca-usuario > div, .casca-usuario button) {
+  .casca-menu.recolhido:not(:hover):not(:has(:focus-visible)) :is(.casca-marca > div, .casca-alternar, .casca-grupo h2, .casca-grupo a span, .casca-usuario > div, .casca-usuario button) {
     opacity: 0;
   }
   /* o número continua visível, preso ao ícone */
-  .casca-menu.recolhido:not(:hover):not(:focus-within) .casca-grupo a em {
+  .casca-menu.recolhido:not(:hover):not(:has(:focus-visible)) .casca-grupo a em {
     position: absolute; left: 27px; top: 50%; transform: translateY(-15px);
     font-size: 10px; padding: 0 4px; line-height: 15px;
   }
