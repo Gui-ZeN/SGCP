@@ -82,6 +82,8 @@ export interface Experiencia {
 
 export interface Entrevista {
   id: string;
+  /** Unidade dona do registro — as regras do Firestore só o entregam a quem é dela (ou Administrador). Ver utils/unidade.ts (14/10/2026). */
+  escopo?: 'colegio' | 'universidade';
   codigo: number;
   colaborador: string;
   dataEntrevista: string;
@@ -284,6 +286,8 @@ export interface Selecao {
  */
 export interface Candidato {
   id: string;
+  /** Unidade dona do registro — as regras do Firestore só o entregam a quem é dela (ou Administrador). Ver utils/unidade.ts (14/10/2026). */
+  escopo?: 'colegio' | 'universidade';
   selecaoId: string;
   /** DD/MM/AAAA — copiado do dia de seleção, para listar sem buscá-lo. */
   data: string;

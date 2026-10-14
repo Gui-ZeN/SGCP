@@ -18,6 +18,8 @@ import {
 import type { ImportableEntrevista, ImportableTreinamento } from '../lib/spreadsheetImport';
 import { stripUndefinedFields } from '../lib/firestoreData';
 import { useFirestoreCollection } from './useFirestoreCollection';
+import type { Sede } from './useMetadata';
+import { escopoParaGravar, type Escopo } from '../utils/unidade';
 import { addDaysToDate, diasEntre, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from '../utils/date';
 // Re-export para compatibilidade (definições movidas para utils/date, testáveis sem firebase).
 export { addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 };
@@ -188,8 +190,22 @@ const turnoverSort = (a: Turnover, b: Turnover) => {
   return parseInt(pa[0] || '0', 10) - parseInt(pb[0] || '0', 10);
 };
 
-export function useOperationalModules(user?: any) {
+/**
+ * Isolamento por unidade no SERVIDOR (14/10/2026), por enquanto só nas
+ * entrevistas de desligamento: `escopo` é a unidade de quem lê (null =
+ * Administrador, lê tudo) e `pronto` segura a leitura até essa unidade ser
+ * conhecida — uma leitura negada no primeiro instante jogaria o hook no modo
+ * offline (useFirestoreCollection cai para o localStorage em erro).
+ */
+export interface IsolamentoUnidade {
+  sedes: Sede[];
+  escopo: Escopo | null;
+  pronto: boolean;
+}
+
+export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade = { sedes: [], escopo: null, pronto: true }) {
   const enabled = !!user;
+  const escopoDaEntrevista = (unidade?: string) => escopoParaGravar(isolamento.escopo, isolamento.sedes, unidade);
 
   const treina = useFirestoreCollection<Treinamento>({
     collectionName: 'treinamentos',
@@ -216,7 +232,8 @@ export function useOperationalModules(user?: any) {
     sort: (a, b) => b.codigo - a.codigo,
     newLocalId: () => `local_ent_${Date.now()}`,
     stripOnUpdate: ['codigo'],
-    enabled
+    enabled: enabled && isolamento.pronto,
+    escopo: isolamento.escopo,
   });
 
   // Eventos de seleção (abas QUANTI). Sem seed: nascem só da importação — não
@@ -340,9 +357,16 @@ export function useOperationalModules(user?: any) {
   // ==================== CRUD ENTREVISTAS ====================
   const addEntrevista = (input: Omit<Entrevista, 'id' | 'codigo'>) => {
     const nextCodigo = ent.items.length > 0 ? Math.max(...ent.items.map(e => e.codigo)) + 1 : 301;
-    return ent.create({ ...input, codigo: nextCodigo });
+    return ent.create({ ...input, codigo: nextCodigo, escopo: escopoDaEntrevista(input.unidade) });
   };
-  const updateEntrevista = (id: string, updatedFields: Partial<Entrevista>) => ent.update(id, updatedFields);
+  // ⚠️ Na edição o escopo NÃO é recalculado: o formulário sempre reenvia a
+  // `unidade` (texto livre), e o Administrador corrigindo qualquer campo de uma
+  // entrevista da Universidade com sede fora do catálogo a jogava para o
+  // Colégio (revisão de 14/10/2026). Só registro antigo sem o campo ganha um.
+  const updateEntrevista = (id: string, updatedFields: Partial<Entrevista>) => {
+    const atual = ent.items.find(e => e.id === id);
+    return ent.update(id, atual?.escopo ? updatedFields : { ...updatedFields, escopo: escopoDaEntrevista(updatedFields.unidade ?? atual?.unidade) });
+  };
   const deleteEntrevista = (id: string) => ent.remove(id);
 
   // ==================== CRUD TURNOVER ====================
@@ -391,7 +415,7 @@ export function useOperationalModules(user?: any) {
         }
         const existingKeys = replace ? new Set<string>() : new Set(ent.items.map(dedupKey));
         const toCreate = imported.filter(e => !existingKeys.has(dedupKey(e)));
-        await Promise.all(toCreate.map(({ id, ...entrevista }: any) => addDoc(collection(db, 'entrevistas'), stripUndefinedFields(entrevista))));
+        await Promise.all(toCreate.map(({ id, ...entrevista }: any) => addDoc(collection(db, 'entrevistas'), stripUndefinedFields({ ...entrevista, escopo: escopoDaEntrevista(entrevista.unidade) }))));
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, 'entrevistas/import');
       }

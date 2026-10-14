@@ -17,6 +17,8 @@ import {
   isFirebaseEnabled,
   collection,
   onSnapshot,
+  query,
+  where,
   addDoc,
   setDoc,
   updateDoc,
@@ -48,6 +50,14 @@ export interface UseFirestoreCollectionOptions<T> {
    * libera o loading. Default true (preserva comportamento de quem não passa).
    */
   enabled?: boolean;
+  /**
+   * Unidade de quem lê ('colegio' | 'universidade'), nas coleções isoladas no
+   * servidor. Definida, a leitura vira `where('escopo', '==', escopo)`: as
+   * regras do Firestore não são filtro — uma leitura da coleção inteira por
+   * quem não é Administrador seria NEGADA por inteiro, mesmo tendo documentos
+   * dele. null/undefined (Administrador, ou coleção sem isolamento): tudo.
+   */
+  escopo?: string | null;
 }
 
 export interface UseFirestoreCollectionResult<T> {
@@ -77,7 +87,8 @@ export function useFirestoreCollection<T extends { id: string }>(
     newLocalId,
     prepend = true,
     stripOnUpdate = [],
-    enabled = true
+    enabled = true,
+    escopo = null
   } = opts;
 
   const [items, setItems] = useState<T[]>([]);
@@ -110,7 +121,9 @@ export function useFirestoreCollection<T extends { id: string }>(
     if (isFirebaseEnabled && db && enabled) {
       setLoading(true);
       const unsub = onSnapshot(
-        collection(db, collectionName),
+        escopo
+          ? query(collection(db, collectionName), where('escopo', '==', escopo))
+          : collection(db, collectionName),
         (snapshot: any) => {
           const list: T[] = [];
           snapshot.forEach((docSnap: any) => {
@@ -137,7 +150,7 @@ export function useFirestoreCollection<T extends { id: string }>(
       setLoading(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
+  }, [enabled, escopo]);
 
   // Modo local (demo/offline): toda gravação parte da lista ATUAL, não da que
   // estava na tela quando a função foi criada. ⚠️ Sem isto, gravações seguidas

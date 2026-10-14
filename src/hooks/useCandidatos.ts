@@ -8,7 +8,8 @@
 import type { Candidato } from '../types';
 import { useFirestoreCollection } from './useFirestoreCollection';
 
-export function useCandidatos(currentUser: any, enabled = true) {
+/** `escopo`: unidade de quem lê (null = Administrador). Ver useFirestoreCollection. */
+export function useCandidatos(currentUser: any, enabled = true, escopo: string | null = null) {
   // `upsert` com id gerado aqui, e não `create`: o id entra no log na hora de
   // registrar, e o relato conta por candidato (registrar e já lançar o
   // resultado da mesma pessoa é um candidato, não dois).
@@ -19,6 +20,7 @@ export function useCandidatos(currentUser: any, enabled = true) {
     // Ordem de chegada estável: por nome, senão a lista dança a cada gravação.
     sort: (a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'),
     enabled: enabled && !!currentUser,
+    escopo,
   });
   return { candidatos: items, gravarCandidato: upsert, removerCandidato: remove };
 }

@@ -52,6 +52,28 @@ export function sedeEhUniversidade(sedes: Sede[], nomeSede?: string): boolean {
   return regiaoDaSede(sedes, nomeSede).toLowerCase() === REGIAO_UNIVERSIDADE;
 }
 
+// ─── Escopo gravado no documento (isolamento NO SERVIDOR, 14/10/2026) ──────
+// O isolamento acima é da TELA. A auditoria de 14/10/2026 mostrou que, pelo
+// console, um analista lia entrevistas e candidatos da outra unidade. As
+// coleções sensíveis passam a gravar `escopo`, e as regras do Firestore só
+// entregam o documento a quem é da mesma unidade (ou Administrador).
+export type Escopo = 'colegio' | 'universidade';
+
+/** Unidade de uma sede pelo catálogo (a mesma regra do filtro da tela). */
+export function escopoDaSede(sedes: Sede[], nomeSede?: string): Escopo {
+  return sedeEhUniversidade(sedes, nomeSede) ? 'universidade' : 'colegio';
+}
+
+/**
+ * Escopo a gravar num documento novo. Quem NÃO é Administrador grava sempre a
+ * própria unidade — é o que as regras exigem, e a sede às vezes é texto livre
+ * (entrevista) que não casaria com o catálogo. Administrador (escopoDoLeitor
+ * null) grava a unidade da sede do documento.
+ */
+export function escopoParaGravar(escopoDoLeitor: Escopo | null, sedes: Sede[], sedeDoDocumento?: string): Escopo {
+  return escopoDoLeitor ?? escopoDaSede(sedes, sedeDoDocumento);
+}
+
 /** A vaga é da Universidade? (origem de planilha OU sede em região Universidade) */
 export function vagaEhUniversidade(vaga: Pick<Vaga, 'origem' | 'sede'>, sedes: Sede[]): boolean {
   return (vaga.origem || '').indexOf(ORIGEM_PLANILHA_UNI) === 0 || sedeEhUniversidade(sedes, vaga.sede);

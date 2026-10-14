@@ -100,7 +100,11 @@ async function seed() {
     });
     // dados existentes para testes de leitura/update
     await setDoc(doc(db, "vagas", "v1"), { codigo: 1001, vaga: "Dev", status: "ABERTA" });
-    await setDoc(doc(db, "entrevistas", "e1"), { codigo: 301, colaborador: "X", dataEntrevista: "01/01/2026" });
+    await setDoc(doc(db, "entrevistas", "e1"), { codigo: 301, colaborador: "X", dataEntrevista: "01/01/2026", escopo: "colegio" });
+    // Isolamento no servidor (14/10/2026): um registro de cada unidade.
+    await setDoc(doc(db, "entrevistas", "eUni"), { codigo: 401, colaborador: "Saiu da Uni", dataEntrevista: "01/02/2026", escopo: "universidade" });
+    await setDoc(doc(db, "entrevistas", "eLegada"), { codigo: 402, colaborador: "Sem escopo", dataEntrevista: "01/03/2026" });
+    await setDoc(doc(db, "candidatos", "cUni"), { selecaoId: "sUni", data: "01/02/2026", nome: "Candidata da Uni", resultado: "aprovado", escopo: "universidade" });
     await setDoc(doc(db, "sedes", "s1"), { nome: "DT", regiao: "Sudeste" });
     await setDoc(doc(db, "sedes", "sUni"), { nome: "PE", regiao: "Universidade" });
     // sede legada sem o campo `regiao`: a regra nao pode ESTOURAR por causa disso
@@ -177,10 +181,10 @@ test("entrevistas: leitura por conta Google verificada porém NÃO provisionada 
   assertFails(getDoc(doc(ctx.user(STRANGER_EMAIL), "entrevistas", "e1"))));
 
 test("entrevistas: analista pode escrever", () =>
-  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "entrevistas", "e2"), { codigo: 302, colaborador: "Y", dataEntrevista: "02/02/2026" })));
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "entrevistas", "e2"), { codigo: 302, colaborador: "Y", dataEntrevista: "02/02/2026", escopo: "colegio" })));
 
 test("entrevistas: visualizador NÃO pode escrever", () =>
-  assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "entrevistas", "e3"), { codigo: 303, colaborador: "Z", dataEntrevista: "03/03/2026" })));
+  assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "entrevistas", "e3"), { codigo: 303, colaborador: "Z", dataEntrevista: "03/03/2026", escopo: "colegio" })));
 
 // ---------------------------------------------------------------------------
 //  FUNCIONÁRIOS (roster / aniversários) — leitura app user; escrita editor
@@ -297,7 +301,7 @@ test("setores: analista NÃO renomeia nem apaga setor", async () => {
 
 // Candidatos: nome de quem NÃO é funcionário + resultado de teste psicológico.
 // Todo o RH lê e grava; Visualizador nem lê (decisão de 23/09/2026).
-const candidato = { selecaoId: "s1", data: "23/09/2026", nome: "Fulana de Tal", resultado: "ausente" };
+const candidato = { selecaoId: "s1", data: "23/09/2026", nome: "Fulana de Tal", resultado: "ausente", escopo: "colegio" };
 
 test("candidatos: analista cria e lê", async () => {
   await assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "candidatos", "c1"), candidato));
@@ -359,6 +363,73 @@ test("usuarios: coordenador do Colégio NÃO puxa usuário da Universidade para 
 
 test("usuarios: coordenador do Colégio NÃO apaga usuário da Universidade (ataque 2)", () =>
   assertFails(deleteDoc(doc(ctx.user(COORDENADOR_EMAIL), "usuarios", "anauni@empresa.com"))));
+
+// --- Auditoria de 14/10/2026 (ataque 4): isolamento Colégio × Universidade
+// NO SERVIDOR. Antes, pelo console, um analista lia (e um editor apagava) as
+// entrevistas de desligamento, os candidatos e as consultas da outra unidade.
+const ANA_UNI = "anauni@empresa.com";
+
+test("isolamento: analista do Colégio NÃO lê entrevista da Universidade", () =>
+  assertFails(getDoc(doc(ctx.user(ANALISTA_EMAIL), "entrevistas", "eUni"))));
+
+test("isolamento: analista do Colégio NÃO apaga entrevista da Universidade", () =>
+  assertFails(deleteDoc(doc(ctx.user(ANALISTA_EMAIL), "entrevistas", "eUni"))));
+
+test("isolamento: analista do Colégio NÃO cria entrevista na Universidade", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "entrevistas", "eInvadida"), { codigo: 9, colaborador: "X", dataEntrevista: "01/01/2026", escopo: "universidade" })));
+
+test("isolamento: analista do Colégio NÃO puxa entrevista da Universidade para o Colégio", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "entrevistas", "eUni"), { codigo: 401, colaborador: "Saiu da Uni", dataEntrevista: "01/02/2026", escopo: "colegio" })));
+
+test("isolamento: analista da Universidade lê a entrevista da Universidade", () =>
+  assertSucceeds(getDoc(doc(ctx.user(ANA_UNI), "entrevistas", "eUni"))));
+
+test("isolamento: analista da Universidade NÃO lê entrevista do Colégio", () =>
+  assertFails(getDoc(doc(ctx.user(ANA_UNI), "entrevistas", "e1"))));
+
+test("isolamento: administrador lê as duas unidades", async () => {
+  await assertSucceeds(getDoc(doc(ctx.user(ADMIN_EMAIL), "entrevistas", "eUni")));
+  await assertSucceeds(getDoc(doc(ctx.user(ADMIN_EMAIL), "entrevistas", "e1")));
+});
+
+test("isolamento: entrevista sem escopo (antes da migração) só o administrador lê", async () => {
+  await assertFails(getDoc(doc(ctx.user(ANALISTA_EMAIL), "entrevistas", "eLegada")));
+  await assertSucceeds(getDoc(doc(ctx.user(ADMIN_EMAIL), "entrevistas", "eLegada")));
+});
+
+test("isolamento: a lista filtrada pela própria unidade é permitida", () =>
+  assertSucceeds(getDocs(query(collection(ctx.user(ANALISTA_EMAIL), "entrevistas"), where("escopo", "==", "colegio")))));
+
+test("isolamento: a lista inteira (sem filtro) é negada para quem não é administrador", () =>
+  assertFails(getDocs(collection(ctx.user(ANALISTA_EMAIL), "entrevistas"))));
+
+test("isolamento: analista do Colégio NÃO lê candidato da Universidade (resultado de teste)", () =>
+  assertFails(getDoc(doc(ctx.user(ANALISTA_EMAIL), "candidatos", "cUni"))));
+
+test("isolamento: analista do Colégio NÃO apaga candidato da Universidade", () =>
+  assertFails(deleteDoc(doc(ctx.user(ANALISTA_EMAIL), "candidatos", "cUni"))));
+
+test("isolamento: analista da Universidade lê o candidato da Universidade", () =>
+  assertSucceeds(getDoc(doc(ctx.user(ANA_UNI), "candidatos", "cUni"))));
+
+test("isolamento: analista do Colégio NÃO grava candidato na Universidade", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "candidatos", "cInvadido"), { ...candidato, escopo: "universidade" })));
+
+test("isolamento: candidato sem escopo é recusado", () => {
+  const { escopo, ...semEscopo } = candidato;
+  return assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "candidatos", "cSemEscopo"), semEscopo));
+});
+
+test("isolamento: consultas (módulo do Colégio) NÃO são lidas pela Universidade", () =>
+  assertFails(getDoc(doc(ctx.user(ANA_UNI), "consultas", "c1"))));
+
+test("isolamento: consultas NÃO são gravadas pela Universidade", () =>
+  assertFails(setDoc(doc(ctx.user(ANA_UNI), "consultas", "cUniFalsa"), consultaValida)));
+
+test("isolamento: formulário público sem escopo é recusado", () => {
+  const { escopo, ...semEscopo } = entrevistaBase;
+  return assertFails(setDoc(doc(ctx.unauth(), "entrevistas", "ePubSemEscopo"), semEscopo));
+});
 
 test("usuarios: coordenador da UNIVERSIDADE edita usuário da Universidade", () =>
   assertSucceeds(setDoc(doc(ctx.user(COORD_UNI_EMAIL), "usuarios", "anauni@empresa.com"), { email: "anauni@empresa.com", role: "Analista", sede: "PE", unidade: "universidade", nome: "Ana" })));
@@ -487,6 +558,7 @@ test("requisicoes: payload com chaves demais e' recusado", () =>
 // --- entrevista de desligamento pelo formulario publico (/entrevista) ---
 const entrevistaBase = {
   origem: "form-publico",
+  escopo: "colegio",
   colaborador: "Fulano de Tal",
   funcao: "Auxiliar",
   unidade: "Dunas",

@@ -3,6 +3,8 @@ import { db, isFirebaseEnabled, collection, addDoc, getDocs } from '../lib/fireb
 import { MOTIVOS_SAIDA } from '../constants/hr';
 import { dataISOLocal, formatDateBR } from '../utils/date';
 import { Star, CheckCircle2, Loader2, LogOut } from 'lucide-react';
+import { escopoDaSede } from '../utils/unidade';
+import type { Sede } from '../hooks/useMetadata';
 
 /**
  * Entrevista de desligamento — formulário PÚBLICO (sem login), preenchido pelo
@@ -57,6 +59,8 @@ const Estrelas: React.FC<{ nota: number; onChange: (n: number) => void; label: s
 
 export const EntrevistaPublica: React.FC = () => {
   const [sedes, setSedes] = useState<string[]>([]);
+  // O catálogo inteiro (com a região): é dele que sai o `escopo` da entrevista.
+  const [catalogo, setCatalogo] = useState<Sede[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [erro, setErro] = useState('');
@@ -83,7 +87,9 @@ export const EntrevistaPublica: React.FC = () => {
       try {
         const snap = await getDocs(collection(db, 'sedes')); // leitura pública
         const nomes: string[] = [];
-        snap.forEach((d: any) => { const n = d.data()?.nome; if (n) nomes.push(n); });
+        const lista: Sede[] = [];
+        snap.forEach((d: any) => { const x = d.data() || {}; if (x.nome) { nomes.push(x.nome); lista.push({ id: d.id, ...x }); } });
+        setCatalogo(lista);
         nomes.sort((a, b) => a.localeCompare(b, 'pt-BR'));
         setSedes(nomes);
       } catch (e) { /* sem lista: o campo vira texto livre */ }
@@ -137,6 +143,9 @@ export const EntrevistaPublica: React.FC = () => {
         entrevistador: '',
         codigo,
         origem: 'form-publico',
+        // Unidade dona da resposta (isolamento no servidor, 14/10/2026): só o RH
+        // da mesma unidade lê. Sede fora do catálogo conta como Colégio.
+        escopo: escopoDaSede(catalogo, form.unidade),
       });
       setEnviado(true);
     } catch (e: any) {

@@ -24,8 +24,11 @@ if (typeof window !== 'undefined') {
 // que é o fallback quando o host não tem os rewrites configurados.
 const path = (typeof window !== 'undefined' ? window.location.pathname : '').replace(/\/+$/, '');
 const hash = typeof window !== 'undefined' ? window.location.hash.toLowerCase() : '';
-const isRequisicao = path.endsWith('/requisicao') || hash.includes('requisicao');
-const isEntrevista = path.endsWith('/entrevista') || hash.includes('entrevista');
+// ⚠️ Hash EXATO (#entrevista ou #/entrevista), não "contém": a tela do RH vive
+// em #/entrevistas, que contém "entrevista" — recarregar nela abria o
+// formulário público no lugar do app (achado em 14/10/2026).
+const isRequisicao = path.endsWith('/requisicao') || /^#\/?requisicao$/.test(hash);
+const isEntrevista = path.endsWith('/entrevista') || /^#\/?entrevista$/.test(hash);
 const isPublica = isRequisicao || isEntrevista;
 
 // Tema único (Suíço) aplicado já no boot do app — os formulários públicos ficam neutros.

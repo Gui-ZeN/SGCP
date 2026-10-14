@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   regiaoDaSede, sedeEhUniversidade, vagaEhUniversidade,
   escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade,
-  acharSede, siglaCanonica
+  acharSede, siglaCanonica, escopoDaSede, escopoParaGravar
 } from './unidade';
 import type { Vaga } from '../types';
 import type { Sede } from '../hooks/useMetadata';
@@ -167,5 +167,26 @@ describe('siglaCanonica / acharSede', () => {
   it('regiaoDaSede continua funcionando por nome e por sigla', () => {
     expect(regiaoDaSede(cat, 'DT')).toBe('Dionísio Torres');
     expect(regiaoDaSede(cat, 'DIONISIO TORRES')).toBe('Dionísio Torres');
+  });
+});
+
+describe('escopo gravado no documento (isolamento no servidor, 14/10/2026)', () => {
+  it('a unidade sai do catálogo de sedes, por nome ou sigla; desconhecida é Colégio', () => {
+    expect(escopoDaSede(SEDES, 'ALDEOTA')).toBe('universidade');
+    expect(escopoDaSede(SEDES, 'pe')).toBe('universidade');
+    expect(escopoDaSede(SEDES, 'DT')).toBe('colegio');
+    expect(escopoDaSede(SEDES, 'texto livre qualquer')).toBe('colegio');
+  });
+
+  it('quem não é Administrador grava SEMPRE a própria unidade, mesmo com sede em texto livre', () => {
+    // Sem isto, um analista da Universidade que digitasse a unidade fora do
+    // catálogo gravaria "colegio" e a regra do banco recusaria.
+    expect(escopoParaGravar('universidade', SEDES, 'Campus Novo (digitado)')).toBe('universidade');
+    expect(escopoParaGravar('colegio', SEDES, 'ALDEOTA')).toBe('colegio');
+  });
+
+  it('Administrador (sem escopo de leitor) grava a unidade da sede do documento', () => {
+    expect(escopoParaGravar(null, SEDES, 'ALDEOTA')).toBe('universidade');
+    expect(escopoParaGravar(null, SEDES, 'SUL')).toBe('colegio');
   });
 });

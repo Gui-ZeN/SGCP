@@ -87,6 +87,27 @@ service cloud.firestore {
       return d.get('unidade', 'colegio') == unidadeDoCoordenador();
     }
 
+    // ── Isolamento Colégio × Universidade NO SERVIDOR (auditoria 14/10/2026) ──
+    // Antes o isolamento era só da tela: pelo console, um analista lia (e um
+    // editor apagava) entrevistas de desligamento, candidatos (resultado de
+    // teste psicológico) e consultas da outra unidade. As coleções isoladas
+    // gravam `escopo` ('colegio' | 'universidade') e só entregam o documento a
+    // quem é da mesma unidade — ou ao Administrador. Documento SEM escopo
+    // (anterior à migração) fica só para o Administrador.
+    // Regra não é filtro: a tela de quem não é Admin consulta com
+    // where('escopo', '==', unidade) (useFirestoreCollection).
+    function minhaUnidade() {
+      return get(userPath()).data.get('unidade', 'colegio');
+    }
+
+    function daMinhaUnidade(escopo) {
+      return isAdmin() || escopo == minhaUnidade();
+    }
+
+    function escopoValido(d) {
+      return d.get('escopo', '') in ['colegio', 'universidade'];
+    }
+
     // Usuário do app: verificado E provisionado (admin bootstrap ou cadastrado
     // em `usuarios`). Mais restrito que isVerifiedUser(), pois o login Google
     // não tem restrição de domínio — sem isto, qualquer conta Google poderia
@@ -167,8 +188,10 @@ service cloud.firestore {
         && notaValida(d.notaRelacionamentoColegas)
         && notaValida(d.notaRelacionamentoChefia)
         && notaValida(d.notaClimaOrg)
+        // A unidade dona da resposta (o formulário calcula pela sede escolhida).
+        && escopoValido(d)
         // teto de chaves + honeypot, iguais aos da requisição pública
-        && d.keys().size() <= 23
+        && d.keys().size() <= 24
         && !('website' in d.keys());
     }
 
@@ -313,10 +336,13 @@ service cloud.firestore {
     }
 
     match /entrevistas/{entrevistaId} {
-      allow read: if isAppUser();
+      allow read: if isAppUser() && daMinhaUnidade(resource.data.get('escopo', ''));
       // create também pelo formulário público (sem login), validado campo a campo.
-      allow create: if isEditor() || isValidEntrevistaPublica();
-      allow update, delete: if isEditor();
+      allow create: if (isEditor() && escopoValido(incoming()) && daMinhaUnidade(incoming().escopo))
+        || isValidEntrevistaPublica();
+      allow update: if isEditor() && daMinhaUnidade(existing().get('escopo', ''))
+        && escopoValido(incoming()) && daMinhaUnidade(incoming().escopo);
+      allow delete: if isEditor() && daMinhaUnidade(existing().get('escopo', ''));
     }
 
     // Eventos de seleção (importados das abas QUANTI). Números agregados de
@@ -330,11 +356,16 @@ service cloud.firestore {
     // quem NÃO é funcionário e resultado de teste psicológico: todo o RH lê e
     // grava; Visualizador nem lê — diferente de `selecoes`, que é só número.
     match /candidatos/{candidatoId} {
-      allow read: if isEditor();
-      allow create, update: if isEditor()
+      allow read: if isEditor() && daMinhaUnidade(resource.data.get('escopo', ''));
+      allow create: if isEditor()
         && incoming().nome is string && incoming().nome.size() > 0 && incoming().nome.size() <= 150
-        && incoming().selecaoId is string && incoming().selecaoId.size() > 0;
-      allow delete: if isEditor();
+        && incoming().selecaoId is string && incoming().selecaoId.size() > 0
+        && escopoValido(incoming()) && daMinhaUnidade(incoming().escopo);
+      allow update: if isEditor() && daMinhaUnidade(existing().get('escopo', ''))
+        && incoming().nome is string && incoming().nome.size() > 0 && incoming().nome.size() <= 150
+        && incoming().selecaoId is string && incoming().selecaoId.size() > 0
+        && escopoValido(incoming()) && daMinhaUnidade(incoming().escopo);
+      allow delete: if isEditor() && daMinhaUnidade(existing().get('escopo', ''));
     }
 
     // O que o RH fez no dia e não foi seleção. Mesma permissão das seleções:
@@ -415,8 +446,11 @@ service cloud.firestore {
     // Colégio" é do menu/UI; aqui vale o padrão operacional (nome de colaborador
     // é dado pessoal, logo leitura exige usuário do app).
     match /consultas/{consultaId} {
-      allow read: if isAppUser();
-      allow write: if isEditor();
+      // Módulo do COLÉGIO: a Universidade não lê nem grava (auditoria de
+      // 14/10/2026 — antes só o menu escondia). Não precisa de `escopo` no
+      // documento: toda consulta é do Colégio.
+      allow read: if isAppUser() && (isAdmin() || minhaUnidade() == 'colegio');
+      allow write: if isEditor() && (isAdmin() || minhaUnidade() == 'colegio');
     }
 
     // Treinamento de Integração (onboarding) — módulo da Universidade. A

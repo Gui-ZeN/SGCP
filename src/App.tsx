@@ -41,7 +41,7 @@ import { SLA_META_DIAS } from './constants/hr';
 import { ehSetembro } from './data/setembroAmarelo';
 import { ehOutubro } from './data/outubroRosa';
 import { useAppConfig } from './hooks/useAppConfig';
-import { regiaoDaSede, sedeEhUniversidade, escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade, REGIAO_UNIVERSIDADE } from './utils/unidade';
+import { regiaoDaSede, sedeEhUniversidade, escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade, REGIAO_UNIVERSIDADE, escopoParaGravar, type Escopo } from './utils/unidade';
 import { requisicaoParaVaga } from './utils/requisicao';
 
 // Enfeites de época (sazonais). Para adicionar um novo: importe o componente e
@@ -166,6 +166,15 @@ export default function App() {
     deleteSetor 
   } = useMetadata(user);
 
+  // Isolamento Colégio × Universidade NO SERVIDOR (auditoria de 14/10/2026).
+  // A unidade de quem lê é a do CADASTRO no banco (o campo que as regras usam),
+  // não a sede escolhida na tela — o admin pode simular outra. Administrador
+  // lê tudo (null). `escopoPronto` segura a leitura até o cadastro chegar: uma
+  // leitura negada no primeiro instante jogaria o hook no modo offline.
+  const meuCadastro = usuarios.find(u => (u.email || '').toLowerCase() === (user?.email || '').toLowerCase());
+  const escopoLeitor: Escopo | null = userRole === 'Administrador' ? null : (meuCadastro?.unidade || 'colegio');
+  const escopoPronto = !isFirebaseEnabled || !!meuCadastro;
+
   const {
     treinamentos,
     experiencias,
@@ -192,7 +201,7 @@ export default function App() {
     addTurnover,
     updateTurnover,
     deleteTurnover
-  } = useOperationalModules(user);
+  } = useOperationalModules(user, { sedes: sedes || [], escopo: escopoLeitor, pronto: escopoPronto });
 
   // Coordenador = admin regional: o escopo dele é a REGIÃO da sede a que está vinculado.
   const isCoord = selectedRole === 'Coordenador';
@@ -324,7 +333,18 @@ export default function App() {
 
   const { atividades, adicionarAtividade, atualizarAtividade, removerAtividade } = useAtividades(user);
   // Candidatos: só para quem a regra deixa ler (RH sem Visualizador).
-  const { candidatos, gravarCandidato, removerCandidato } = useCandidatos(user, canManageModules);
+  const { candidatos, gravarCandidato, removerCandidato } = useCandidatos(user, canManageModules && escopoPronto, escopoLeitor);
+  // Todo candidato gravado leva o `escopo` da seleção dele (regra do banco).
+  // ⚠️ Só na CRIAÇÃO (ou em registro antigo ainda sem o campo): recalcular a
+  // cada edição do Administrador jogava para o Colégio o candidato da
+  // Universidade cuja sede estivesse fora do catálogo (revisão de 14/10/2026).
+  // O upsert é merge, então omitir o campo mantém o que o banco já tem.
+  const gravarCandidatoNaUnidade = (id: string, campos: Partial<Candidato>) => {
+    const atual = candidatos.find(c => c.id === id);
+    if (atual?.escopo) return gravarCandidato(id, campos);
+    const sel = selecoes.find(s => s.id === (campos.selecaoId ?? atual?.selecaoId));
+    return gravarCandidato(id, { ...campos, escopo: escopoParaGravar(escopoLeitor, sedes || [], sel?.sede) });
+  };
   const { diarios, salvarMeuDia } = useDiario(user);
   const meuLog = useMeuLog(user);
   const { tarefas: tarefasDiario, criarTarefa, ajustarTarefa, apagarTarefa } = useTarefasDiario(user);
@@ -447,7 +467,7 @@ export default function App() {
     const antes = id ? candidatos.find(c => c.id === id) : undefined;
     try {
       const candidatoId = id || `cand_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      await gravarCandidato(candidatoId, { ...dados, selecaoId: selecao.id, data: selecao.data });
+      await gravarCandidatoNaUnidade(candidatoId, { ...dados, selecaoId: selecao.id, data: selecao.data });
       const outros = candidatos.filter(c => c.selecaoId === selecao.id && c.id !== candidatoId);
       await recalcularSelecao(selecao, [...outros, dados]);
       await logAction(id ? 'ALTEROU' : 'CRIOU', 'Candidatos',
@@ -476,7 +496,7 @@ export default function App() {
         id: `cand_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`,
         nome, resultado: 'convocado' as const, contratado: '' as const, motivo: '', observacao: '',
       }));
-      for (const c of novos) await gravarCandidato(c.id, { ...c, selecaoId: selecao.id, data: selecao.data });
+      for (const c of novos) await gravarCandidatoNaUnidade(c.id, { ...c, selecaoId: selecao.id, data: selecao.data });
       await recalcularSelecao(selecao, [...candidatos.filter(c => c.selecaoId === selecao.id), ...novos]);
       for (const c of novos) {
         await logAction('CRIOU', 'Candidatos', `Candidato registrado na seleção de ${selecao.cargo} (${selecao.data}).`,
@@ -532,7 +552,7 @@ export default function App() {
         id: `cand_${Date.now()}_${k}_${Math.random().toString(36).slice(2, 8)}`,
         nome, resultado: 'convocado' as const, contratado: '' as const, motivo: '', observacao: '',
       }));
-      for (const c of novos) await gravarCandidato(c.id, { ...c, selecaoId: id, data: selecao.data });
+      for (const c of novos) await gravarCandidatoNaUnidade(c.id, { ...c, selecaoId: id, data: selecao.data });
       await recalcularSelecao({ ...selecao, id } as Selecao, novos);
     });
 
@@ -543,7 +563,7 @@ export default function App() {
    */
   const atualizarCandidatos = (alteracoes: { candidato: Candidato; campos: Partial<Candidato> }[], resumo: string) =>
     executeWithLoading('Atualizando os candidatos...', async () => {
-      for (const { candidato, campos } of alteracoes) await gravarCandidato(candidato.id, campos);
+      for (const { candidato, campos } of alteracoes) await gravarCandidatoNaUnidade(candidato.id, campos);
       const tocadas = new Set(alteracoes.map(a => a.candidato.selecaoId));
       for (const selecaoId of tocadas) {
         const selecao = selecoes.find(s => s.id === selecaoId);
