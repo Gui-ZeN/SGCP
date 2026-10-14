@@ -76,6 +76,17 @@ service cloud.firestore {
       return (regiao == 'Universidade') == (unidadeDoCoordenador() == 'universidade');
     }
 
+    // O cadastro de usuário (d) é da unidade do coordenador? Sem o campo, conta
+    // como Colégio — a mesma convenção de unidadeDoCoordenador().
+    // ⚠️ Auditoria de 14/10/2026: antes esta trava era "do app". Pelo console,
+    // o coordenador do Colégio gravava 'universidade' no PRÓPRIO cadastro (e
+    // passava a gerenciar as sedes da Universidade) e criava, rebaixava ou
+    // apagava usuários da outra unidade. Exigir a unidade dele no que existe E
+    // no que chega fecha os dois — inclusive a troca da própria unidade.
+    function usuarioNaUnidadeDoCoordenador(d) {
+      return d.get('unidade', 'colegio') == unidadeDoCoordenador();
+    }
+
     // Usuário do app: verificado E provisionado (admin bootstrap ou cadastrado
     // em `usuarios`). Mais restrito que isVerifiedUser(), pois o login Google
     // não tem restrição de domínio — sem isto, qualquer conta Google poderia
@@ -218,13 +229,19 @@ service cloud.firestore {
     // do usuário corrente (src/hooks/useMetadata.ts). Escrita só de admin.
     match /usuarios/{email} {
       allow read: if isAppUser();
-      // Coordenador gerencia usuários do Colégio, mas NUNCA mexe em Administrador
-      // (não cria, não promove, não edita/exclui admin) — evita escalonar privilégio.
-      // A restrição por região fica no app (usuario.sede é nome; as regras não
-      // conseguem cruzar nome→região sem query).
-      allow create: if (isAdmin() || (isCoordenador() && incoming().get('role', '') != 'Administrador')) && isValidUsuario();
-      allow update: if (isAdmin() || (isCoordenador() && incoming().get('role', '') != 'Administrador' && existing().get('role', '') != 'Administrador')) && isValidUsuario();
-      allow delete: if isAdmin() || (isCoordenador() && existing().get('role', '') != 'Administrador');
+      // Coordenador gerencia usuários da UNIDADE dele, mas NUNCA mexe em
+      // Administrador (não cria, não promove, não edita/exclui admin) — evita
+      // escalonar privilégio. A unidade vem do campo `unidade` que o app grava
+      // em todo cadastro (useMetadata.unidadeDaSede).
+      allow create: if (isAdmin() || (isCoordenador()
+          && incoming().get('role', '') != 'Administrador'
+          && usuarioNaUnidadeDoCoordenador(incoming()))) && isValidUsuario();
+      allow update: if (isAdmin() || (isCoordenador()
+          && incoming().get('role', '') != 'Administrador' && existing().get('role', '') != 'Administrador'
+          && usuarioNaUnidadeDoCoordenador(existing()) && usuarioNaUnidadeDoCoordenador(incoming()))) && isValidUsuario();
+      allow delete: if isAdmin() || (isCoordenador()
+          && existing().get('role', '') != 'Administrador'
+          && usuarioNaUnidadeDoCoordenador(existing()));
     }
 
     // Requisições de abertura de vaga. Criação PÚBLICA (formulário aberto do gestor,
@@ -424,8 +441,12 @@ service cloud.firestore {
       allow read: if isAdmin() || isCoordenador()
         || (isAppUser() && resource.data.usuario == request.auth.token.email);
 
+      // ⚠️ Auditoria de 14/10/2026: o autor do log É quem está logado. Antes,
+      // quem gravava escolhia o `usuario` — e o log alimenta o e-mail das 18h
+      // para a diretoria: dava para atribuir ao colega "removeu 40 vagas". O
+      // app grava currentUser.email (useLogs), o mesmo e-mail do token.
       allow create: if isEditor()
-        && incoming().usuario is string
+        && incoming().usuario == request.auth.token.email
         && incoming().acao in ['CRIOU', 'ALTEROU', 'EXCLUIU', 'SINALIZOU'];
       allow update, delete: if false;
     }

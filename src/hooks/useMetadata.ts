@@ -62,6 +62,26 @@ export interface Setor {
   nome: string;
 }
 
+/**
+ * Unidade gravada no cadastro do usuário — é o que as Firestore Rules usam para
+ * escopar o Coordenador. Com sede, vem da região da sede. SEM sede (o
+ * Visualizador é gravado sem): mantém a que o cadastro já tinha, ou a de quem
+ * está cadastrando.
+ * ⚠️ Antes, sem sede virava sempre 'colegio' — e, com a regra de 14/10/2026,
+ * o Coordenador da Universidade não conseguia mais cadastrar Visualizador.
+ */
+export function unidadeDoCadastro(p: {
+  sede?: string;
+  sedes: Sede[];
+  existente?: Pick<Usuario, 'unidade'>;
+  ator?: Pick<Usuario, 'unidade'>;
+}): 'colegio' | 'universidade' {
+  const alvo = String(p.sede || '').trim().toLowerCase();
+  if (!alvo) return p.existente?.unidade || p.ator?.unidade || 'colegio';
+  const s = p.sedes.find(x => (x.nome || '').toLowerCase() === alvo);
+  return (s?.regiao || '').toLowerCase() === 'universidade' ? 'universidade' : 'colegio';
+}
+
 export function useMetadata(currentUser: any) {
   const hasSeededSetores = useRef(false);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -349,11 +369,12 @@ export function useMetadata(currentUser: any) {
   // Unidade denormalizada no doc do usuário (Colégio × Universidade, pela região
   // da sede). As Firestore Rules usam isto p/ escopar o Coordenador no servidor
   // (regras não conseguem cruzar nome-de-sede → região).
-  const unidadeDaSede = (nomeSede?: string): 'colegio' | 'universidade' => {
-    const alvo = String(nomeSede || '').toLowerCase();
-    const s = sedes.find(x => (x.nome || '').toLowerCase() === alvo);
-    return (s?.regiao || '').toLowerCase() === 'universidade' ? 'universidade' : 'colegio';
-  };
+  const unidadeDaSede = (nomeSede?: string, existente?: Usuario): 'colegio' | 'universidade' => unidadeDoCadastro({
+    sede: nomeSede,
+    sedes,
+    existente,
+    ator: usuarios.find(u => (u.email || '').toLowerCase() === (currentUser?.email || '').toLowerCase()),
+  });
 
   const addUsuario = async (email: string, role: UserRole, sede?: string, nome?: string) => {
     const cleanEmail = email.trim();
@@ -411,7 +432,7 @@ export function useMetadata(currentUser: any) {
       email: cleanEmail,
       role,
       sede: sede || '',
-      unidade: unidadeDaSede(sede),
+      unidade: unidadeDaSede(sede, usuarios.find(u => u.id === id || u.email === id)),
       ...(nome !== undefined ? { nome: nome.trim() } : {}),
     };
 

@@ -90,6 +90,14 @@ async function seed() {
       sede: "PE",
       unidade: "universidade",
     });
+    // Analista da Universidade: alvo dos testes de "coordenador mexe em usuário
+    // da outra unidade" (auditoria de 14/10/2026).
+    await setDoc(doc(db, "usuarios", "anauni@empresa.com"), {
+      email: "anauni@empresa.com",
+      role: "Analista",
+      sede: "PE",
+      unidade: "universidade",
+    });
     // dados existentes para testes de leitura/update
     await setDoc(doc(db, "vagas", "v1"), { codigo: 1001, vaga: "Dev", status: "ABERTA" });
     await setDoc(doc(db, "entrevistas", "e1"), { codigo: 301, colaborador: "X", dataEntrevista: "01/01/2026" });
@@ -336,6 +344,25 @@ test("sedes: coordenador da UNIVERSIDADE NÃO pode excluir sede do Colégio", ()
 test("usuarios: coordenador da UNIVERSIDADE segue sem poder criar Administrador", () =>
   assertFails(setDoc(doc(ctx.user(COORD_UNI_EMAIL), "usuarios", "novoadm2@empresa.com"), { email: "novoadm2@empresa.com", role: "Administrador", sede: "PE", unidade: "universidade" })));
 
+// --- Auditoria de 14/10/2026: a unidade do coordenador vale no SERVIDOR ---
+// Antes, a trava "só a própria unidade" existia só na tela: pelo console, o
+// coordenador do Colégio gravava "universidade" no próprio cadastro e passava a
+// gerenciar as sedes da Universidade, e mexia em usuários da outra unidade.
+test("usuarios: coordenador NÃO muda a própria unidade (ataque 1)", () =>
+  assertFails(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "usuarios", COORDENADOR_EMAIL), { email: COORDENADOR_EMAIL, role: "Coordenador", sede: "DT", unidade: "universidade" })));
+
+test("usuarios: coordenador do Colégio NÃO cria usuário da Universidade (ataque 2)", () =>
+  assertFails(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "usuarios", "novouni@empresa.com"), { email: "novouni@empresa.com", role: "Analista", sede: "PE", unidade: "universidade" })));
+
+test("usuarios: coordenador do Colégio NÃO puxa usuário da Universidade para o Colégio (ataque 2)", () =>
+  assertFails(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "usuarios", "anauni@empresa.com"), { email: "anauni@empresa.com", role: "Visualizador", sede: "DT", unidade: "colegio" })));
+
+test("usuarios: coordenador do Colégio NÃO apaga usuário da Universidade (ataque 2)", () =>
+  assertFails(deleteDoc(doc(ctx.user(COORDENADOR_EMAIL), "usuarios", "anauni@empresa.com"))));
+
+test("usuarios: coordenador da UNIVERSIDADE edita usuário da Universidade", () =>
+  assertSucceeds(setDoc(doc(ctx.user(COORD_UNI_EMAIL), "usuarios", "anauni@empresa.com"), { email: "anauni@empresa.com", role: "Analista", sede: "PE", unidade: "universidade", nome: "Ana" })));
+
 test("usuarios: leitura por usuário verificado é permitida", () =>
   assertSucceeds(getDoc(doc(ctx.user(ANALISTA_EMAIL), "usuarios", ANALISTA_EMAIL))));
 
@@ -388,6 +415,11 @@ test("logs: analista pode criar log válido", () =>
 
 test("logs: criar log com acao inválida é negado", () =>
   assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "logs", "l3"), { timestamp: "t", usuario: ANALISTA_EMAIL, acao: "DELETOU_TUDO", modulo: "Vagas", detalhes: "d" })));
+
+// Auditoria de 14/10/2026 (ataque 3): o log alimenta o e-mail das 18h para a
+// diretoria. Sem esta trava, um analista atribuía ao colega "removeu 40 vagas".
+test("logs: NÃO grava log em nome de outra pessoa (ataque 3)", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "logs", "lFalso"), { timestamp: "t", usuario: ADMIN_EMAIL, acao: "EXCLUIU", modulo: "Vagas", detalhes: "removeu 40 vagas" })));
 
 test("logs: visualizador NÃO pode criar log", () =>
   assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "logs", "l4"), { timestamp: "t", usuario: VIEWER_EMAIL, acao: "CRIOU", modulo: "Vagas", detalhes: "d" })));
