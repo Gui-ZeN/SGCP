@@ -39,7 +39,7 @@ const initialTreinamentos: Treinamento[] = [
     mesReferencia: 'maio',
     tema: 'Liderança Situacional e Feedbacks Eficazes',
     tipo: 'Liderança',
-    facilitador: 'Arlana Carvalho (RH)',
+    facilitador: 'Renata Lima (RH)',
     publico: 'Supervisores de Posto',
     unidade: 'DT',
     cargaHoraria: 12,
@@ -56,7 +56,7 @@ const initialTreinamentos: Treinamento[] = [
     mesReferencia: 'maio',
     tema: 'Integração de Novos Talentos e Cultura',
     tipo: 'Integração',
-    facilitador: 'Larissa Moura (RH)',
+    facilitador: 'Marta Rocha (RH)',
     publico: 'Novos Colaboradores',
     unidade: 'Construtora',
     cargaHoraria: 4,
@@ -99,11 +99,11 @@ const initialExperiencia: Experiencia[] = [
   },
   {
     id: 'exp_2',
-    colaborador: 'Camila Ferreira Ramos',
+    colaborador: 'Clara Mendes Ramos',
     funcao: 'Analista de RH',
     setor: 'Coordenação',
     dataAdmissao: '01/03/2026',
-    supervisor: 'Arlana Carvalho',
+    supervisor: 'Renata Lima',
     observacoes: 'Avaliada positivamente pela gerência. Efetivação solicitada antecipadamente.',
     status: 'EFETIVADO',
     termino1: addDaysToDate('01/03/2026', DIAS_EXPERIENCIA_1),
@@ -145,7 +145,7 @@ const initialEntrevistas: Entrevista[] = [
     notaClimaOrg: 5,
     voltaria: 'Sim',
     sugestoes: 'Estruturar um plano de cargos e salários transparente.',
-    entrevistador: 'Larissa Moura'
+    entrevistador: 'Marta Rocha'
   },
   {
     id: 'ent_2',
@@ -168,7 +168,7 @@ const initialEntrevistas: Entrevista[] = [
     notaClimaOrg: 4,
     voltaria: 'Sim',
     sugestoes: 'Não há, fui muito bem acolhido.',
-    entrevistador: 'Arlana Carvalho'
+    entrevistador: 'Renata Lima'
   }
 ];
 

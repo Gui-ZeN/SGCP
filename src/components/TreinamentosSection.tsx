@@ -470,7 +470,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
               </label>
               <label className="block">
                 <span className="rotulo">Facilitador *</span>
-                <input type="text" required className="campo w-full" placeholder="Ex.: Arlana Carvalho (RH)"
+                <input type="text" required className="campo w-full" placeholder="Ex.: Renata Lima (RH)"
                   value={facilitador} onChange={(e) => setFacilitador(e.target.value)} />
               </label>
               <label className="block">

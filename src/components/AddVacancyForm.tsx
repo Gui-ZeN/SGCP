@@ -286,7 +286,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
                 type="text"
                 required
                 className="campo w-full"
-                placeholder="Ex: Eveline Santiago"
+                placeholder="Ex: Ana Barreto"
                 value={solicitante}
                 onChange={(e) => setSolicitante(e.target.value)}
               />
@@ -451,7 +451,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
                 id="form-responsavel"
                 type="text"
                 className="campo w-full"
-                placeholder="Ex: Arlana / Larissa"
+                placeholder="Ex: Renata / Marta"
                 value={responsavel}
                 onChange={(e) => setResponsavel(e.target.value)}
               />
