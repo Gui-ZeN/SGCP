@@ -18,6 +18,7 @@
  * nunca somadas.
  */
 import { useFirestoreCollection } from './useFirestoreCollection';
+import { escopoDaSede, SEM_ISOLAMENTO, type IsolamentoUnidade } from '../utils/unidade';
 
 export interface Atividade {
   id: string;
@@ -33,7 +34,7 @@ export interface Atividade {
   sede?: string;
 }
 
-export function useAtividades(currentUser: any, enabled = true) {
+export function useAtividades(currentUser: any, isolamento: IsolamentoUnidade = SEM_ISOLAMENTO, enabled = true) {
   const { items, loading, create, update, remove } = useFirestoreCollection<Atividade>({
     collectionName: 'atividades',
     localKey: 'sgcp_atividades_fallback',
@@ -41,7 +42,9 @@ export function useAtividades(currentUser: any, enabled = true) {
     // Mais recente primeiro dentro do mesmo dia não importa; o que importa é a
     // ordem estável, senão a lista dança a cada gravação.
     sort: (a, b) => (a.titulo || '').localeCompare(b.titulo || '', 'pt-BR'),
-    enabled: enabled && !!currentUser,
+    enabled: enabled && !!currentUser && isolamento.pronto,
+    escopo: isolamento.escopo,
+    escopoDoRegistro: a => escopoDaSede(isolamento.sedes, a.sede),
   });
 
   return {

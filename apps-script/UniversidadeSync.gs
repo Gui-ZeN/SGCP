@@ -126,7 +126,11 @@ function lerLinhasDaPlanilha_() {
       categoria: 'Universidade',
       ano: anoDe_(solicitacao),
       categoriaMotivo: motivo.toLowerCase().indexOf('amplia') >= 0 || motivo.toLowerCase().indexOf('aumento') >= 0 ? 'Aumento de Quadro' : 'Substituição',
-      origem: CONFIG.ORIGEM
+      origem: CONFIG.ORIGEM,
+      // Unidade dona da vaga: as regras do banco só a mostram à Universidade
+      // (isolamento no servidor, 14/10/2026). Sem ela, a vaga nova só o
+      // Administrador enxerga.
+      escopo: 'universidade'
     });
   }
   return out;

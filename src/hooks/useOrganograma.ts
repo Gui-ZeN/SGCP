@@ -14,6 +14,7 @@
  * a tela sugere os nomes de quem ocupa aquele cargo. Sugestão, não vínculo.
  */
 import { useFirestoreCollection } from './useFirestoreCollection';
+import { escopoDaSede, SEM_ISOLAMENTO, type IsolamentoUnidade } from '../utils/unidade';
 import type { NoOrganograma } from '../utils/organograma';
 
 /**
@@ -28,13 +29,16 @@ export interface NoOrganogramaDoc extends NoOrganograma {
   id: string;
 }
 
-export function useOrganograma(currentUser: any, enabled = true) {
+export function useOrganograma(currentUser: any, isolamento: IsolamentoUnidade = SEM_ISOLAMENTO, enabled = true) {
   const { items, loading, create, update, remove } = useFirestoreCollection<NoOrganogramaDoc>({
     collectionName: 'organograma',
     localKey: 'sgcp_organograma_fallback',
     newLocalId: () => `local_org_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     sort: (a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'),
-    enabled: enabled && !!currentUser,
+    enabled: enabled && !!currentUser && isolamento.pronto,
+    escopo: isolamento.escopo,
+    // Caixa sem sede: o formulário já preenche a do superior ao criar.
+    escopoDoRegistro: n => escopoDaSede(isolamento.sedes, n.sede),
   });
 
   return {

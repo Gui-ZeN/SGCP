@@ -106,6 +106,19 @@ export const DIAS_EXPERIENCIA_2 = 89; // marca o 90º dia (inclusivo)
  * (UTC−3), das 21h à meia-noite ele devolvia JÁ O DIA SEGUINTE — o que empurrava
  * `etapaDesde`/`pausadaDesde` em um dia e falseava a conta do SLA.
  */
+/**
+ * Número de registro tirado do instante (AAMMDDHHMM): único por minuto e
+ * ordena do mais novo para o mais antigo. É o do formulário público de
+ * entrevista (que não pode ler a coleção para achar "o próximo") e, desde o
+ * isolamento por unidade no servidor (14/10/2026), também o da entrevista
+ * criada no app — "maior + 1" sobre a lista de UMA unidade repetia o número
+ * da outra.
+ */
+export function codigoDoInstante(agora: Date = new Date()): number {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return Number(`${String(agora.getFullYear()).slice(2)}${p(agora.getMonth() + 1)}${p(agora.getDate())}${p(agora.getHours())}${p(agora.getMinutes())}`);
+}
+
 export function dataISOLocal(d: Date = new Date()): string {
   const dia = String(d.getDate()).padStart(2, '0');
   const mes = String(d.getMonth() + 1).padStart(2, '0');

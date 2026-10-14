@@ -4,23 +4,27 @@ import {
 } from '../lib/firebase';
 import { Funcionario } from '../types';
 import { stripUndefinedFields } from '../lib/firestoreData';
+import { colecaoDoLeitor } from './useFirestoreCollection';
+import { escopoAoGravar, escopoDaSede, SEM_ISOLAMENTO, type IsolamentoUnidade } from '../utils/unidade';
 
 const LOCAL_KEY = 'sgcp_funcionarios_fallback';
 
 /**
  * Cadastro de funcionários (roster) — fundação do "avisar aniversários ao RH".
  * Assina a coleção `funcionarios` quando logado; fallback local (offline/demo).
- * O escopo por unidade (Colégio × Universidade) é aplicado na UI, como nas vagas.
+ * Isolada por unidade no servidor (14/10/2026): lê só a própria e carimba
+ * `escopo` ao gravar (a sincronização do Cromos também carimba).
  */
-export function useFuncionarios(currentUser: any) {
+export function useFuncionarios(currentUser: any, isolamento: IsolamentoUnidade = SEM_ISOLAMENTO) {
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingFirebase, setUsingFirebase] = useState(isFirebaseEnabled);
 
   useEffect(() => {
     if (isFirebaseEnabled && db && currentUser) {
+      if (!isolamento.pronto) return;
       setLoading(true);
-      const col = collection(db, 'funcionarios');
+      const col = colecaoDoLeitor('funcionarios', isolamento.escopo);
       const unsub = onSnapshot(col, (snap: any) => {
         const list: Funcionario[] = [];
         snap.forEach((d: any) => list.push({ ...d.data(), id: d.id } as Funcionario));
@@ -32,7 +36,13 @@ export function useFuncionarios(currentUser: any) {
     } else {
       loadLocal();
     }
-  }, [currentUser]);
+  }, [currentUser, isolamento.escopo, isolamento.pronto]);
+
+  const pelaSede = (f: Partial<Funcionario>) => escopoDaSede(isolamento.sedes, f.sede);
+  const comEscopo = (atual: Funcionario | undefined, campos: Partial<Funcionario>) => {
+    const e = escopoAoGravar<any>(isolamento.escopo, pelaSede, atual, campos);
+    return e ? { ...campos, escopo: e } : campos;
+  };
 
   const loadLocal = () => {
     setUsingFirebase(false);
@@ -55,7 +65,7 @@ export function useFuncionarios(currentUser: any) {
   // iam parar no localStorage e a coleção nunca era criada no servidor. Erros propagam.
   const addFuncionario = async (input: Omit<Funcionario, 'id'>) => {
     if (isFirebaseEnabled && db) {
-      await addDoc(collection(db, 'funcionarios'), stripUndefinedFields(input as any));
+      await addDoc(collection(db, 'funcionarios'), stripUndefinedFields(comEscopo(undefined, input) as any));
     } else {
       persistLocal([{ ...input, id: `local_${Date.now()}` } as Funcionario, ...funcionarios]);
     }
@@ -63,7 +73,7 @@ export function useFuncionarios(currentUser: any) {
 
   const updateFuncionario = async (id: string, fields: Partial<Funcionario>) => {
     if (isFirebaseEnabled && db) {
-      await updateDoc(doc(db, 'funcionarios', id), stripUndefinedFields(fields as any));
+      await updateDoc(doc(db, 'funcionarios', id), stripUndefinedFields(comEscopo(funcionarios.find(f => f.id === id), fields) as any));
     } else {
       persistLocal(funcionarios.map(f => (f.id === id ? { ...f, ...fields } : f)));
     }

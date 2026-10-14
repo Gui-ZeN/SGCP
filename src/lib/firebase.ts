@@ -19,7 +19,8 @@ import {
   where,
   getDoc,
   setDoc,
-  writeBatch
+  writeBatch,
+  runTransaction
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -155,5 +156,6 @@ export {
   getDoc,
   doc,
   setDoc,
-  writeBatch
+  writeBatch,
+  runTransaction
 };

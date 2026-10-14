@@ -130,10 +130,12 @@ export function useLogs(
       try {
         const logsCollection = collection(db, 'logs');
         await addDoc(logsCollection, novoLog);
-      } catch (error) {
-        // Fallback to local log entry if Firebase fails during operation
-        console.error("Erro ao persistir log no Firestore, enfileirando localmente:", error);
-        saveLocalLog(novoLog);
+      } catch (error: any) {
+        // ⚠️ Antes ia para o localStorage em silêncio: o log some no F5 e a
+        // trilha de auditoria fica furada sem ninguém saber (revisão de
+        // segurança de 14/10/2026). Agora a falha aparece para quem agiu.
+        console.error("Erro ao persistir log no Firestore:", error);
+        throw new Error(`A alteração foi gravada, mas o registro dela no histórico falhou (${error?.code || error?.message || error}). Recarregue a página e confira.`);
       }
     } else {
       saveLocalLog(novoLog);

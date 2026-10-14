@@ -20,6 +20,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
   deleteDoc,
   collection,
   query,
@@ -99,7 +100,7 @@ async function seed() {
       unidade: "universidade",
     });
     // dados existentes para testes de leitura/update
-    await setDoc(doc(db, "vagas", "v1"), { codigo: 1001, vaga: "Dev", status: "ABERTA" });
+    await setDoc(doc(db, "vagas", "v1"), { codigo: 1001, vaga: "Dev", status: "ABERTA", escopo: "colegio" });
     await setDoc(doc(db, "entrevistas", "e1"), { codigo: 301, colaborador: "X", dataEntrevista: "01/01/2026", escopo: "colegio" });
     // Isolamento no servidor (14/10/2026): um registro de cada unidade.
     await setDoc(doc(db, "entrevistas", "eUni"), { codigo: 401, colaborador: "Saiu da Uni", dataEntrevista: "01/02/2026", escopo: "universidade" });
@@ -113,9 +114,18 @@ async function seed() {
     await setDoc(doc(db, "logs", "lUni"), { timestamp: "t", usuario: "x", acao: "EXCLUIU", modulo: "Entrevistas", detalhes: "desligado da Uni", escopo: "universidade" });
     await setDoc(doc(db, "logs", "lLegado"), { timestamp: "t", usuario: "x", acao: "CRIOU", modulo: "Vagas", detalhes: "d" });
     await setDoc(doc(db, "logs", "lDoAnalista"), { timestamp: "t", usuario: ANALISTA_EMAIL, acao: "CRIOU", modulo: "Vagas", detalhes: "d" });
-    await setDoc(doc(db, "funcionarios", "fn1"), { nome: "Ana", dataNascimento: "24/06/1990", sede: "DT" });
-    await setDoc(doc(db, "vagas", "uni-1"), { codigo: 9001, vaga: "NPJ", status: "ABERTA", origem: "planilha-universidade" });
-    await setDoc(doc(db, "vagas", "uni-del"), { codigo: 9009, vaga: "Del", status: "ABERTA", origem: "planilha-universidade" });
+    await setDoc(doc(db, "funcionarios", "fn1"), { nome: "Ana", dataNascimento: "24/06/1990", sede: "DT", escopo: "colegio" });
+    await setDoc(doc(db, "vagas", "uni-1"), { codigo: 9001, vaga: "NPJ", status: "ABERTA", origem: "planilha-universidade", escopo: "universidade" });
+    await setDoc(doc(db, "vagas", "uni-del"), { codigo: 9009, vaga: "Del", status: "ABERTA", origem: "planilha-universidade", escopo: "universidade" });
+    // Fase 3 do isolamento (14/10/2026): um registro da Universidade por coleção
+    // e o contador único dos números.
+    for (const col of ["funcionarios", "experiencia", "treinamentos", "integracoes", "organograma", "selecoes", "atividades", "turnover"]) {
+      await setDoc(doc(db, col, "daUni"), { nome: "Pessoa da Uni", sede: "PE", escopo: "universidade" });
+      await setDoc(doc(db, col, "semEscopo"), { nome: "Legado", sede: "DT" });
+    }
+    await setDoc(doc(db, "contadores", "vagas"), { ultimo: 2000 });
+    await setDoc(doc(db, "diario", "anauni@empresa.com__2026-10-14"), { email: "anauni@empresa.com", data: "14/10/2026", contagens: {} });
+    await setDoc(doc(db, "diario", "x@empresa.com__2026-10-14"), { email: "x@empresa.com", data: "14/10/2026", contagens: { testes: 3 } });
   });
 }
 
@@ -140,7 +150,7 @@ test("vagas: escrita SEM auth é negada", () =>
   assertFails(setDoc(doc(ctx.unauth(), "vagas", "v2"), { codigo: 2, vaga: "Y", status: "ABERTA" })));
 
 test("vagas: analista pode escrever", () =>
-  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "v3"), { codigo: 3, vaga: "Z", status: "ABERTA" })));
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "v3"), { codigo: 3, vaga: "Z", status: "ABERTA", escopo: "colegio" })));
 
 test("vagas: visualizador NÃO pode escrever", () =>
   assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "vagas", "v4"), { codigo: 4, vaga: "W", status: "ABERTA" })));
@@ -149,23 +159,24 @@ test("vagas: usuário verificado sem registro NÃO pode escrever", () =>
   assertFails(setDoc(doc(ctx.user(STRANGER_EMAIL), "vagas", "v5"), { codigo: 5, vaga: "Q", status: "ABERTA" })));
 
 // --- Vagas de planilha: SISTEMA é o dono (editor gerencia; origem não pode ser forjada) ---
-test("vagas planilha: analista PODE editar status (origem inalterada)", () =>
-  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "uni-1"), { codigo: 9001, vaga: "NPJ", status: "PAUSADA", origem: "planilha-universidade" })));
+// A vaga da planilha é da Universidade: quem a edita é o RH de lá.
+test("vagas planilha: analista da Universidade PODE editar status (origem inalterada)", () =>
+  assertSucceeds(setDoc(doc(ctx.user("anauni@empresa.com"), "vagas", "uni-1"), { codigo: 9001, vaga: "NPJ", status: "PAUSADA", origem: "planilha-universidade", escopo: "universidade" })));
 
-test("vagas planilha: analista PODE excluir (delete = editor)", () =>
-  assertSucceeds(deleteDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "uni-del"))));
+test("vagas planilha: analista da Universidade PODE excluir (delete = editor)", () =>
+  assertSucceeds(deleteDoc(doc(ctx.user("anauni@empresa.com"), "vagas", "uni-del"))));
 
 test("vagas planilha: analista NÃO pode forjar origem na criação", () =>
-  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "uni-fake"), { codigo: 9002, vaga: "Fake", status: "ABERTA", origem: "planilha-universidade" })));
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "uni-fake"), { codigo: 9002, vaga: "Fake", status: "ABERTA", origem: "planilha-universidade", escopo: "colegio" })));
 
 test("vagas: analista NÃO pode MUDAR a origem de uma vaga (anti-forja no update)", () =>
-  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "v1"), { codigo: 1001, vaga: "Dev", status: "ABERTA", origem: "planilha-universidade" })));
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "v1"), { codigo: 1001, vaga: "Dev", status: "ABERTA", origem: "planilha-universidade", escopo: "colegio" })));
 
 test("vagas planilha: admin PODE editar", () =>
-  assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "vagas", "uni-1"), { codigo: 9001, vaga: "NPJ ajustada", status: "ABERTA", origem: "planilha-universidade" })));
+  assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "vagas", "uni-1"), { codigo: 9001, vaga: "NPJ ajustada", status: "ABERTA", origem: "planilha-universidade", escopo: "universidade" })));
 
 test("vagas comuns: analista segue editando normalmente", () =>
-  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "v1"), { codigo: 1001, vaga: "Dev Pleno", status: "ABERTA" })));
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "v1"), { codigo: 1001, vaga: "Dev Pleno", status: "ABERTA", escopo: "colegio" })));
 
 // ---------------------------------------------------------------------------
 //  ENTREVISTAS — dados pessoais: leitura só verificado
@@ -190,6 +201,71 @@ test("entrevistas: visualizador NÃO pode escrever", () =>
 
 // ---------------------------------------------------------------------------
 //  FUNCIONÁRIOS (roster / aniversários) — leitura app user; escrita editor
+// --- Fase 3 do isolamento (14/10/2026): as demais coleções operacionais.
+for (const col of ["funcionarios", "experiencia", "treinamentos", "integracoes", "organograma", "selecoes", "atividades", "turnover", "vagas"]) {
+  if (col !== "vagas") {
+    test(`isolamento: Colégio NÃO lê ${col} da Universidade`, () =>
+      assertFails(getDoc(doc(ctx.user(ANALISTA_EMAIL), col, "daUni"))));
+    test(`isolamento: Universidade lê ${col} da Universidade`, () =>
+      assertSucceeds(getDoc(doc(ctx.user("anauni@empresa.com"), col, "daUni"))));
+    test(`isolamento: Colégio NÃO apaga ${col} da Universidade`, () =>
+      assertFails(deleteDoc(doc(ctx.user(ANALISTA_EMAIL), col, "daUni"))));
+    test(`isolamento: Colégio NÃO puxa ${col} da Universidade para si`, () =>
+      assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), col, "daUni"), { nome: "Pessoa da Uni", sede: "PE", escopo: "colegio" })));
+    test(`isolamento: ${col} sem escopo só o admin lê`, async () => {
+      await assertFails(getDoc(doc(ctx.user(ANALISTA_EMAIL), col, "semEscopo")));
+      await assertSucceeds(getDoc(doc(ctx.user(ADMIN_EMAIL), col, "semEscopo")));
+    });
+  }
+  test(`isolamento: ${col} sem filtro é negado para quem não é admin`, () =>
+    assertFails(getDocs(collection(ctx.user(ANALISTA_EMAIL), col))));
+  test(`isolamento: ${col} filtrado pela própria unidade é permitido`, () =>
+    assertSucceeds(getDocs(query(collection(ctx.user(ANALISTA_EMAIL), col), where("escopo", "==", "colegio")))));
+  test(`isolamento: Colégio NÃO cria ${col} na Universidade`, () =>
+    assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), col, "invadido"), { nome: "X", sede: "PE", escopo: "universidade" })));
+  test(`isolamento: ${col} sem escopo é recusado para quem não é admin`, () =>
+    assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), col, "semNada"), { nome: "X", sede: "DT" })));
+}
+
+test("isolamento: Colégio NÃO lê vaga da Universidade", () =>
+  assertFails(getDoc(doc(ctx.user(ANALISTA_EMAIL), "vagas", "uni-1"))));
+
+test("isolamento: admin grava em qualquer unidade", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "experiencia", "admUni"), { nome: "X", sede: "PE", escopo: "universidade" })));
+
+test("isolamento: admin NÃO grava escopo inválido", () =>
+  assertFails(setDoc(doc(ctx.user(ADMIN_EMAIL), "experiencia", "admRuim"), { nome: "X", sede: "PE", escopo: "COLEGIO" })));
+
+// Contador único dos números de vaga/treinamento.
+test("contador: editor lê e sobe", async () => {
+  await assertSucceeds(getDoc(doc(ctx.user("anauni@empresa.com"), "contadores", "vagas")));
+  await assertSucceeds(updateDoc(doc(ctx.user(ANALISTA_EMAIL), "contadores", "vagas"), { ultimo: 2003 }));
+});
+test("contador: NÃO salta para um número gigante (travaria a numeração)", () =>
+  assertFails(updateDoc(doc(ctx.user(ANALISTA_EMAIL), "contadores", "vagas"), { ultimo: 9007199254740 })));
+test("contador: NÃO desce", () =>
+  assertFails(updateDoc(doc(ctx.user(ANALISTA_EMAIL), "contadores", "vagas"), { ultimo: 5 })));
+test("contador: visualizador NÃO mexe", () =>
+  assertFails(updateDoc(doc(ctx.user(VIEWER_EMAIL), "contadores", "vagas"), { ultimo: 9999 })));
+test("contador: ninguém cria contador novo pelo app", () =>
+  assertFails(setDoc(doc(ctx.user(ADMIN_EMAIL), "contadores", "outro"), { ultimo: 1 })));
+
+// Diário: o Resumo do Dia é do Colégio.
+test("diario: Universidade NÃO lê o diário de outra pessoa", () =>
+  assertFails(getDoc(doc(ctx.user("anauni@empresa.com"), "diario", "x@empresa.com__2026-10-14"))));
+test("diario: Universidade lê o próprio", () =>
+  assertSucceeds(getDoc(doc(ctx.user("anauni@empresa.com"), "diario", "anauni@empresa.com__2026-10-14"))));
+test("diario: Colégio lê o da equipe", () =>
+  assertSucceeds(getDoc(doc(ctx.user(ANALISTA_EMAIL), "diario", "x@empresa.com__2026-10-14"))));
+
+// E-mail não verificado não herda papel (defesa em profundidade).
+test("auth: admin com e-mail NÃO verificado não é admin", () =>
+  assertFails(getDoc(doc(ctx.unverified(ADMIN_EMAIL), "logs", "l1"))));
+
+// Cadastro sem unidade é recusado.
+test("usuarios: cadastro SEM unidade é recusado", () =>
+  assertFails(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "semunidade@empresa.com"), { email: "semunidade@empresa.com", role: "Analista", sede: "DT" })));
+
 // ---------------------------------------------------------------------------
 test("funcionarios: leitura SEM auth é negada (dado pessoal)", () =>
   assertFails(getDoc(doc(ctx.unauth(), "funcionarios", "fn1"))));
@@ -198,7 +274,7 @@ test("funcionarios: leitura por usuário do app é permitida", () =>
   assertSucceeds(getDoc(doc(ctx.user(VIEWER_EMAIL), "funcionarios", "fn1"))));
 
 test("funcionarios: analista (editor) pode escrever", () =>
-  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "funcionarios", "fn2"), { nome: "Bia", dataNascimento: "01/01/1991", sede: "DT" })));
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "funcionarios", "fn2"), { nome: "Bia", dataNascimento: "01/01/1991", sede: "DT", escopo: "colegio" })));
 
 test("funcionarios: visualizador NÃO pode escrever", () =>
   assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "funcionarios", "fn3"), { nome: "Caio", dataNascimento: "02/02/1992", sede: "DT" })));
@@ -207,7 +283,7 @@ test("integracoes: leitura SEM auth é negada", () =>
   assertFails(getDoc(doc(ctx.unauth(), "integracoes", "i1"))));
 
 test("integracoes: analista (editor) pode escrever", () =>
-  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "integracoes", "i1"), { nome: "Ana", sede: "PARQUE ECOLÓGICO", status: "Realizado" })));
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "integracoes", "i1"), { nome: "Ana", sede: "PARQUE ECOLÓGICO", status: "Realizado", escopo: "colegio" })));
 
 test("integracoes: visualizador NÃO pode escrever", () =>
   assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "integracoes", "i2"), { nome: "Bia", sede: "ALDEOTA", status: "Não realizado" })));
@@ -247,20 +323,20 @@ test("usuarios: analista NÃO pode criar usuário", () =>
   assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "usuarios", "novo@empresa.com"), { email: "novo@empresa.com", role: "Analista", sede: "DT" })));
 
 test("usuarios: admin (registrado) pode criar usuário", () =>
-  assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "novo2@empresa.com"), { email: "novo2@empresa.com", role: "Analista", sede: "DT" })));
+  assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "novo2@empresa.com"), { email: "novo2@empresa.com", role: "Analista", sede: "DT", unidade: "colegio" })));
 
 test("usuarios: admin (por papel) pode criar usuário", () =>
-  assertSucceeds(setDoc(doc(ctx.user(ADMIN_DOC_EMAIL), "usuarios", "novo3@empresa.com"), { email: "novo3@empresa.com", role: "Visualizador", sede: "" })));
+  assertSucceeds(setDoc(doc(ctx.user(ADMIN_DOC_EMAIL), "usuarios", "novo3@empresa.com"), { email: "novo3@empresa.com", role: "Visualizador", sede: "", unidade: "colegio" })));
 
 test("usuarios: admin pode gravar role Coordenador", () =>
-  assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "coord@empresa.com"), { email: "coord@empresa.com", role: "Coordenador", sede: "DT" })));
+  assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "coord@empresa.com"), { email: "coord@empresa.com", role: "Coordenador", sede: "DT", unidade: "colegio" })));
 
 test("usuarios: admin NÃO pode gravar role inválido", () =>
   assertFails(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "novo4@empresa.com"), { email: "novo4@empresa.com", role: "Hacker", sede: "DT" })));
 
 // --- Coordenador (admin regional do Colégio) ---
 test("usuarios: coordenador PODE criar Analista", () =>
-  assertSucceeds(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "usuarios", "novoana@empresa.com"), { email: "novoana@empresa.com", role: "Analista", sede: "DT" })));
+  assertSucceeds(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "usuarios", "novoana@empresa.com"), { email: "novoana@empresa.com", role: "Analista", sede: "DT", unidade: "colegio" })));
 
 test("usuarios: coordenador NÃO pode criar Administrador (sem escalonar)", () =>
   assertFails(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "usuarios", "novoadm@empresa.com"), { email: "novoadm@empresa.com", role: "Administrador", sede: "DT" })));
@@ -719,7 +795,7 @@ test("entrevistas: textos livres vazios seguem aceitos (sao os unicos opcionais)
 // --- selecoes (eventos de selecao importados das abas QUANTI) ---
 const selecaoValida = { data: "13/01/2026", cargo: "Professor(a)", sede: "BENFICA",
   responsavel: "Diana", origem: "pedagogico", convocados: 5, compareceram: 5,
-  ausentes: 0, contratados: 0, desistiram: 0 };
+  ausentes: 0, contratados: 0, desistiram: 0, escopo: "colegio" };
 
 test("selecoes: leitura SEM auth e' negada", () =>
   assertFails(getDoc(doc(ctx.unauth(), "selecoes", "s1"))));
@@ -738,7 +814,7 @@ test("selecoes: anonimo NAO pode criar (nao e' formulario publico)", () =>
 
 // --- atividades (o que o RH fez no dia e nao foi selecao) -------------------
 const atividadeValida = { data: "22/09/2026", titulo: "Montagem dos kits do Setembro Amarelo",
-  detalhe: "120 kits", responsavel: "Arlana", sede: "DIONISIO TORRES" };
+  detalhe: "120 kits", responsavel: "Arlana", sede: "DIONISIO TORRES", escopo: "colegio" };
 
 test("atividades: leitura SEM auth e' negada", () =>
   assertFails(getDoc(doc(ctx.unauth(), "atividades", "a1"))));
@@ -841,7 +917,7 @@ test("diario: anonimo NAO le", () =>
 // --- usuarios: nome de exibicao (vai no assunto do e-mail diario) ------------
 test("usuarios: admin grava nome de exibicao", () =>
   assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "novo@empresa.com"),
-    { email: "novo@empresa.com", role: "Analista", sede: "DT", nome: "Arlana Gomes" })));
+    { email: "novo@empresa.com", role: "Analista", sede: "DT", nome: "Arlana Gomes", unidade: "colegio" })));
 
 test("usuarios: nome que nao e' texto e' recusado", () =>
   assertFails(setDoc(doc(ctx.user(ADMIN_EMAIL), "usuarios", "novo2@empresa.com"),
@@ -852,7 +928,7 @@ test("usuarios: nome acima de 120 caracteres e' recusado", () =>
     { email: "novo3@empresa.com", role: "Analista", sede: "DT", nome: "x".repeat(121) })));
 
 // --- organograma: caixas do desenho (nome + cargo = dado interno) -----------
-const noOrganograma = { nome: "Ana Silva", cargo: "COORDENADOR(A)", sede: "DIONISIO TORRES" };
+const noOrganograma = { nome: "Ana Silva", cargo: "COORDENADOR(A)", sede: "DIONISIO TORRES", escopo: "colegio" };
 
 test("organograma: leitura SEM auth e' negada", () =>
   assertFails(getDoc(doc(ctx.unauth(), "organograma", "o1"))));

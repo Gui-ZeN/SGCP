@@ -4,6 +4,7 @@ import { MOTIVOS_SAIDA } from '../constants/hr';
 import { dataISOLocal, formatDateBR } from '../utils/date';
 import { Star, CheckCircle2, Loader2, LogOut } from 'lucide-react';
 import { escopoDaSede } from '../utils/unidade';
+import { codigoDoInstante } from '../utils/date';
 import type { Sede } from '../hooks/useMetadata';
 
 /**
@@ -125,10 +126,7 @@ export const EntrevistaPublica: React.FC = () => {
     setEnviando(true);
     try {
       const agora = new Date();
-      const p = (n: number) => String(n).padStart(2, '0');
-      const codigo = Number(
-        `${String(agora.getFullYear()).slice(2)}${p(agora.getMonth() + 1)}${p(agora.getDate())}${p(agora.getHours())}${p(agora.getMinutes())}`
-      );
+      const codigo = codigoDoInstante(agora);
       await addDoc(collection(db, 'entrevistas'), {
         ...form,
         // Anônima: o nome nunca sai do navegador, e a função vai junto só se a

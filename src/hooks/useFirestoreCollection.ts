@@ -28,6 +28,7 @@ import {
   OperationType
 } from '../lib/firebase';
 import { stripUndefinedFields } from '../lib/firestoreData';
+import { escopoAoGravar, type Escopo } from '../utils/unidade';
 
 const CLEAN_MODE_KEY = 'ats_db_clean_mode';
 
@@ -58,6 +59,12 @@ export interface UseFirestoreCollectionOptions<T> {
    * dele. null/undefined (Administrador, ou coleção sem isolamento): tudo.
    */
   escopo?: string | null;
+  /**
+   * Coleção isolada no servidor: a unidade que os campos do registro indicam
+   * (sede, origem…). Com ela, create/update/upsert carimbam `escopo` — ver
+   * utils/unidade.ts › escopoAoGravar. Sem ela, nada é carimbado.
+   */
+  escopoDoRegistro?: (r: Partial<T>) => Escopo | undefined;
 }
 
 export interface UseFirestoreCollectionResult<T> {
@@ -76,6 +83,14 @@ export interface UseFirestoreCollectionResult<T> {
   remove: (id: string) => Promise<void>;
 }
 
+/**
+ * A coleção como quem lê pode lê-la: a própria unidade (null = Administrador,
+ * tudo). Regra não é filtro — sem o `where`, a leitura inteira é negada.
+ */
+export function colecaoDoLeitor(nome: string, escopo: string | null | undefined) {
+  return escopo ? query(collection(db, nome), where('escopo', '==', escopo)) : collection(db, nome);
+}
+
 export function useFirestoreCollection<T extends { id: string }>(
   opts: UseFirestoreCollectionOptions<T>
 ): UseFirestoreCollectionResult<T> {
@@ -88,7 +103,8 @@ export function useFirestoreCollection<T extends { id: string }>(
     prepend = true,
     stripOnUpdate = [],
     enabled = true,
-    escopo = null
+    escopo = null,
+    escopoDoRegistro
   } = opts;
 
   const [items, setItems] = useState<T[]>([]);
@@ -121,9 +137,7 @@ export function useFirestoreCollection<T extends { id: string }>(
     if (isFirebaseEnabled && db && enabled) {
       setLoading(true);
       const unsub = onSnapshot(
-        escopo
-          ? query(collection(db, collectionName), where('escopo', '==', escopo))
-          : collection(db, collectionName),
+        colecaoDoLeitor(collectionName, escopo),
         (snapshot: any) => {
           const list: T[] = [];
           snapshot.forEach((docSnap: any) => {
@@ -158,6 +172,11 @@ export function useFirestoreCollection<T extends { id: string }>(
   // uma partia da mesma lista velha e só a última sobrava.
   const atual = useRef(items);
   atual.current = items;
+  const comEscopo = (id: string | null, campos: any) => {
+    if (!escopoDoRegistro) return campos;
+    const e = escopoAoGravar<any>((escopo as Escopo | null) || null, escopoDoRegistro, id ? atual.current.find(it => it.id === id) : undefined, campos);
+    return e ? { ...campos, escopo: e } : campos;
+  };
   const gravarLocal = (mudar: (lista: T[]) => T[]) => {
     const updated = applySort(mudar(atual.current));
     atual.current = updated;
@@ -167,10 +186,15 @@ export function useFirestoreCollection<T extends { id: string }>(
 
   /** Devolve o id criado (ou undefined se falhou): quem cria às vezes precisa
    *  dele em seguida — a seleção marcada pelo Kanban recebe os nomes na hora. */
+  // ⚠️ As gravações olham `isFirebaseEnabled` (constante), não `usingFirebase`:
+  // este vira false quando uma LEITURA falha (ex.: regra nova com a aba antiga
+  // aberta), e aí toda gravação ia para o localStorage sem aviso nenhum —
+  // perdida no F5 (revisão de segurança de 14/10/2026). Agora a gravação vai
+  // ao banco e, se ele recusar, o erro aparece.
   const create = async (body: Omit<T, 'id'>): Promise<string | undefined> => {
-    if (usingFirebase && db) {
+    if (isFirebaseEnabled && db) {
       try {
-        const ref = await addDoc(collection(db, collectionName), stripUndefinedFields(body as any));
+        const ref = await addDoc(collection(db, collectionName), stripUndefinedFields(comEscopo(null, body)));
         return ref.id;
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, collectionName);
@@ -184,9 +208,9 @@ export function useFirestoreCollection<T extends { id: string }>(
   };
 
   const update = async (id: string, fields: Partial<T>) => {
-    if (usingFirebase && db) {
+    if (isFirebaseEnabled && db) {
       try {
-        const payload: any = { ...fields };
+        const payload: any = comEscopo(id, { ...fields });
         delete payload.id;
         for (const key of stripOnUpdate) delete payload[key as string];
         await updateDoc(doc(db, collectionName, id), stripUndefinedFields(payload));
@@ -199,9 +223,9 @@ export function useFirestoreCollection<T extends { id: string }>(
   };
 
   const upsert = async (id: string, fields: Partial<T>) => {
-    if (usingFirebase && db) {
+    if (isFirebaseEnabled && db) {
       try {
-        const payload: any = { ...fields };
+        const payload: any = comEscopo(id, { ...fields });
         delete payload.id;
         await setDoc(doc(db, collectionName, id), stripUndefinedFields(payload), { merge: true });
       } catch (err) {
@@ -215,7 +239,7 @@ export function useFirestoreCollection<T extends { id: string }>(
   };
 
   const remove = async (id: string) => {
-    if (usingFirebase && db) {
+    if (isFirebaseEnabled && db) {
       try {
         await deleteDoc(doc(db, collectionName, id));
       } catch (err) {

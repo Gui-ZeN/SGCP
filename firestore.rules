@@ -34,9 +34,13 @@ service cloud.firestore {
       return /databases/$(database)/documents/usuarios/$(request.auth.token.email);
     }
 
-    // Usuário autenticado que possui registro na coleção `usuarios`.
+    // Usuário autenticado, com e-mail VERIFICADO, que possui registro na
+    // coleção `usuarios`. ⚠️ Antes bastava estar logado: se um dia ligarem
+    // login por e-mail/senha, uma conta criada com o e-mail de um admin (sem
+    // verificar) herdaria o papel dele (revisão de segurança de 14/10/2026).
+    // Hoje só o Google está ativo, e ele sempre verifica.
     function isRegistered() {
-      return isSignedIn() && exists(userPath());
+      return isVerifiedUser() && exists(userPath());
     }
 
     // Papel ("role") do usuário corrente. Só chamar após isRegistered().
@@ -106,6 +110,28 @@ service cloud.firestore {
 
     function escopoValido(d) {
       return d.get('escopo', '') in ['colegio', 'universidade'];
+    }
+
+    // Fase 3 (14/10/2026): o padrão das demais coleções operacionais. Lê quem
+    // é da unidade do documento; quem não é Admin só grava na própria unidade
+    // (criar, editar — antes E depois — e apagar). O Admin grava qualquer uma,
+    // mas um `escopo` presente tem que ser válido.
+    function leDaUnidade() {
+      return isAppUser() && daMinhaUnidade(resource.data.get('escopo', ''));
+    }
+    function gravaNaUnidade(d) {
+      return isAdmin()
+        ? (!('escopo' in d.keys()) || escopoValido(d))
+        : (escopoValido(d) && d.escopo == minhaUnidade());
+    }
+    function criaNaUnidade() {
+      return isEditor() && gravaNaUnidade(incoming());
+    }
+    function editaNaUnidade() {
+      return isEditor() && daMinhaUnidade(existing().get('escopo', '')) && gravaNaUnidade(incoming());
+    }
+    function apagaNaUnidade() {
+      return isEditor() && daMinhaUnidade(existing().get('escopo', ''));
     }
 
     // Usuário do app: verificado E provisionado (admin bootstrap ou cadastrado
@@ -215,7 +241,8 @@ service cloud.firestore {
         // críptico) em vez de reprovar de forma limpa.
         && d.get('role', '') in ['Administrador', 'Coordenador', 'Analista', 'Visualizador']
         && (!('sede' in d.keys()) || d.sede is string)
-        && (!('unidade' in d.keys()) || d.unidade in ['colegio', 'universidade'])
+        // Obrigatória (14/10/2026): sem ela a pessoa caía no Colégio por padrão.
+        && d.get('unidade', '') in ['colegio', 'universidade']
         // Nome de exibição: é o que aparece no assunto do e-mail de cada
         // funcionário. Opcional — sem ele, o e-mail usa o endereço.
         && (!('nome' in d.keys()) || (d.nome is string && d.nome.size() <= 120));
@@ -230,17 +257,17 @@ service cloud.firestore {
     //  regras de segurança — ver opção (a) em SECURITY_FIRESTORE_RULES.md.
     //  Escrita: apenas editores (Admin/Analista).
     match /vagas/{vagaId} {
-      allow read: if isAppUser();
+      allow read: if leDaUnidade();
       // O SISTEMA é o dono do ciclo de vida (status/etapa/pausa) — inclusive das
       // vagas vindas da planilha. A sync do RH da Universidade só CRIA novas e
       // REMOVE as que sumiram (via service account, fora das rules), então não
       // reescreve o que o RH editou aqui. Editores gerenciam tudo; não-admin
       // apenas não pode FORJAR a origem (criar/mudar 'planilha-*').
-      allow create: if isEditor()
+      allow create: if criaNaUnidade()
         && (isAdmin() || !incoming().get('origem', '').matches('planilha-.*'));
-      allow update: if isEditor()
+      allow update: if editaNaUnidade()
         && (isAdmin() || incoming().get('origem', '') == existing().get('origem', ''));
-      allow delete: if isEditor();
+      allow delete: if apagaNaUnidade();
     }
 
     // =====================================================================
@@ -326,13 +353,17 @@ service cloud.firestore {
     // =====================================================================
 
     match /treinamentos/{treinamentoId} {
-      allow read: if isAppUser();
-      allow write: if isEditor();
+      allow read: if leDaUnidade();
+      allow create: if criaNaUnidade();
+      allow update: if editaNaUnidade();
+      allow delete: if apagaNaUnidade();
     }
 
     match /experiencia/{experienciaId} {
-      allow read: if isAppUser();
-      allow write: if isEditor();
+      allow read: if leDaUnidade();
+      allow create: if criaNaUnidade();
+      allow update: if editaNaUnidade();
+      allow delete: if apagaNaUnidade();
     }
 
     match /entrevistas/{entrevistaId} {
@@ -348,8 +379,10 @@ service cloud.firestore {
     // Eventos de seleção (importados das abas QUANTI). Números agregados de
     // processo seletivo — sem nome de candidato, mas continuam dado interno.
     match /selecoes/{selecaoId} {
-      allow read: if isAppUser();
-      allow write: if isEditor();
+      allow read: if leDaUnidade();
+      allow create: if criaNaUnidade();
+      allow update: if editaNaUnidade();
+      allow delete: if apagaNaUnidade();
     }
 
     // Candidatos de cada dia de seleção (as abas nominais da planilha). Nome de
@@ -371,8 +404,10 @@ service cloud.firestore {
     // O que o RH fez no dia e não foi seleção. Mesma permissão das seleções:
     // aparecem lado a lado na mesma tela, e quem registra uma registra a outra.
     match /atividades/{atividadeId} {
-      allow read: if isAppUser();
-      allow write: if isEditor();
+      allow read: if leDaUnidade();
+      allow create: if criaNaUnidade();
+      allow update: if editaNaUnidade();
+      allow delete: if apagaNaUnidade();
     }
 
     // "Meu dia": quatro contagens que cada pessoa informa à mão, um documento
@@ -384,7 +419,10 @@ service cloud.firestore {
     // e o id tem que começar por esse mesmo e-mail (senão daria para gravar no
     // id de outra pessoa com o próprio e-mail dentro).
     match /diario/{diarioId} {
-      allow read: if isAppUser();
+      // O Resumo do Dia é do Colégio: a Universidade lê só o próprio diário
+      // (14/10/2026 — antes qualquer usuário lia as contagens de todos).
+      allow read: if isAppUser() && (isAdmin() || minhaUnidade() == 'colegio'
+        || resource.data.get('email', '') == request.auth.token.email.lower());
       allow create, update: if isAppUser()
         && incoming().get('email', '') == request.auth.token.email.lower()
         && diarioId.split('__')[0] == request.auth.token.email.lower()
@@ -421,8 +459,10 @@ service cloud.firestore {
     }
 
     match /turnover/{turnoverId} {
-      allow read: if isAppUser();
-      allow write: if isEditor();
+      allow read: if leDaUnidade();
+      allow create: if criaNaUnidade();
+      allow update: if editaNaUnidade();
+      allow delete: if apagaNaUnidade();
     }
 
     // Organograma — as caixas do desenho e a quem cada uma responde. Coleção
@@ -430,15 +470,19 @@ service cloud.firestore {
     // vaga, cargo que existe antes do dono. Contém nome e cargo, então leitura
     // exige usuário do app.
     match /organograma/{noId} {
-      allow read: if isAppUser();
-      allow write: if isEditor();
+      allow read: if leDaUnidade();
+      allow create: if criaNaUnidade();
+      allow update: if editaNaUnidade();
+      allow delete: if apagaNaUnidade();
     }
 
     // Cadastro de colaboradores (roster) — base dos aniversários. Contém dado
     // pessoal (data de nascimento), por isso leitura exige usuário do app.
     match /funcionarios/{funcionarioId} {
-      allow read: if isAppUser();
-      allow write: if isEditor();
+      allow read: if leDaUnidade();
+      allow create: if criaNaUnidade();
+      allow update: if editaNaUnidade();
+      allow delete: if apagaNaUnidade();
     }
 
     // Consultas solicitadas por funcionários — módulo do Colégio. O registro
@@ -457,8 +501,10 @@ service cloud.firestore {
     // visibilidade "só Universidade" é aplicada na UI/nav (mesma limitação de
     // unidade das vagas); aqui vale o padrão operacional.
     match /integracoes/{integracaoId} {
-      allow read: if isAppUser();
-      allow write: if isEditor();
+      allow read: if leDaUnidade();
+      allow create: if criaNaUnidade();
+      allow update: if editaNaUnidade();
+      allow delete: if apagaNaUnidade();
     }
 
     // =====================================================================
@@ -490,6 +536,20 @@ service cloud.firestore {
         && incoming().acao in ['CRIOU', 'ALTEROU', 'EXCLUIU', 'SINALIZOU']
         && escopoValido(incoming()) && daMinhaUnidade(incoming().escopo);
       allow update, delete: if false;
+    }
+
+    // Contador único dos números (#1234) de vaga e treinamento — lib/contador.ts.
+    // Com o isolamento, cada unidade só enxerga a própria lista, e "maior + 1"
+    // repetiria o número da outra. Só sobe; nasce pela migração.
+    match /contadores/{nome} {
+      allow read: if isEditor() && nome in ['vagas', 'treinamentos'];
+      allow update: if isEditor() && nome in ['vagas', 'treinamentos']
+        && incoming().keys().hasOnly(['ultimo'])
+        && incoming().ultimo is int && incoming().ultimo > existing().ultimo
+        // Teto do salto: sem ele, um editor gravava um número gigante pelo
+        // console e travava a numeração das duas unidades (revisão de 14/10/2026).
+        && incoming().ultimo <= existing().ultimo + 5000;
+      allow create, delete: if false;
     }
 
     // =====================================================================

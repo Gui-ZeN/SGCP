@@ -124,6 +124,55 @@ for (const d of usuarios) {
   planos.push({ doc: d, campo: 'unidade', valor: u.escopo });
 }
 
+// Fase 3: as demais coleções operacionais, pela sede do próprio registro (o
+// mesmo campo que a tela usa para escopar cada uma). `null` = fica sem escopo
+// (só o Administrador lê).
+const pelaSede = campo => d => unidadeDaSede(txt(d, campo));
+const organograma = await ler('organograma');
+const noPorId = new Map(organograma.map(d => [idDe(d), d]));
+// Caixa sem sede herda a do superior (é o que o formulário sugere ao criar).
+const sedeDoNo = (d, vistos = new Set()) => {
+  if (txt(d, 'sede') || vistos.has(idDe(d))) return txt(d, 'sede');
+  vistos.add(idDe(d));
+  const chefe = noPorId.get(txt(d, 'respondeA'));
+  return chefe ? sedeDoNo(chefe, vistos) : '';
+};
+const COLECOES = [
+  ['treinamentos', pelaSede('unidade')],
+  ['experiencia', pelaSede('sede')],
+  ['selecoes', pelaSede('sede')],
+  ['atividades', pelaSede('sede')],
+  ['funcionarios', pelaSede('sede')],
+  ['integracoes', pelaSede('sede')],
+  ['vagas', d => txt(d, 'origem') === 'planilha-universidade' ? { escopo: 'universidade', conhecida: true } : unidadeDaSede(txt(d, 'sede'))],
+  // Turnover não tem sede: a unidade é o próprio campo. Sem ele é o legado
+  // consolidado (as duas somadas) — só o Administrador vê, como na tela.
+  ['turnover', d => ['colegio', 'universidade'].includes(txt(d, 'unidade')) ? { escopo: txt(d, 'unidade'), conhecida: true } : null],
+  ['organograma', d => unidadeDaSede(sedeDoNo(d))],
+];
+for (const [colecao, escopoDe] of COLECOES) {
+  for (const d of colecao === 'organograma' ? organograma : await ler(colecao)) {
+    if (tem(d, 'escopo')) { conta(colecao, 'já tinham'); continue; }
+    const u = escopoDe(d);
+    if (!u) { conta(colecao, 'sem unidade → fica só para o Administrador'); continue; }
+    conta(colecao, u.escopo);
+    if (!u.conhecida) conta(colecao, '  (sede vazia ou fora do catálogo → colegio)');
+    planos.push({ doc: d, campo: 'escopo', valor: u.escopo });
+  }
+}
+
+// Contador único dos números (#) de vaga e treinamento — src/lib/contador.ts.
+// Nasce (ou sobe) no maior número existente; nunca desce.
+const numero = d => Number(d.fields?.codigo?.integerValue ?? d.fields?.codigo?.doubleValue ?? 0) || 0;
+for (const colecao of ['vagas', 'treinamentos']) {
+  const maior = Math.max(0, ...(await ler(colecao)).map(numero));
+  const j = await (await fetch(`${BASE}/contadores/${colecao}`, { headers: cabecalho })).json();
+  const atual = j.fields ? Number(j.fields.ultimo?.integerValue ?? 0) : -1;
+  if (atual >= maior) { conta('contadores', `${colecao}: já está em ${atual}`); continue; }
+  conta('contadores', `${colecao}: ${atual < 0 ? 'criar' : 'subir'} em ${maior}`);
+  planos.push({ contador: colecao, valor: maior });
+}
+
 // logs (fase 2), do mais forte ao mais fraco:
 //  1. a unidade do REGISTRO: consultas são do Colégio; entrevista pelo nome do
 //     colaborador (ref ou texto); candidato pelo id em `ref.candidato`;
@@ -165,6 +214,15 @@ console.log(`\nA preencher: ${planos.length} documento(s).`);
 
 if (GRAVAR) {
   let feitos = 0;
-  for (const p of planos) { await gravarCampo(p.doc, p.campo, p.valor); feitos++; }
+  for (const p of planos) {
+    if (p.contador) {
+      const r = await fetch(`${BASE}/contadores/${p.contador}?updateMask.fieldPaths=ultimo`, {
+        method: 'PATCH', headers: cabecalho, body: JSON.stringify({ fields: { ultimo: { integerValue: String(p.valor) } } }),
+      });
+      const j = await r.json();
+      if (j.error) throw new Error(`contadores/${p.contador}: ${j.error.message}`);
+    } else await gravarCampo(p.doc, p.campo, p.valor);
+    feitos++;
+  }
   console.log(`Gravados: ${feitos}.`);
 }

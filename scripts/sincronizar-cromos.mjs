@@ -88,6 +88,14 @@ async function lerTudo(colecao, base) {
 }
 
 const colaboradores = await lerTudo('colaboradores', CROMOS);
+// A unidade (Colégio × Universidade) sai da região da sede no catálogo do SGPC
+// e vai junto como `escopo`: as regras do banco isolam funcionários por ela
+// (14/10/2026). Sede muda no Cromos → a unidade acompanha.
+const sedesSgpc = await lerTudo('sedes', SGPC);
+const escopoDaSede = nome => {
+  const s = sedesSgpc.find(x => txt(x, 'nome').toLowerCase().trim() === String(nome).toLowerCase().trim());
+  return s && txt(s, 'regiao').toLowerCase() === 'universidade' ? 'universidade' : 'colegio';
+};
 const existentes = await lerTudo('funcionarios', SGPC);
 
 const porOrigem = new Map(
@@ -117,6 +125,7 @@ colaboradores.forEach(d => {
     ativo: !txt(d, 'desligamento'),
     origemSistema: 'cromos',
     origemId,
+    escopo: escopoDaSede(sede),
   };
   (porOrigem.has(origemId) ? aAtualizar : aCriar).push({ corpo, id: porOrigem.get(origemId) });
 });

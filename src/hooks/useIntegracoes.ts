@@ -5,6 +5,8 @@ import {
 import { Integracao } from '../types';
 import { stripUndefinedFields } from '../lib/firestoreData';
 import type { ImportableIntegracao } from '../lib/integracaoImport';
+import { colecaoDoLeitor } from './useFirestoreCollection';
+import { escopoAoGravar, escopoDaSede, SEM_ISOLAMENTO, type IsolamentoUnidade } from '../utils/unidade';
 
 const LOCAL_KEY = 'sgcp_integracoes_fallback';
 
@@ -18,7 +20,7 @@ const LEGACY_SEDES: Record<string, string> = { 'BENFICA UNIVERSIDADE': 'UNIBENFI
  * Assina `integracoes` quando logado; fallback local (offline/demo).
  * A visibilidade (só Universidade + admin) é aplicada na UI/nav.
  */
-export function useIntegracoes(currentUser: any, enabled: boolean = true) {
+export function useIntegracoes(currentUser: any, enabled: boolean = true, isolamento: IsolamentoUnidade = SEM_ISOLAMENTO) {
   const [integracoes, setIntegracoes] = useState<Integracao[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingFirebase, setUsingFirebase] = useState(isFirebaseEnabled);
@@ -27,8 +29,9 @@ export function useIntegracoes(currentUser: any, enabled: boolean = true) {
   useEffect(() => {
     if (!enabled) { setIntegracoes([]); setLoading(false); return; }
     if (isFirebaseEnabled && db && currentUser) {
+      if (!isolamento.pronto) return;
       setLoading(true);
-      const col = collection(db, 'integracoes');
+      const col = colecaoDoLeitor('integracoes', isolamento.escopo);
       const unsub = onSnapshot(col, (snap: any) => {
         const list: Integracao[] = [];
         snap.forEach((d: any) => list.push({ ...d.data(), id: d.id } as Integracao));
@@ -56,7 +59,14 @@ export function useIntegracoes(currentUser: any, enabled: boolean = true) {
     } else {
       loadLocal();
     }
-  }, [currentUser, enabled]);
+  }, [currentUser, enabled, isolamento.escopo, isolamento.pronto]);
+
+  // Isolada por unidade no servidor (14/10/2026): carimba `escopo` ao gravar.
+  const pelaSede = (i: Partial<Integracao>) => escopoDaSede(isolamento.sedes, i.sede);
+  const comEscopo = <T extends Partial<Integracao>>(atual: Integracao | undefined, campos: T): T => {
+    const e = escopoAoGravar<any>(isolamento.escopo, pelaSede, atual, campos);
+    return e ? { ...campos, escopo: e } : campos;
+  };
 
   const loadLocal = () => {
     setUsingFirebase(false);
@@ -80,7 +90,7 @@ export function useIntegracoes(currentUser: any, enabled: boolean = true) {
   // era criada no servidor e sumia no F5. Erros propagam (o chamador mostra).
   const addIntegracao = async (input: ImportableIntegracao) => {
     if (isFirebaseEnabled && db) {
-      await addDoc(collection(db, 'integracoes'), stripUndefinedFields(input as any));
+      await addDoc(collection(db, 'integracoes'), stripUndefinedFields(comEscopo(undefined, input as Partial<Integracao>) as any));
     } else {
       persistLocal([{ ...input, id: `local_${Date.now()}` } as Integracao, ...integracoes]);
     }
@@ -88,7 +98,7 @@ export function useIntegracoes(currentUser: any, enabled: boolean = true) {
 
   const updateIntegracao = async (id: string, fields: Partial<Integracao>) => {
     if (isFirebaseEnabled && db) {
-      await updateDoc(doc(db, 'integracoes', id), stripUndefinedFields(fields as any));
+      await updateDoc(doc(db, 'integracoes', id), stripUndefinedFields(comEscopo(integracoes.find(x => x.id === id), fields) as any));
     } else {
       persistLocal(integracoes.map(x => (x.id === id ? { ...x, ...fields } : x)));
     }
@@ -120,7 +130,7 @@ export function useIntegracoes(currentUser: any, enabled: boolean = true) {
     if (isFirebaseEnabled && db && aceitos.length) {
       for (let i = 0; i < aceitos.length; i += 450) {
         const batch = writeBatch(db);
-        aceitos.slice(i, i + 450).forEach(item => batch.set(doc(collection(db, 'integracoes')), stripUndefinedFields(item as any)));
+        aceitos.slice(i, i + 450).forEach(item => batch.set(doc(collection(db, 'integracoes')), stripUndefinedFields(comEscopo(undefined, item as Partial<Integracao>) as any)));
         await batch.commit();
       }
     }

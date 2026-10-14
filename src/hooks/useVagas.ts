@@ -24,10 +24,18 @@ import type { ImportableVaga } from '../lib/spreadsheetImport';
 import { resolverSetor } from '../utils/setor';
 import { codigosSequenciais } from '../utils/vaga';
 import { stripUndefinedFields } from '../lib/firestoreData';
+import { colecaoDoLeitor } from './useFirestoreCollection';
+import { reservarCodigos } from '../lib/contador';
+import { escopoAoGravar, vagaEhUniversidade, SEM_ISOLAMENTO, type IsolamentoUnidade } from '../utils/unidade';
 
 const LOCAL_STORAGE_KEY = 'ats_vagas_fallback';
 
-export function useVagas(user?: any) {
+/**
+ * Isolada por unidade no servidor (14/10/2026): quem não é Administrador lê só
+ * as vagas da própria unidade, e toda gravação carimba `escopo`. A unidade da
+ * vaga é a da origem (planilha da Universidade) ou a da sede.
+ */
+export function useVagas(user?: any, isolamento: IsolamentoUnidade = SEM_ISOLAMENTO) {
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingFirebase, setUsingFirebase] = useState(isFirebaseEnabled);
@@ -37,8 +45,9 @@ export function useVagas(user?: any) {
   // Re-assina quando o usuário muda (login/logout).
   useEffect(() => {
     if (isFirebaseEnabled && db && user) {
+      if (!isolamento.pronto) return;
       setLoading(true);
-      const vagasCollection = collection(db, 'vagas');
+      const vagasCollection = colecaoDoLeitor('vagas', isolamento.escopo);
 
       // Setup realtime Firestore synchronization
       const unsubscribe = onSnapshot(vagasCollection, (snapshot: any) => {
@@ -72,7 +81,14 @@ export function useVagas(user?: any) {
       setVagas([]);
       setLoading(true);
     }
-  }, [user]);
+  }, [user, isolamento.escopo, isolamento.pronto]);
+
+  const daVaga = (v: Partial<Vaga>) =>
+    vagaEhUniversidade({ origem: v.origem, sede: v.sede } as Vaga, isolamento.sedes) ? 'universidade' as const : 'colegio' as const;
+  const comEscopo = <T extends Partial<Vaga>>(atual: Vaga | undefined, campos: T): T => {
+    const e = escopoAoGravar<any>(isolamento.escopo, daVaga, atual, campos);
+    return e ? { ...campos, escopo: e } : campos;
+  };
 
   // Local fallback engine using localStorage and initial JSON data
   const loadLocalFallback = () => {
@@ -157,12 +173,18 @@ export function useVagas(user?: any) {
     rotuloDoErro: string,
   ): Promise<{ id: string; codigo: number }[]> => {
     if (novas.length === 0) return [];
-    const codigos = codigosSequenciais(vagas, novas.length);
-    const comCodigo = novas.map((v, i) => ({ ...v, codigo: codigos[i] }));
+    // Com banco, os números vêm do contador único (lib/contador.ts): a lista
+    // `vagas` aqui é só a da unidade de quem abre, e "maior + 1" sobre ela
+    // repetiria o número de uma vaga da outra unidade.
+    const maior = vagas.length > 0 ? Math.max(...vagas.map(v => v.codigo || 0)) : 1000;
+    const codigos = isFirebaseEnabled && db
+      ? await reservarCodigos('vagas', novas.length, maior).then(primeiro => novas.map((_, i) => primeiro + i))
+      : codigosSequenciais(vagas, novas.length);
+    const comCodigo = novas.map((v, i) => comEscopo(undefined, { ...v, codigo: codigos[i] }));
     // O id sai antes da gravação: quem criou precisa dele (requisição → vaga).
     const criadas: { id: string; codigo: number }[] = [];
 
-    if (usingFirebase && db) {
+    if (isFirebaseEnabled && db) {
       try {
         for (let i = 0; i < comCodigo.length; i += 450) {
           const batch = writeBatch(db);
@@ -228,11 +250,11 @@ export function useVagas(user?: any) {
       }
     }
 
-    if (usingFirebase && db) {
+    if (isFirebaseEnabled && db) {
       try {
         const docRef = doc(db, 'vagas', id);
         // Clean out ID/code changes to avoid security rule violations
-        const filteredPayload: any = { ...fields };
+        const filteredPayload: any = comEscopo(current, { ...fields });
         delete filteredPayload.id;
         delete filteredPayload.codigo;
         // Remove campos undefined: o updateDoc do Firestore lança erro com
@@ -257,7 +279,7 @@ export function useVagas(user?: any) {
 
   // Delete vacancy permanently
   const deleteVaga = async (id: string) => {
-    if (usingFirebase && db) {
+    if (isFirebaseEnabled && db) {
       try {
         const docRef = doc(db, 'vagas', id);
         await deleteDoc(docRef);
@@ -275,16 +297,16 @@ export function useVagas(user?: any) {
   const importVagas = async (imported: ImportableVaga[], replace = false) => {
     if (imported.length === 0) return;
 
-    if (usingFirebase && db) {
+    if (isFirebaseEnabled && db) {
       try {
         if (replace) {
-          const snap = await getDocs(collection(db, 'vagas'));
+          const snap = await getDocs(colecaoDoLeitor('vagas', isolamento.escopo));
           await Promise.all(snap.docs.map((docSnap: any) => deleteDoc(doc(db, 'vagas', docSnap.id))));
         }
 
         const existingCodes = replace ? new Set<number>() : new Set(vagas.map(v => v.codigo));
         const toCreate = imported.filter(v => !existingCodes.has(v.codigo));
-        await Promise.all(toCreate.map(({ id, ...vaga }: any) => addDoc(collection(db, 'vagas'), stripUndefinedFields(vaga))));
+        await Promise.all(toCreate.map(({ id, ...vaga }: any) => addDoc(collection(db, 'vagas'), stripUndefinedFields(comEscopo(undefined, vaga)))));
       } catch (error) {
         handleFirestoreError(error, OperationType.CREATE, 'vagas/import');
       }

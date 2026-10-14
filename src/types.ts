@@ -4,6 +4,8 @@
  */
 
 export interface Vaga {
+  /** Unidade dona do registro — as regras do banco isolam por ela (14/10/2026). */
+  escopo?: 'colegio' | 'universidade';
   id: string; // Document ID from Firestore
   codigo: number; // Single code
   vaga: string; // Job title
@@ -40,6 +42,8 @@ export interface Vaga {
 }
 
 export interface Treinamento {
+  /** Unidade dona do registro — as regras do banco isolam por ela (14/10/2026). */
+  escopo?: 'colegio' | 'universidade';
   id: string;
   codigo: number;
   dataInicio: string;
@@ -59,6 +63,8 @@ export interface Treinamento {
 }
 
 export interface Experiencia {
+  /** Unidade dona do registro — as regras do banco isolam por ela (14/10/2026). */
+  escopo?: 'colegio' | 'universidade';
   id: string;
   colaborador: string;
   funcao: string;
@@ -142,6 +148,8 @@ export interface Requisicao {
 // Treinamento de Integração (onboarding) — módulo EXCLUSIVO da Universidade.
 // Espelha a planilha "Treinamento de integração" (uma aba por campus).
 export interface Integracao {
+  /** Unidade dona do registro — as regras do banco isolam por ela (14/10/2026). */
+  escopo?: 'colegio' | 'universidade';
   id: string;
   nome: string;            // colaborador
   funcao?: string;
@@ -159,6 +167,8 @@ export interface Integracao {
 // Cadastro de colaboradores (roster). Base p/ aniversariantes (avisar o RH) e
 // futuras features. Datas em DD/MM/YYYY (o ano do nascimento é opcional).
 export interface Funcionario {
+  /** Unidade dona do registro — as regras do banco isolam por ela (14/10/2026). */
+  escopo?: 'colegio' | 'universidade';
   id: string;
   nome: string;
   dataNascimento: string; // DD/MM/YYYY ou DD/MM
@@ -189,6 +199,8 @@ export interface Consulta {
 }
 
 export interface Turnover {
+  /** Unidade dona do registro — as regras do banco isolam por ela (14/10/2026). */
+  escopo?: 'colegio' | 'universidade';
   id: string;
   mesAno: string; // e.g. "05/2026"
   totalFuncionarios: number;
@@ -218,6 +230,8 @@ export interface Turnover {
  * agregado para os indicadores, que é o que a planilha de fato é.
  */
 export interface Selecao {
+  /** Unidade dona do registro — as regras do banco isolam por ela (14/10/2026). */
+  escopo?: 'colegio' | 'universidade';
   id: string;
   data: string;            // DD/MM/AAAA — o dia da seleção
   cargo: string;

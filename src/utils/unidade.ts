@@ -74,6 +74,43 @@ export function escopoParaGravar(escopoDoLeitor: Escopo | null, sedes: Sede[], s
   return escopoDoLeitor ?? escopoDaSede(sedes, sedeDoDocumento);
 }
 
+/**
+ * Isolamento de um hook de coleção: `escopo` é a unidade de quem lê (null =
+ * Administrador, lê tudo) e `pronto` segura a leitura até essa unidade ser
+ * conhecida — uma leitura sem filtro no primeiro instante seria negada.
+ */
+export interface IsolamentoUnidade {
+  sedes: Sede[];
+  escopo: Escopo | null;
+  pronto: boolean;
+}
+export const SEM_ISOLAMENTO: IsolamentoUnidade = { sedes: [], escopo: null, pronto: true };
+
+/**
+ * Escopo a mandar numa gravação (criação OU edição); undefined = não mandar e
+ * deixar o banco manter o que tem. `doRegistro` diz a unidade pelos campos do
+ * próprio registro (sede, origem…).
+ *
+ *  - registro novo, ou antigo ainda sem o campo: a unidade de quem grava, ou
+ *    (Administrador) a do registro;
+ *  - edição de quem não é Administrador: nunca muda (a regra nem deixaria);
+ *  - edição do Administrador: só muda quando a edição muda a unidade que os
+ *    campos indicam. ⚠️ Recalcular a cada edição jogava para o Colégio o
+ *    registro da Universidade com sede fora do catálogo — o formulário reenvia
+ *    a sede mesmo sem mexer nela (revisão de segurança de 14/10/2026).
+ */
+export function escopoAoGravar<T extends { escopo?: Escopo }>(
+  escopoDoLeitor: Escopo | null,
+  doRegistro: (r: Partial<T>) => Escopo | undefined,
+  atual: T | undefined,
+  campos: Partial<T>,
+): Escopo | undefined {
+  if (!atual?.escopo) return escopoDoLeitor ?? doRegistro({ ...atual, ...campos });
+  if (escopoDoLeitor) return undefined;
+  const novo = doRegistro({ ...atual, ...campos });
+  return novo && novo !== doRegistro(atual) ? novo : undefined;
+}
+
 /** A vaga é da Universidade? (origem de planilha OU sede em região Universidade) */
 export function vagaEhUniversidade(vaga: Pick<Vaga, 'origem' | 'sede'>, sedes: Sede[]): boolean {
   return (vaga.origem || '').indexOf(ORIGEM_PLANILHA_UNI) === 0 || sedeEhUniversidade(sedes, vaga.sede);

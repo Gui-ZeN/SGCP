@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   regiaoDaSede, sedeEhUniversidade, vagaEhUniversidade,
   escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade,
-  acharSede, siglaCanonica, escopoDaSede, escopoParaGravar
+  acharSede, siglaCanonica, escopoDaSede, escopoParaGravar, escopoAoGravar
 } from './unidade';
 import type { Vaga } from '../types';
 import type { Sede } from '../hooks/useMetadata';
@@ -188,5 +188,33 @@ describe('escopo gravado no documento (isolamento no servidor, 14/10/2026)', () 
   it('Administrador (sem escopo de leitor) grava a unidade da sede do documento', () => {
     expect(escopoParaGravar(null, SEDES, 'ALDEOTA')).toBe('universidade');
     expect(escopoParaGravar(null, SEDES, 'SUL')).toBe('colegio');
+  });
+});
+
+describe('escopoAoGravar: quando a gravação manda o escopo (fase 3, 14/10/2026)', () => {
+  type R = { sede?: string; escopo?: 'colegio' | 'universidade'; obs?: string };
+  const pelaSede = (r: Partial<R>) => escopoDaSede(SEDES, r.sede);
+
+  it('registro novo: a unidade de quem grava; do Administrador, a da sede', () => {
+    expect(escopoAoGravar<R>('colegio', pelaSede, undefined, { sede: 'ALDEOTA' })).toBe('colegio');
+    expect(escopoAoGravar<R>(null, pelaSede, undefined, { sede: 'ALDEOTA' })).toBe('universidade');
+  });
+
+  it('registro antigo sem o campo ganha um na edição', () => {
+    expect(escopoAoGravar<R>(null, pelaSede, { sede: 'PE' }, { obs: 'x' })).toBe('universidade');
+  });
+
+  it('edição de quem não é Administrador nunca muda o escopo', () => {
+    expect(escopoAoGravar<R>('colegio', pelaSede, { sede: 'DT', escopo: 'colegio' }, { sede: 'ALDEOTA' })).toBeUndefined();
+  });
+
+  it('⚠️ Administrador reenviando a mesma sede (fora do catálogo) NÃO joga a Universidade para o Colégio', () => {
+    const daUni: R = { sede: 'Campus digitado', escopo: 'universidade' };
+    expect(escopoAoGravar<R>(null, pelaSede, daUni, { sede: 'Campus digitado', obs: 'corrigido' })).toBeUndefined();
+  });
+
+  it('Administrador trocando a sede para a outra unidade move o registro', () => {
+    expect(escopoAoGravar<R>(null, pelaSede, { sede: 'DT', escopo: 'colegio' }, { sede: 'ALDEOTA' })).toBe('universidade');
+    expect(escopoAoGravar<R>(null, pelaSede, { sede: 'DT', escopo: 'colegio' }, { sede: 'SUL' })).toBeUndefined();
   });
 });

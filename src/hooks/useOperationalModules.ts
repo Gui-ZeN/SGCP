@@ -17,10 +17,11 @@ import {
 } from '../lib/firebase';
 import type { ImportableEntrevista, ImportableTreinamento } from '../lib/spreadsheetImport';
 import { stripUndefinedFields } from '../lib/firestoreData';
-import { useFirestoreCollection } from './useFirestoreCollection';
-import type { Sede } from './useMetadata';
-import { escopoParaGravar, type Escopo } from '../utils/unidade';
-import { addDaysToDate, diasEntre, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from '../utils/date';
+import { useFirestoreCollection, colecaoDoLeitor } from './useFirestoreCollection';
+import { escopoParaGravar, escopoDaSede, escopoAoGravar, SEM_ISOLAMENTO, type Escopo, type IsolamentoUnidade } from '../utils/unidade';
+import { addDaysToDate, diasEntre, codigoDoInstante, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from '../utils/date';
+import { isFirebaseEnabled } from '../lib/firebase';
+import { reservarCodigos } from '../lib/contador';
 // Re-export para compatibilidade (definições movidas para utils/date, testáveis sem firebase).
 export { addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 };
 
@@ -190,22 +191,29 @@ const turnoverSort = (a: Turnover, b: Turnover) => {
   return parseInt(pa[0] || '0', 10) - parseInt(pb[0] || '0', 10);
 };
 
-/**
- * Isolamento por unidade no SERVIDOR (14/10/2026), por enquanto só nas
- * entrevistas de desligamento: `escopo` é a unidade de quem lê (null =
- * Administrador, lê tudo) e `pronto` segura a leitura até essa unidade ser
- * conhecida — uma leitura negada no primeiro instante jogaria o hook no modo
- * offline (useFirestoreCollection cai para o localStorage em erro).
- */
-export interface IsolamentoUnidade {
-  sedes: Sede[];
-  escopo: Escopo | null;
-  pronto: boolean;
-}
+/** Isolamento por unidade no SERVIDOR (14/10/2026), em todas as coleções deste hook. */
+export type { IsolamentoUnidade };
 
-export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade = { sedes: [], escopo: null, pronto: true }) {
+export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade = SEM_ISOLAMENTO) {
   const enabled = !!user;
   const escopoDaEntrevista = (unidade?: string) => escopoParaGravar(isolamento.escopo, isolamento.sedes, unidade);
+  // Leitura só da própria unidade + carimbo na gravação (useFirestoreCollection).
+  const isolada = { enabled: enabled && isolamento.pronto, escopo: isolamento.escopo };
+  const pelaSede = (sede?: string) => escopoDaSede(isolamento.sedes, sede);
+  const doTreino = (t: Partial<Treinamento>) => pelaSede(t.unidade);
+  const daExperiencia = (e: Partial<Experiencia>) => pelaSede(e.sede);
+  const daSelecao = (s: Partial<Selecao>) => pelaSede(s.sede);
+  // Turnover não tem sede: a unidade é o próprio campo. Sem ele é o legado
+  // consolidado (as duas somadas), que fica só para o Administrador.
+  const doTurnover = (t: Partial<Turnover>) =>
+    t.unidade === 'colegio' || t.unidade === 'universidade' ? t.unidade : undefined;
+  /** Registro novo vindo de importação, já com a unidade. */
+  const carimbar = <T,>(item: T, doRegistro: (r: any) => Escopo | undefined): T => {
+    const e = escopoAoGravar<any>(isolamento.escopo, doRegistro, undefined, item as any);
+    return e ? { ...item, escopo: e } : item;
+  };
+  /** O que a pessoa pode ler da coleção (substituir = apagar isto e regravar). */
+  const daMinhaUnidade = (colecao: string) => colecaoDoLeitor(colecao, isolamento.escopo);
 
   const treina = useFirestoreCollection<Treinamento>({
     collectionName: 'treinamentos',
@@ -214,7 +222,8 @@ export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade 
     sort: (a, b) => b.codigo - a.codigo,
     newLocalId: () => `local_t_${Date.now()}`,
     stripOnUpdate: ['codigo'],
-    enabled
+    ...isolada,
+    escopoDoRegistro: doTreino,
   });
 
   const exp = useFirestoreCollection<Experiencia>({
@@ -222,7 +231,8 @@ export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade 
     localKey: EXPERIENCIA_LOCAL_KEY,
     seed: initialExperiencia,
     newLocalId: () => `local_exp_${Date.now()}`,
-    enabled
+    ...isolada,
+    escopoDoRegistro: daExperiencia,
   });
 
   const ent = useFirestoreCollection<Entrevista>({
@@ -243,7 +253,8 @@ export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade 
     localKey: SELECOES_LOCAL_KEY,
     seed: [],
     newLocalId: () => `local_sel_${Date.now()}`,
-    enabled
+    ...isolada,
+    escopoDoRegistro: daSelecao,
   });
 
   const turn = useFirestoreCollection<Turnover>({
@@ -253,14 +264,18 @@ export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade 
     sort: turnoverSort,
     newLocalId: () => `local_to_${Date.now()}`,
     prepend: false,
-    enabled
+    ...isolada,
+    escopoDoRegistro: doTurnover,
   });
 
   const loading = treina.loading || exp.loading || ent.loading || turn.loading;
 
   // ==================== CRUD TREINAMENTOS ====================
-  const addTreinamento = (input: Omit<Treinamento, 'id' | 'codigo'>) => {
-    const nextCodigo = treina.items.length > 0 ? Math.max(...treina.items.map(t => t.codigo)) + 1 : 101;
+  const addTreinamento = async (input: Omit<Treinamento, 'id' | 'codigo'>) => {
+    const maior = treina.items.length > 0 ? Math.max(...treina.items.map(t => t.codigo)) : 100;
+    // Com banco, o número vem do contador único (lib/contador.ts): a lista
+    // aqui é só da unidade de quem cria.
+    const nextCodigo = isFirebaseEnabled && db ? await reservarCodigos('treinamentos', 1, maior) : maior + 1;
     return treina.create({ ...input, codigo: nextCodigo });
   };
   const updateTreinamento = (id: string, updatedFields: Partial<Treinamento>) => treina.update(id, updatedFields);
@@ -314,12 +329,12 @@ export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade 
       existentes.add(k);
       return true;
     });
-    if (exp.usingFirebase && db) {
+    if (isFirebaseEnabled && db) {
       try {
         for (let i = 0; i < aceitos.length; i += 450) {
           const batch = writeBatch(db);
           aceitos.slice(i, i + 450).forEach(item => {
-            batch.set(doc(collection(db, 'experiencia')), stripUndefinedFields(item as any));
+            batch.set(doc(collection(db, 'experiencia')), stripUndefinedFields(carimbar(item, daExperiencia) as any));
           });
           await batch.commit();
         }
@@ -335,12 +350,12 @@ export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade 
   /** Grava eventos de seleção em lote (writeBatch de 450, como os demais). */
   const importSelecoes = async (imported: Omit<Selecao, 'id'>[]): Promise<number> => {
     if (imported.length === 0) return 0;
-    if (sel.usingFirebase && db) {
+    if (isFirebaseEnabled && db) {
       try {
         for (let i = 0; i < imported.length; i += 450) {
           const batch = writeBatch(db);
           imported.slice(i, i + 450).forEach(item => {
-            batch.set(doc(collection(db, 'selecoes')), stripUndefinedFields(item as any));
+            batch.set(doc(collection(db, 'selecoes')), stripUndefinedFields(carimbar(item, daSelecao) as any));
           });
           await batch.commit();
         }
@@ -355,10 +370,8 @@ export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade 
   };
 
   // ==================== CRUD ENTREVISTAS ====================
-  const addEntrevista = (input: Omit<Entrevista, 'id' | 'codigo'>) => {
-    const nextCodigo = ent.items.length > 0 ? Math.max(...ent.items.map(e => e.codigo)) + 1 : 301;
-    return ent.create({ ...input, codigo: nextCodigo, escopo: escopoDaEntrevista(input.unidade) });
-  };
+  const addEntrevista = (input: Omit<Entrevista, 'id' | 'codigo'>) =>
+    ent.create({ ...input, codigo: codigoDoInstante(), escopo: escopoDaEntrevista(input.unidade) });
   // ⚠️ Na edição o escopo NÃO é recalculado: o formulário sempre reenvia a
   // `unidade` (texto livre), e o Administrador corrigindo qualquer campo de uma
   // entrevista da Universidade com sede fora do catálogo a jogava para o
@@ -378,15 +391,15 @@ export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade 
   const importTreinamentos = async (imported: ImportableTreinamento[], replace = false) => {
     if (imported.length === 0) return;
 
-    if (treina.usingFirebase && db) {
+    if (isFirebaseEnabled && db) {
       try {
         if (replace) {
-          const snap = await getDocs(collection(db, 'treinamentos'));
+          const snap = await getDocs(daMinhaUnidade('treinamentos'));
           await Promise.all(snap.docs.map((docSnap: any) => deleteDoc(doc(db, 'treinamentos', docSnap.id))));
         }
         const existingCodes = replace ? new Set<number>() : new Set(treina.items.map(t => t.codigo));
         const toCreate = imported.filter(t => !existingCodes.has(t.codigo));
-        await Promise.all(toCreate.map(({ id, ...treinamento }: any) => addDoc(collection(db, 'treinamentos'), stripUndefinedFields(treinamento))));
+        await Promise.all(toCreate.map(({ id, ...treinamento }: any) => addDoc(collection(db, 'treinamentos'), stripUndefinedFields(carimbar(treinamento, doTreino)))));
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, 'treinamentos/import');
       }
@@ -407,10 +420,10 @@ export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade 
     const dedupKey = (e: { colaborador: string; dataEntrevista: string; funcao: string }) =>
       `${e.colaborador}|${e.dataEntrevista}|${e.funcao}`.toLowerCase();
 
-    if (ent.usingFirebase && db) {
+    if (isFirebaseEnabled && db) {
       try {
         if (replace) {
-          const snap = await getDocs(collection(db, 'entrevistas'));
+          const snap = await getDocs(daMinhaUnidade('entrevistas'));
           await Promise.all(snap.docs.map((docSnap: any) => deleteDoc(doc(db, 'entrevistas', docSnap.id))));
         }
         const existingKeys = replace ? new Set<string>() : new Set(ent.items.map(dedupKey));

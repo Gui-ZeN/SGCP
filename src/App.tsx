@@ -25,7 +25,7 @@ import { useAtividades } from './hooks/useAtividades';
 import { useCandidatos } from './hooks/useCandidatos';
 import { numerosDoDia } from './utils/candidatos';
 import { atendeVaga, camposDoFormulario, origemDoSetor } from './utils/selecao';
-import type { Candidato, Selecao } from './types';
+import type { Candidato, Selecao, Vaga, Turnover } from './types';
 import { useDiario } from './hooks/useDiario';
 import { useMeuLog } from './hooks/useMeuLog';
 import { useTarefasDiario } from './hooks/useTarefasDiario';
@@ -41,7 +41,7 @@ import { SLA_META_DIAS } from './constants/hr';
 import { ehSetembro } from './data/setembroAmarelo';
 import { ehOutubro } from './data/outubroRosa';
 import { useAppConfig } from './hooks/useAppConfig';
-import { regiaoDaSede, sedeEhUniversidade, escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade, REGIAO_UNIVERSIDADE, escopoParaGravar, type Escopo } from './utils/unidade';
+import { regiaoDaSede, sedeEhUniversidade, escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade, REGIAO_UNIVERSIDADE, escopoParaGravar, vagaEhUniversidade, type Escopo } from './utils/unidade';
 import { requisicaoParaVaga } from './utils/requisicao';
 
 // Enfeites de época (sazonais). Para adicionar um novo: importe o componente e
@@ -116,7 +116,6 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', 'swiss');
     try { localStorage.setItem('sgcp_theme', 'swiss'); } catch (e) {}
   }, []);
-  const { vagas, loading, usingFirebase, errorMessage, addVaga, addVagas, updateVaga, deleteVaga, importVagas, importarVagasAnuais, padronizarSetores } = useVagas(user);
   const [toast, setToast] = useState<{ message: string, type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
   const [triggerAddModal, setTriggerAddModal] = useState(0);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -177,6 +176,17 @@ export default function App() {
   // a leitura saía sem filtro, era negada e caía no modo offline.
   const escopoLeitor: Escopo | null = meuCadastro?.role === 'Administrador' ? null : (meuCadastro?.unidade || 'colegio');
   const escopoPronto = !isFirebaseEnabled || !!meuCadastro;
+  // O mesmo recorte para todas as coleções isoladas (fase 3, 14/10/2026).
+  const isolamento = { sedes: sedes || [], escopo: escopoLeitor, pronto: escopoPronto };
+  const { vagas, loading, usingFirebase, errorMessage, addVaga, addVagas, updateVaga, deleteVaga, importVagas, importarVagasAnuais, padronizarSetores } = useVagas(user, isolamento);
+  // Unidade do LOG = a do registro afetado: o Admin mexe nas duas unidades, e a
+  // sede escolhida na tela não diz de qual o registro é. Para os demais, dá a
+  // própria (é o que a regra aceita).
+  const unidadeDe = (r?: { escopo?: Escopo; sede?: string }) => r?.escopo ?? escopoParaGravar(escopoLeitor, sedes || [], r?.sede);
+  const unidadeDaVaga = (v?: Partial<Vaga>) => v?.escopo ?? escopoLeitor
+    ?? (v && vagaEhUniversidade({ origem: v.origem, sede: v.sede } as Vaga, sedes || []) ? 'universidade' : 'colegio');
+  const unidadeDoTurnover = (t?: Partial<Turnover>) => t?.escopo ?? escopoLeitor
+    ?? (t?.unidade === 'colegio' || t?.unidade === 'universidade' ? t.unidade : undefined);
 
   const {
     treinamentos,
@@ -204,7 +214,7 @@ export default function App() {
     addTurnover,
     updateTurnover,
     deleteTurnover
-  } = useOperationalModules(user, { sedes: sedes || [], escopo: escopoLeitor, pronto: escopoPronto });
+  } = useOperationalModules(user, isolamento);
 
   // Coordenador = admin regional: o escopo dele é a REGIÃO da sede a que está vinculado.
   const isCoord = selectedRole === 'Coordenador';
@@ -248,7 +258,7 @@ export default function App() {
   // de acesso fazia esse papel sozinho.
   const usuarioEhUni = sedeEhUniversidade(sedes, selectedSede);
   const podeVerIntegracao = true;
-  const { integracoes, addIntegracao, updateIntegracao, deleteIntegracao, importIntegracoes } = useIntegracoes(user, podeVerIntegracao);
+  const { integracoes, addIntegracao, updateIntegracao, deleteIntegracao, importIntegracoes } = useIntegracoes(user, podeVerIntegracao, isolamento);
   const sedesUniversidade = useMemo(() => (sedes || []).filter(s => (s.regiao || '').toLowerCase() === REGIAO_UNIVERSIDADE), [sedes]);
   // Sedes oferecidas no formulário de Integração: as da unidade do usuário.
   // Antes eram fixas as da Universidade, o que deixaria o Colégio sem opção.
@@ -341,7 +351,7 @@ export default function App() {
     [selecoes, sedes, selectedSede, ehAdminPleno]
   );
 
-  const { atividades, adicionarAtividade, atualizarAtividade, removerAtividade } = useAtividades(user);
+  const { atividades, adicionarAtividade, atualizarAtividade, removerAtividade } = useAtividades(user, isolamento);
   // Candidatos: só para quem a regra deixa ler (RH sem Visualizador).
   const { candidatos, gravarCandidato, removerCandidato } = useCandidatos(user, canManageModules && escopoPronto, escopoLeitor);
   // Todo candidato gravado leva o `escopo` da seleção dele (regra do banco).
@@ -355,7 +365,9 @@ export default function App() {
     const sel = selecoes.find(s => s.id === (campos.selecaoId ?? atual?.selecaoId));
     return gravarCandidato(id, { ...campos, escopo: escopoParaGravar(escopoLeitor, sedes || [], sel?.sede) });
   };
-  const { diarios, salvarMeuDia } = useDiario(user);
+  // "Meu dia" é do Colégio (o Resumo do Dia não existe para a Universidade), e
+  // a regra do banco só entrega o diário a ele.
+  const { diarios, salvarMeuDia } = useDiario(user, escopoPronto && escopoLeitor !== 'universidade');
   const meuLog = useMeuLog(user);
   const { tarefas: tarefasDiario, criarTarefa, ajustarTarefa, apagarTarefa } = useTarefasDiario(user);
 
@@ -399,7 +411,7 @@ export default function App() {
   // A coleção `funcionarios` já existia (base dos aniversários) e nunca teve
   // tela de cadastro — é esta. Escopo por unidade como os demais: a lista vai
   // filtrada por sede, então ninguém enxerga o quadro da outra unidade.
-  const { funcionarios, addFuncionario, updateFuncionario, deleteFuncionario } = useFuncionarios(user);
+  const { funcionarios, addFuncionario, updateFuncionario, deleteFuncionario } = useFuncionarios(user, isolamento);
   const scopedFuncionarios = useMemo(
     () => escoparListaPorUnidade(funcionarios, f => f.sede, sedes || [], selectedSede, isAdmin),
     [funcionarios, sedes, selectedSede, isAdmin]
@@ -407,12 +419,12 @@ export default function App() {
 
   // Nós do organograma: coleção própria, desenho montado à mão. O quadro de
   // funcionários NÃO define a estrutura — só sugere nomes ao escolher o cargo.
-  const { nos: nosOrganograma, adicionarNo, atualizarNo, removerNo } = useOrganograma(user);
+  const { nos: nosOrganograma, adicionarNo, atualizarNo, removerNo } = useOrganograma(user, isolamento);
 
   const wrappedAdicionarNo = (dados: any) =>
     executeWithLoading('Adicionando ao organograma...', async () => {
       await adicionarNo(dados);
-      await logAction('CRIOU', 'Organograma', `"${dados.nome}"${dados.cargo ? ` (${dados.cargo})` : ''} entrou no organograma.`);
+      await logAction('CRIOU', 'Organograma', `"${dados.nome}"${dados.cargo ? ` (${dados.cargo})` : ''} entrou no organograma.`, { escopo: unidadeDe(dados) });
     });
 
   const wrappedAdicionarAtividade = (dados: any) =>
@@ -421,30 +433,31 @@ export default function App() {
       // O detalhe vai junto: o resumo diário por pessoa é montado a partir do
       // log, e sem ele o "120 kits; faltam 30" só existiria na tela.
       await logAction('CRIOU', 'Resumo do Dia', `Atividade "${dados.titulo}" registrada em ${dados.data}${dados.detalhe ? ` — ${dados.detalhe}` : ''}.`,
-        { ref: { titulo: dados.titulo, detalhe: dados.detalhe } });
+        { ref: { titulo: dados.titulo, detalhe: dados.detalhe }, escopo: unidadeDe(dados) });
     });
   const wrappedAtualizarAtividade = (id: string, campos: any) =>
     executeWithLoading('Salvando atividade...', async () => {
+      const alvo = atividades.find(a => a.id === id);
       await atualizarAtividade(id, campos);
-      await logAction('ALTEROU', 'Resumo do Dia', `Atividade "${campos.titulo}" editada.`);
+      await logAction('ALTEROU', 'Resumo do Dia', `Atividade "${campos.titulo}" editada.`, { escopo: unidadeDe(alvo) });
     });
   const wrappedRemoverAtividade = (id: string) =>
     executeWithLoading('Removendo atividade...', async () => {
       const alvo = atividades.find(a => a.id === id);
       await removerAtividade(id);
-      await logAction('EXCLUIU', 'Resumo do Dia', `Atividade "${alvo?.titulo || id}" removida${alvo?.data ? ` de ${alvo.data}` : ''}.`);
+      await logAction('EXCLUIU', 'Resumo do Dia', `Atividade "${alvo?.titulo || id}" removida${alvo?.data ? ` de ${alvo.data}` : ''}.`, { escopo: unidadeDe(alvo) });
     });
   const wrappedAtualizarNo = (id: string, campos: any) =>
     executeWithLoading('Salvando organograma...', async () => {
       const alvo = nosOrganograma.find(n => n.id === id);
       await atualizarNo(id, campos);
-      await logAction('ALTEROU', 'Organograma', `"${alvo?.nome || id}" atualizado no organograma.`);
+      await logAction('ALTEROU', 'Organograma', `"${alvo?.nome || id}" atualizado no organograma.`, { escopo: unidadeDe(alvo) });
     });
   const wrappedRemoverNo = (id: string) =>
     executeWithLoading('Removendo do organograma...', async () => {
       const alvo = nosOrganograma.find(n => n.id === id);
       await removerNo(id);
-      await logAction('EXCLUIU', 'Organograma', `"${alvo?.nome || id}" saiu do organograma.`);
+      await logAction('EXCLUIU', 'Organograma', `"${alvo?.nome || id}" saiu do organograma.`, { escopo: unidadeDe(alvo) });
     });
 
   // Agendar/confirmar seleção, com auditoria como nos demais módulos.
@@ -453,7 +466,7 @@ export default function App() {
       const alvo = selecoes.find(s => s.id === id);
       await updateSelecao(id, campos);
       await logAction('ALTEROU', 'Seleções', `Presença confirmada na seleção de ${alvo?.cargo || id} (${alvo?.data}): ${campos.compareceram} de ${alvo?.convocados} compareceram.`,
-        { ref: { cargo: alvo?.cargo, sede: alvo?.sede, data: alvo?.data, convocados: alvo?.convocados, compareceram: campos.compareceram } });
+        { ref: { cargo: alvo?.cargo, sede: alvo?.sede, data: alvo?.data, convocados: alvo?.convocados, compareceram: campos.compareceram }, escopo: unidadeDe(alvo) });
     });
 
   // Candidatos do dia de seleção. Os números do dia (convocados,
@@ -536,7 +549,7 @@ export default function App() {
         for (const c of nomes) await removerCandidato(c.id);
         await removeSelecao(selecao.id);
         await logAction('EXCLUIU', 'Seleções', `Seleção agendada excluída: ${selecao.cargo} em ${selecao.sede}, ${selecao.data} — ${selecao.convocados} convocado(s).`,
-          { ref: { cargo: selecao.cargo, sede: selecao.sede, data: selecao.data, convocados: selecao.convocados } });
+          { ref: { cargo: selecao.cargo, sede: selecao.sede, data: selecao.data, convocados: selecao.convocados }, escopo: unidadeDe(selecao) });
       })
     );
   };
@@ -561,7 +574,7 @@ export default function App() {
       await logAction('CRIOU', 'Seleções', campos.status === 'realizado'
         ? `Seleção já realizada lançada: ${selecao.cargo} em ${selecao.sede}, ${selecao.data} — ${selecao.compareceram} de ${selecao.convocados} compareceram.`
         : `Seleção agendada: ${selecao.cargo} em ${selecao.sede}, ${selecao.data} — ${selecao.convocados} convocado(s)${selecao.vagaCodigos.length ? ` (vaga ${selecao.vagaCodigos.map(c => '#' + c).join(', ')})` : ''}.`,
-        { ref: campos.status === 'realizado' ? { ...ref, compareceram: selecao.compareceram, tipo: 'lancamento' } : ref });
+        { ref: campos.status === 'realizado' ? { ...ref, compareceram: selecao.compareceram, tipo: 'lancamento' } : ref, escopo: unidadeDe(selecao) });
       if (!id || !nomes.length) return;
       const novos = nomes.map((nome, k) => ({
         id: `cand_${Date.now()}_${k}_${Math.random().toString(36).slice(2, 8)}`,
@@ -608,14 +621,14 @@ export default function App() {
       const ref = { cargo: campos.cargo, sede: campos.sede, data: campos.data, convocados: campos.convocados };
       if (id) {
         await updateSelecao(id, campos);
-        await logAction('ALTEROU', 'Seleções', `Seleção de ${campos.cargo} (${campos.data}) corrigida no módulo Seleções.`, { ref: { ...ref, tipo: 'edicao' } });
+        await logAction('ALTEROU', 'Seleções', `Seleção de ${campos.cargo} (${campos.data}) corrigida no módulo Seleções.`, { ref: { ...ref, tipo: 'edicao' }, escopo: unidadeDe(selecoes.find(s => s.id === id)) });
       } else if (campos.status === 'realizado') {
         await addSelecao(campos);
         await logAction('CRIOU', 'Seleções', `Seleção já realizada lançada: ${campos.cargo} em ${campos.sede}, ${campos.data} — ${campos.compareceram} de ${campos.convocados} compareceram.`,
-          { ref: { ...ref, compareceram: campos.compareceram, tipo: 'lancamento' } });
+          { ref: { ...ref, compareceram: campos.compareceram, tipo: 'lancamento' }, escopo: unidadeDe(campos) });
       } else {
         await addSelecao(campos);
-        await logAction('CRIOU', 'Seleções', `Seleção agendada: ${campos.cargo} em ${campos.sede}, ${campos.data} — ${campos.convocados} convocado(s).`, { ref });
+        await logAction('CRIOU', 'Seleções', `Seleção agendada: ${campos.cargo} em ${campos.sede}, ${campos.data} — ${campos.convocados} convocado(s).`, { ref, escopo: unidadeDe(campos) });
       }
     });
 
@@ -673,7 +686,7 @@ export default function App() {
           quantas > 1
             ? `${quantas} vagas "${vagaInput.vaga}" (Sede: ${vagaInput.sede || selectedSede}) abertas de uma vez.`
             : `Vaga "${vagaInput.vaga}" (Sede: ${vagaInput.sede || selectedSede}) cadastrada.`,
-          { ref: { cargo: vagaInput.vaga, sede: vagaInput.sede || selectedSede, quantidade: quantas } },
+          { ref: { cargo: vagaInput.vaga, sede: vagaInput.sede || selectedSede, quantidade: quantas }, escopo: unidadeDaVaga(vagaInput) },
         );
       },
     );
@@ -690,7 +703,7 @@ export default function App() {
         ...(criada ? { vagaId: criada.id, vagaCodigo: criada.codigo } : {}),
       });
       await logAction('CRIOU', 'Vagas', `Vaga${criada ? ` #${criada.codigo}` : ''} "${req.cargo}" criada a partir de requisição (gestor: ${req.gestorSolicitante}).`,
-        { ref: { cargo: req.cargo, sede: req.sede } });
+        { ref: { cargo: req.cargo, sede: req.sede }, escopo: unidadeDe({ sede: req.sede }) });
       notify('Requisição aceita — vaga criada!', 'success');
     });
 
@@ -699,18 +712,19 @@ export default function App() {
     executeWithLoading("Registrando integração...", async () => {
       await addIntegracao(i);
       await logAction('CRIOU', 'Integrações', `Integração de "${i.nome}" (${i.sede}) registrada.`,
-        { ref: { colaborador: i.nome, sede: i.sede } });
+        { ref: { colaborador: i.nome, sede: i.sede }, escopo: unidadeDe(i) });
     });
   const wrappedUpdateIntegracao = (id: string, f: any) =>
     executeWithLoading("Atualizando integração...", async () => {
+      const alvo = integracoes.find(x => x.id === id);
       await updateIntegracao(id, f);
-      await logAction('ALTEROU', 'Integrações', `Integração de "${f.nome || id}" alterada.`);
+      await logAction('ALTEROU', 'Integrações', `Integração de "${f.nome || id}" alterada.`, { escopo: unidadeDe(alvo) });
     });
   const wrappedDeleteIntegracao = (id: string) =>
     executeWithLoading("Excluindo integração...", async () => {
       const alvo = integracoes.find(x => x.id === id);
       await deleteIntegracao(id);
-      await logAction('EXCLUIU', 'Integrações', `Integração de "${alvo?.nome || id}" removida.`);
+      await logAction('EXCLUIU', 'Integrações', `Integração de "${alvo?.nome || id}" removida.`, { escopo: unidadeDe(alvo) });
     });
   // Consultas (Colégio): operações com loading + auditoria, como nos demais módulos.
   const wrappedAddConsulta = (c: any) =>
@@ -773,8 +787,13 @@ export default function App() {
   // loga e dá um retorno discreto. A UI atualiza sozinha pelo onSnapshot.
   const handleStatusIntegracao = async (id: string, status: any) => {
     const alvo = integracoes.find(x => x.id === id);
-    await updateIntegracao(id, { status });
-    await logAction('ALTEROU', 'Integrações', `Integração de "${alvo?.nome || id}" → status "${status}".`);
+    try {
+      await updateIntegracao(id, { status });
+      await logAction('ALTEROU', 'Integrações', `Integração de "${alvo?.nome || id}" → status "${status}".`, { escopo: unidadeDe(alvo) });
+    } catch (e: any) {
+      notify(e?.message || String(e), 'error');
+      return;
+    }
     notify(`Status atualizado: ${status}.`, 'success');
   };
 
@@ -797,7 +816,7 @@ export default function App() {
   const handleRecusarRequisicao = (req: any, motivo: string) =>
     executeWithLoading("Recusando requisição...", async () => {
       await updateRequisicao(req.id, { status: 'recusada', motivoRecusa: motivo || '', decididaEm: new Date().toISOString(), decididaPor: user?.email || 'sistema' });
-      await logAction('ALTEROU', 'Vagas', `Requisição de "${req.cargo}" (gestor: ${req.gestorSolicitante}) recusada.`);
+      await logAction('ALTEROU', 'Vagas', `Requisição de "${req.cargo}" (gestor: ${req.gestorSolicitante}) recusada.`, { escopo: unidadeDe({ sede: req.sede }) });
       notify('Requisição recusada.', 'info');
     });
 
@@ -815,42 +834,42 @@ export default function App() {
       if (updatedFields.responsavel && v?.responsavel !== updatedFields.responsavel) {
         details += ` Responsável alterado para "${updatedFields.responsavel}".`;
       }
-      await logAction('ALTEROU', 'Vagas', details);
+      await logAction('ALTEROU', 'Vagas', details, { escopo: unidadeDaVaga(v) });
     });
     
   const wrappedDeleteVaga = (id: string) => 
     executeWithLoading("Removendo vaga e atualizando fluxo...", async () => {
       const v = vagas.find(item => item.id === id);
       await deleteVaga(id);
-      await logAction('EXCLUIU', 'Vagas', `Vaga #${v?.codigo || id} ("${v?.vaga || ''}") excluída permanentemente.`);
+      await logAction('EXCLUIU', 'Vagas', `Vaga #${v?.codigo || id} ("${v?.vaga || ''}") excluída permanentemente.`, { escopo: unidadeDaVaga(v) });
     });
 
   const wrappedAddTreinamento = (input: any) => 
     executeWithLoading("Sincronizando registro de treinamento...", async () => {
       await addTreinamento(input);
       await logAction('CRIOU', 'Treinamentos', `Treinamento sobre "${input.tema || ''}" registrado na unidade "${input.unidade || ''}".`,
-        { ref: { tema: input.tema, unidade: input.unidade } });
+        { ref: { tema: input.tema, unidade: input.unidade }, escopo: unidadeDe({ sede: input.unidade }) });
     });
 
   const wrappedDeleteTreinamento = (id: string) => 
     executeWithLoading("Excluindo registro de treinamento...", async () => {
       const t = treinamentos.find(item => item.id === id);
       await deleteTreinamento(id);
-      await logAction('EXCLUIU', 'Treinamentos', `Treinamento #${t?.codigo || id} sobre "${t?.tema || ''}" excluído.`);
+      await logAction('EXCLUIU', 'Treinamentos', `Treinamento #${t?.codigo || id} sobre "${t?.tema || ''}" excluído.`, { escopo: unidadeDe({ escopo: t?.escopo, sede: t?.unidade }) });
     });
 
   const wrappedUpdateTreinamento = (id: string, updatedFields: any) =>
     executeWithLoading("Atualizando registro de treinamento...", async () => {
       const t = treinamentos.find(item => item.id === id);
       await updateTreinamento(id, updatedFields);
-      await logAction('ALTEROU', 'Treinamentos', `Treinamento #${t?.codigo || id} sobre "${updatedFields.tema || t?.tema || ''}" atualizado.`);
+      await logAction('ALTEROU', 'Treinamentos', `Treinamento #${t?.codigo || id} sobre "${updatedFields.tema || t?.tema || ''}" atualizado.`, { escopo: unidadeDe({ escopo: t?.escopo, sede: t?.unidade }) });
     });
 
   const wrappedAddExperiencia = (input: any) => 
     executeWithLoading("Gravando acompanhamento de experiência...", async () => {
       await addExperiencia(input);
       await logAction('CRIOU', 'Experiências', `Acompanhamento de experiência criado para o colaborador "${input.colaborador}" (Setor: ${input.setor || ''}).`,
-        { ref: { colaborador: input.colaborador, setor: input.setor } });
+        { ref: { colaborador: input.colaborador, setor: input.setor }, escopo: unidadeDe(input) });
     });
 
   const wrappedUpdateExperiencia = (id: string, updatedFields: any) => 
@@ -861,14 +880,14 @@ export default function App() {
       if (updatedFields.status && exp?.status !== updatedFields.status) {
         details += ` Status alterado de "${exp?.status || ''}" para "${updatedFields.status}".`;
       }
-      await logAction('ALTEROU', 'Experiências', details);
+      await logAction('ALTEROU', 'Experiências', details, { escopo: unidadeDe(exp) });
     });
 
   const wrappedDeleteExperiencia = (id: string) => 
     executeWithLoading("Excluindo registro de experiência...", async () => {
       const exp = experiencias.find(item => item.id === id);
       await deleteExperiencia(id);
-      await logAction('EXCLUIU', 'Experiências', `Acompanhamento do colaborador "${exp?.colaborador || ''}" excluído.`);
+      await logAction('EXCLUIU', 'Experiências', `Acompanhamento do colaborador "${exp?.colaborador || ''}" excluído.`, { escopo: unidadeDe(exp) });
     });
 
   const wrappedAddEntrevista = (input: any) => 
@@ -895,40 +914,40 @@ export default function App() {
   const wrappedAddTurnover = (input: any) => 
     executeWithLoading("Processando dados de Headcount & Turnover...", async () => {
       await addTurnover(input);
-      await logAction('CRIOU', 'Turnover', `Balanço mensal de Headcount/Turnover cadastrado para o mês/ano "${input.mesAno}".`);
+      await logAction('CRIOU', 'Turnover', `Balanço mensal de Headcount/Turnover cadastrado para o mês/ano "${input.mesAno}".`, { escopo: unidadeDoTurnover(input) });
     });
 
   const wrappedDeleteTurnover = (id: string) => 
     executeWithLoading("Ajustando logs de indicadores...", async () => {
       const turn = turnover.find(item => item.id === id);
       await deleteTurnover(id);
-      await logAction('EXCLUIU', 'Turnover', `Balanço de Headcount/Turnover para o mês "${turn?.mesAno || id}" excluído.`);
+      await logAction('EXCLUIU', 'Turnover', `Balanço de Headcount/Turnover para o mês "${turn?.mesAno || id}" excluído.`, { escopo: unidadeDoTurnover(turn) });
     });
 
   const wrappedUpdateTurnover = (id: string, updatedFields: any) =>
     executeWithLoading("Atualizando indicadores de turnover...", async () => {
       const turn = turnover.find(item => item.id === id);
       await updateTurnover(id, updatedFields);
-      await logAction('ALTEROU', 'Turnover', `Balanço de Headcount/Turnover para o mês "${updatedFields.mesAno || turn?.mesAno || id}" atualizado.`);
+      await logAction('ALTEROU', 'Turnover', `Balanço de Headcount/Turnover para o mês "${updatedFields.mesAno || turn?.mesAno || id}" atualizado.`, { escopo: unidadeDoTurnover(turn) });
     });
 
   const wrappedAddUsuario = (email: string, role: UserRole, sede?: string, nome?: string) =>
     executeWithLoading("Cadastrando novo perfil de usuário autorizado...", async () => {
       await addUsuario(email, role, sede, nome);
-      await logAction('CRIOU', 'Usuários', `Usuário "${email}" convidado como "${role}" na unidade "${sede || 'DT'}".`);
+      await logAction('CRIOU', 'Usuários', `Usuário "${email}" convidado como "${role}" na unidade "${sede || 'DT'}".`, { escopo: unidadeDe({ sede }) });
     });
 
   const wrappedUpdateUsuario = (id: string, email: string, role: UserRole, sede?: string, nome?: string) =>
     executeWithLoading("Atualizando dados do usuário...", async () => {
       await updateUsuario(id, email, role, sede, nome);
-      await logAction('ALTEROU', 'Usuários', `Dados do usuário "${email}" atualizados para papel "${role}" e sede "${sede || 'DT'}".`);
+      await logAction('ALTEROU', 'Usuários', `Dados do usuário "${email}" atualizados para papel "${role}" e sede "${sede || 'DT'}".`, { escopo: unidadeDe({ sede }) });
     });
 
   const wrappedDeleteUsuario = (id: string) => 
     executeWithLoading("Bloqueando e removendo acesso organizacional...", async () => {
       const u = usuarios.find(item => item.id === id || item.email === id);
       await deleteUsuario(id);
-      await logAction('EXCLUIU', 'Usuários', `Usuário "${u?.email || id}" removido do sistema.`);
+      await logAction('EXCLUIU', 'Usuários', `Usuário "${u?.email || id}" removido do sistema.`, { escopo: unidadeDe({ escopo: u?.unidade, sede: u?.sede }) });
     });
 
   const wrappedAddSede = (nome: string, regiao: string, sigla?: string) => 
@@ -1651,11 +1670,11 @@ export default function App() {
                 selecoesExistentes={selecoes}
                 onImportarSelecoes={importSelecoes}
                 onSelecoesImportadas={(quantidade, aba) => {
-                  logAction('CRIOU', 'Vagas', `Importação de seleções: ${quantidade} evento(s) da aba "${aba}".`);
+                  logAction('CRIOU', 'Vagas', `Importação de seleções: ${quantidade} evento(s) da aba "${aba}".`).catch((e: any) => notify(e?.message || String(e), 'error'));
                   notify(`${quantidade} evento(s) de seleção importado(s).`, 'success');
                 }}
                 onVagasAnuaisImportadas={(quantidade, aba) => {
-                  logAction('CRIOU', 'Vagas', `Importação da planilha anual: ${quantidade} vaga(s) da aba "${aba}".`);
+                  logAction('CRIOU', 'Vagas', `Importação da planilha anual: ${quantidade} vaga(s) da aba "${aba}".`).catch((e: any) => notify(e?.message || String(e), 'error'));
                   notify(`${quantidade} vaga(s) importada(s) da aba "${aba}".`, 'success');
                 }}
                 onRecalcExperiencias={handleRecalcularExperiencias}
