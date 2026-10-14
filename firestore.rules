@@ -468,20 +468,27 @@ service cloud.firestore {
     //  preservar a integridade da trilha de auditoria.
     // =====================================================================
     match /logs/{logId} {
-      // Admin e Coordenador leem tudo (o filtro por região é no app). Os demais
-      // leem SÓ as próprias linhas: é o que o "Meu dia" mostra como "do
-      // sistema" antes de a pessoa completar o relatório. Ninguém lê o log de
-      // um colega — a consulta da tela filtra por `usuario`, e a regra confere.
-      allow read: if isAdmin() || isCoordenador()
+      // Admin lê tudo; o Coordenador, SÓ os logs da unidade dele (fase 2 do
+      // isolamento, 14/10/2026: o texto traz nome do desligado e especialidade
+      // de consulta — antes o coordenador da Universidade lia os do Colégio).
+      // Log sem `escopo` (anterior à migração) só o Admin lê. Os demais leem
+      // SÓ as próprias linhas: é o que o "Meu dia" mostra como "do sistema"
+      // antes de a pessoa completar o relatório. Ninguém lê o log de um colega
+      // — a consulta da tela filtra por `usuario`, e a regra confere.
+      allow read: if isAdmin()
+        || (isCoordenador() && resource.data.get('escopo', '') == minhaUnidade())
         || (isAppUser() && resource.data.usuario == request.auth.token.email);
 
       // ⚠️ Auditoria de 14/10/2026: o autor do log É quem está logado. Antes,
       // quem gravava escolhia o `usuario` — e o log alimenta o e-mail das 18h
       // para a diretoria: dava para atribuir ao colega "removeu 40 vagas". O
       // app grava currentUser.email (useLogs), o mesmo e-mail do token.
+      // E o log leva a unidade: quem não é Admin só grava na própria (senão
+      // escondia o log do coordenador dela, ou jogava um na outra).
       allow create: if isEditor()
         && incoming().usuario == request.auth.token.email
-        && incoming().acao in ['CRIOU', 'ALTEROU', 'EXCLUIU', 'SINALIZOU'];
+        && incoming().acao in ['CRIOU', 'ALTEROU', 'EXCLUIU', 'SINALIZOU']
+        && escopoValido(incoming()) && daMinhaUnidade(incoming().escopo);
       allow update, delete: if false;
     }
 

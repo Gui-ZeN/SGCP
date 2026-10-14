@@ -149,7 +149,7 @@ function PassoCandidatos(p: Props) {
       }
       const resumo = testes
         ? `Vaga #${p.vaga.codigo} foi para Testes: ${presentes.length} de ${base.length} vieram, ${marcados.length} vão para os testes.`
-        : `Vaga #${p.vaga.codigo} foi para Documentação: ${marcados.length} seguem (${marcados.map(c => c.nome).join(', ') || 'ninguém'}).`;
+        : `Vaga #${p.vaga.codigo} foi para Documentação: ${marcados.length} seguem.`; // sem os nomes: log é imutável (ver App.tsx › recalcularSelecao)
       await p.atualizar(alteracoes, resumo);
       await p.mover();
       p.aoFechar();

@@ -441,7 +441,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     if (escolhidoParaConcluir && atualizarCandidatos && escolhidoParaConcluir.nome.trim().toLowerCase() === candidato.trim().toLowerCase()) {
       await atualizarCandidatos(
         [{ candidato: escolhidoParaConcluir, campos: { contratado: 'sim' } }],
-        `${escolhidoParaConcluir.nome} contratado(a) na vaga #${vagaToConclude!.codigo}.`
+        `Candidato(a) contratado(a) na vaga #${vagaToConclude!.codigo}.` // sem o nome: log é imutável
       );
     }
     

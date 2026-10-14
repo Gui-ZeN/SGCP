@@ -172,7 +172,10 @@ export default function App() {
   // lê tudo (null). `escopoPronto` segura a leitura até o cadastro chegar: uma
   // leitura negada no primeiro instante jogaria o hook no modo offline.
   const meuCadastro = usuarios.find(u => (u.email || '').toLowerCase() === (user?.email || '').toLowerCase());
-  const escopoLeitor: Escopo | null = userRole === 'Administrador' ? null : (meuCadastro?.unidade || 'colegio');
+  // Papel do CADASTRO, não o `userRole` da tela: este começa como o salvo no
+  // navegador e, no primeiro instante, um Coordenador ainda "era" Admin —
+  // a leitura saía sem filtro, era negada e caía no modo offline.
+  const escopoLeitor: Escopo | null = meuCadastro?.role === 'Administrador' ? null : (meuCadastro?.unidade || 'colegio');
   const escopoPronto = !isFirebaseEnabled || !!meuCadastro;
 
   const {
@@ -207,7 +210,14 @@ export default function App() {
   const isCoord = selectedRole === 'Coordenador';
   const userRegiao = regiaoDaSede(sedes, selectedSede);
 
-  const { logs, logAction } = useLogs(user, isAdmin || isCoord, userRegiao);
+  // Log com unidade (fase 2 do isolamento): o Coordenador só lê a dele. O
+  // Admin carimba a unidade da sede escolhida na tela, salvo quando a ação
+  // conhece a do registro (entrevistas, consultas).
+  const { logs, logAction } = useLogs(user, isAdmin || isCoord, userRegiao, {
+    leitura: escopoLeitor,
+    autor: escopoParaGravar(escopoLeitor, sedes || [], selectedSede),
+    pronto: escopoPronto,
+  });
   const { requisicoes, updateRequisicao } = useRequisicoes(user, isAdmin);
   const requisicoesPendentes = requisicoes.filter(r => r.status === 'pendente').length;
   const { enfeites, setEnfeite, notificacoes, salvarNotificacoes } = useAppConfig(user);
@@ -455,6 +465,11 @@ export default function App() {
   // Só recalcula dia cujos números SÃO da lista: o que já é (`numerosPelaLista`)
   // ou o que ainda não tinha candidato nenhum — o primeiro lançado pelo sistema
   // liga a chave. Dia importado com nomes só para consulta fica como está.
+  // Unidade do log de candidato = a do candidato/seleção, não a sede da tela:
+  // o Admin com uma sede do Colégio escolhida mexendo na Universidade gravava
+  // o log no Colégio (revisão de segurança de 14/10/2026).
+  const escopoDaSelecao = (selecao?: Pick<Selecao, 'sede'>) => escopoParaGravar(escopoLeitor, sedes || [], selecao?.sede);
+  const escopoDoCandidato = (c: Candidato) => c.escopo ?? escopoDaSelecao(selecoes.find(s => s.id === c.selecaoId));
   const recalcularSelecao = async (selecao: Selecao, lista: Pick<Candidato, 'resultado' | 'contratado' | 'motivo'>[]) => {
     const jaTinha = candidatos.some(c => c.selecaoId === selecao.id);
     if (!selecao.numerosPelaLista && jaTinha) return;
@@ -472,7 +487,7 @@ export default function App() {
       await recalcularSelecao(selecao, [...outros, dados]);
       await logAction(id ? 'ALTEROU' : 'CRIOU', 'Candidatos',
         `${id ? 'Candidato atualizado' : 'Candidato registrado'} na seleção de ${selecao.cargo} (${selecao.data}).`,
-        { ref: { cargo: selecao.cargo, data: selecao.data, candidato: candidatoId } });
+        { ref: { cargo: selecao.cargo, data: selecao.data, candidato: candidatoId }, escopo: escopoDaSelecao(selecao) });
     } catch (err: any) {
       notify(`Erro ao salvar o candidato: ${err?.message || err}`, 'error');
       return;
@@ -500,7 +515,7 @@ export default function App() {
       await recalcularSelecao(selecao, [...candidatos.filter(c => c.selecaoId === selecao.id), ...novos]);
       for (const c of novos) {
         await logAction('CRIOU', 'Candidatos', `Candidato registrado na seleção de ${selecao.cargo} (${selecao.data}).`,
-          { ref: { cargo: selecao.cargo, data: selecao.data, candidato: c.id } });
+          { ref: { cargo: selecao.cargo, data: selecao.data, candidato: c.id }, escopo: escopoDaSelecao(selecao) });
       }
     });
 
@@ -574,7 +589,7 @@ export default function App() {
         });
         await recalcularSelecao(selecao, lista);
       }
-      if (alteracoes.length) await logAction('ALTEROU', 'Candidatos', resumo);
+      if (alteracoes.length) await logAction('ALTEROU', 'Candidatos', resumo, { escopo: escopoDoCandidato(alteracoes[0].candidato) });
     });
 
   const wrappedRemoverCandidato = (selecao: Selecao, id: string) =>
@@ -582,7 +597,7 @@ export default function App() {
       await removerCandidato(id);
       await recalcularSelecao(selecao, candidatos.filter(c => c.selecaoId === selecao.id && c.id !== id));
       await logAction('EXCLUIU', 'Candidatos', `Candidato removido da seleção de ${selecao.cargo} (${selecao.data}).`,
-        { ref: { cargo: selecao.cargo, data: selecao.data, candidato: id } });
+        { ref: { cargo: selecao.cargo, data: selecao.data, candidato: id }, escopo: escopoDaSelecao(selecao) });
     });
 
   // Módulo Seleções (a planilha no sistema). O log diz o QUE foi: lançar
@@ -610,8 +625,8 @@ export default function App() {
   const adminUsuarios = useMemo(() => isCoord ? (usuarios || []).filter(u => sedeEhUniversidade(sedes, u.sede) === usuarioEhUni) : (usuarios || []), [usuarios, isCoord, sedes, usuarioEhUni]);
   const adminSedes = useMemo(() => isCoord ? (sedes || []).filter(s => ((s.regiao || '').toLowerCase() === REGIAO_UNIVERSIDADE) === usuarioEhUni) : (sedes || []), [sedes, isCoord, usuarioEhUni]);
   const adminRegioes = useMemo(() => isCoord ? (regioes || []).filter(r => ((r.nome || '').toLowerCase() === REGIAO_UNIVERSIDADE) === usuarioEhUni) : (regioes || []), [regioes, isCoord, usuarioEhUni]);
-  // Logs do painel idem (log carimba a região do autor; sem região = Colégio antigo).
-  const adminLogs = useMemo(() => isCoord ? (logs || []).filter(l => (((l as any).regiao || '').toLowerCase() === REGIAO_UNIVERSIDADE) === usuarioEhUni) : (logs || []), [logs, isCoord, usuarioEhUni]);
+  // Logs: o recorte por unidade já vem do banco (regra + consulta em useLogs).
+  const adminLogs = logs || [];
 
   // Custom global confirmation modal & loading state
   const [globalLoading, setGlobalLoading] = useState<string | null>(null);
@@ -703,7 +718,7 @@ export default function App() {
       await addConsulta(c);
       // Sem `ref` de propósito: consulta é dado de saúde, e o relato diário
       // que vai aos diretores só pode dizer QUANTAS, nunca de quem nem qual.
-      await logAction('CRIOU', 'Consultas', `Consulta de "${c.funcionario}" (${c.especialidade}) solicitada em ${c.dataSolicitacao}.`);
+      await logAction('CRIOU', 'Consultas', `Consulta de "${c.funcionario}" (${c.especialidade}) solicitada em ${c.dataSolicitacao}.`, { escopo: 'colegio' });
     });
   const wrappedUpdateConsulta = (id: string, campos: any) =>
     executeWithLoading("Atualizando consulta...", async () => {
@@ -715,14 +730,15 @@ export default function App() {
         'Consultas',
         virouAtendida
           ? `Consulta de "${campos.funcionario || alvo?.funcionario || id}" marcada como Atendido em ${campos.dataAtendimento}.`
-          : `Consulta de "${campos.funcionario || alvo?.funcionario || id}" alterada.`
+          : `Consulta de "${campos.funcionario || alvo?.funcionario || id}" alterada.`,
+        { escopo: 'colegio' }
       );
     });
   const wrappedDeleteConsulta = (id: string) =>
     executeWithLoading("Excluindo consulta...", async () => {
       const alvo = consultas.find(x => x.id === id);
       await deleteConsulta(id);
-      await logAction('EXCLUIU', 'Consultas', `Consulta de "${alvo?.funcionario || id}" removida.`);
+      await logAction('EXCLUIU', 'Consultas', `Consulta de "${alvo?.funcionario || id}" removida.`, { escopo: 'colegio' });
     });
 
   // Import da planilha "Acompanhamento do período de experiência" da Universidade
@@ -859,21 +875,21 @@ export default function App() {
     executeWithLoading("Registrando entrevista de desligamento...", async () => {
       await addEntrevista(input);
       await logAction('CRIOU', 'Entrevistas', `Entrevista de desligamento de "${input.colaborador}" ("${input.funcao || ''}") registrada.`,
-        { ref: { colaborador: input.colaborador, funcao: input.funcao } });
+        { ref: { colaborador: input.colaborador, funcao: input.funcao }, escopo: escopoParaGravar(escopoLeitor, sedes || [], input.unidade) });
     });
 
   const wrappedDeleteEntrevista = (id: string) => 
     executeWithLoading("Excluindo entrevista de desligamento...", async () => {
       const ent = entrevistas.find(item => item.id === id);
       await deleteEntrevista(id);
-      await logAction('EXCLUIU', 'Entrevistas', `Entrevista de desligamento de "${ent?.colaborador || ''}" removida.`);
+      await logAction('EXCLUIU', 'Entrevistas', `Entrevista de desligamento de "${ent?.colaborador || ''}" removida.`, { escopo: ent?.escopo });
     });
 
   const wrappedUpdateEntrevista = (id: string, updatedFields: any) =>
     executeWithLoading("Atualizando entrevista de desligamento...", async () => {
       const ent = entrevistas.find(item => item.id === id);
       await updateEntrevista(id, updatedFields);
-      await logAction('ALTEROU', 'Entrevistas', `Entrevista de desligamento de "${updatedFields.colaborador || ent?.colaborador || ''}" atualizada.`);
+      await logAction('ALTEROU', 'Entrevistas', `Entrevista de desligamento de "${updatedFields.colaborador || ent?.colaborador || ''}" atualizada.`, { escopo: ent?.escopo });
     });
 
   const wrappedAddTurnover = (input: any) => 

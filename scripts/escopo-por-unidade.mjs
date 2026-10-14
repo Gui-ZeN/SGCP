@@ -14,7 +14,10 @@
  *
  *  - entrevistas: unidade da sede do campo `unidade` (nome ou sigla);
  *  - candidatos:  unidade da sede da SELEÇÃO do candidato;
- *  - usuarios:    unidade da sede do cadastro (só onde o campo falta).
+ *  - usuarios:    unidade da sede do cadastro (só onde o campo falta);
+ *  - logs:        a unidade do registro (consulta, entrevista, candidato);
+ *                 senão a `regiao` do log; senão a de quem agiu; sem prova
+ *                 nenhuma, fica sem (só o Administrador lê).
  * Sede fora do catálogo conta como Colégio — a mesma regra da tela
  * (utils/unidade.ts › escopoDaSede). Só preenche o que FALTA: nada que já
  * tenha o campo é sobrescrito. Idempotente: pode rodar de novo (e deve, logo
@@ -78,29 +81,79 @@ const planos = [];
 const relatorio = {};
 const conta = (col, k) => { relatorio[col] = relatorio[col] || {}; relatorio[col][k] = (relatorio[col][k] || 0) + 1; };
 
+// Unidade de cada registro (já gravada ou a gravar), para os logs cruzarem.
+// Nome de colaborador que aparece nas duas unidades fica ambíguo (null).
+const escopoDaEntrevistaPorNome = new Map();
+const escopoDoCandidato = new Map();
+
 for (const d of await ler('entrevistas')) {
-  if (tem(d, 'escopo')) { conta('entrevistas', 'já tinham'); continue; }
-  const u = unidadeDaSede(txt(d, 'unidade'));
-  conta('entrevistas', u.escopo);
-  if (!u.conhecida) conta('entrevistas', '  (sede fora do catálogo → colegio)');
-  planos.push({ doc: d, campo: 'escopo', valor: u.escopo });
+  let escopo = txt(d, 'escopo');
+  if (escopo) conta('entrevistas', 'já tinham');
+  else {
+    const u = unidadeDaSede(txt(d, 'unidade'));
+    escopo = u.escopo;
+    conta('entrevistas', u.escopo);
+    if (!u.conhecida) conta('entrevistas', '  (sede fora do catálogo → colegio)');
+    planos.push({ doc: d, campo: 'escopo', valor: u.escopo });
+  }
+  const nome = chave(txt(d, 'colaborador'));
+  if (nome) escopoDaEntrevistaPorNome.set(nome,
+    escopoDaEntrevistaPorNome.has(nome) && escopoDaEntrevistaPorNome.get(nome) !== escopo ? null : escopo);
 }
 
 for (const d of await ler('candidatos')) {
-  if (tem(d, 'escopo')) { conta('candidatos', 'já tinham'); continue; }
-  const sel = selecoes.get(txt(d, 'selecaoId'));
-  const u = sel ? unidadeDaSede(txt(sel, 'sede')) : { escopo: 'colegio', conhecida: false };
-  conta('candidatos', u.escopo);
-  if (!sel) conta('candidatos', '  (seleção não encontrada → colegio)');
-  else if (!u.conhecida) conta('candidatos', '  (sede da seleção fora do catálogo → colegio)');
-  planos.push({ doc: d, campo: 'escopo', valor: u.escopo });
+  let escopo = txt(d, 'escopo');
+  if (escopo) conta('candidatos', 'já tinham');
+  else {
+    const sel = selecoes.get(txt(d, 'selecaoId'));
+    const u = sel ? unidadeDaSede(txt(sel, 'sede')) : { escopo: 'colegio', conhecida: false };
+    escopo = u.escopo;
+    conta('candidatos', u.escopo);
+    if (!sel) conta('candidatos', '  (seleção não encontrada → colegio)');
+    else if (!u.conhecida) conta('candidatos', '  (sede da seleção fora do catálogo → colegio)');
+    planos.push({ doc: d, campo: 'escopo', valor: u.escopo });
+  }
+  escopoDoCandidato.set(idDe(d), escopo);
 }
 
-for (const d of await ler('usuarios')) {
+const usuarios = await ler('usuarios');
+for (const d of usuarios) {
   if (tem(d, 'unidade')) { conta('usuarios', 'já tinham'); continue; }
   const u = unidadeDaSede(txt(d, 'sede'));
   conta('usuarios', u.escopo);
   planos.push({ doc: d, campo: 'unidade', valor: u.escopo });
+}
+
+// logs (fase 2), do mais forte ao mais fraco:
+//  1. a unidade do REGISTRO: consultas são do Colégio; entrevista pelo nome do
+//     colaborador (ref ou texto); candidato pelo id em `ref.candidato`;
+//  2. a `regiao` carimbada no log (o critério do filtro antigo da tela);
+//  3. a unidade do cadastro de quem agiu.
+// Sem nenhum dos três, o log fica SEM escopo — só o Administrador lê (modo
+// fechado), em vez de cair no Colégio sem prova.
+const unidadeDoAutor = new Map(usuarios.map(d => [chave(txt(d, 'email') || idDe(d)),
+  txt(d, 'unidade') || unidadeDaSede(txt(d, 'sede')).escopo]));
+const doRef = (d, c) => d.fields?.ref?.mapValue?.fields?.[c]?.stringValue ?? '';
+const doRegistro = d => {
+  const modulo = txt(d, 'modulo');
+  if (modulo === 'Consultas') return 'colegio';
+  if (modulo === 'Entrevistas') {
+    const nome = chave(doRef(d, 'colaborador') || (txt(d, 'detalhes').match(/de "([^"]+)"/) || [])[1]);
+    return escopoDaEntrevistaPorNome.get(nome) || null;
+  }
+  if (modulo === 'Candidatos') return escopoDoCandidato.get(doRef(d, 'candidato')) || null;
+  return null;
+};
+for (const d of await ler('logs')) {
+  if (tem(d, 'escopo')) { conta('logs', 'já tinham'); continue; }
+  const regiao = chave(txt(d, 'regiao'));
+  const autor = unidadeDoAutor.get(chave(txt(d, 'usuario')));
+  let escopo = doRegistro(d), motivo = 'pelo registro';
+  if (!escopo && regiao) { escopo = regiao === 'universidade' ? 'universidade' : 'colegio'; motivo = 'pela região'; }
+  if (!escopo && autor) { escopo = autor === 'universidade' ? 'universidade' : 'colegio'; motivo = 'pelo autor'; }
+  if (!escopo) { conta('logs', 'sem prova → fica só para o Administrador'); continue; }
+  conta('logs', `${escopo} (${motivo})`);
+  planos.push({ doc: d, campo: 'escopo', valor: escopo });
 }
 
 console.log(GRAVAR ? '── GRAVANDO ──' : '── ENSAIO (nada é gravado; use --gravar) ──');

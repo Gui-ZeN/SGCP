@@ -4,8 +4,11 @@ import {
   isFirebaseEnabled, 
   collection,
   onSnapshot,
-  addDoc
+  addDoc,
+  query,
+  where
 } from '../lib/firebase';
+import type { Escopo } from '../utils/unidade';
 
 export interface SystemLog {
   id: string;
@@ -14,14 +17,26 @@ export interface SystemLog {
   acao: 'CRIOU' | 'ALTEROU' | 'EXCLUIU' | 'SINALIZOU'; 
   modulo: 'Vagas' | 'Sedes' | 'Regiões' | 'Cargos' | 'Setores' | 'Usuários' | 'Treinamentos' | 'Experiências' | 'Entrevistas' | 'Turnover' | 'Integrações' | 'Consultas' | 'Organograma' | 'Resumo do Dia' | 'Seleções' | 'Candidatos';
   detalhes: string;
-  regiao?: string; // região de quem realizou a ação — usada para escopar o histórico do Coordenador
+  regiao?: string; // região de quem realizou a ação (histórico; o recorte agora é o `escopo`)
+  /** Unidade do log — a regra do banco só entrega ao Coordenador a dele. */
+  escopo?: Escopo;
   /** Campos da ação, para o relato diário escrever frases. Ver `logAction`. */
   ref?: Record<string, string | number>;
 }
 
 const LOCAL_STORAGE_KEY = 'ats_system_logs_fallback';
 
-export function useLogs(currentUser: any, canSeeLogs: boolean = false, actorRegiao: string = '') {
+/**
+ * `isolamento.leitura`: unidade de quem lê (null = Administrador, lê tudo). O
+ * Coordenador pede ao banco só os logs da unidade dele — a regra nega o resto.
+ * `isolamento.autor`: unidade gravada nos logs, quando a ação não diz outra.
+ */
+export function useLogs(
+  currentUser: any,
+  canSeeLogs: boolean = false,
+  actorRegiao: string = '',
+  isolamento: { leitura: Escopo | null; autor: Escopo; pronto: boolean } = { leitura: null, autor: 'colegio', pronto: true }
+) {
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingFirebase, setUsingFirebase] = useState(isFirebaseEnabled);
@@ -29,8 +44,11 @@ export function useLogs(currentUser: any, canSeeLogs: boolean = false, actorRegi
   // Synchronize system logs
   useEffect(() => {
     if (isFirebaseEnabled && db && currentUser && canSeeLogs) {
+      if (!isolamento.pronto) return;
       setLoading(true);
-      const logsCollection = collection(db, 'logs');
+      const logsCollection = isolamento.leitura
+        ? query(collection(db, 'logs'), where('escopo', '==', isolamento.leitura))
+        : collection(db, 'logs');
       
       const unsubscribe = onSnapshot(logsCollection, (snapshot: any) => {
         const firestoreList: SystemLog[] = [];
@@ -53,7 +71,7 @@ export function useLogs(currentUser: any, canSeeLogs: boolean = false, actorRegi
     } else {
       loadLocalFallback();
     }
-  }, [currentUser, canSeeLogs]);
+  }, [currentUser, canSeeLogs, isolamento.leitura, isolamento.pronto]);
 
   const loadLocalFallback = () => {
     setUsingFirebase(false);
@@ -80,12 +98,14 @@ export function useLogs(currentUser: any, canSeeLogs: boolean = false, actorRegi
    *   relatório "parecer log". Campo vazio é removido: o Firestore recusa
    *   `undefined` e a gravação do log inteiro falharia por causa dele.
    *   (Substitui o antigo `overrideUser`, que nenhuma chamada usava.)
+   * @param opcoes.escopo  unidade do REGISTRO afetado, quando a ação a conhece
+   *   (o Admin mexe nas duas). Sem ela, vale a unidade de quem age.
    */
   const logAction = async (
     acao: 'CRIOU' | 'ALTEROU' | 'EXCLUIU' | 'SINALIZOU',
     modulo: SystemLog['modulo'],
     detalhes: string,
-    opcoes: { ref?: Record<string, string | number | undefined | null> } = {}
+    opcoes: { ref?: Record<string, string | number | undefined | null>; escopo?: Escopo } = {}
   ) => {
     // Determine current user performing the action
     const email = currentUser?.email || 'sistema';
@@ -102,6 +122,7 @@ export function useLogs(currentUser: any, canSeeLogs: boolean = false, actorRegi
       modulo,
       detalhes,
       regiao: actorRegiao || '',
+      escopo: opcoes.escopo || isolamento.autor,
       ...(Object.keys(ref).length ? { ref } : {}),
     };
 

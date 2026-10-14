@@ -109,7 +109,9 @@ async function seed() {
     await setDoc(doc(db, "sedes", "sUni"), { nome: "PE", regiao: "Universidade" });
     // sede legada sem o campo `regiao`: a regra nao pode ESTOURAR por causa disso
     await setDoc(doc(db, "sedes", "sLegada"), { nome: "ANTIGA" });
-    await setDoc(doc(db, "logs", "l1"), { timestamp: "t", usuario: "x", acao: "CRIOU", modulo: "Vagas", detalhes: "d" });
+    await setDoc(doc(db, "logs", "l1"), { timestamp: "t", usuario: "x", acao: "CRIOU", modulo: "Vagas", detalhes: "d", escopo: "colegio" });
+    await setDoc(doc(db, "logs", "lUni"), { timestamp: "t", usuario: "x", acao: "EXCLUIU", modulo: "Entrevistas", detalhes: "desligado da Uni", escopo: "universidade" });
+    await setDoc(doc(db, "logs", "lLegado"), { timestamp: "t", usuario: "x", acao: "CRIOU", modulo: "Vagas", detalhes: "d" });
     await setDoc(doc(db, "logs", "lDoAnalista"), { timestamp: "t", usuario: ANALISTA_EMAIL, acao: "CRIOU", modulo: "Vagas", detalhes: "d" });
     await setDoc(doc(db, "funcionarios", "fn1"), { nome: "Ana", dataNascimento: "24/06/1990", sede: "DT" });
     await setDoc(doc(db, "vagas", "uni-1"), { codigo: 9001, vaga: "NPJ", status: "ABERTA", origem: "planilha-universidade" });
@@ -482,18 +484,51 @@ test("logs: consulta sem filtro (o log inteiro) continua negada para analista", 
   assertFails(getDocs(collection(ctx.user(ANALISTA_EMAIL), "logs"))));
 
 test("logs: analista pode criar log válido", () =>
-  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "logs", "l2"), { timestamp: "t", usuario: ANALISTA_EMAIL, acao: "CRIOU", modulo: "Vagas", detalhes: "d" })));
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "logs", "l2"), { timestamp: "t", usuario: ANALISTA_EMAIL, acao: "CRIOU", modulo: "Vagas", detalhes: "d", escopo: "colegio" })));
 
 test("logs: criar log com acao inválida é negado", () =>
-  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "logs", "l3"), { timestamp: "t", usuario: ANALISTA_EMAIL, acao: "DELETOU_TUDO", modulo: "Vagas", detalhes: "d" })));
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "logs", "l3"), { timestamp: "t", usuario: ANALISTA_EMAIL, acao: "DELETOU_TUDO", modulo: "Vagas", detalhes: "d", escopo: "colegio" })));
 
 // Auditoria de 14/10/2026 (ataque 3): o log alimenta o e-mail das 18h para a
 // diretoria. Sem esta trava, um analista atribuía ao colega "removeu 40 vagas".
 test("logs: NÃO grava log em nome de outra pessoa (ataque 3)", () =>
-  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "logs", "lFalso"), { timestamp: "t", usuario: ADMIN_EMAIL, acao: "EXCLUIU", modulo: "Vagas", detalhes: "removeu 40 vagas" })));
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "logs", "lFalso"), { timestamp: "t", usuario: ADMIN_EMAIL, acao: "EXCLUIU", modulo: "Vagas", detalhes: "removeu 40 vagas", escopo: "colegio" })));
 
 test("logs: visualizador NÃO pode criar log", () =>
-  assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "logs", "l4"), { timestamp: "t", usuario: VIEWER_EMAIL, acao: "CRIOU", modulo: "Vagas", detalhes: "d" })));
+  assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "logs", "l4"), { timestamp: "t", usuario: VIEWER_EMAIL, acao: "CRIOU", modulo: "Vagas", detalhes: "d", escopo: "colegio" })));
+
+// --- Fase 2 do isolamento (14/10/2026): o log tem unidade.
+test("isolamento: coordenador do Colégio lê log do Colégio", () =>
+  assertSucceeds(getDoc(doc(ctx.user(COORDENADOR_EMAIL), "logs", "l1"))));
+
+test("isolamento: coordenador do Colégio NÃO lê log da Universidade", () =>
+  assertFails(getDoc(doc(ctx.user(COORDENADOR_EMAIL), "logs", "lUni"))));
+
+test("isolamento: coordenador da Universidade lê log da Universidade", () =>
+  assertSucceeds(getDoc(doc(ctx.user(COORD_UNI_EMAIL), "logs", "lUni"))));
+
+test("isolamento: coordenador da Universidade NÃO lê log do Colégio", () =>
+  assertFails(getDoc(doc(ctx.user(COORD_UNI_EMAIL), "logs", "l1"))));
+
+test("isolamento: log sem escopo (antes da migração) só o admin lê", async () => {
+  await assertFails(getDoc(doc(ctx.user(COORDENADOR_EMAIL), "logs", "lLegado")));
+  await assertSucceeds(getDoc(doc(ctx.user(ADMIN_EMAIL), "logs", "lLegado")));
+});
+
+test("isolamento: coordenador lista os logs filtrando pela própria unidade", () =>
+  assertSucceeds(getDocs(query(collection(ctx.user(COORD_UNI_EMAIL), "logs"), where("escopo", "==", "universidade")))));
+
+test("isolamento: coordenador NÃO lista o log inteiro sem filtro", () =>
+  assertFails(getDocs(collection(ctx.user(COORD_UNI_EMAIL), "logs"))));
+
+test("isolamento: log sem escopo é recusado", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "logs", "lSem"), { timestamp: "t", usuario: ANALISTA_EMAIL, acao: "CRIOU", modulo: "Vagas", detalhes: "d" })));
+
+test("isolamento: analista do Colégio NÃO grava log na Universidade", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "logs", "lInv"), { timestamp: "t", usuario: ANALISTA_EMAIL, acao: "CRIOU", modulo: "Vagas", detalhes: "d", escopo: "universidade" })));
+
+test("isolamento: admin grava log de qualquer unidade", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "logs", "lAdm"), { timestamp: "t", usuario: ADMIN_EMAIL, acao: "CRIOU", modulo: "Vagas", detalhes: "d", escopo: "universidade" })));
 
 test("logs: update/delete são sempre negados (append-only)", () =>
   assertFails(deleteDoc(doc(ctx.user(ADMIN_EMAIL), "logs", "l1"))));
