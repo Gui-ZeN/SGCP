@@ -124,8 +124,8 @@ async function seed() {
       await setDoc(doc(db, col, "semEscopo"), { nome: "Legado", sede: "DT" });
     }
     await setDoc(doc(db, "contadores", "vagas"), { ultimo: 2000 });
-    await setDoc(doc(db, "diario", "anauni@empresa.com__2026-10-14"), { email: "anauni@empresa.com", data: "14/10/2026", contagens: {} });
-    await setDoc(doc(db, "diario", "x@empresa.com__2026-10-14"), { email: "x@empresa.com", data: "14/10/2026", contagens: { testes: 3 } });
+    await setDoc(doc(db, "diario", "anauni@empresa.com__2026-10-14"), { email: "anauni@empresa.com", data: "14/10/2026", contagens: {}, escopo: "universidade" });
+    await setDoc(doc(db, "diario", "x@empresa.com__2026-10-14"), { email: "x@empresa.com", data: "14/10/2026", contagens: { testes: 3 }, escopo: "colegio" });
   });
 }
 
@@ -257,6 +257,23 @@ test("diario: Universidade lê o próprio", () =>
   assertSucceeds(getDoc(doc(ctx.user("anauni@empresa.com"), "diario", "anauni@empresa.com__2026-10-14"))));
 test("diario: Colégio lê o da equipe", () =>
   assertSucceeds(getDoc(doc(ctx.user(ANALISTA_EMAIL), "diario", "x@empresa.com__2026-10-14"))));
+test("diario: Colégio NÃO lê o diário de alguém da Universidade", () =>
+  assertFails(getDoc(doc(ctx.user(ANALISTA_EMAIL), "diario", "anauni@empresa.com__2026-10-14"))));
+test("diario: Colégio lista os do Colégio (filtro pela unidade)", () =>
+  assertSucceeds(getDocs(query(collection(ctx.user(ANALISTA_EMAIL), "diario"), where("escopo", "==", "colegio")))));
+test("diario: NÃO grava o próprio dia em nome da outra unidade", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "diario", "analista@empresa.com__2026-10-15"),
+    { email: ANALISTA_EMAIL, data: "15/10/2026", contagens: {}, escopo: "universidade" })));
+
+// Usuários (auditoria, item 9): a lista inteira só para o Admin.
+test("usuarios: Colégio NÃO lê o cadastro de alguém da Universidade", () =>
+  assertFails(getDoc(doc(ctx.user(ANALISTA_EMAIL), "usuarios", "anauni@empresa.com"))));
+test("usuarios: Colégio NÃO lista todos os usuários", () =>
+  assertFails(getDocs(collection(ctx.user(ANALISTA_EMAIL), "usuarios"))));
+test("usuarios: lista da própria unidade é permitida", () =>
+  assertSucceeds(getDocs(query(collection(ctx.user("anauni@empresa.com"), "usuarios"), where("unidade", "==", "universidade")))));
+test("usuarios: admin lista todos", () =>
+  assertSucceeds(getDocs(collection(ctx.user(ADMIN_EMAIL), "usuarios"))));
 
 // E-mail não verificado não herda papel (defesa em profundidade).
 test("auth: admin com e-mail NÃO verificado não é admin", () =>
@@ -833,7 +850,7 @@ test("atividades: anonimo NAO pode criar", () =>
 
 // --- diario ("Meu dia": cada pessoa grava SO o proprio) ---------------------
 const diarioDe = (email, over = {}) => Object.assign(
-  { email, data: "22/09/2026", contagens: { atendimentos: 6, testes: 1, t_nova: 3 } }, over);
+  { email, data: "22/09/2026", contagens: { atendimentos: 6, testes: 1, t_nova: 3 }, escopo: "colegio" }, over);
 const idDiario = (email) => `${email}__2026-09-22`;
 
 test("diario: pessoa grava o proprio dia", () =>

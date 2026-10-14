@@ -278,7 +278,17 @@ service cloud.firestore {
     // app precisa listar `usuarios` na inicialização para descobrir o papel
     // do usuário corrente (src/hooks/useMetadata.ts). Escrita só de admin.
     match /usuarios/{email} {
-      allow read: if isAppUser();
+      // Admin lê todos; os demais, o próprio cadastro e os da própria unidade
+      // (auditoria de 14/10/2026: qualquer usuário via a lista inteira, com
+      // os papéis, das duas unidades). A tela consulta com where('unidade').
+      // get (um documento) e list (consulta) separados: na consulta, o id do
+      // documento não serve de prova, e o default do get() deixava a lista
+      // inteira passar (pego no teste de 14/10/2026).
+      allow get: if isAppUser() && (isAdmin()
+        || email == request.auth.token.email
+        || resource.data.get('unidade', '') == minhaUnidade());
+      allow list: if isAppUser() && (isAdmin()
+        || resource.data.get('unidade', '') == minhaUnidade());
       // Coordenador gerencia usuários da UNIDADE dele, mas NUNCA mexe em
       // Administrador (não cria, não promove, não edita/exclui admin) — evita
       // escalonar privilégio. A unidade vem do campo `unidade` que o app grava
@@ -419,10 +429,12 @@ service cloud.firestore {
     // e o id tem que começar por esse mesmo e-mail (senão daria para gravar no
     // id de outra pessoa com o próprio e-mail dentro).
     match /diario/{diarioId} {
-      // O Resumo do Dia é do Colégio: a Universidade lê só o próprio diário
-      // (14/10/2026 — antes qualquer usuário lia as contagens de todos).
-      allow read: if isAppUser() && (isAdmin() || minhaUnidade() == 'colegio'
-        || resource.data.get('email', '') == request.auth.token.email.lower());
+      // O Resumo do Dia é do Colégio: o Colégio lê os diários do Colégio; os
+      // demais, só o próprio (14/10/2026). O diário leva a unidade de quem o
+      // escreveu (`escopo`, conferido na gravação abaixo).
+      allow read: if isAppUser() && (isAdmin()
+        || resource.data.get('email', '') == request.auth.token.email.lower()
+        || (minhaUnidade() == 'colegio' && resource.data.get('escopo', '') == 'colegio'));
       allow create, update: if isAppUser()
         && incoming().get('email', '') == request.auth.token.email.lower()
         && diarioId.split('__')[0] == request.auth.token.email.lower()
@@ -432,7 +444,8 @@ service cloud.firestore {
         // um mapa, então aqui trava-se o formato e o tamanho; o relato ignora
         // sozinho o que não for número positivo (há teste disso).
         && incoming().get('contagens', {}) is map
-        && incoming().get('contagens', {}).size() <= 60;
+        && incoming().get('contagens', {}).size() <= 60
+        && incoming().get('escopo', '') == minhaUnidade();
       allow delete: if false;
     }
 

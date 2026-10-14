@@ -367,7 +367,8 @@ export default function App() {
   };
   // "Meu dia" é do Colégio (o Resumo do Dia não existe para a Universidade), e
   // a regra do banco só entrega o diário a ele.
-  const { diarios, salvarMeuDia } = useDiario(user, escopoPronto && escopoLeitor !== 'universidade');
+  const { diarios, salvarMeuDia } = useDiario(user, escopoPronto && escopoLeitor !== 'universidade',
+    { leitura: escopoLeitor, propria: meuCadastro?.unidade || 'colegio' });
   const meuLog = useMeuLog(user);
   const { tarefas: tarefasDiario, criarTarefa, ajustarTarefa, apagarTarefa } = useTarefasDiario(user);
 

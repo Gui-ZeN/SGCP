@@ -15,6 +15,7 @@
  * registro, em vez de criar um segundo que o relato somaria em dobro.
  */
 import { useFirestoreCollection } from './useFirestoreCollection';
+import type { Escopo } from '../utils/unidade';
 
 export interface DiarioDoc {
   id: string;
@@ -28,6 +29,8 @@ export interface DiarioDoc {
    */
   contagens: Record<string, number>;
   atualizadoEm?: string;
+  /** Unidade de quem escreveu — a regra só mostra ao Colégio os do Colégio. */
+  escopo?: Escopo;
 }
 
 /** DD/MM/AAAA → id do documento daquela pessoa naquele dia. */
@@ -36,13 +39,22 @@ export function idDoDiario(email: string, data: string): string {
   return `${email.trim().toLowerCase()}__${a}-${m}-${d}`;
 }
 
-export function useDiario(currentUser: any, enabled = true) {
+/**
+ * `unidade.leitura`: o que pedir ao banco (null = Administrador, tudo).
+ * `unidade.propria`: a de quem grava — vai no documento, a regra confere.
+ */
+export function useDiario(
+  currentUser: any,
+  enabled = true,
+  unidade: { leitura: Escopo | null; propria: Escopo } = { leitura: null, propria: 'colegio' },
+) {
   const { items, loading, upsert } = useFirestoreCollection<DiarioDoc>({
     collectionName: 'diario',
     localKey: 'sgcp_diario_fallback',
     newLocalId: () => `local_diario_${Date.now()}`,
     sort: (a, b) => (a.data || '').localeCompare(b.data || ''),
     enabled: enabled && !!currentUser,
+    escopo: unidade.leitura,
   });
 
   /**
@@ -58,7 +70,7 @@ export function useDiario(currentUser: any, enabled = true) {
     const limpas = Object.fromEntries(
       Object.entries(contagens).map(([id, n]) => [id, Math.max(0, Math.min(999, Math.floor(Number(n)) || 0))])
     );
-    await upsert(idDoDiario(email, data), { contagens: limpas, email, data, atualizadoEm: new Date().toISOString() });
+    await upsert(idDoDiario(email, data), { contagens: limpas, email, data, escopo: unidade.propria, atualizadoEm: new Date().toISOString() });
   };
 
   return { diarios: items, loading, salvarMeuDia };

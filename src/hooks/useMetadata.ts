@@ -9,6 +9,9 @@ import {
   isFirebaseEnabled, 
   collection, 
   onSnapshot,
+  getDoc,
+  query,
+  where,
   addDoc,
   deleteDoc,
   doc,
@@ -205,18 +208,39 @@ export function useMetadata(currentUser: any) {
       setLoading(true);
 
       // 1. Usuarios Realtime Sync
-      const unsubUsuarios = onSnapshot(collection(db, 'usuarios'), (snapshot: any) => {
-        const list: Usuario[] = [];
-        snapshot.forEach((docSnap: any) => {
-          list.push({ ...docSnap.data(), id: docSnap.id } as Usuario);
-        });
-        setUsuarios(list);
-      }, (error: any) => {
+      //
+      // ⚠️ A regra só entrega a lista inteira ao Administrador; os demais leem
+      // o próprio cadastro e os da própria unidade (auditoria de 14/10/2026).
+      // Por isso lê primeiro o PRÓPRIO cadastro e, sabendo o papel e a
+      // unidade, assina a lista certa — sem filtro, a leitura seria negada.
+      let unsubUsuarios = () => {};
+      let vivo = true;
+      const semPermissao = (error: any) => {
         // Usuário autenticado mas sem permissão (ex.: conta não provisionada):
         // libera o loading para o app decidir (tela de "não autorizado").
         console.warn("Permissão de leitura negada para usuários:", error);
         setLoading(false);
-      });
+      };
+      getDoc(doc(db, 'usuarios', String(currentUser.email || '').toLowerCase()))
+        .then((snap: any) => {
+          if (!vivo) return;
+          if (!snap.exists()) { setUsuarios([]); setLoading(false); return; }
+          const eu = snap.data();
+          const alvo = eu.role === 'Administrador'
+            ? collection(db, 'usuarios')
+            : query(collection(db, 'usuarios'), where('unidade', '==', eu.unidade || 'colegio'));
+          unsubUsuarios = onSnapshot(alvo, (snapshot: any) => {
+            const list: Usuario[] = [];
+            snapshot.forEach((docSnap: any) => {
+              list.push({ ...docSnap.data(), id: docSnap.id } as Usuario);
+            });
+            // O próprio cadastro entra sempre: sem o campo `unidade` ele não
+            // casaria com o filtro e a pessoa levaria "não autorizado".
+            if (!list.some(u => u.id === snap.id)) list.push({ ...eu, id: snap.id } as Usuario);
+            setUsuarios(list);
+          }, semPermissao);
+        })
+        .catch(semPermissao);
 
       // 2. Sedes Realtime Sync
       const unsubSedes = onSnapshot(collection(db, 'sedes'), (snapshot: any) => {
@@ -259,6 +283,7 @@ export function useMetadata(currentUser: any) {
       });
 
       return () => {
+        vivo = false;
         unsubUsuarios();
         unsubSedes();
         unsubRegioes();

@@ -1,11 +1,19 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import {defineConfig, loadEnv} from 'vite';
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
   return {
     plugins: [react(), tailwindcss()],
+    // Chave de SITE do reCAPTCHA (App Check). Aceita também sem o prefixo
+    // VITE_: a Vercel não deixa marcar variável VITE_ como sensível, e o nome
+    // usado lá é RECAPTCHA_SITE_KEY. É pública de qualquer jeito — vai no
+    // código do site, é assim que o reCAPTCHA funciona.
+    define: {
+      'import.meta.env.VITE_RECAPTCHA_SITE_KEY': JSON.stringify(env.VITE_RECAPTCHA_SITE_KEY || env.RECAPTCHA_SITE_KEY || ''),
+    },
     build: {
       rollupOptions: {
         output: {

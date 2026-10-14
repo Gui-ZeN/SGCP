@@ -161,6 +161,17 @@ for (const [colecao, escopoDe] of COLECOES) {
   }
 }
 
+// Diário ("Meu dia"): a unidade de quem o escreveu. Dono sem cadastro → fica
+// sem (só o Administrador lê).
+const unidadePorEmail = new Map(usuarios.map(d => [chave(txt(d, 'email') || idDe(d)), txt(d, 'unidade')]));
+for (const d of await ler('diario')) {
+  if (tem(d, 'escopo')) { conta('diario', 'já tinham'); continue; }
+  const u = unidadePorEmail.get(chave(txt(d, 'email')));
+  if (!u) { conta('diario', 'dono sem cadastro → só o Administrador'); continue; }
+  conta('diario', u);
+  planos.push({ doc: d, campo: 'escopo', valor: u });
+}
+
 // Contador único dos números (#) de vaga e treinamento — src/lib/contador.ts.
 // Nasce (ou sobe) no maior número existente; nunca desce.
 const numero = d => Number(d.fields?.codigo?.integerValue ?? d.fields?.codigo?.doubleValue ?? 0) || 0;

@@ -909,7 +909,10 @@ export default async function handler(req: any, res: any) {
   }
   const faltando = ['SMTP_USER', 'SMTP_APP_PASSWORD', 'GOOGLE_SERVICE_ACCOUNT_JSON']
     .filter(v => !process.env[v]);
-  if ((req.headers?.authorization || '') !== `Bearer ${segredo}`) {
+  // Comparação em tempo constante (auditoria de 14/10/2026): o !== parava no
+  // primeiro caractere diferente, e o tempo de resposta dizia quanto acertou.
+  const h = (s: string) => crypto.createHash('sha256').update(s).digest();
+  if (!crypto.timingSafeEqual(h(String(req.headers?.authorization || '')), h(`Bearer ${segredo}`))) {
     return res.status(401).json({ erro: 'não autorizado' });
   }
   if (faltando.length) {
@@ -1017,6 +1020,8 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({ enviado: true, dia, emails: enviados, pessoas: pessoas.length, destinatarios: lista.length, falhas });
   } catch (e: any) {
     console.error('[selecoes-do-dia]', e?.message || e);
-    return res.status(500).json({ erro: 'falha ao enviar', detalhe: String(e?.message || e).slice(0, 200) });
+    // O detalhe fica só no log da Vercel (linha acima): a resposta não descreve
+    // o interior do sistema (auditoria de 14/10/2026).
+    return res.status(500).json({ erro: 'falha ao enviar' });
   }
 }
