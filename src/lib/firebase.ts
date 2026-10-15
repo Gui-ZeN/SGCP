@@ -22,7 +22,6 @@ import {
   writeBatch,
   runTransaction
 } from 'firebase/firestore';
-import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Support Vercel environment variables or local applet configs seamlessly
@@ -78,17 +77,12 @@ if (!isModoDemo && finalFirebaseConfig.projectId && finalFirebaseConfig.apiKey) 
   try {
     const app = getApps().length === 0 ? initializeApp(finalFirebaseConfig) : getApp();
 
-    // App Check (auditoria de 14/10/2026, achado 5): os formulários públicos
-    // gravam sem login. Com a chave do reCAPTCHA v3, todo pedido ao Firebase
-    // leva um atestado de que veio DESTE site; com a verificação ligada no
-    // console, script solto batendo direto na API é recusado. REDUZ o abuso,
-    // não elimina: robô que roda um navegador de verdade no site ainda passa —
-    // os tetos por campo das regras continuam sendo a defesa de fundo. Sem a
-    // chave, nada muda.
-    const chaveRecaptcha = String((import.meta as any).env?.VITE_RECAPTCHA_SITE_KEY || '').trim();
-    if (chaveRecaptcha) {
-      initializeAppCheck(app, { provider: new ReCaptchaV3Provider(chaveRecaptcha), isTokenAutoRefreshEnabled: true });
-    }
+    // ⚠️ App Check (achado 5 da auditoria) RETIRADO em 15/10/2026: publicado
+    // em 14/10 junto com a subida do SDK 12.13 → 12.19, e desde então ninguém
+    // conseguia entrar (login caía em auth/credential-already-in-use). O
+    // registro no console ainda não estava completo (troca do token dava 400).
+    // Para religar: ver o commit c0c0a87, e testar o LOGIN num deploy de
+    // preview antes de ir para produção.
     
     // Check if a custom database ID is configured, otherwise use default
     db = getFirestore(app, finalFirebaseConfig.firestoreDatabaseId || '(default)');
