@@ -245,11 +245,22 @@ export default function App() {
   // Log com unidade (fase 2 do isolamento): o Coordenador só lê a dele. O
   // Admin carimba a unidade da sede escolhida na tela, salvo quando a ação
   // conhece a do registro (entrevistas, consultas).
-  const { logs, logAction } = useLogs(user, (isAdmin || isCoord) && viu('vagas', 'selecoes', 'admin'), userRegiao, {
+  const { logs, logAction, alcance: alcanceLogs, corte: corteLogs, carregarAnteriores: carregarLogsAnteriores } = useLogs(user, (isAdmin || isCoord) && viu('vagas', 'selecoes', 'admin'), userRegiao, {
     leitura: escopoLeitor,
     autor: escopoParaGravar(escopoLeitor, sedes || [], selectedSede),
     pronto: escopoPronto,
   });
+  // O relato do Resumo do Dia soma o ACUMULADO DO ANO: ao abrir a tela, os
+  // logs do ano que ficam antes da janela de 45 dias vêm numa leitura só.
+  useEffect(() => {
+    if (activeTab === 'selecoes' && (isAdmin || isCoord)) carregarLogsAnteriores('ano').catch(e => console.warn('Logs do ano:', e));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isAdmin, isCoord]);
+  // "Carregar registros anteriores" (Auditoria, histórico de vaga antiga).
+  // Até onde os logs carregados vão (o botão "carregar anteriores" some no fim).
+  const inicioDoAno = `${new Date().getFullYear()}-01-01`;
+  const logsDesde = alcanceLogs === 'tudo' ? undefined : alcanceLogs === 'ano' && inicioDoAno < corteLogs ? inicioDoAno : corteLogs;
+  const carregarTodosOsLogs = () => executeWithLoading('Carregando registros anteriores...', async () => { await carregarLogsAnteriores('tudo'); });
   const { requisicoes, updateRequisicao } = useRequisicoes(user, isAdmin);
   const requisicoesPendentes = requisicoes.filter(r => r.status === 'pendente').length;
   const { enfeites, setEnfeite, notificacoes, salvarNotificacoes } = useAppConfig(user);
@@ -1141,9 +1152,11 @@ export default function App() {
       () => executeWithLoading("Reconstruindo datas de pausa pelos logs...", async () => {
         let ok = 0;
         let semLog = 0;
+        // A escuta traz só os últimos 45 dias: a pausa pode ser mais antiga.
+        const todosOsLogs = await carregarLogsAnteriores('tudo');
         for (const v of pausadas) {
           const marca = `#${v.codigo}`;
-          const statusLogs = logs
+          const statusLogs = todosOsLogs
             .filter(l => l.modulo === 'Vagas' && l.detalhes.includes(marca) && /Status de ".*?" para ".*?"/.test(l.detalhes))
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
           let inicio: string | null = null;
@@ -1470,6 +1483,8 @@ export default function App() {
               userRole={selectedRole}
               focusVaga={vagaFocus}
               logs={logs}
+              logsDesde={logsDesde}
+              onCarregarLogsAnteriores={carregarTodosOsLogs}
               requisicoes={isAdmin ? requisicoes : undefined}
               podeVerSelecoes={podeVerSelecoes}
               // O Kanban conduz os candidatos (nomes = só o RH, sem Visualizador).
@@ -1667,6 +1682,8 @@ export default function App() {
                 cargos={cargos || []}
                 setores={setores || []}
                 logs={adminLogs}
+                logsDesde={logsDesde}
+                onCarregarLogsAnteriores={carregarTodosOsLogs}
                 vagas={vagas}
                 onPadronizarSetores={handlePadronizarSetores}
                 addUsuario={wrappedAddUsuario}

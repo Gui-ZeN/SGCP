@@ -4,9 +4,12 @@ import { SystemLog } from '../hooks/useLogs';
 
 interface AdminLogsTabProps {
   logs: SystemLog[];
+  /** Logs carregados só desde esta data (ISO) — os 45 dias ao vivo; ver useLogs. Ausente = tudo carregado. */
+  logsDesde?: string;
+  onCarregarLogsAnteriores?: () => void;
 }
 
-export const AdminLogsTab: React.FC<AdminLogsTabProps> = ({ logs }) => {
+export const AdminLogsTab: React.FC<AdminLogsTabProps> = ({ logs, logsDesde, onCarregarLogsAnteriores }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedModulo, setSelectedModulo] = useState<string>('all');
   const [selectedAcao, setSelectedAcao] = useState<string>('all');
@@ -120,7 +123,12 @@ export const AdminLogsTab: React.FC<AdminLogsTabProps> = ({ logs }) => {
       </div>
 
       <div className="flex items-center justify-between text-xs px-1 text-slate-450">
-        <span className="font-semibold">Exibindo {filteredLogs.length} de {logs.length} registros de auditoria</span>
+        <span className="font-semibold">Exibindo {filteredLogs.length} de {logs.length} registros de auditoria{logsDesde ? ` (desde ${new Date(logsDesde).toLocaleDateString('pt-BR')})` : ''}
+          {logsDesde && onCarregarLogsAnteriores && (
+            <button type="button" className="btn btn-sm mt-2" onClick={onCarregarLogsAnteriores}>
+              Carregar os anteriores a {new Date(logsDesde).toLocaleDateString('pt-BR')}
+            </button>
+          )}</span>
         <span className="font-bold flex items-center gap-1"><Shield className="w-3 h-3 text-emerald-500" /> Acesso de Admin Apenas</span>
       </div>
 

@@ -27,6 +27,9 @@ interface AdminPanelProps {
   cargos: Cargo[];
   setores: Setor[];
   logs: SystemLog[];
+  /** Ver AdminLogsTab: até onde os logs carregados vão, e o botão que busca o resto. */
+  logsDesde?: string;
+  onCarregarLogsAnteriores?: () => void;
   vagas?: Vaga[];                            // diagnóstico de setores (aba Setores)
   onPadronizarSetores?: () => Promise<void>; // padroniza o setor das vagas p/ o cadastro
   addUsuario: (email: string, role: UserRole, sede?: string, nome?: string) => Promise<void>;
@@ -85,6 +88,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   cargos,
   setores,
   logs,
+  logsDesde,
+  onCarregarLogsAnteriores,
   vagas = [],
   onPadronizarSetores,
   addUsuario,
@@ -211,7 +216,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         )}
 
         {activeSubTab === 'logs' && (
-          <AdminLogsTab logs={logs} />
+          <AdminLogsTab logs={logs} logsDesde={logsDesde} onCarregarLogsAnteriores={onCarregarLogsAnteriores} />
         )}
 
         {activeSubTab === 'enfeites' && !isCoordenador && (

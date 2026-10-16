@@ -58,6 +58,9 @@ interface VacancyTableProps {
   focusVaga?: { codigo: string; token: number } | null;
   // Logs de auditoria (só carregados para admin) — usados na timeline do painel de detalhes.
   logs?: SystemLog[];
+  /** Logs carregados só desde esta data (ISO) — os 45 dias ao vivo; ver useLogs. Ausente = tudo carregado. */
+  logsDesde?: string;
+  onCarregarLogsAnteriores?: () => void;
   /**
    * Seleções do escopo. Vaga com seleção ligada tem o funil calculado delas
    * (decisão de 23/09/2026: automático) — ninguém digita chamados/compareceram/
@@ -99,6 +102,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   userRole,
   focusVaga,
   logs,
+  logsDesde,
+  onCarregarLogsAnteriores,
   selecoes = [],
   abrirSelecao,
   requisicoes,
@@ -1028,6 +1033,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         <VagaDetailsDrawer
           vaga={selectedDetailsVaga}
           logs={logs}
+          logsDesde={logsDesde}
+          onCarregarLogsAnteriores={onCarregarLogsAnteriores}
           canManage={canManageVagas}
           funil={funilEfetivo(selectedDetailsVaga, selecoes)}
           selecoes={selecoesDaVaga(selecoes, selectedDetailsVaga)}

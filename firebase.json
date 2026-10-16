@@ -1,17 +1,24 @@
 {
   "_comentario_emuladores": "Porta própria porque a 8080 é o padrão de TODO projeto Firebase: com o emulador do Cromos aberto, `npm run test:rules` morria em 'port taken' e os testes de regra simplesmente não rodavam. Porta fixa evita a disputa sem ninguém ter que fechar nada.",
   "emulators": {
-    "firestore": { "port": 8089 },
-    "ui": { "enabled": false }
+    "firestore": {
+      "port": 8089
+    },
+    "ui": {
+      "enabled": false
+    }
   },
   "firestore": [
     {
       "database": "ai-studio-2b395015-7429-44d1-83dd-233de9cd3c47",
-      "rules": "firestore.rules"
+      "rules": "firestore.rules",
+      "indexes": "firestore.indexes.json"
     },
     {
       "database": "(default)",
-      "rules": "firestore.rules"
+      "rules": "firestore.rules",
+      "indexes": "firestore.indexes.json"
     }
-  ]
+  ],
+  "_comentario_indices": "Índice composto de logs (escopo + timestamp): o Coordenador lê só a unidade dele E só a janela ao vivo dos últimos 45 dias (useLogs, 16/10/2026). Sem o índice, a consulta é recusada."
 }

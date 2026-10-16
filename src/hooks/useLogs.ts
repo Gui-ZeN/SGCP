@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   db, 
   isFirebaseEnabled, 
   collection,
   onSnapshot,
   addDoc,
+  getDocs,
   query,
   where
 } from '../lib/firebase';
@@ -27,6 +28,32 @@ export interface SystemLog {
 const LOCAL_STORAGE_KEY = 'ats_system_logs_fallback';
 
 /**
+ * Janela AO VIVO dos logs (16/10/2026). O log cresce sem parar (~800 por mês
+ * em out/2026) e era lido inteiro a cada abertura de Vagas, Resumo ou Admin.
+ * A escuta passa a trazer só os últimos 45 dias — o histórico das vagas em
+ * andamento e a auditoria do dia a dia. O resto vem SOB DEMANDA, uma leitura
+ * só (`carregarAnteriores`): o ano, para o acumulado do Resumo do Dia; tudo,
+ * para a Auditoria, a vaga antiga e a reconstrução de pausas.
+ */
+const DIAS_AO_VIVO = 45;
+export type AlcanceLogs = 'recentes' | 'ano' | 'tudo';
+/**
+ * A faixa [desde, ate) de logs que ainda falta buscar para chegar ao pedido.
+ * null = já está carregado; 'nada' = o pedido já cabe na janela ao vivo (ex.:
+ * em janeiro, o "ano" inteiro está nos 45 dias). Datas em ISO (comparam como texto).
+ */
+export function faixaQueFalta(alcance: AlcanceLogs, pedido: 'ano' | 'tudo', corte: string, inicioDoAno: string):
+  { desde: string; ate: string } | 'nada' | null {
+  if (alcance === 'tudo' || (alcance === 'ano' && pedido === 'ano')) return null;
+  // 'tudo' depois de 'ano' só busca o que vem antes do ano (ou da janela, se ela começa antes).
+  const ate = alcance === 'ano' && inicioDoAno < corte ? inicioDoAno : corte;
+  const desde = pedido === 'ano' ? inicioDoAno : '';
+  return desde && desde >= ate ? 'nada' : { desde, ate };
+}
+
+const porData = (a: SystemLog, b: SystemLog) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+
+/**
  * `isolamento.leitura`: unidade de quem lê (null = Administrador, lê tudo). O
  * Coordenador pede ao banco só os logs da unidade dele — a regra nega o resto.
  * `isolamento.autor`: unidade gravada nos logs, quando a ação não diz outra.
@@ -37,18 +64,29 @@ export function useLogs(
   actorRegiao: string = '',
   isolamento: { leitura: Escopo | null; autor: Escopo; pronto: boolean } = { leitura: null, autor: 'colegio', pronto: true }
 ) {
-  const [logs, setLogs] = useState<SystemLog[]>([]);
+  const [recentes, setRecentes] = useState<SystemLog[]>([]);
+  const [anteriores, setAnteriores] = useState<SystemLog[]>([]);
+  const [alcance, setAlcance] = useState<AlcanceLogs>('recentes');
   const [loading, setLoading] = useState(true);
   const [usingFirebase, setUsingFirebase] = useState(isFirebaseEnabled);
+  // ISO de 45 dias atrás, fixo na sessão: a janela não "anda" sozinha (e o que
+  // fica antes dela já está em `anteriores` se alguém pediu).
+  const corte = useMemo(() => new Date(Date.now() - DIAS_AO_VIVO * 864e5).toISOString(), []);
+  const logs = useMemo(() => (anteriores.length ? [...recentes, ...anteriores] : recentes), [recentes, anteriores]);
+  const setLogs = setRecentes;
+  const recentesRef = useRef(recentes); recentesRef.current = recentes;
+  const anterioresRef = useRef(anteriores); anterioresRef.current = anteriores;
 
   // Synchronize system logs
   useEffect(() => {
     if (isFirebaseEnabled && db && currentUser && canSeeLogs) {
       if (!isolamento.pronto) return;
       setLoading(true);
+      // Coordenador: unidade + data — exige o índice composto (escopo,
+      // timestamp) de firestore.indexes.json.
       const logsCollection = isolamento.leitura
-        ? query(collection(db, 'logs'), where('escopo', '==', isolamento.leitura))
-        : collection(db, 'logs');
+        ? query(collection(db, 'logs'), where('escopo', '==', isolamento.leitura), where('timestamp', '>=', corte))
+        : query(collection(db, 'logs'), where('timestamp', '>=', corte));
       
       const unsubscribe = onSnapshot(logsCollection, (snapshot: any) => {
         const firestoreList: SystemLog[] = [];
@@ -71,7 +109,36 @@ export function useLogs(
     } else {
       loadLocalFallback();
     }
-  }, [currentUser, canSeeLogs, isolamento.leitura, isolamento.pronto]);
+  }, [currentUser, canSeeLogs, isolamento.leitura, isolamento.pronto, corte]);
+
+  /**
+   * Busca, UMA vez, os logs anteriores à janela ao vivo: 'ano' (desde 1º de
+   * janeiro) ou 'tudo'. Devolve a lista completa até ali — quem precisa dela
+   * na hora (reconstrução de pausas) não espera o próximo render.
+   */
+  const alcanceRef = useRef(alcance); alcanceRef.current = alcance;
+  const carregarAnteriores = async (pedido: 'ano' | 'tudo'): Promise<SystemLog[]> => {
+    const atual = () => [...recentesRef.current, ...anterioresRef.current];
+    if (!isFirebaseEnabled || !db || !currentUser || !canSeeLogs) return atual();
+    const faixa = faixaQueFalta(alcanceRef.current, pedido, corte, `${new Date().getFullYear()}-01-01`);
+    if (!faixa) return atual();
+    // Marca já (ref): duas chamadas seguidas não buscam a mesma faixa duas vezes.
+    alcanceRef.current = pedido;
+    if (faixa === 'nada') { setAlcance(pedido); return atual(); }
+    const { desde, ate } = faixa;
+    const filtros = [
+      ...(isolamento.leitura ? [where('escopo', '==', isolamento.leitura)] : []),
+      where('timestamp', '<', ate),
+      ...(desde ? [where('timestamp', '>=', desde)] : []),
+    ];
+    const snap = await getDocs(query(collection(db, 'logs'), ...filtros));
+    const novos: SystemLog[] = [];
+    snap.forEach((d: any) => novos.push({ ...d.data(), id: d.id } as SystemLog));
+    const juntos = [...anterioresRef.current, ...novos].sort(porData);
+    setAnteriores(juntos);
+    setAlcance(pedido);
+    return [...recentesRef.current, ...juntos];
+  };
 
   const loadLocalFallback = () => {
     setUsingFirebase(false);
@@ -165,6 +232,11 @@ export function useLogs(
     logs,
     loading,
     usingFirebase,
-    logAction
+    logAction,
+    /** Até onde os logs carregados vão: os 45 dias ao vivo, o ano, ou tudo. */
+    alcance: isFirebaseEnabled ? alcance : 'tudo' as AlcanceLogs,
+    /** Data (ISO) em que começa a janela ao vivo. */
+    corte,
+    carregarAnteriores,
   };
 }

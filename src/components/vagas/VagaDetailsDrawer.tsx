@@ -17,6 +17,9 @@ import { toISOInput } from '../../utils/date';
 interface VagaDetailsDrawerProps {
   vaga: Vaga;
   logs?: SystemLog[];
+  /** Logs carregados só desde esta data (ISO) — os 45 dias ao vivo; ver useLogs. Ausente = tudo carregado. */
+  logsDesde?: string;
+  onCarregarLogsAnteriores?: () => void;
   canManage: boolean;
   /** O funil que a vaga mostra (das seleções ligadas, ou digitado). */
   funil: FunilEfetivo;
@@ -36,7 +39,7 @@ interface VagaDetailsDrawerProps {
 }
 
 export const VagaDetailsDrawer: React.FC<VagaDetailsDrawerProps> = ({
-  vaga, logs, canManage, funil, selecoes = [], onAbrirSelecao, origem, podeNovaSelecao, getSedeLabel, renderStatusBadge, onClose, onConcluir, onEditar, onExcluir
+  vaga, logs, logsDesde, onCarregarLogsAnteriores, canManage, funil, selecoes = [], onAbrirSelecao, origem, podeNovaSelecao, getSedeLabel, renderStatusBadge, onClose, onConcluir, onEditar, onExcluir
 }) => {
   const dias = getDiasEmAberto(vaga);
   const pausada = isPausedOrSuspended(vaga.status);
@@ -174,6 +177,12 @@ export const VagaDetailsDrawer: React.FC<VagaDetailsDrawerProps> = ({
                 </li>
               ))}
             </ul>
+          )}
+          {/* Vaga aberta antes da janela ao vivo: o histórico antigo vem a pedido. */}
+          {logsDesde && onCarregarLogsAnteriores && (
+            <button type="button" className="btn btn-sm mt-2" onClick={onCarregarLogsAnteriores}>
+              Ver alterações anteriores a {new Date(logsDesde).toLocaleDateString('pt-BR')}
+            </button>
           )}
         </section>
       )}
