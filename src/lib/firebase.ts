@@ -217,12 +217,16 @@ export const registrarDonoDoCache = (uid: string) => { try { localStorage.setIte
 export async function limparDadosDoNavegador(): Promise<boolean> {
   try {
     for (const k of Object.keys(localStorage)) if (k.endsWith('_fallback')) localStorage.removeItem(k);
-    localStorage.removeItem(DONO_DO_CACHE);
   } catch { /* aba privada */ }
-  if (!isFirebaseEnabled || !db) return true;
+  const esquecerDono = () => { try { localStorage.removeItem(DONO_DO_CACHE); } catch { /* aba privada */ } };
+  if (!isFirebaseEnabled || !db) { esquecerDono(); return true; }
   try {
     await terminate(db);
     await clearIndexedDbPersistence(db);
+    // ⚠️ O dono só sai DEPOIS de o cache sair: apagado antes, uma limpeza que
+    // falhasse (outra aba aberta) deixava o próximo a entrar herdar o cache
+    // sem ninguém notar (revisão de segurança, 16/10/2026).
+    esquecerDono();
     return true;
   } catch (e) {
     console.warn('Não foi possível apagar o cache local (outra aba aberta?):', e);

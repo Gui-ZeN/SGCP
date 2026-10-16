@@ -114,6 +114,8 @@ export default function App() {
   // authReady: a verificação inicial de autenticação já concluiu (evita piscar a
   // tela de login para quem já está logado e evita travar no "Carregando").
   const [authReady, setAuthReady] = useState(false);
+  // O cache deste navegador é de outra pessoa e não pôde ser apagado.
+  const [cacheDeOutraPessoa, setCacheDeOutraPessoa] = useState(false);
   // Tema único: Suíço (International Typographic). Aplicado via data-theme na raiz.
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'swiss');
@@ -1192,9 +1194,15 @@ export default function App() {
           // pelas regras do banco. Apaga e recomeça antes de abrir qualquer tela.
           const dono = donoDoCache();
           if (dono && dono !== currentUser.uid) {
-            await limparDadosDoNavegador();
-            registrarDonoDoCache(currentUser.uid);
-            window.location.reload();
+            if (await limparDadosDoNavegador()) {
+              registrarDonoDoCache(currentUser.uid);
+              window.location.reload();
+            } else {
+              // Não deu para apagar (outra aba aberta): NÃO abre o sistema com o
+              // cache do outro. Sem recarregar sozinho — viraria um laço.
+              setCacheDeOutraPessoa(true);
+              setAuthReady(true);
+            }
             return;
           }
           registrarDonoDoCache(currentUser.uid);
@@ -1306,6 +1314,20 @@ export default function App() {
   // Enquanto a autenticação não resolveu, ou já logado mas carregando os dados,
   // mostra o spinner. Sem usuário (após authReady), cai direto na tela de login —
   // sem ficar preso no "Carregando" quando o Firestore nega leitura ao anônimo.
+  if (cacheDeOutraPessoa) {
+    return (
+      <div className="min-h-screen grid place-items-center p-6" style={{ background: 'var(--chao)' }}>
+        <div className="painel max-w-md p-6 space-y-3 text-center">
+          <h1 className="text-lg font-bold" style={{ color: 'var(--tinta)' }}>Feche as outras abas do SGPC</h1>
+          <p className="text-[14px]" style={{ color: 'var(--tinta-2)' }}>
+            Este navegador ainda guarda os dados de quem usou o sistema antes de você. Para apagá-los, feche as outras abas do SGPC abertas aqui e clique em Tentar de novo.
+          </p>
+          <button type="button" className="btn btn-primario" onClick={() => window.location.reload()}>Tentar de novo</button>
+        </div>
+      </div>
+    );
+  }
+
   if (!authReady || (user && (loading || loadingMetadata || loadingOps))) {
     return <BootLoader />;
   }

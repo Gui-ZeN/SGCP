@@ -236,7 +236,12 @@ export function useMetadata(currentUser: any) {
             });
             // O próprio cadastro entra sempre: sem o campo `unidade` ele não
             // casaria com o filtro e a pessoa levaria "não autorizado".
-            if (!list.some(u => u.id === snap.id)) list.push({ ...eu, id: snap.id } as Usuario);
+            // ⚠️ E vale SEMPRE o do servidor (`eu`, do getDoc): com o cache
+            // persistente, a escuta responde primeiro do disco, e um Admin
+            // rebaixado aparecia por um instante ainda como Admin (revisão de
+            // segurança, 16/10/2026).
+            const semEu = list.filter(u => u.id !== snap.id);
+            list.length = 0; list.push(...semEu, { ...eu, id: snap.id } as Usuario);
             setUsuarios(list);
           }, semPermissao);
         })
