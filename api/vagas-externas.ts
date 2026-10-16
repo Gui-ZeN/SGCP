@@ -47,6 +47,7 @@ const texto = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().sli
 /** Os motivos que o Orkestria pode mandar (justa causa já chega como "Desligamento"). */
 export const MOTIVOS_ORKESTRIA = [
   'Pedido de demissão', 'Término de contrato', 'Término de experiência', 'Acordo', 'Aposentadoria', 'Desligamento',
+  'Demissão sem justa causa', 'Transferência',
 ];
 
 export interface Catalogos {

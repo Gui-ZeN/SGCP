@@ -212,6 +212,19 @@ describe('handler', () => {
       expect(b.body.erro).toMatch(/esperado "Chromos"/);
     });
 
+    it('motivos da lista passam como vieram (com ou sem acento/caixa)', async () => {
+      for (const [enviado, gravado] of [['Demissão sem justa causa', 'Demissão sem justa causa'], ['TRANSFERENCIA', 'Transferência']]) {
+        banco = {};
+        await enviar(doOrkestria({ motivo: enviado }), 'segredo-ork');
+        expect(banco['orkestria_christus_dt_f6'].fields.observacoes.stringValue).toContain(gravado);
+      }
+    });
+
+    it('"Outros" (fora da lista) cai no padrão', async () => {
+      await enviar(doOrkestria({ motivo: 'Outros' }), 'segredo-ork');
+      expect(banco['orkestria_christus_dt_f6'].fields.observacoes.stringValue).toContain('— desligamento.');
+    });
+
     it('motivo fora da lista (ex.: disciplinar) vira "desligamento"; o log não leva motivo', async () => {
       const r = await enviar(doOrkestria({ motivo: 'Justa causa por furto no almoxarifado' }), 'segredo-ork');
       expect(r.code).toBe(201);
