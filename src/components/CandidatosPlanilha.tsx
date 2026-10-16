@@ -24,6 +24,14 @@ import { comMudanca, type Dados } from './CandidatosDoDia';
 import { ListaDeNomes, nomesPreenchidos } from './ui/ListaDeNomes';
 import { SeloBanco } from './banco/SeloBanco';
 import { separarTelefone } from '../utils/bancoCandidatos';
+import { BotaoNaoChamar } from './banco/BotaoNaoChamar';
+
+/** Ajusta a altura do campo ao texto (sem barra de rolagem dentro da célula). */
+const crescer = (el: HTMLTextAreaElement | null) => {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+};
 import { Trash2, UserPlus } from 'lucide-react';
 
 interface Props {
@@ -136,7 +144,7 @@ export const CandidatosPlanilha: React.FC<Props> = ({
                 <th scope="col" className={`${th} w-40`}>{soPedagogico ? 'Teste' : 'Teste / entrevista'}</th>
                 {!soPedagogico && <th scope="col" className={`${th} w-32`}>Contratado</th>}
                 <th scope="col" className={th}>{soPedagogico ? 'Observações' : 'Desistência / observações'}</th>
-                {onRemover && <th scope="col" className={`${th} w-8`}><span className="sr-only">Remover</span></th>}
+                {onRemover && <th scope="col" className={`${th} w-16`}><span className="sr-only">Não chamar / remover</span></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -199,16 +207,22 @@ export const CandidatosPlanilha: React.FC<Props> = ({
                           {c.motivo && !MOTIVOS_DESISTENCIA.includes(c.motivo) && <option value={c.motivo}>{c.motivo}</option>}
                         </select>
                       )}
-                      <input aria-label={`Observação sobre ${c.nome}`} disabled={!editavel} className={`${celula} min-w-0`} defaultValue={c.observacao || ''} maxLength={300}
+                      {/* Campo que cresce com o texto: num input de uma linha a
+                          observação comprida sumia no meio (pedido de 16/10/2026). */}
+                      <textarea aria-label={`Observação sobre ${c.nome}`} disabled={!editavel} className={`${celula} min-w-0 campo-cresce`} rows={1} defaultValue={c.observacao || ''} maxLength={300}
+                        ref={crescer} onInput={e => crescer(e.currentTarget)}
                         onBlur={e => { const v = e.target.value.trim(); if (v !== (c.observacao || '')) salvar(s, c, { observacao: v }); }} />
                     </div>
                   </td>
                   {onRemover && (
                     <td className={`${td} px-1 py-0.5`}>
+                      <span className="flex items-center">
+                      <BotaoNaoChamar nome={c.nome} telefone={c.telefone} />
                       <button onClick={() => remover(s, c)} aria-label={`Remover ${c.nome}`}
                         className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
+                      </span>
                     </td>
                   )}
                 </tr>

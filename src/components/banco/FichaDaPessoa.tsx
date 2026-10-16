@@ -7,7 +7,7 @@
  * motivo, só Coordenador e Administrador). Uma por vez para o app inteiro —
  * quem abre é o selo, a lista do Banco ou o nome numa lista do dia.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useBanco } from '../../hooks/useBancoCandidatos';
 import { Modal } from '../ui/Modal';
 import { Atalho } from '../ui/Atalhos';
@@ -30,6 +30,9 @@ export function FichaDaPessoa() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
   const [unidadeEscolhida, setUnidadeEscolhida] = useState<'colegio' | 'universidade' | ''>('');
+  // Aberta pelo botão "Não chamar mais" da linha: já no formulário.
+  // Só quando a ficha ABRE (nome/telefone/pedido) — não a cada nova lista de dados.
+  useEffect(() => { if (banco?.ficha?.marcar) setMarcando(true); }, [banco?.ficha?.nome, banco?.ficha?.telefone, banco?.ficha?.marcar]);
   if (!banco?.ficha) return null;
   const { ficha, fecharFicha } = banco;
   const p = ficha.pessoa;

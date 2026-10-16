@@ -37,8 +37,9 @@ export interface BancoCandidatos {
   /** Unidade de quem está logado (null = Administrador, que grava nas duas). */
   unidadeDoLeitor: Escopo | null;
   /** A ficha aberta (uma por vez, para o app inteiro) — ver FichaDaPessoa. */
-  ficha: { nome: string; telefone: string; pessoa?: Pessoa } | null;
-  abrirFicha: (linha: string, telefone?: string) => void;
+  ficha: { nome: string; telefone: string; pessoa?: Pessoa; marcar?: boolean } | null;
+  /** `marcar`: já abre no formulário de "Nunca mais chamar" (botão da linha). */
+  abrirFicha: (linha: string, telefone?: string, opcoes?: { marcar?: boolean }) => void;
   fecharFicha: () => void;
 }
 
@@ -74,7 +75,7 @@ export function ProvedorBanco({ candidatos, selecoes, marcas, marcar, desfazer, 
   unidadeDoLeitor: Escopo | null;
   children: ReactNode;
 }) {
-  const [aberta, setAberta] = useState<{ nome: string; telefone: string } | null>(null);
+  const [aberta, setAberta] = useState<{ nome: string; telefone: string; marcar?: boolean } | null>(null);
   // Agrupar ~12 mil convocações é a parte cara: só refaz quando os dados
   // mudam, não a cada render do App (marcar/desfazer chegam como funções novas).
   const { pessoas, achar } = useMemo(() => {
@@ -93,7 +94,7 @@ export function ProvedorBanco({ candidatos, selecoes, marcas, marcar, desfazer, 
     return {
       pessoas, marcas, pessoaDe, marcaPara, marcar, desfazer, unidadeDoLeitor,
       ficha: aberta ? { ...aberta, pessoa: achar(aberta.nome, aberta.telefone) } : null,
-      abrirFicha: (linha, telefone) => { const x = separarTelefone(linha); setAberta({ nome: x.nome, telefone: normalizarTelefone(telefone || x.telefone) }); },
+      abrirFicha: (linha, telefone, opcoes) => { const x = separarTelefone(linha); setAberta({ nome: x.nome, telefone: normalizarTelefone(telefone || x.telefone), marcar: !!opcoes?.marcar }); },
       fecharFicha: () => setAberta(null),
       avisoPara: (linha, telefone, excluir) => {
         const s = separarTelefone(linha);

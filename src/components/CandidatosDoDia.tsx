@@ -15,6 +15,7 @@ import {
 import { X, Trash2, UserPlus } from 'lucide-react';
 import { ListaDeNomes, nomesPreenchidos } from './ui/ListaDeNomes';
 import { SeloBanco } from './banco/SeloBanco';
+import { BotaoNaoChamar } from './banco/BotaoNaoChamar';
 
 export type Dados = Pick<Candidato, 'nome' | 'resultado' | 'contratado' | 'motivo' | 'observacao'>;
 
@@ -158,10 +159,13 @@ export const CandidatosDoDia: React.FC<Props> = ({ selecao, candidatos, onSalvar
                       onBlur={e => { if (e.target.value.trim() !== (c.observacao || '')) salvar(c, { observacao: e.target.value.trim() }); }} />
                   </td>
                   <td className="py-1.5 pl-2">
+                    <span className="flex items-center">
+                    <BotaoNaoChamar nome={c.nome} telefone={c.telefone} />
                     <button onClick={() => remover(c)} aria-label={`Remover ${c.nome}`}
                       className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
+                    </span>
                   </td>
                 </tr>
               ))}

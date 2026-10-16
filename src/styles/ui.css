@@ -352,6 +352,9 @@ textarea.campo { padding-top: 8px; padding-bottom: 8px; min-height: 72px; }
 }
 .selo-banco > .selo-banco-nao { background: var(--atraso); color: #fff; font-weight: 700; }
 .selo-banco:hover > span:not(.selo-banco-nao) { background: var(--etapa-entrevista-fundo); color: var(--etapa-entrevista); }
+/* Observação que cresce com o texto (planilha de candidatos). */
+.campo-cresce { resize: none; overflow: hidden; line-height: 1.4; min-height: 28px; white-space: pre-wrap; }
+
 /* Sugestões ao digitar um nome: em fluxo (não flutua), porque a lista de
    nomes rola por dentro e um menu flutuante seria cortado na borda. */
 .sugestoes-nome { margin: 2px 0 0; padding: 3px; list-style: none; border: 1px solid var(--fio); border-radius: 8px; background: var(--papel); box-shadow: 0 6px 16px rgba(20,27,45,.08); }
