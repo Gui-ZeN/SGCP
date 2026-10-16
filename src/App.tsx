@@ -223,10 +223,29 @@ export default function App() {
   const isCoord = selectedRole === 'Coordenador';
   const userRegiao = regiaoDaSede(sedes, selectedSede);
 
+  // A tela e o que ela abre vêm do endereço (lib/rotas.ts). O token muda a cada
+  // navegação: clicar de novo no mesmo atalho reaplica o foco.
+  const [rota, setRota] = useState(() => ({ ...lerRota(window.location.hash), token: Date.now() }));
+  useEffect(() => {
+    const seguirEndereco = () => setRota({ ...lerRota(window.location.hash), token: Date.now() });
+    window.addEventListener('hashchange', seguirEndereco);
+    return () => window.removeEventListener('hashchange', seguirEndereco);
+  }, []);
+  const activeTab = rota.aba;
+
+  // Leitura SOB DEMANDA (16/10/2026): a coleção só é lida quando uma tela que
+  // a usa é aberta — e fica ligada dali em diante (voltar à tela não relê).
+  // Antes, todo login lia tudo: o Admin ~9 mil documentos por abertura, e a
+  // Universidade passou a ter 10 mil candidatos. Só para o que NÃO segura a
+  // tela de abertura (logs, candidatos, quadro de funcionários, organograma).
+  const [abasVistas, setAbasVistas] = useState<Set<Aba>>(() => new Set([rota.aba]));
+  useEffect(() => { setAbasVistas(v => (v.has(activeTab) ? v : new Set(v).add(activeTab))); }, [activeTab]);
+  const viu = (...abas: Aba[]) => abas.some(a => abasVistas.has(a));
+
   // Log com unidade (fase 2 do isolamento): o Coordenador só lê a dele. O
   // Admin carimba a unidade da sede escolhida na tela, salvo quando a ação
   // conhece a do registro (entrevistas, consultas).
-  const { logs, logAction } = useLogs(user, isAdmin || isCoord, userRegiao, {
+  const { logs, logAction } = useLogs(user, (isAdmin || isCoord) && viu('vagas', 'selecoes', 'admin'), userRegiao, {
     leitura: escopoLeitor,
     autor: escopoParaGravar(escopoLeitor, sedes || [], selectedSede),
     pronto: escopoPronto,
@@ -277,15 +296,6 @@ export default function App() {
     [integracoes, sedes, selectedSede, isAdmin]
   );
 
-  // A tela e o que ela abre vêm do endereço (lib/rotas.ts). O token muda a cada
-  // navegação: clicar de novo no mesmo atalho reaplica o foco.
-  const [rota, setRota] = useState(() => ({ ...lerRota(window.location.hash), token: Date.now() }));
-  useEffect(() => {
-    const seguirEndereco = () => setRota({ ...lerRota(window.location.hash), token: Date.now() });
-    window.addEventListener('hashchange', seguirEndereco);
-    return () => window.removeEventListener('hashchange', seguirEndereco);
-  }, []);
-  const activeTab = rota.aba;
   const irPara = (aba: Aba, params: ParametrosDaRota = {}) => {
     const destino = linkPara(aba, params);
     // Mesmo endereço não dispara hashchange: reaplica o foco na mão.
@@ -356,7 +366,7 @@ export default function App() {
 
   const { atividades, adicionarAtividade, atualizarAtividade, removerAtividade } = useAtividades(user, isolamento);
   // Candidatos: só para quem a regra deixa ler (RH sem Visualizador).
-  const { candidatos, gravarCandidato, removerCandidato } = useCandidatos(user, canManageModules && escopoPronto, escopoLeitor);
+  const { candidatos, gravarCandidato, removerCandidato } = useCandidatos(user, canManageModules && escopoPronto && viu('vagas', 'selecoes', 'selecoesLista'), escopoLeitor);
   // Todo candidato gravado leva o `escopo` da seleção dele (regra do banco).
   // ⚠️ Só na CRIAÇÃO (ou em registro antigo ainda sem o campo): recalcular a
   // cada edição do Administrador jogava para o Colégio o candidato da
@@ -373,7 +383,7 @@ export default function App() {
   // Banco de candidatos (16/10/2026): "Nunca mais chamar" da unidade. Qualquer
   // editor marca; só Coordenador e Administrador (pelo CADASTRO) desfazem.
   const { marcas: marcasNaoChamar, marcar: marcarNaoChamar, desfazer: desfazerNaoChamar } =
-    useNaoChamar(user, escopoLeitor, canManageModules && escopoPronto);
+    useNaoChamar(user, escopoLeitor, canManageModules && escopoPronto && viu('vagas', 'selecoes', 'selecoesLista'));
   const podeDesfazerNaoChamar = meuCadastro?.role === 'Administrador' || meuCadastro?.role === 'Coordenador' || (!isFirebaseEnabled && (isAdmin || isCoord));
   const { diarios, salvarMeuDia } = useDiario(user, escopoPronto && escopoLeitor !== 'universidade',
     { leitura: escopoLeitor, propria: meuCadastro?.unidade || 'colegio' });
@@ -420,7 +430,7 @@ export default function App() {
   // A coleção `funcionarios` já existia (base dos aniversários) e nunca teve
   // tela de cadastro — é esta. Escopo por unidade como os demais: a lista vai
   // filtrada por sede, então ninguém enxerga o quadro da outra unidade.
-  const { funcionarios, addFuncionario, updateFuncionario, deleteFuncionario } = useFuncionarios(user, isolamento);
+  const { funcionarios, addFuncionario, updateFuncionario, deleteFuncionario } = useFuncionarios(user, isolamento, viu('organograma'));
   const scopedFuncionarios = useMemo(
     () => escoparListaPorUnidade(funcionarios, f => f.sede, sedes || [], selectedSede, isAdmin),
     [funcionarios, sedes, selectedSede, isAdmin]
@@ -428,7 +438,7 @@ export default function App() {
 
   // Nós do organograma: coleção própria, desenho montado à mão. O quadro de
   // funcionários NÃO define a estrutura — só sugere nomes ao escolher o cargo.
-  const { nos: nosOrganograma, adicionarNo, atualizarNo, removerNo } = useOrganograma(user, isolamento);
+  const { nos: nosOrganograma, adicionarNo, atualizarNo, removerNo } = useOrganograma(user, isolamento, viu('organograma'));
 
   const wrappedAdicionarNo = (dados: any) =>
     executeWithLoading('Adicionando ao organograma...', async () => {

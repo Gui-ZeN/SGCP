@@ -15,14 +15,18 @@ const LOCAL_KEY = 'sgcp_funcionarios_fallback';
  * Isolada por unidade no servidor (14/10/2026): lê só a própria e carimba
  * `escopo` ao gravar (a sincronização do Cromos também carimba).
  */
-export function useFuncionarios(currentUser: any, isolamento: IsolamentoUnidade = SEM_ISOLAMENTO) {
+/**
+ * `ativo`: só assina quando alguma tela que usa o quadro foi aberta (leitura
+ * sob demanda, 16/10/2026) — antes, todo login lia os ~400 funcionários.
+ */
+export function useFuncionarios(currentUser: any, isolamento: IsolamentoUnidade = SEM_ISOLAMENTO, ativo = true) {
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingFirebase, setUsingFirebase] = useState(isFirebaseEnabled);
 
   useEffect(() => {
     if (isFirebaseEnabled && db && currentUser) {
-      if (!isolamento.pronto) return;
+      if (!isolamento.pronto || !ativo) return;
       setLoading(true);
       const col = colecaoDoLeitor('funcionarios', isolamento.escopo);
       const unsub = onSnapshot(col, (snap: any) => {
@@ -36,7 +40,7 @@ export function useFuncionarios(currentUser: any, isolamento: IsolamentoUnidade 
     } else {
       loadLocal();
     }
-  }, [currentUser, isolamento.escopo, isolamento.pronto]);
+  }, [currentUser, isolamento.escopo, isolamento.pronto, ativo]);
 
   const pelaSede = (f: Partial<Funcionario>) => escopoDaSede(isolamento.sedes, f.sede);
   const comEscopo = (atual: Funcionario | undefined, campos: Partial<Funcionario>) => {
