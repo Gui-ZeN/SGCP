@@ -106,7 +106,7 @@ import {
   UserPlus,
   Settings
 } from 'lucide-react';
-import { auth, googleProvider, isFirebaseEnabled, db } from './lib/firebase';
+import { auth, googleProvider, isFirebaseEnabled, db, donoDoCache, registrarDonoDoCache, limparDadosDoNavegador } from './lib/firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
 
 export default function App() {
@@ -1185,8 +1185,19 @@ export default function App() {
   // Track Auth state if Firebase is active
   useEffect(() => {
     if (isFirebaseEnabled && auth) {
-      const unsubscribe = auth.onAuthStateChanged((currentUser: any) => {
+      const unsubscribe = auth.onAuthStateChanged(async (currentUser: any) => {
         if (currentUser) {
+          // Outra pessoa entrou neste navegador sem a anterior ter saído: o
+          // cache local (IndexedDB) ainda tem os dados dela, e ele não passa
+          // pelas regras do banco. Apaga e recomeça antes de abrir qualquer tela.
+          const dono = donoDoCache();
+          if (dono && dono !== currentUser.uid) {
+            await limparDadosDoNavegador();
+            registrarDonoDoCache(currentUser.uid);
+            window.location.reload();
+            return;
+          }
+          registrarDonoDoCache(currentUser.uid);
           setUser(currentUser);
         } else {
           try {
@@ -1279,6 +1290,13 @@ export default function App() {
   const handleLogout = async () => {
     if (auth && isFirebaseEnabled) {
       await signOut(auth);
+      // Sair apaga os dados que o app guardou neste navegador (cache do banco
+      // e cópias das listas): no computador do RH, o próximo a sentar não os
+      // encontra. Recarrega porque o banco fica encerrado depois disso.
+      const limpou = await limparDadosDoNavegador();
+      if (!limpou) window.alert('Você saiu. Feche as outras abas do sistema neste navegador para apagar os dados guardados nele.');
+      window.location.reload();
+      return;
     }
     setUser(null);
     localStorage.removeItem('ats_simulated_user');

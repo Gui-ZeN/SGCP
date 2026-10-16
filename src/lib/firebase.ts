@@ -7,6 +7,11 @@ import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, User, signOut } from 'firebase/auth';
 import { 
   getFirestore, 
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  terminate,
+  clearIndexedDbPersistence,
   doc, 
   getDocFromServer,
   collection,
@@ -96,7 +101,19 @@ if (!isModoDemo && finalFirebaseConfig.projectId && finalFirebaseConfig.apiKey) 
     }
     
     // Check if a custom database ID is configured, otherwise use default
-    db = getFirestore(app, finalFirebaseConfig.firestoreDatabaseId || '(default)');
+    //
+    // Cache PERSISTENTE (IndexedDB, 16/10/2026): um F5 ou reabrir o app em até
+    // ~30 min retoma as escutas e o servidor cobra só o que mudou — antes,
+    // cada abertura relia tudo. Várias abas dividem o mesmo cache. Como ele
+    // guarda dado pessoal em disco, é apagado ao Sair e quando outra pessoa
+    // entra no mesmo navegador (limparDadosDoNavegador, App.tsx).
+    const idDoBanco = finalFirebaseConfig.firestoreDatabaseId || '(default)';
+    try {
+      db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }, idDoBanco);
+    } catch {
+      // Já inicializado (recarga do Vite em desenvolvimento): usa o que existe.
+      db = getFirestore(app, idDoBanco);
+    }
     auth = getAuth(app);
     googleProvider = new GoogleAuthProvider();
     isFirebaseEnabled = true;
@@ -178,3 +195,37 @@ export {
   runTransaction,
   serverTimestamp
 };
+
+/**
+ * De quem é o cache deste navegador (uid). O cache do Firestore NÃO passa
+ * pelas regras do banco: se outra pessoa entra no mesmo navegador sem a
+ * anterior ter saído, as consultas dela poderiam mostrar, por um instante,
+ * documentos que ficaram do outro usuário. Por isso o App confere o dono no
+ * login e limpa tudo quando muda.
+ */
+const DONO_DO_CACHE = 'sgcp_cache_dono';
+export const donoDoCache = (): string | null => { try { return localStorage.getItem(DONO_DO_CACHE); } catch { return null; } };
+export const registrarDonoDoCache = (uid: string) => { try { localStorage.setItem(DONO_DO_CACHE, uid); } catch { /* aba privada */ } };
+
+/**
+ * Apaga do navegador o que o app guardou de dados (16/10/2026): o cache do
+ * Firestore (IndexedDB) e as cópias de coleções no localStorage
+ * (`*_fallback`). Depois disso o banco fica encerrado — quem chama recarrega
+ * a página. Com outra aba do sistema aberta, o IndexedDB não pode ser
+ * apagado (o navegador não deixa); nesse caso devolve false.
+ */
+export async function limparDadosDoNavegador(): Promise<boolean> {
+  try {
+    for (const k of Object.keys(localStorage)) if (k.endsWith('_fallback')) localStorage.removeItem(k);
+    localStorage.removeItem(DONO_DO_CACHE);
+  } catch { /* aba privada */ }
+  if (!isFirebaseEnabled || !db) return true;
+  try {
+    await terminate(db);
+    await clearIndexedDbPersistence(db);
+    return true;
+  } catch (e) {
+    console.warn('Não foi possível apagar o cache local (outra aba aberta?):', e);
+    return false;
+  }
+}
