@@ -14,6 +14,7 @@ import {
 } from '../utils/candidatos';
 import { X, Trash2, UserPlus } from 'lucide-react';
 import { ListaDeNomes, nomesPreenchidos } from './ui/ListaDeNomes';
+import { SeloBanco } from './banco/SeloBanco';
 
 export type Dados = Pick<Candidato, 'nome' | 'resultado' | 'contratado' | 'motivo' | 'observacao'>;
 
@@ -128,7 +129,7 @@ export const CandidatosDoDia: React.FC<Props> = ({ selecao, candidatos, onSalvar
             <tbody className="divide-y divide-slate-100">
               {candidatos.map(c => (
                 <tr key={c.id} className={c.resultado === 'convocado' ? 'bg-amber-50/40' : ''}>
-                  <td className="py-1.5 pr-2 font-semibold text-slate-800">{c.nome}</td>
+                  <td className="py-1.5 pr-2 font-semibold text-slate-800">{c.nome}<SeloBanco nome={c.nome} telefone={c.telefone} excluir={c.id} /></td>
                   <td className="py-1.5 px-2" data-rotulo="Resultado">
                     <select aria-label={`Resultado de ${c.nome}`} className={campo} value={c.resultado}
                       onChange={e => salvar(c, { resultado: e.target.value as ResultadoCandidato })}>

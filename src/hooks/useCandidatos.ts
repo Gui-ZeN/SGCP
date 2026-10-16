@@ -21,6 +21,7 @@ export function useCandidatos(currentUser: any, enabled = true, escopo: string |
     sort: (a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'),
     enabled: enabled && !!currentUser,
     escopo,
+    semCopiaLocal: true,
   });
   return { candidatos: items, gravarCandidato: upsert, removerCandidato: remove };
 }

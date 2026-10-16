@@ -335,6 +335,32 @@ textarea.campo { padding-top: 8px; padding-bottom: 8px; min-height: 72px; }
 .lista-nomes ol { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; max-height: 260px; overflow-y: auto; padding: 2px; }
 .lista-nomes li { display: flex; align-items: center; gap: 8px; }
 .lista-nomes li .campo { flex: 1; min-width: 0; }
+.lista-nomes-campo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+
+/* ── Banco de candidatos (16/10/2026) ───────────────────────────────────
+   O selo só aparece quando há o que dizer; a cor diz o peso: "Não chamar" e
+   faltas em vermelho de atraso, contratada/banco no tom neutro. */
+.selo-banco {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  width: fit-content; max-width: 100%; margin-top: 4px; padding: 0;
+  background: none; border: 0; text-align: left; cursor: pointer;
+}
+.selo-banco > span {
+  padding: 1px 7px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600; line-height: 1.6; white-space: nowrap;
+  background: var(--etapa-pausa-fundo); color: var(--tinta-2);
+}
+.selo-banco > .selo-banco-nao { background: var(--atraso); color: #fff; font-weight: 700; }
+.selo-banco:hover > span:not(.selo-banco-nao) { background: var(--etapa-entrevista-fundo); color: var(--etapa-entrevista); }
+/* Sugestões ao digitar um nome: em fluxo (não flutua), porque a lista de
+   nomes rola por dentro e um menu flutuante seria cortado na borda. */
+.sugestoes-nome { margin: 2px 0 0; padding: 3px; list-style: none; border: 1px solid var(--fio); border-radius: 8px; background: var(--papel); box-shadow: 0 6px 16px rgba(20,27,45,.08); }
+.sugestoes-nome li { display: block; padding: 6px 9px; border-radius: 6px; font-size: 13.5px; color: var(--tinta); cursor: pointer; }
+.sugestoes-nome li .sub { display: block; font-size: 12px; color: var(--tinta-3); }
+.sugestoes-nome li:hover, .sugestoes-nome li[aria-selected="true"] { background: var(--etapa-entrevista-fundo); }
+.nao-chamar-caixa { border: 1px solid #E5B4A9; background: var(--atraso-fundo); color: var(--tinta); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+.nao-chamar-caixa[data-editando] { background: var(--papel); border-color: var(--fio); }
+.nao-chamar-caixa .sub { font-size: 12.5px; color: var(--tinta-3); }
 .lista-nomes-n { width: 22px; text-align: right; font-size: 12.5px; font-weight: 600; color: var(--tinta-3); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .lista-nomes-x { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 6px; color: var(--tinta-3); flex-shrink: 0; }
 .lista-nomes-x:hover { background: var(--atraso-fundo); color: var(--atraso); }

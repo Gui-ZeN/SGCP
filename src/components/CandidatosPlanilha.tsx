@@ -22,6 +22,8 @@ import { anoMes, siglaDaSede } from '../utils/filtroIndicadores';
 import { normalizarNome } from '../utils/catalogo';
 import { comMudanca, type Dados } from './CandidatosDoDia';
 import { ListaDeNomes, nomesPreenchidos } from './ui/ListaDeNomes';
+import { SeloBanco } from './banco/SeloBanco';
+import { separarTelefone } from '../utils/bancoCandidatos';
 import { Trash2, UserPlus } from 'lucide-react';
 
 interface Props {
@@ -155,8 +157,13 @@ export const CandidatosPlanilha: React.FC<Props> = ({
                   <td className={`${td} px-1 py-0.5 min-w-[170px]`} data-rotulo="Nome">
                     {editavel ? (
                       <input aria-label={`Nome (${c.nome})`} className={`${celula} font-semibold`} defaultValue={c.nome} maxLength={150}
-                        onBlur={e => { const v = e.target.value.replace(/\s+/g, ' ').trim(); if (v && v !== c.nome) salvar(s, c, { nome: v }); }} />
+                        onBlur={e => {
+                          // "Maria – (85) 9…" editado aqui também separa o telefone, como na inclusão.
+                          const { nome: v, telefone } = separarTelefone(e.target.value);
+                          if (v && (v !== c.nome || (telefone && telefone !== c.telefone))) salvar(s, c, { nome: v, ...(telefone ? { telefone } : {}) });
+                        }} />
                     ) : <span className="px-2 font-semibold text-slate-800">{c.nome}</span>}
+                    <SeloBanco nome={c.nome} telefone={c.telefone} excluir={c.id} />
                   </td>
                   {!umaSelecao && (
                     <td className={`${td} px-2.5 py-1`} data-rotulo="Seleção">

@@ -26,6 +26,9 @@ import { useCandidatos } from './hooks/useCandidatos';
 import { numerosDoDia } from './utils/candidatos';
 import { atendeVaga, camposDoFormulario, origemDoSetor } from './utils/selecao';
 import type { Candidato, Selecao, Vaga, Turnover } from './types';
+import { convocacoesDasLinhas } from './utils/bancoCandidatos';
+import { ProvedorBanco, useNaoChamar } from './hooks/useBancoCandidatos';
+import { FichaDaPessoa } from './components/banco/FichaDaPessoa';
 import { useDiario } from './hooks/useDiario';
 import { useMeuLog } from './hooks/useMeuLog';
 import { useTarefasDiario } from './hooks/useTarefasDiario';
@@ -367,6 +370,11 @@ export default function App() {
   };
   // "Meu dia" é do Colégio (o Resumo do Dia não existe para a Universidade), e
   // a regra do banco só entrega o diário a ele.
+  // Banco de candidatos (16/10/2026): "Nunca mais chamar" da unidade. Qualquer
+  // editor marca; só Coordenador e Administrador (pelo CADASTRO) desfazem.
+  const { marcas: marcasNaoChamar, marcar: marcarNaoChamar, desfazer: desfazerNaoChamar } =
+    useNaoChamar(user, escopoLeitor, canManageModules && escopoPronto);
+  const podeDesfazerNaoChamar = meuCadastro?.role === 'Administrador' || meuCadastro?.role === 'Coordenador' || (!isFirebaseEnabled && (isAdmin || isCoord));
   const { diarios, salvarMeuDia } = useDiario(user, escopoPronto && escopoLeitor !== 'universidade',
     { leitura: escopoLeitor, propria: meuCadastro?.unidade || 'colegio' });
   const meuLog = useMeuLog(user);
@@ -518,13 +526,22 @@ export default function App() {
     }
   };
 
+  /**
+   * As linhas da lista de nomes → os candidatos a gravar. "Maria – (85) 9…"
+   * colado junto: o telefone vira campo (Banco de candidatos, 16/10/2026) —
+   * é o que separa homônimos no histórico, e entra sem custar campo a mais.
+   */
+  const convocadosDe = (linhas: string[]) => convocacoesDasLinhas(linhas)
+    .map(({ nome, telefone }, i) => ({
+      id: `cand_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`,
+      nome, ...(telefone ? { telefone } : {}),
+      resultado: 'convocado' as const, contratado: '' as const, motivo: '', observacao: '',
+    }));
+
   /** Vários nomes de uma vez — a convocação costuma ser de 10, 20 pessoas. */
   const wrappedRegistrarCandidatos = (selecao: Selecao, nomes: string[]) =>
     executeWithLoading(`Registrando ${nomes.length} candidato(s)...`, async () => {
-      const novos = nomes.map((nome, i) => ({
-        id: `cand_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`,
-        nome, resultado: 'convocado' as const, contratado: '' as const, motivo: '', observacao: '',
-      }));
+      const novos = convocadosDe(nomes);
       for (const c of novos) await gravarCandidatoNaUnidade(c.id, { ...c, selecaoId: selecao.id, data: selecao.data });
       await recalcularSelecao(selecao, [...candidatos.filter(c => c.selecaoId === selecao.id), ...novos]);
       for (const c of novos) {
@@ -577,10 +594,7 @@ export default function App() {
         : `Seleção agendada: ${selecao.cargo} em ${selecao.sede}, ${selecao.data} — ${selecao.convocados} convocado(s)${selecao.vagaCodigos.length ? ` (vaga ${selecao.vagaCodigos.map(c => '#' + c).join(', ')})` : ''}.`,
         { ref: campos.status === 'realizado' ? { ...ref, compareceram: selecao.compareceram, tipo: 'lancamento' } : ref, escopo: unidadeDe(selecao) });
       if (!id || !nomes.length) return;
-      const novos = nomes.map((nome, k) => ({
-        id: `cand_${Date.now()}_${k}_${Math.random().toString(36).slice(2, 8)}`,
-        nome, resultado: 'convocado' as const, contratado: '' as const, motivo: '', observacao: '',
-      }));
+      const novos = convocadosDe(nomes);
       for (const c of novos) await gravarCandidatoNaUnidade(c.id, { ...c, selecaoId: id, data: selecao.data });
       await recalcularSelecao({ ...selecao, id } as Selecao, novos);
     });
@@ -1375,6 +1389,8 @@ export default function App() {
         />
 
         {/* Dynamic Content Pane - scrollable workspace */}
+        <ProvedorBanco candidatos={candidatos} selecoes={selecoes} marcas={marcasNaoChamar} unidadeDoLeitor={escopoLeitor}
+          marcar={canManageModules ? marcarNaoChamar : undefined} desfazer={podeDesfazerNaoChamar ? desfazerNaoChamar : undefined}>
         <main className="flex-1 bg-slate-50 p-6 lg:p-8 overflow-y-auto min-h-0 h-full">
           {errorMessage && (
             <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-4 text-xs font-bold flex items-center gap-2">
@@ -1686,6 +1702,8 @@ export default function App() {
           </Suspense>
           </ErrorBoundary>
         </main>
+        <FichaDaPessoa />
+        </ProvedorBanco>
       </div>
 
 

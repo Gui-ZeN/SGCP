@@ -65,6 +65,14 @@ export interface UseFirestoreCollectionOptions<T> {
    * utils/unidade.ts › escopoAoGravar. Sem ela, nada é carimbado.
    */
   escopoDoRegistro?: (r: Partial<T>) => Escopo | undefined;
+  /**
+   * Não guardar cópia da coleção no localStorage quando o banco está ligado
+   * (revisão de segurança de 16/10/2026): candidatos e "Não chamar" são dado
+   * pessoal de quem nem é funcionário, e a cópia ficava legível para quem
+   * usasse o mesmo navegador depois, sem login. No modo demo continua — lá
+   * o localStorage É o banco.
+   */
+  semCopiaLocal?: boolean;
 }
 
 export interface UseFirestoreCollectionResult<T> {
@@ -104,7 +112,8 @@ export function useFirestoreCollection<T extends { id: string }>(
     stripOnUpdate = [],
     enabled = true,
     escopo = null,
-    escopoDoRegistro
+    escopoDoRegistro,
+    semCopiaLocal = false
   } = opts;
 
   const [items, setItems] = useState<T[]>([]);
@@ -112,7 +121,10 @@ export function useFirestoreCollection<T extends { id: string }>(
   const [usingFirebase, setUsingFirebase] = useState(isFirebaseEnabled);
 
   const applySort = (list: T[]): T[] => (sort ? [...list].sort(sort) : list);
-  const cache = (list: T[]) => localStorage.setItem(localKey, JSON.stringify(list));
+  const semCopia = semCopiaLocal && isFirebaseEnabled;
+  const cache = (list: T[]) => { if (!semCopia) localStorage.setItem(localKey, JSON.stringify(list)); };
+  // Cópia antiga de antes da regra: sai na primeira abertura.
+  useEffect(() => { if (semCopia) { try { localStorage.removeItem(localKey); } catch { /* aba privada */ } } }, [semCopia, localKey]);
 
   const loadLocalFallback = () => {
     setUsingFirebase(false);

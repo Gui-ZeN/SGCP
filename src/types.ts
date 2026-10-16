@@ -306,6 +306,8 @@ export interface Candidato {
   /** DD/MM/AAAA — copiado do dia de seleção, para listar sem buscá-lo. */
   data: string;
   nome: string;
+  /** Só dígitos, com DDD (opcional — entra quando colado junto do nome). Identifica a pessoa no Banco de candidatos. */
+  telefone?: string;
   resultado: import('./utils/candidatos').ResultadoCandidato;
   contratado?: import('./utils/candidatos').Contratacao;
   /** Rótulo do motivo, quando desistiu. */

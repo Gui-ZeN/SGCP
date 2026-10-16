@@ -403,12 +403,49 @@ service cloud.firestore {
       allow create: if isEditor()
         && incoming().nome is string && incoming().nome.size() > 0 && incoming().nome.size() <= 150
         && incoming().selecaoId is string && incoming().selecaoId.size() > 0
+        && telefoneValido(incoming())
         && escopoValido(incoming()) && daMinhaUnidade(incoming().escopo);
       allow update: if isEditor() && daMinhaUnidade(existing().get('escopo', ''))
         && incoming().nome is string && incoming().nome.size() > 0 && incoming().nome.size() <= 150
         && incoming().selecaoId is string && incoming().selecaoId.size() > 0
+        && telefoneValido(incoming())
         && escopoValido(incoming()) && daMinhaUnidade(incoming().escopo);
       allow delete: if isEditor() && daMinhaUnidade(existing().get('escopo', ''));
+    }
+
+    // Telefone do candidato (Banco de candidatos, 16/10/2026): opcional, só
+    // dígitos com DDD. É o que separa homônimos no histórico.
+    function telefoneValido(d) {
+      return !('telefone' in d.keys()) || d.telefone == ''
+        || (d.telefone is string && d.telefone.matches('[0-9]{10,11}'));
+    }
+
+    // "Nunca mais chamar" (Banco de candidatos, 16/10/2026). Um fato da PESSOA,
+    // não da convocação. Qualquer editor da unidade marca, com motivo; só
+    // Coordenador da unidade ou Admin desfazem, também com motivo. Nunca se
+    // apaga: desfazer grava `desfeito` e a marca antiga fica (trilha). Autor e
+    // hora vêm do token e do servidor, não do cliente. Visualizador não lê:
+    // o motivo pode ser sensível (mesma régua de `candidatos`).
+    match /naoChamar/{id} {
+      allow read: if isEditor() && daMinhaUnidade(resource.data.get('escopo', ''));
+      allow create: if isEditor() && escopoValido(incoming()) && daMinhaUnidade(incoming().escopo)
+        && incoming().nome is string && incoming().nome.size() > 0 && incoming().nome.size() <= 150
+        && incoming().nomeNorm is string && incoming().nomeNorm.size() > 0 && incoming().nomeNorm.size() <= 150
+        && incoming().motivo is string && incoming().motivo.size() >= 5 && incoming().motivo.size() <= 300
+        && telefoneValido(incoming())
+        && incoming().por == request.auth.token.email.lower()
+        && incoming().em == request.time
+        && !('desfeito' in incoming().keys())
+        && incoming().keys().hasOnly(['escopo', 'nome', 'nomeNorm', 'telefone', 'motivo', 'por', 'em']);
+      allow update: if (isAdmin() || (isCoordenador() && daMinhaUnidade(existing().get('escopo', ''))))
+        && !('desfeito' in existing().keys())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['desfeito'])
+        && incoming().desfeito.keys().hasOnly(['por', 'em', 'motivo'])
+        && incoming().desfeito.por == request.auth.token.email.lower()
+        && incoming().desfeito.em == request.time
+        && incoming().desfeito.motivo is string && incoming().desfeito.motivo.size() >= 5
+        && incoming().desfeito.motivo.size() <= 300;
+      allow delete: if false;
     }
 
     // O que o RH fez no dia e não foi seleção. Mesma permissão das seleções:

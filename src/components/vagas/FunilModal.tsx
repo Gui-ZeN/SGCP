@@ -3,6 +3,7 @@ import { AlertTriangle, ChevronRight } from 'lucide-react';
 import type { Candidato, Selecao, Vaga } from '../../types';
 import { Modal } from '../ui/Modal';
 import { ListaDeNomes, nomesPreenchidos } from '../ui/ListaDeNomes';
+import { SeloBanco } from '../banco/SeloBanco';
 import { RESULTADOS } from '../../utils/candidatos';
 import { ehRealizada, type FunilEfetivo } from '../../utils/selecao';
 import { formatDateBR, dataISOLocal } from '../../utils/date';
@@ -252,7 +253,7 @@ function PassoCandidatos(p: Props) {
               const podeSeguir = testes ? veio({ resultado: r }) : true;
               return (
                 <tr key={c.id}>
-                  <td className="font-semibold"><span>{c.nome}<span className="sub">seleção de {c.selecao.data}</span></span></td>
+                  <td className="font-semibold"><span>{c.nome}<span className="sub">seleção de {c.selecao.data}</span><SeloBanco nome={c.nome} telefone={c.telefone} excluir={c.id} /></span></td>
                   <td data-rotulo={testes ? 'Veio?' : 'Resultado'}>
                     {testes ? (
                       <div className="seg" role="group" aria-label={`${c.nome} veio?`}>

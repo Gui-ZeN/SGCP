@@ -26,6 +26,7 @@ import {
   query,
   where,
   getDocs,
+  serverTimestamp,
 } from "firebase/firestore";
 
 const PROJECT_ID = "sgcp-rules-test";
@@ -622,6 +623,52 @@ test("isolamento: analista do Colégio NÃO grava log na Universidade", () =>
 
 test("isolamento: admin grava log de qualquer unidade", () =>
   assertSucceeds(setDoc(doc(ctx.user(ADMIN_EMAIL), "logs", "lAdm"), { timestamp: "t", usuario: ADMIN_EMAIL, acao: "CRIOU", modulo: "Vagas", detalhes: "d", escopo: "universidade" })));
+
+// --- Banco de candidatos (16/10/2026): "Nunca mais chamar" ---------------
+const marca = (por, over = {}) => ({ escopo: "colegio", nome: "Bruno Reis", nomeNorm: "bruno reis", motivo: "Faltou repetidas vezes", por, em: serverTimestamp(), ...over });
+const desfazer = (por, over = {}) => ({ desfeito: { por, em: serverTimestamp(), motivo: "Marcado por engano", ...over } });
+
+test("naoChamar: analista marca na própria unidade", () =>
+  assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "naoChamar", "nc1"), marca(ANALISTA_EMAIL))));
+test("naoChamar: NÃO marca em nome de outra pessoa", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "naoChamar", "nc2"), marca(ADMIN_EMAIL))));
+test("naoChamar: NÃO marca com hora escolhida pelo cliente", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "naoChamar", "nc3"), marca(ANALISTA_EMAIL, { em: new Date("2020-01-01") }))));
+test("naoChamar: motivo curto demais é recusado", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "naoChamar", "nc4"), marca(ANALISTA_EMAIL, { motivo: "." }))));
+test("naoChamar: NÃO marca na outra unidade", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "naoChamar", "nc5"), marca(ANALISTA_EMAIL, { escopo: "universidade" }))));
+test("naoChamar: NÃO nasce já desfeita, nem com campo a mais", async () => {
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "naoChamar", "nc6"), { ...marca(ANALISTA_EMAIL), ...desfazer(ANALISTA_EMAIL) }));
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "naoChamar", "nc7"), marca(ANALISTA_EMAIL, { cpf: "123" })));
+});
+test("naoChamar: telefone tem de ser só dígitos com DDD", async () => {
+  await assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "naoChamar", "nc8"), marca(ANALISTA_EMAIL, { telefone: "85999991234" })));
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "naoChamar", "nc9"), marca(ANALISTA_EMAIL, { telefone: "(85) 9999" })));
+});
+test("naoChamar: visualizador NÃO lê nem marca", async () => {
+  await assertFails(getDoc(doc(ctx.user(VIEWER_EMAIL), "naoChamar", "nc1")));
+  await assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "naoChamar", "nc10"), marca(VIEWER_EMAIL)));
+});
+test("naoChamar: Universidade NÃO lê a marca do Colégio", () =>
+  assertFails(getDoc(doc(ctx.user("anauni@empresa.com"), "naoChamar", "nc1"))));
+test("naoChamar: analista NÃO desfaz", () =>
+  assertFails(updateDoc(doc(ctx.user(ANALISTA_EMAIL), "naoChamar", "nc1"), desfazer(ANALISTA_EMAIL))));
+test("naoChamar: coordenador da OUTRA unidade NÃO desfaz", () =>
+  assertFails(updateDoc(doc(ctx.user(COORD_UNI_EMAIL), "naoChamar", "nc1"), desfazer(COORD_UNI_EMAIL))));
+test("naoChamar: coordenador desfaz só o campo desfeito, com o próprio e-mail", async () => {
+  await assertFails(updateDoc(doc(ctx.user(COORDENADOR_EMAIL), "naoChamar", "nc1"), { motivo: "trocado" }));
+  await assertFails(updateDoc(doc(ctx.user(COORDENADOR_EMAIL), "naoChamar", "nc1"), desfazer(ADMIN_EMAIL)));
+  await assertSucceeds(updateDoc(doc(ctx.user(COORDENADOR_EMAIL), "naoChamar", "nc1"), desfazer(COORDENADOR_EMAIL)));
+});
+test("naoChamar: marca desfeita não se desfaz de novo (a trilha não se reescreve)", () =>
+  assertFails(updateDoc(doc(ctx.user(ADMIN_EMAIL), "naoChamar", "nc1"), desfazer(ADMIN_EMAIL))));
+test("naoChamar: ninguém apaga, nem o admin", () =>
+  assertFails(deleteDoc(doc(ctx.user(ADMIN_EMAIL), "naoChamar", "nc8"))));
+test("candidatos: telefone com DDD é aceito; lixo no telefone é recusado", async () => {
+  await assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "candidatos", "cTel"), { ...candidato, telefone: "85999991234" }));
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "candidatos", "cTel2"), { ...candidato, telefone: "ligar depois" }));
+});
 
 test("logs: update/delete são sempre negados (append-only)", () =>
   assertFails(deleteDoc(doc(ctx.user(ADMIN_EMAIL), "logs", "l1"))));

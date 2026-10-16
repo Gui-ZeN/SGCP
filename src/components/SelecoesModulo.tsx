@@ -23,6 +23,7 @@ import { ModalSelecao, formularioDaVaga, formularioVazio, sugestoesDeSelecoes } 
 import { Plus, Search } from 'lucide-react';
 import { FiltroMultiplo } from './ui/FiltroMultiplo';
 import { Atalho, LinkVaga } from './ui/Atalhos';
+import { BancoCandidatos } from './banco/BancoCandidatos';
 
 type Dados = Pick<Candidato, 'nome' | 'resultado' | 'contratado' | 'motivo' | 'observacao'>;
 
@@ -68,7 +69,8 @@ export const SelecoesModulo: React.FC<Props> = ({
   const [busca, setBusca] = useState('');
   // As duas abas da planilha: QUANTI (um dia por linha) e a nominal (uma
   // pessoa por linha).
-  const [visao, setVisao] = useState<'selecoes' | 'candidatos'>('selecoes');
+  // + o Banco de candidatos (16/10/2026): uma pessoa por linha, com o histórico.
+  const [visao, setVisao] = useState<'selecoes' | 'candidatos' | 'banco'>('selecoes');
   const opcoes = useMemo(() => opcoesDeSede(sedes, selecoes.map(s => s.sede)), [sedes, selecoes]);
   const daSede = useMemo(() => {
     const testes = sedesSel.map(v => naSede(sedes, v));
@@ -150,7 +152,7 @@ export const SelecoesModulo: React.FC<Props> = ({
         </div>
         <div className="pagina-acoes">
           <div className="seg" role="group" aria-label="O que mostrar">
-            {([['selecoes', 'Um dia por linha'], ['candidatos', 'Candidatos']] as const).map(([id, r]) => (
+            {([['selecoes', 'Um dia por linha'], ['candidatos', 'Candidatos'], ...(candidatos ? [['banco', 'Banco de candidatos'] as const] : [])] as const).map(([id, r]) => (
               <button key={id} type="button" aria-pressed={visao === id} onClick={() => { setVisao(id); setFiltroSel(null); }}>{r}</button>
             ))}
           </div>
@@ -174,6 +176,7 @@ export const SelecoesModulo: React.FC<Props> = ({
         />
       )}
 
+      {visao === 'banco' ? <BancoCandidatos /> : (<>
       <div className="filtros">
         <FiltroMultiplo
           rotulo="Ano"
@@ -347,6 +350,7 @@ export const SelecoesModulo: React.FC<Props> = ({
         )}
       </section>
 
+      </>)}
       </>)}
     </div>
   );
