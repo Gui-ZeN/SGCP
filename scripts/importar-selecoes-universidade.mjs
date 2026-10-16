@@ -100,6 +100,8 @@ const RESULTADO = {
   'aprovado (a)': 'aprovado', 'aprovado': 'aprovado', 'aprovada': 'aprovado', 'banco de talentos': 'aprovado',
   'r. observacao': 'r_observacao', 'r. restricao': 'r_restricao', 'restricao com observacao': 'r_restricao',
   'recomendado com restricao': 'r_restricao', 'r. risco': 'risco',
+  // "NR" = Não Recomendado (confirmado pelo dono, 16/10/2026).
+  'nr': 'fora_perfil',
 };
 const contratacao = (resultadoTxt, colunaTxt) => {
   const c = norm(colunaTxt);
@@ -274,4 +276,38 @@ if (GRAVAR) {
   await commit(novasSel.map(s => ({ update: { name: docName('selecoes', s.id), fields: campos(s) }, currentDocument: { exists: false } })));
   await commit(novosCand.map(c => ({ update: { name: docName('candidatos', c.id), fields: campos(c) }, currentDocument: { exists: false } })));
   console.log(`Gravado: ${sedesACriar.length} sede(s), ${novasSel.length} seleção(ões), ${novosCand.length} candidato(s).`);
+}
+
+// ── --corrigir-resultados: um mapeamento novo (ex.: "NR" = Não Recomendado,
+// 16/10/2026) aplicado ao que JÁ foi importado. Só mexe em convocação que
+// ainda está "sem resultado" — se o RH já lançou outra coisa, vale o do RH.
+// Depois refaz os números das seleções tocadas a partir dos nomes do banco.
+if (process.argv.includes('--corrigir-resultados')) {
+  const atuais = new Map(); let p = '';
+  do {
+    const j = await (await fetch(`${BASE}/candidatos?pageSize=300&mask.fieldPaths=resultado&mask.fieldPaths=selecaoId&mask.fieldPaths=contratado${p ? `&pageToken=${p}` : ''}`, { headers: H })).json();
+    if (j.error) throw new Error(j.error.message);
+    for (const d of j.documents || []) {
+      const id = d.name.split('/').pop();
+      if (id.startsWith('uni-cand-')) atuais.set(id, { resultado: d.fields?.resultado?.stringValue || '', selecaoId: d.fields?.selecaoId?.stringValue || '', contratado: d.fields?.contratado?.stringValue || '' });
+    }
+    p = j.nextPageToken || '';
+  } while (p);
+  const trocar = candidatos.filter(c => atuais.get(c.id)?.resultado === 'convocado' && c.resultado !== 'convocado');
+  const tocadas = new Set(trocar.map(c => c.selecaoId));
+  console.log({ resultadosACorrigir: trocar.length, porResultado: trocar.reduce((m, c) => (m[c.resultado] = (m[c.resultado] || 0) + 1, m), {}), selecoesARecalcular: tocadas.size });
+  if (GRAVAR) {
+    for (const c of trocar) atuais.get(c.id).resultado = c.resultado;
+    await commit(trocar.map(c => ({ update: { name: docName('candidatos', c.id), fields: { resultado: { stringValue: c.resultado } } }, updateMask: { fieldPaths: ['resultado'] }, currentDocument: { exists: true } })));
+    const recalc = [...tocadas].map(selId => {
+      const nomes = [...atuais.values()].filter(x => x.selecaoId === selId);
+      const ausentes = nomes.filter(n => n.resultado === 'ausente').length;
+      const pendentes = nomes.filter(n => n.resultado === 'convocado').length;
+      const f = { convocados: nomes.length, ausentes, compareceram: nomes.length - ausentes - pendentes,
+        desistiram: nomes.filter(n => n.resultado === 'desistiu').length, contratados: nomes.filter(n => n.contratado === 'sim').length };
+      return { update: { name: docName('selecoes', selId), fields: campos(f) }, updateMask: { fieldPaths: Object.keys(f) }, currentDocument: { exists: true } };
+    });
+    await commit(recalc);
+    console.log(`Corrigido: ${trocar.length} resultado(s), ${recalc.length} seleção(ões) recalculada(s).`);
+  }
 }
