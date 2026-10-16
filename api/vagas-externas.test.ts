@@ -9,7 +9,8 @@ import handler, { validarPedido, MOTIVO } from './vagas-externas';
 const CAT = {
   cargos: ['ASG', 'TME'],
   setores: ['Infraestrutura'],
-  sedes: [{ nome: 'DIONISIO TORRES', sigla: 'DT' }, { nome: 'SUL', sigla: 'SUL 1' }, { nome: 'PRE SUL', sigla: 'PSUL' }],
+  sedes: [{ nome: 'DIONISIO TORRES', sigla: 'DT', regiao: 'Dionísio Torres' }, { nome: 'SUL', sigla: 'SUL 1' }, { nome: 'PRE SUL', sigla: 'PSUL' },
+    { nome: 'CESIU', sigla: 'CESIU', regiao: 'Universidade' }],
 };
 const pedido = (extra: Record<string, unknown> = {}) => ({
   versao: 1,
@@ -36,6 +37,12 @@ describe('validarPedido', () => {
     });
     expect(String(r.campos.observacoes)).toContain('abandono de emprego');
     expect(String(r.campos.observacoes)).toContain('Limpeza do 2º andar');
+  });
+
+  it('a vaga nasce com a unidade da sede (sem ela, só o Admin a veria)', () => {
+    const col = validarPedido(pedido(), CAT, AGORA), uni = validarPedido(pedido({ sede: 'CESIU' }), CAT, AGORA);
+    expect('erro' in col ? col.erro : col.campos.escopo).toBe('colegio');
+    expect('erro' in uni ? uni.erro : uni.campos.escopo).toBe('universidade');
   });
 
   it('sede por sigla ou nome, com ou sem acento/hífen', () => {
@@ -70,19 +77,33 @@ describe('handler', () => {
   const original = globalThis.fetch;
   let banco: Record<string, any>;
   let criarFalha = false;
+  // contadores/vagas: o mesmo contador da tela, com updateTime (precondição).
+  let contador: { ultimo: number; updateTime: string } | null;
+  let outroGravaAntes = 0; // simula N reservas de outra pessoa entre a leitura e a gravação
 
   beforeEach(() => {
     vi.stubEnv('SGPC_VAGAS_TOKEN', 'segredo');
     vi.spyOn(console, 'error').mockImplementation(() => {});
     banco = {};
     criarFalha = false;
+    contador = { ultimo: 2147180526, updateTime: 't0' };
+    outroGravaAntes = 0;
     globalThis.fetch = (async (url: string, init?: RequestInit) => {
       const u = String(url), metodo = init?.method || 'GET';
       if (u.endsWith('/cargos?pageSize=300')) return Response.json({ documents: CAT.cargos.map(nome => doc({ nome })) });
       if (u.endsWith('/setores?pageSize=300')) return Response.json({ documents: CAT.setores.map(nome => doc({ nome })) });
       if (u.endsWith('/sedes?pageSize=300')) return Response.json({ documents: CAT.sedes.map(s => doc(s as any)) });
       if (u.endsWith(':runQuery')) return Response.json([{ document: { fields: { codigo: { integerValue: '2147180526' } } } }]);
-      if (u.endsWith('/logs')) return Response.json({});
+      if (u.endsWith('/logs')) { banco.__log = JSON.parse(String(init?.body)); return Response.json({}); }
+      if (u.includes('/contadores/vagas')) {
+        if (!contador) return new Response('', { status: 404 });
+        if (metodo === 'GET') return Response.json({ fields: { ultimo: { integerValue: String(contador.ultimo) } }, updateTime: contador.updateTime });
+        if (outroGravaAntes > 0) { outroGravaAntes--; contador = { ultimo: contador.ultimo + 1, updateTime: contador.updateTime + 'x' }; }
+        const pedidoTempo = decodeURIComponent(/currentDocument.updateTime=([^&]+)/.exec(u)?.[1] || '');
+        if (pedidoTempo !== contador.updateTime) return new Response('FAILED_PRECONDITION', { status: 400 });
+        contador = { ultimo: Number(JSON.parse(String(init?.body)).fields.ultimo.integerValue), updateTime: contador.updateTime + 'y' };
+        return Response.json({});
+      }
       const m = /\/vagas\/([^?]+)(\?.*)?$/.exec(u);
       if (m && metodo === 'GET') return banco[m[1]] ? Response.json(banco[m[1]]) : new Response('', { status: 404 });
       if (m && metodo === 'PATCH') {
@@ -118,6 +139,37 @@ describe('handler', () => {
     expect(b.body).toEqual(a.body);
   });
 
+  it('o número vem do contador único e o contador anda junto (a tela não repete o número)', async () => {
+    contador = { ultimo: 2147180600, updateTime: 't0' }; // a tela já reservou além do maior gravado
+    const a = await enviar(pedido());
+    expect(a.body.codigo).toBe('2147180601');
+    expect(contador!.ultimo).toBe(2147180601);
+  });
+
+  it('outra reserva no meio: lê o contador de novo em vez de repetir o número', async () => {
+    outroGravaAntes = 1;
+    const a = await enviar(pedido());
+    expect(a.code).toBe(201);
+    expect(a.body.codigo).toBe('2147180528'); // 527 foi da outra reserva
+    expect(contador!.ultimo).toBe(2147180528);
+  });
+
+  it('código gravado absurdo (importação) não empurra o contador', async () => {
+    contador = { ultimo: 2147100000, updateTime: 't0' }; // maior gravado (2147180526) está 80 mil acima
+    const a = await enviar(pedido());
+    expect(a.body.codigo).toBe('2147100001');
+  });
+
+  it('sem contador: 502 (não volta ao "maior + 1", que repetiria número)', async () => {
+    contador = null;
+    expect((await enviar(pedido())).code).toBe(502);
+  });
+
+  it('o log da vaga leva a unidade (o Coordenador dela lê)', async () => {
+    await enviar(pedido({ sede: 'CESIU' }));
+    expect(banco.__log.fields.escopo.stringValue).toBe('universidade');
+  });
+
   it('dois envios simultâneos: quem perde a corrida recebe a vaga que ganhou (200)', async () => {
     criarFalha = true;
     const r = await enviar(pedido());
@@ -133,5 +185,52 @@ describe('handler', () => {
 
   it('aceita o corpo como texto JSON', async () => {
     expect((await enviar(JSON.stringify(pedido()))).code).toBe(201);
+  });
+
+  describe('Orkestria (desligamento)', () => {
+    const doOrkestria = (extra: Record<string, unknown> = {}) =>
+      pedido({ origem: { sistema: 'Orkestria', caso: 'christus_dt_f6' }, motivo: 'Pedido de demissão', ...extra });
+    beforeEach(() => vi.stubEnv('SGPC_VAGAS_TOKEN_ORKESTRIA', 'segredo-ork'));
+
+    it('com o token do Orkestria: vaga própria (prefixo, origem e texto do Orkestria)', async () => {
+      const r = await enviar(doOrkestria(), 'segredo-ork');
+      expect(r.code).toBe(201);
+      expect(r.body.id).toBe('orkestria_christus_dt_f6');
+      const f = banco['orkestria_christus_dt_f6'].fields;
+      expect(f.origem.stringValue).toBe('orkestria');
+      expect(f.observacoes.stringValue).toContain('Aberta automaticamente pelo Orkestria');
+      expect(f.observacoes.stringValue).toContain('Pedido de demissão');
+      expect(f.motivo.stringValue).toBe(MOTIVO);
+    });
+
+    it('o token do Orkestria não abre vaga em nome do Chromos, nem o contrário', async () => {
+      const a = await enviar(pedido(), 'segredo-ork');
+      expect(a.code).toBe(400);
+      expect(a.body.erro).toMatch(/esperado "Orkestria"/);
+      const b = await enviar(doOrkestria(), 'segredo');
+      expect(b.code).toBe(400);
+      expect(b.body.erro).toMatch(/esperado "Chromos"/);
+    });
+
+    it('motivo fora da lista (ex.: disciplinar) vira "desligamento"; o log não leva motivo', async () => {
+      const r = await enviar(doOrkestria({ motivo: 'Justa causa por furto no almoxarifado' }), 'segredo-ork');
+      expect(r.code).toBe(201);
+      const obs = banco['orkestria_christus_dt_f6'].fields.observacoes.stringValue;
+      expect(obs).not.toMatch(/furto|justa causa/i);
+      expect(obs).toContain('desligamento');
+      expect(banco.__log.fields.detalhes.stringValue).not.toMatch(/furto|demiss|desligamento/i);
+    });
+
+    it('os dois sistemas com o mesmo segredo: 503, nunca adivinhar quem fala', async () => {
+      vi.stubEnv('SGPC_VAGAS_TOKEN_ORKESTRIA', 'segredo');
+      expect((await enviar(doOrkestria(), 'segredo')).code).toBe(503);
+      expect((await enviar(pedido(), 'segredo')).code).toBe(503);
+    });
+
+    it('basta um token configurado para a rota abrir; o outro sistema leva 401', async () => {
+      vi.stubEnv('SGPC_VAGAS_TOKEN', '');
+      expect((await enviar(doOrkestria(), 'segredo-ork')).code).toBe(201);
+      expect((await enviar(pedido(), 'segredo')).code).toBe(401);
+    });
   });
 });
