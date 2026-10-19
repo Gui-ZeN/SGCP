@@ -134,6 +134,16 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   const [selectedSede, setSelectedSede] = useState<string[]>(() => !isAdmin && userSede ? [userSede] : []);
   const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
   const [selectedSetor, setSelectedSetor] = useState<string[]>([]);
+  // Responsável da vaga (pedido de 19/10/2026). Também entra nos números dos
+  // botões: "quantas vagas da Fulana estão atrasadas" é a pergunta.
+  const [selectedResponsavel, setSelectedResponsavel] = useState<string[]>([]);
+  // O campo às vezes tem duas pessoas ("Marta / Bianca"): cada uma conta, e
+  // escolher a Bianca traz também as vagas que ela divide.
+  const responsaveisDe = (v: Vaga) => {
+    const nomes = (v.responsavel || '').split(/[/,]/).map(s => s.trim()).filter(Boolean);
+    return nomes.length ? nomes : ['(sem responsável)'];
+  };
+  const responsavelMarcado = (v: Vaga) => selectedResponsavel.length === 0 || responsaveisDe(v).some(n => selectedResponsavel.includes(n));
 
   useEffect(() => {
     if (!isAdmin && userSede) {
@@ -170,6 +180,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       setStatusGroupFilter([]);
       setSelectedStatus([]);
       setSelectedSetor([]);
+      setSelectedResponsavel([]);
       setSelectedSede(!isAdmin && userSede ? [userSede] : []);
       setCurrentPage(1);
       const alvo = vagas.find(v => String(v.codigo) === focusVaga.codigo);
@@ -489,7 +500,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
   // 2. AGGREGATING ADVANCED KPIS (Respects selected Sede)
   const stats = useMemo(() => {
-    const relevantVagas = vagas.filter(sedeMarcada);
+    const relevantVagas = vagas.filter(v => sedeMarcada(v) && responsavelMarcado(v));
 
     const total = relevantVagas.length;
     let ativas = 0;
@@ -521,7 +532,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       : 0;
 
     return { total, ativas, concluidas, atrasadas, tempoMedio };
-  }, [vagas, selectedSede, userSede, isAdmin]);
+  }, [vagas, selectedSede, selectedResponsavel, userSede, isAdmin]);
 
   // Derive unique options for filter dropdowns safely
   const sedesList = useMemo(() => {
@@ -550,6 +561,12 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     const list = vagas.map(v => v.setor).filter(Boolean);
     return Array.from(new Set(list)).sort();
   }, [vagas, setores]);
+
+  // Quem já foi responsável por alguma vaga (o campo é texto livre).
+  const responsaveisList = useMemo(
+    () => Array.from(new Set(vagas.flatMap(responsaveisDe))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [vagas]
+  );
 
   const statusList = ['ABERTA', 'FECHADA', 'PAUSADA', 'SUSPENSA', 'DOCUMENTAÇÃO', 'REABERTA'];
 
@@ -591,6 +608,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       result = result.filter(v => selectedSetor.includes(v.setor));
     }
 
+    if (selectedResponsavel.length) result = result.filter(responsavelMarcado);
+
     // Modern KPI Groups Filter
     if (statusGroupFilter.length) {
       const grupo = {
@@ -616,7 +635,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     });
 
     return result;
-  }, [vagas, searchTerm, selectedSede, selectedStatus, selectedSetor, sortBy, sortOrder, statusGroupFilter, userSede, isAdmin]);
+  }, [vagas, searchTerm, selectedSede, selectedStatus, selectedSetor, selectedResponsavel, sortBy, sortOrder, statusGroupFilter, userSede, isAdmin]);
 
   // Paginated chunk
   const paginatedVagas = useMemo(() => {
@@ -713,11 +732,12 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     else setViewMode(m);
     setCurrentPage(1);
   };
-  const filtrosAtivos = !!(searchTerm || selectedSede.length || selectedSetor.length || selectedStatus.length || statusGroupFilter.length);
+  const filtrosAtivos = !!(searchTerm || selectedSede.length || selectedSetor.length || selectedResponsavel.length || selectedStatus.length || statusGroupFilter.length);
   const limparFiltros = () => {
     setSearchTerm('');
     setSelectedSede(!isAdmin && userSede ? [userSede] : []);
     setSelectedSetor([]);
+    setSelectedResponsavel([]);
     setSelectedStatus([]);
     setStatusGroupFilter([]);
     setCurrentPage(1);
@@ -838,6 +858,12 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           opcoes={setoresList.map(s => ({ valor: s, rotulo: s }))}
           selecionados={selectedSetor}
           onChange={v => { setSelectedSetor(v); setCurrentPage(1); }}
+        />
+        <FiltroMultiplo
+          rotulo="Responsável"
+          opcoes={responsaveisList.map(r => ({ valor: r, rotulo: r }))}
+          selecionados={selectedResponsavel}
+          onChange={v => { setSelectedResponsavel(v); setCurrentPage(1); }}
         />
         <FiltroMultiplo
           rotulo="Status"
