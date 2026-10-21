@@ -7,6 +7,46 @@
         { "fieldPath": "escopo", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "candidatos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "escopo", "order": "ASCENDING" },
+        { "fieldPath": "dataISO", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "candidatos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "escopo", "order": "ASCENDING" },
+        { "fieldPath": "nomeNorm", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "candidatos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "escopo", "order": "ASCENDING" },
+        { "fieldPath": "selecaoId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "candidatos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "escopo", "order": "ASCENDING" },
+        { "fieldPath": "telefone", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "candidatos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "escopo", "order": "ASCENDING" },
+        { "fieldPath": "contratado", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

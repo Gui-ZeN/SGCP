@@ -11,7 +11,22 @@ import { useBanco } from '../../hooks/useBancoCandidatos';
 export function SeloBanco({ nome, telefone, excluir }: { nome: string; telefone?: string; excluir?: string }) {
   const banco = useBanco();
   const aviso = banco?.avisoPara(nome, telefone, excluir);
+  // Consulta que falhou ≠ "nunca chamado": diz que não conferiu. Com aviso
+  // parcial (só o que já estava na tela), o "Chamado Nx" sai — seria um número
+  // a menos parecendo certo; o "Não chamar" fica (as marcas estão todas na tela).
+  const falhou = !!banco?.falhouPara(nome, telefone) && !!nome.trim();
+  if (falhou && !aviso?.naoChamar) {
+    return <span className="selo-banco" title="Não foi possível consultar o histórico agora. Tenta de novo sozinho em instantes.">Histórico indisponível</span>;
+  }
   if (!banco || !aviso) return null;
+  if (falhou) {
+    return (
+      <button type="button" className="selo-banco" onClick={e => { e.stopPropagation(); banco.abrirFicha(nome, telefone); }}
+        title={`Não chamar: ${aviso.naoChamar} — histórico indisponível agora`}>
+        <span className="selo-banco-nao">Não chamar</span><span>Histórico indisponível</span>
+      </button>
+    );
+  }
   return (
     <button type="button" className="selo-banco"
       onClick={e => { e.stopPropagation(); banco.abrirFicha(nome, telefone); }}

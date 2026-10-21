@@ -211,6 +211,10 @@ for (const g of grupos.values()) {
     candidatos.push({
       id: `uni-cand-${hash(`${id}|${k}|${vezesNoDia[k]}`)}`, selecaoId: id, data: g.data, nome: n.nome,
       resultado: n.resultado, contratado: n.contratado, motivo: '', observacao: n.observacao, escopo: 'universidade',
+      // Campos de busca (19/10/2026, src/utils/janelaCandidatos.ts): sem eles o
+      // candidato some da lista ao vivo e do Banco de candidatos.
+      dataISO: g.data.split('/').reverse().join('-'),
+      nomeNorm: (n.nome || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim(),
     });
   });
 }

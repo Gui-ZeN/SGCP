@@ -93,6 +93,8 @@ interface SelecoesSectionProps {
   salvarCandidato?: (selecao: Selecao, dados: Pick<Candidato, 'nome' | 'resultado' | 'contratado' | 'motivo' | 'observacao'>, id?: string) => Promise<void>;
   registrarCandidatos?: (selecao: Selecao, nomes: string[]) => Promise<void>;
   removerCandidato?: (selecao: Selecao, id: string) => Promise<void>;
+  /** Traz os candidatos de seleções de antes da janela ao vivo (dia antigo aberto). */
+  garantirCandidatos?: (selecoes: Selecao[]) => void;
   /** Ausentes = somente leitura (Visualizador). */
   /** Criar seleção pelo formulário único (o mesmo de Seleções e do Kanban). */
   criarSelecao?: (campos: Omit<Selecao, 'id'>, nomes: string[]) => Promise<void>;
@@ -123,7 +125,7 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
     atividades = [], adicionarAtividade, atualizarAtividade, removerAtividade, confirmAction,
     logs, usuarios = [], diarios = [], salvarMeuDia, emailAtual = '', meuLog = [],
     tarefas = TAREFAS_PADRAO, criarTarefa, ajustarTarefa, apagarTarefa,
-    candidatos, salvarCandidato, registrarCandidatos, removerCandidato, foco, excluirSelecao,
+    candidatos, salvarCandidato, registrarCandidatos, removerCandidato, garantirCandidatos, foco, excluirSelecao,
     ...fontes
   } = props;
   const [diaISO, setDiaISO] = useState(() => foco?.dia || dataISOLocal());
@@ -174,6 +176,8 @@ export const SelecoesSection: React.FC<SelecoesSectionProps> = (props) => {
     () => fontes.selecoes.filter(s => (s.data || '').trim() === dia && naSede(s)),
     [fontes.selecoes, dia, naSede]
   );
+  // Dia de antes da janela ao vivo (60 dias): os candidatos vêm sob demanda.
+  React.useEffect(() => { if (candidatos && doDia.length) garantirCandidatos?.(doDia); }, [doDia, !!candidatos]);
   const totais = useMemo(() => totaisDeSelecoes(doDia), [doDia]);
 
   /**

@@ -47,6 +47,10 @@ interface Props {
   salvarCandidato?: (selecao: Selecao, dados: Dados, id?: string) => Promise<void>;
   registrarCandidatos?: (selecao: Selecao, nomes: string[]) => Promise<void>;
   removerCandidato?: (selecao: Selecao, id: string) => Promise<void>;
+  /** Candidatos de antes da janela ao vivo (60 dias): a seleção aberta… */
+  garantirCandidatos?: (selecoes: Selecao[]) => void;
+  /** …ou os anos do filtro, na aba Candidatos ('tudo' = sem filtro de ano). */
+  carregarCandidatosDosAnos?: (anos: number[] | 'tudo') => Promise<void>;
   confirmAction?: (titulo: string, mensagem: string, onConfirm: () => void | Promise<void>) => void;
   /** Excluir uma seleção AGENDADA (só Administrador e Coordenador recebem). */
   excluirSelecao?: (selecao: Selecao) => void;
@@ -57,6 +61,7 @@ const ordem = (d: string) => { const am = anoMes(d); return am ? am[0] * 10000 +
 export const SelecoesModulo: React.FC<Props> = ({
   selecoes, sedes, vagas = [], foco, novaParaVaga, setores = [], sedePadrao = '', responsavelPadrao = '', salvarSelecao, criarSelecao,
   candidatos, salvarCandidato, registrarCandidatos, removerCandidato, confirmAction, excluirSelecao,
+  garantirCandidatos, carregarCandidatosDosAnos,
 }) => {
   // ── filtros ──
   const anos = useMemo(() => anosDosDados(selecoes.map(s => s.data)), [selecoes]);
@@ -122,6 +127,22 @@ export const SelecoesModulo: React.FC<Props> = ({
     setFiltroSel(id); setEditando(false); setVisao('candidatos');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+  // Aba Candidatos: o que é de antes da janela ao vivo vem agora, uma vez —
+  // a seleção aberta, ou os anos do filtro (lista inteira).
+  const [carregandoAnos, setCarregandoAnos] = useState(false);
+  const chaveAnos = anosSel.length ? [...anosSel].sort().join(',') : 'tudo';
+  React.useEffect(() => {
+    if (visao !== 'candidatos' || !candidatos) return;
+    if (selFiltrada) { garantirCandidatos?.([selFiltrada]); return; }
+    if (!carregarCandidatosDosAnos) return;
+    let vivo = true;
+    setCarregandoAnos(true);
+    carregarCandidatosDosAnos(chaveAnos === 'tudo' ? 'tudo' : chaveAnos.split(',').map(Number))
+      .catch(e => console.warn('Candidatos dos anos:', e))
+      .finally(() => { if (vivo) setCarregandoAnos(false); });
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visao, selFiltrada?.id, chaveAnos, !!candidatos]);
   // Veio do Quadro de Vagas ("Ver candidatos" numa seleção da vaga).
   React.useEffect(() => { if (foco?.id) abrirCandidatos(foco.id); }, [foco?.token]);
   // "Nova seleção para esta vaga": o formulário já abre com sede, cargo, setor,
@@ -264,6 +285,11 @@ export const SelecoesModulo: React.FC<Props> = ({
             aoFechar={() => setEditando(false)}
           />
         )}
+        {carregandoAnos && !selFiltrada && (
+          <p className="text-[13px]" role="status" style={{ color: 'var(--tinta-3)' }}>
+            Carregando os candidatos {chaveAnos === 'tudo' ? 'de todos os anos' : `de ${chaveAnos.replace(/,/g, ', ')}`}…
+          </p>
+        )}
         <CandidatosPlanilha
           // Chave com prefixo: o formulário ao lado usa o mesmo id da seleção, e
           // duas irmãs com a mesma chave fazem o React deixar o formulário velho
@@ -299,7 +325,9 @@ export const SelecoesModulo: React.FC<Props> = ({
             <tbody>
               {linhas.map(s => {
                 const feita = ehRealizada(s);
-                const n = porSelecao.get(s.id)?.length || 0;
+                // Seleção antiga ainda não carregada (fora dos 60 dias ao vivo):
+                // com números da lista, os convocados SÃO o tamanho da lista.
+                const n = porSelecao.get(s.id)?.length || (s.numerosPelaLista ? s.convocados : 0);
                 const numero = (v: number) => (feita ? v : '—');
                 const codigos = codigosDasVagas(s);
                 const detalhe = [siglaDaSede(sedes, s.sede), s.setor, s.gestor && `gestor ${s.gestor}`, s.responsavel && `RH ${s.responsavel}`].filter(Boolean).join(' · ');

@@ -26,7 +26,9 @@ import {
   setDoc,
   writeBatch,
   runTransaction,
-  serverTimestamp
+  serverTimestamp,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -193,7 +195,9 @@ export {
   setDoc,
   writeBatch,
   runTransaction,
-  serverTimestamp
+  serverTimestamp,
+  orderBy,
+  limit
 };
 
 /**

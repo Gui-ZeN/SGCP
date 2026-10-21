@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { SeloBanco } from '../banco/SeloBanco';
 import { useBanco } from '../../hooks/useBancoCandidatos';
-import { sugestoesDeNome, linhaDaPessoa, formatarTelefone } from '../../utils/bancoCandidatos';
+import { linhaDaPessoa, formatarTelefone } from '../../utils/bancoCandidatos';
 
 /**
  * Um campo por nome, e "+ Adicionar nome" abre a próxima linha (pedido do
@@ -28,7 +28,7 @@ export function ListaDeNomes({ nomes, onChange, rotulo = 'Nome' }: {
   // foco e qual sugestão está destacada pelas setas.
   const banco = useBanco();
   const [sugerindo, setSugerindo] = useState<{ linha: number; destaque: number } | null>(null);
-  const sugestoes = banco && sugerindo ? sugestoesDeNome(banco.pessoas, linhas[sugerindo.linha] || '') : [];
+  const sugestoes = banco && sugerindo ? banco.sugestoes(linhas[sugerindo.linha] || '') : [];
   const escolher = (i: number, k: number) => {
     const p = sugestoes[k];
     if (!p) return;

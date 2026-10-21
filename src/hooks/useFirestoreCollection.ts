@@ -73,6 +73,12 @@ export interface UseFirestoreCollectionOptions<T> {
    * o localStorage É o banco.
    */
   semCopiaLocal?: boolean;
+  /**
+   * Escuta só os registros com `campo >= desde` (candidatos, 19/10/2026: os
+   * últimos 60 dias). O resto, quem usa busca sob demanda. No modo demo não
+   * filtra — lá o localStorage é o banco inteiro e não custa leitura.
+   */
+  janela?: { campo: string; desde: string };
 }
 
 export interface UseFirestoreCollectionResult<T> {
@@ -95,8 +101,9 @@ export interface UseFirestoreCollectionResult<T> {
  * A coleção como quem lê pode lê-la: a própria unidade (null = Administrador,
  * tudo). Regra não é filtro — sem o `where`, a leitura inteira é negada.
  */
-export function colecaoDoLeitor(nome: string, escopo: string | null | undefined) {
-  return escopo ? query(collection(db, nome), where('escopo', '==', escopo)) : collection(db, nome);
+export function colecaoDoLeitor(nome: string, escopo: string | null | undefined, ...filtros: any[]) {
+  const base = escopo ? [where('escopo', '==', escopo)] : [];
+  return base.length || filtros.length ? query(collection(db, nome), ...base, ...filtros) : collection(db, nome);
 }
 
 export function useFirestoreCollection<T extends { id: string }>(
@@ -113,7 +120,8 @@ export function useFirestoreCollection<T extends { id: string }>(
     enabled = true,
     escopo = null,
     escopoDoRegistro,
-    semCopiaLocal = false
+    semCopiaLocal = false,
+    janela
   } = opts;
 
   const [items, setItems] = useState<T[]>([]);
@@ -149,7 +157,7 @@ export function useFirestoreCollection<T extends { id: string }>(
     if (isFirebaseEnabled && db && enabled) {
       setLoading(true);
       const unsub = onSnapshot(
-        colecaoDoLeitor(collectionName, escopo),
+        colecaoDoLeitor(collectionName, escopo, ...(janela ? [where(janela.campo, '>=', janela.desde)] : [])),
         (snapshot: any) => {
           const list: T[] = [];
           snapshot.forEach((docSnap: any) => {
@@ -176,7 +184,7 @@ export function useFirestoreCollection<T extends { id: string }>(
       setLoading(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, escopo]);
+  }, [enabled, escopo, janela?.campo, janela?.desde]);
 
   // Modo local (demo/offline): toda gravação parte da lista ATUAL, não da que
   // estava na tela quando a função foi criada. ⚠️ Sem isto, gravações seguidas

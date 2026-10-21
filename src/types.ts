@@ -306,6 +306,9 @@ export interface Candidato {
   /** DD/MM/AAAA — copiado do dia de seleção, para listar sem buscá-lo. */
   data: string;
   nome: string;
+  /** AAAA-MM-DD de `data` e o nome normalizado: campos de BUSCA, gravados junto (utils/janelaCandidatos.ts, 19/10/2026). */
+  dataISO?: string;
+  nomeNorm?: string;
   /** Só dígitos, com DDD (opcional — entra quando colado junto do nome). Identifica a pessoa no Banco de candidatos. */
   telefone?: string;
   resultado: import('./utils/candidatos').ResultadoCandidato;
