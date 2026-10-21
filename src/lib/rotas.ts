@@ -27,10 +27,11 @@ export type Aba = keyof typeof ENDERECO_DA_ABA;
 
 /**
  * O que a tela abre: `vaga` (código), `selecao` (id), `dia` (AAAA-MM-DD),
- * `pessoa` (nome, na Experiência) e `novaSelecao` (id da vaga: abre o
- * formulário de nova seleção já com ela marcada).
+ * `pessoa` (nome, na Experiência), `novaSelecao` (id da vaga: abre o
+ * formulário de nova seleção já com ela marcada) e `concluir` ('1', junto
+ * de `vaga`: abre a vaga já no formulário de Concluir).
  */
-const PARAMETROS = ['vaga', 'selecao', 'dia', 'pessoa', 'novaSelecao'] as const;
+const PARAMETROS = ['vaga', 'selecao', 'dia', 'pessoa', 'novaSelecao', 'concluir'] as const;
 export type ParametrosDaRota = Partial<Record<(typeof PARAMETROS)[number], string>>;
 
 export interface Rota {

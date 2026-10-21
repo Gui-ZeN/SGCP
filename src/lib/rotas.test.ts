@@ -22,6 +22,10 @@ describe('rotas', () => {
     expect(lerRota(linkPara('selecoesLista', { novaSelecao: 'v1' }))).toEqual({ aba: 'selecoesLista', params: { novaSelecao: 'v1' } });
   });
 
+  it('lê o pedido de abrir a vaga já no Concluir', () => {
+    expect(lerRota(linkPara('vagas', { vaga: '2147180986', concluir: '1' }))).toEqual({ aba: 'vagas', params: { vaga: '2147180986', concluir: '1' } });
+  });
+
   it('monta o link e ida e volta dá o mesmo', () => {
     expect(linkPara('vagas', { vaga: 124 })).toBe('#/vagas?vaga=124');
     expect(linkPara('home')).toBe('#/inicio');

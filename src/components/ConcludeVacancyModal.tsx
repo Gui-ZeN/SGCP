@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Vaga } from '../types';
 import { Check } from 'lucide-react';
 import { Modal } from './ui/Modal';
+import { dataISOLocal } from '../utils/date';
 
 interface ConcludeVacancyModalProps {
   vaga: Vaga;
@@ -30,8 +31,9 @@ export const ConcludeVacancyModal: React.FC<ConcludeVacancyModalProps> = ({ vaga
 
   // Initialize dates
   useEffect(() => {
-    const today = new Date();
-    const defaultDate = today.toISOString().split('T')[0];
+    // ⚠️ Data LOCAL: toISOString() é Greenwich — depois das 21h em Fortaleza
+    // a conclusão vinha sugerida com o dia seguinte (21/10/2026).
+    const defaultDate = dataISOLocal();
     setConcludeDate(defaultDate);
     setConcludeAdmissaoDate(defaultDate);
     setConcludeNotes(vaga.observacoes || '');

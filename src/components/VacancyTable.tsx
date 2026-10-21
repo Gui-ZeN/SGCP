@@ -55,7 +55,8 @@ interface VacancyTableProps {
   userSede?: string;
   userRole?: string;
   // Foco vindo do Home (alerta de SLA): filtra a tabela pela vaga (token muda a cada clique).
-  focusVaga?: { codigo: string; token: number } | null;
+  /** `concluir`: abre a vaga direto no formulário de Concluir. */
+  focusVaga?: { codigo: string; token: number; concluir?: boolean } | null;
   // Logs de auditoria (só carregados para admin) — usados na timeline do painel de detalhes.
   logs?: SystemLog[];
   /** Logs carregados só desde esta data (ISO) — os 45 dias ao vivo; ver useLogs. Ausente = tudo carregado. */
@@ -184,7 +185,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       setSelectedSede(!isAdmin && userSede ? [userSede] : []);
       setCurrentPage(1);
       const alvo = vagas.find(v => String(v.codigo) === focusVaga.codigo);
-      if (alvo) setSelectedDetailsVaga(alvo);
+      if (alvo && focusVaga.concluir && alvo.status !== 'FECHADA') setVagaToConclude(alvo);
+      else if (alvo) setSelectedDetailsVaga(alvo);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusVaga?.token]);
@@ -1104,6 +1106,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           funilAutomatico={funilEfetivo(editingVaga, selecoes).fonte === 'selecao' ? funilEfetivo(editingVaga, selecoes) : undefined}
           onClose={() => setEditingVaga(null)}
           onSave={handleEditSave}
+          onConcluir={handleOpenConcludeModal}
         />
       )}
 
@@ -1171,7 +1174,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       {vagaToConclude && (
         <ConcludeVacancyModal
           vaga={vagaToConclude}
-          sugestao={escolhidoParaConcluir?.nome}
+          // Quem está na documentação; senão, o aprovado já registrado na vaga.
+          sugestao={escolhidoParaConcluir?.nome || vagaToConclude.aprovado || undefined}
           onClose={() => setVagaToConclude(null)}
           onConclude={handleSaveConclusion}
         />

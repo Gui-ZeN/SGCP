@@ -14,9 +14,11 @@ interface EditVacancyModalProps {
   onSave: (id: string, updatedFields: Partial<Vaga>) => Promise<void>;
   /** Presente = a vaga tem seleção ligada e o funil vem dela (só leitura). */
   funilAutomatico?: { chamados: number; compareceram: number; aprovados: number; selecoes: number };
+  /** Abre o Concluir com a vaga já salva (botão "Salvar e concluir a vaga"). */
+  onConcluir?: (vaga: Vaga) => void;
 }
 
-export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos, sedes, setores, funilAutomatico, onClose, onSave }) => {
+export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos, sedes, setores, funilAutomatico, onClose, onSave, onConcluir }) => {
   const [tempStatus, setTempStatus] = useState<Vaga['status']>('ABERTA');
   const [tempEtapa, setTempEtapa] = useState('');
   const [tempAprovado, setTempAprovado] = useState('');
@@ -77,7 +79,8 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
     setTempMotivoDesistencia(vaga.motivoDesistencia || '');
   }, [vaga]);
 
-  const handleSave = async () => {
+  /** `concluir`: depois de salvar, abre o Concluir com a vaga já atualizada. */
+  const handleSave = async (concluir = false) => {
     let finalSolicitacao = vaga.solicitacao;
     let finalMesSolicitacao = vaga.mesSolicitacao;
     if (tempSolicitacao && tempSolicitacao !== vaga.solicitacao) {
@@ -99,7 +102,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
       ? `Outros: ${tempMotivoOutro.trim()}`
       : tempMotivo;
 
-    await onSave(vaga.id, {
+    const campos: Partial<Vaga> = {
       vaga: tempVagaName,
       sede: tempSede,
       setor: tempSetor,
@@ -124,10 +127,17 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
         candAprovados: Number(tempCandAprovados) || 0,
       }),
       motivoDesistencia: tempMotivoDesistencia
-    });
+    };
+    await onSave(vaga.id, campos);
 
     onClose();
+    if (concluir) onConcluir?.({ ...vaga, ...campos });
   };
+
+  // Preencher o aprovado NÃO fecha a vaga (21/10/2026: o RH da Universidade
+  // preenchia, salvava e a vaga seguia em Documentação — "fechei e voltou").
+  // Fechar é concluir: data de conclusão, Experiência, contratado na seleção.
+  const aprovadoSemConcluir = !!onConcluir && !!tempAprovado.trim() && tempStatus !== 'FECHADA' && vaga.status !== 'FECHADA';
 
   return (
     <Modal
@@ -137,7 +147,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
       titulo={`Editar: ${vaga.vaga}`}
       rodape={<>
         <button type="button" className="btn" onClick={onClose}>Cancelar</button>
-        <button type="button" className="btn btn-primario" onClick={handleSave}>Salvar alterações</button>
+        <button type="button" className="btn btn-primario" onClick={() => handleSave()}>Salvar alterações</button>
       </>}
     >
         <div className="space-y-4">
@@ -334,6 +344,14 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
                 value={tempAprovado}
                 onChange={(e) => setTempAprovado(e.target.value)}
               />
+              {aprovadoSemConcluir && (
+                <div role="status" className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-[13px] text-amber-900">
+                    Preencher o aprovado <b>não fecha a vaga</b>: ela continua em {tempStatus === 'DOCUMENTAÇÃO' ? 'Documentação' : tempStatus.charAt(0) + tempStatus.slice(1).toLowerCase()}. Para fechar, conclua.
+                  </p>
+                  <button type="button" className="btn btn-sm btn-primario" onClick={() => handleSave(true)}>Salvar e concluir a vaga</button>
+                </div>
+              )}
             </div>
           </div>
 

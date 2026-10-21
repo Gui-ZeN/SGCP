@@ -9,7 +9,8 @@ import {
   yearFromDate,
   addDaysToDate,
   DIAS_EXPERIENCIA_1,
-  DIAS_EXPERIENCIA_2
+  DIAS_EXPERIENCIA_2,
+  dataISOLocal
 } from './date';
 
 describe('cleanText', () => {
@@ -129,5 +130,14 @@ describe('deslocamento de prazos preserva o espaçamento do registro', () => {
     const t1=addDaysToDate(adm, DIAS_EXPERIENCIA_1), t2=addDaysToDate(adm, DIAS_EXPERIENCIA_2);
     const r = desloca(adm, '11/06/2026', t1, t2);
     expect(diasEntre('11/06/2026', r.t2)).toBe(DIAS_EXPERIENCIA_2);
+  });
+});
+
+describe('dataISOLocal', () => {
+  // A data sugerida no Concluir: 22h30 de 21/10 continua sendo 21/10 (o
+  // toISOString() de antes, em Fortaleza, já dava 22/10 depois das 21h).
+  it('usa o dia do relógio local, mesmo à noite', () => {
+    expect(dataISOLocal(new Date(2026, 9, 21, 22, 30))).toBe('2026-10-21');
+    expect(dataISOLocal(new Date(2026, 9, 21, 0, 5))).toBe('2026-10-21');
   });
 });

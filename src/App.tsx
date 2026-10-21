@@ -318,7 +318,7 @@ export default function App() {
   const setActiveTab = (aba: Aba) => irPara(aba);
   // Vaga a destacar no Quadro (#/vagas?vaga=124), seleção a abrir
   // (#/selecoes?selecao=…) e dia do Resumo (#/resumo-do-dia?dia=2026-10-08).
-  const vagaFocus = activeTab === 'vagas' && rota.params.vaga ? { codigo: rota.params.vaga, token: rota.token } : null;
+  const vagaFocus = activeTab === 'vagas' && rota.params.vaga ? { codigo: rota.params.vaga, token: rota.token, concluir: rota.params.concluir === '1' } : null;
   const focoSelecao = activeTab === 'selecoesLista' && rota.params.selecao ? { id: rota.params.selecao, token: rota.token } : null;
   const focoDia = activeTab === 'selecoes' && rota.params.dia ? { dia: rota.params.dia, token: rota.token } : null;
   const focoPessoa = activeTab === 'experiencias' && rota.params.pessoa ? { pessoa: rota.params.pessoa, token: rota.token } : null;
@@ -542,9 +542,17 @@ export default function App() {
     if (dados.contratado === 'sim' && antes?.contratado !== 'sim') {
       const vaga = vagas.find(v => atendeVaga(selecao, v) && !v.aprovado && v.status !== 'FECHADA');
       if (vaga) {
-        askConfirmation('Registrar como aprovado da vaga?',
-          `${dados.nome} foi marcado(a) como contratado(a). Registrar como aprovado(a) da vaga #${vaga.codigo} (${vaga.vaga})? Para concluir a vaga, use o Quadro de Vagas.`,
-          () => wrappedUpdateVaga(vaga.id, { aprovado: dados.nome }));
+        // "Registrar e concluir" (21/10/2026): só registrar o aprovado deixava a
+        // vaga em Documentação, e o RH entendia que tinha fechado. Agora o nome
+        // vai para a vaga e o Concluir já abre — quem ainda não quer fechar
+        // cancela lá, e o nome fica registrado.
+        askConfirmation('Registrar e concluir a vaga?',
+          `${dados.nome} foi marcado(a) como contratado(a). Registrar como aprovado(a) da vaga #${vaga.codigo} (${vaga.vaga}) e abrir a conclusão? Lá você confere as datas; se ainda não for hora de fechar, cancele — o nome fica registrado.`,
+          async () => {
+            await wrappedUpdateVaga(vaga.id, { aprovado: dados.nome });
+            irPara('vagas', { vaga: String(vaga.codigo), concluir: '1' });
+          },
+          'Registrar e concluir');
       }
     }
   };
@@ -689,11 +697,12 @@ export default function App() {
     cancelText?: string;
   } | null>(null);
 
-  const askConfirmation = (title: string, message: string, onConfirm: () => void | Promise<void>) => {
+  const askConfirmation = (title: string, message: string, onConfirm: () => void | Promise<void>, confirmText?: string) => {
     setConfirmModal({
       title,
       message,
-      onConfirm
+      onConfirm,
+      confirmText
     });
   };
 
