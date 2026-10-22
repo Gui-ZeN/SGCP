@@ -19,7 +19,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  onSnapshot,
+  onSnapshot as onSnapshotDoSdk,
   query,
   where,
   getDoc,
@@ -32,6 +32,20 @@ import {
 } from 'firebase/firestore';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import firebaseConfig from '../firebase-applet-config.json';
+import { criarEscutasPausaveis } from './escutaPausavel';
+
+// Toda escuta do app passa por aqui: a aba escondida por mais de 60 min
+// cancela as dela e refaz quando volta (ver escutaPausavel.ts, 22/10/2026).
+// ⚠️ 60, não 10 (auditoria de 22/10/2026): aba de fundo com a conexão viva
+// não custa nada ao voltar; pausada, relê tudo (~4 mil) se voltar mais de
+// 30 min DEPOIS DA PAUSA. Com 10 min, quem volta à aba a cada hora pagaria
+// mais que hoje. Com 60, o uso do dia fica como era e a aba esquecida de
+// noite dorme.
+const escutar = criarEscutasPausaveis({
+  esperaMs: 60 * 60_000,
+  documento: typeof document !== 'undefined' ? document : undefined,
+});
+const onSnapshot = ((...args: any[]) => escutar(() => (onSnapshotDoSdk as any)(...args))) as typeof onSnapshotDoSdk;
 
 // Support Vercel environment variables or local applet configs seamlessly
 const finalFirebaseConfig = {
