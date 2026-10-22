@@ -285,17 +285,29 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
       return novo;
     });
 
-  /** Imprimir expande tudo: o recolhido não existe no DOM, sairia fora do PDF. */
-  const imprimir = () => {
-    const comEquipe = new Set<string>();
-    const varrer = (lista: ArvoreNo[]) => lista.forEach(i => {
-      if (i.filhos.length) comEquipe.add(i.no.id);
-      varrer(i.filhos);
-    });
-    varrer(raizes);
-    setRecolhidos(new Set());
-    setMostrarTodos(comEquipe);
-    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  /**
+   * O papel recebe a LISTA COM RECUO, não o desenho (22/10/2026). O desenho da
+   * Infra mede 5.174 px de largura: a impressão cortava tudo depois da segunda
+   * coluna, e encolher para caber deixaria a letra com 2–3 px. A lista sai
+   * sempre inteira (não depende do que está recolhido na tela).
+   */
+  const imprimir = () => window.print();
+
+  const LinhaDaLista: React.FC<{ item: ArvoreNo }> = ({ item }) => {
+    const { no, filhos } = item;
+    const equipe = filhos.length ? descendentes([item], no.id).size : 0;
+    return (
+      <li>
+        <div className={`org-lista-linha ${filhos.length ? 'org-lista-chefe' : ''}`}>
+          <b>{no.nome || '(sem nome)'}</b>
+          <span>{[no.cargo, no.sede, no.turno && `Turno ${no.turno}`].filter(Boolean).join(' · ')}</span>
+          {equipe > 0 && <em>{equipe} na equipe</em>}
+        </div>
+        {filhos.length > 0 && (
+          <ul className="org-lista">{filhos.map(f => <LinhaDaLista key={f.no.id} item={f} />)}</ul>
+        )}
+      </li>
+    );
   };
 
   const Caixa: React.FC<{ item: ArvoreNo }> = ({ item }) => {
@@ -511,6 +523,11 @@ export const OrganogramaSection: React.FC<OrganogramaSectionProps> = ({
                 {raizes.map(item => <Caixa key={item.no.id} item={item} />)}
               </ul>
             </div>
+
+            {/* O que vai para o papel no lugar do desenho — ver `imprimir`. */}
+            <ul className="org-lista org-lista-raiz print-only" aria-hidden="true">
+              {raizes.map(item => <LinhaDaLista key={item.no.id} item={item} />)}
+            </ul>
           </>
         )}
       </div>

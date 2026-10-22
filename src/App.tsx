@@ -1469,7 +1469,7 @@ export default function App() {
   ];
 
   return (
-    <div className="relative h-screen w-screen bg-slate-50 font-sans antialiased text-slate-700 flex flex-col overflow-hidden">
+    <div className="casca relative h-screen w-screen bg-slate-50 font-sans antialiased text-slate-700 flex flex-col overflow-hidden">
       {/* Enfeites de época (ligados/desligados pelo admin no painel) 🎉 */}
       {ENFEITES.filter(e => e.Comp && enfeiteAtivo(e)).map(e => { const Comp = e.Comp!; return <Comp key={e.id} />; })}
       {/* Barra do topo: só abaixo de lg, onde o menu vira gaveta. */}
@@ -1483,8 +1483,8 @@ export default function App() {
       </header>
 
       {/* Main Layout Area - Glued to side and bottom */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
-        
+      <div className="casca-corpo flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+
         <MenuLateral
           itens={itensMenu}
           ativo={activeTab}
@@ -1506,7 +1506,7 @@ export default function App() {
         <ProvedorBanco candidatos={candidatos} selecoes={selecoes} marcas={marcasNaoChamar} unidadeDoLeitor={escopoLeitor}
           busca={candidatosLigados ? buscaCandidatos : undefined} corte={corteCandidatos} dono={user?.uid || ''}
           marcar={canManageModules ? marcarNaoChamar : undefined} desfazer={podeDesfazerNaoChamar ? desfazerNaoChamar : undefined}>
-        <main className="flex-1 bg-slate-50 p-6 lg:p-8 overflow-y-auto min-h-0 h-full">
+        <main className="casca-principal flex-1 bg-slate-50 p-6 lg:p-8 overflow-y-auto min-h-0 h-full">
           {errorMessage && (
             <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-4 text-xs font-bold flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-rose-500"></span>

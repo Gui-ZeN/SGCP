@@ -398,7 +398,52 @@
   .org-cartao.org-topo .org-cargo,
   .org-cartao.org-topo .org-meta { color: var(--sgpc-tinta-secundaria) !important; }
   .org-cartao.org-topo .org-foto { background: var(--sgpc-superficie) !important; color: var(--sgpc-tinta-secundaria) !important; }
+
+  /* No papel vai a LISTA COM RECUO, não o desenho (22/10/2026): o desenho da
+     Infra tem 5.174 px de largura e saía cortado depois da segunda coluna. */
+  .org-folha .org-t, .org-folha .org-folha-cab { display: none !important; }
+  .org-folha { background: none !important; }
+  .org-lista-raiz { columns: 2; column-gap: 10mm; font-size: 8.5pt; line-height: 1.3; }
+  /* A moldura do App tem a altura da tela e corta o que passa dela: a lista
+     saía numa folha só, parada no pé da 1ª coluna. Solta SÓ com o organograma
+     aberto — as outras telas imprimem como sempre imprimiram. */
+  /* Classe dobrada: o swiss.css pinta `.bg-slate-50` com o mesmo peso e vem
+     depois — sem isto o fundo cinza da moldura ia para o papel. */
+  html:has(.org-lista-raiz) .casca.casca,
+  html:has(.org-lista-raiz) .casca-corpo.casca-corpo,
+  html:has(.org-lista-raiz) .casca-principal.casca-principal {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: none !important;
+  }
+  /* O swiss.css pinta o body de cinza com peso maior que o `body` branco do
+     topo deste arquivo; no organograma o papel sai branco. */
+  html[data-theme]:has(.org-lista-raiz) body { background: #fff !important; }
 }
+
+/* ═══ Organograma em lista (só na impressão) ═════════════════════════════════
+   Cada pessoa numa linha; a equipe desce recuada, ligada ao chefe por um fio
+   com cotovelo. O fio para no cotovelo do último, para não vazar para baixo. */
+.org-lista { list-style: none; margin: 0; padding: 0; }
+.org-lista .org-lista { padding-left: 14px; }
+.org-lista .org-lista > li { position: relative; padding-left: 12px; }
+.org-lista .org-lista > li::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+  border-left: 1px solid var(--sgpc-fio-forte);
+}
+.org-lista .org-lista > li:last-child::before { bottom: auto; height: 0.75em; }
+.org-lista .org-lista > li::after {
+  content: ''; position: absolute; left: 0; top: 0.75em; width: 8px;
+  border-top: 1px solid var(--sgpc-fio-forte);
+}
+.org-lista-linha { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; padding: 1px 0; break-inside: avoid; }
+.org-lista-linha b { font-weight: 600; color: var(--sgpc-tinta); }
+.org-lista-linha span { color: var(--sgpc-tinta-secundaria); }
+.org-lista-linha em { font-style: normal; font-weight: 600; color: var(--sgpc-tinta-secundaria); }
+.org-lista-chefe { padding-top: 5px; }
+.org-lista-chefe b { font-weight: 800; }
 
 /* Barra de rolagem da navegação: discreta, mas VISÍVEL. A lista de módulos
    não cabe em notebook 1366×768, e sem a barra o usuário não tem como saber
