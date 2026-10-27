@@ -4,7 +4,7 @@ vi.mock('./selecoes-do-dia', async (original) => ({
   ...(await original<typeof import('./selecoes-do-dia')>()),
   tokenDeAcesso: async () => 'acesso-falso',
 }));
-import handler, { validarPedido, MOTIVO } from './vagas-externas';
+import handler, { validarPedido, MOTIVO, substituicaoRepetida } from './vagas-externas';
 
 const CAT = {
   cargos: ['ASG', 'TME'],
@@ -66,6 +66,38 @@ describe('validarPedido', () => {
   });
 });
 
+describe('substituicaoRepetida', () => {
+  const viva = (codigo: number, substituido: string, sede = 'DIONISIO TORRES') => ({ codigo, substituido, sede });
+  const pede = (substituido: string, sede = 'DIONISIO TORRES') => ({ substituido, sede });
+  it('mesmo nome (um é o começo do outro, sem acento/caixa) → a vaga que já existe', () => {
+    expect(substituicaoRepetida(pede('Fulano de Tal (matrícula 77)'), [viva(5, 'fulano tal silva')])).toBe(5);
+    expect(substituicaoRepetida(pede('Gilberto Maciel'), [viva(6, 'Gilberto Maciel de Oliveira')])).toBe(6);
+  });
+  it('mesmo prenome, sobrenome diferente: outra pessoa', () => {
+    expect(substituicaoRepetida(pede('Maria Eduarda Silva'), [viva(7, 'Maria Eduarda Costa')])).toBeNull();
+  });
+  it('só pelo nome, homônima de OUTRA sede não bloqueia (a recusa é dura)', () => {
+    expect(substituicaoRepetida(pede('Maria Silva', 'SUL'), [viva(10, 'Maria Silva Santos', 'DIONISIO TORRES')])).toBeNull();
+    expect(substituicaoRepetida(pede('Maria Silva', 'dionísio torres'), [viva(11, 'Maria Silva Santos', 'DIONISIO TORRES')])).toBe(11);
+  });
+  it('matrícula dos dois lados decide, em qualquer sede: igual repete mesmo com o nome escrito diferente; diferente não', () => {
+    expect(substituicaoRepetida(pede('Fulano (matrícula 77)', 'SUL'), [viva(8, 'F. de Tal (matrícula 77)')])).toBe(8);
+    expect(substituicaoRepetida(pede('Fulano de Tal (matrícula 77)'), [viva(9, 'Fulano de Tal (matrícula 78)')])).toBeNull();
+  });
+  it('nome vazio ou só o prenome contra nome completo: não repete', () => {
+    expect(substituicaoRepetida(pede(''), [viva(1, '')])).toBeNull();
+    expect(substituicaoRepetida(pede('Josué'), [viva(2, 'Josué Lima')])).toBeNull();
+  });
+  it('código 0 ainda bloqueia (não é teste de verdade/falso)', () => {
+    expect(substituicaoRepetida(pede('Ana Lima'), [viva(0, 'Ana Lima')])).toBe(0);
+  });
+  it('texto gravado enorme não trava (corte antes do regex)', () => {
+    const inicio = Date.now();
+    expect(substituicaoRepetida(pede('Ana Lima'), [viva(3, '(matrícula ' + ' '.repeat(240000))])).toBeNull();
+    expect(Date.now() - inicio).toBeLessThan(500);
+  });
+});
+
 describe('handler', () => {
   const resposta = () => {
     const r: any = { code: 0, body: null };
@@ -80,6 +112,9 @@ describe('handler', () => {
   // contadores/vagas: o mesmo contador da tela, com updateTime (precondição).
   let contador: { ultimo: number; updateTime: string } | null;
   let outroGravaAntes = 0; // simula N reservas de outra pessoa entre a leitura e a gravação
+  // Vagas vivas da unidade (consulta da substituição repetida) e o filtro que ela usou.
+  let vivas: { codigo: number; substituido: string; sede?: string }[];
+  let consultaVivas: any;
 
   beforeEach(() => {
     vi.stubEnv('SGPC_VAGAS_TOKEN', 'segredo');
@@ -88,11 +123,17 @@ describe('handler', () => {
     criarFalha = false;
     contador = { ultimo: 2147180526, updateTime: 't0' };
     outroGravaAntes = 0;
+    vivas = [];
+    consultaVivas = null;
     globalThis.fetch = (async (url: string, init?: RequestInit) => {
       const u = String(url), metodo = init?.method || 'GET';
       if (u.endsWith('/cargos?pageSize=300')) return Response.json({ documents: CAT.cargos.map(nome => doc({ nome })) });
       if (u.endsWith('/setores?pageSize=300')) return Response.json({ documents: CAT.setores.map(nome => doc({ nome })) });
       if (u.endsWith('/sedes?pageSize=300')) return Response.json({ documents: CAT.sedes.map(s => doc(s as any)) });
+      if (u.endsWith(':runQuery') && String(init?.body).includes('"escopo"')) {
+        consultaVivas = JSON.parse(String(init?.body)).structuredQuery.where;
+        return Response.json(vivas.map(v => ({ document: { fields: { codigo: { integerValue: String(v.codigo) }, funcionarioSubstituido: { stringValue: v.substituido }, sede: { stringValue: v.sede ?? 'DIONISIO TORRES' } } } })));
+      }
       if (u.endsWith(':runQuery')) return Response.json([{ document: { fields: { codigo: { integerValue: '2147180526' } } } }]);
       if (u.endsWith('/logs')) { banco.__log = JSON.parse(String(init?.body)); return Response.json({}); }
       if (u.includes('/contadores/vagas')) {
@@ -181,6 +222,67 @@ describe('handler', () => {
     const r = await enviar(pedido({ sede: 'Marte' }));
     expect(r.code).toBe(400);
     expect(r.body.erro).toMatch(/Sede "Marte"/);
+  });
+
+  describe('substituição repetida', () => {
+    it('vaga viva da unidade com a mesma pessoa: 409 com o número dela, nada criado e o contador parado', async () => {
+      vivas = [{ codigo: 2147180400, substituido: 'Fulano de Tal' }];
+      const r = await enviar(pedido());
+      expect(r.code).toBe(409);
+      expect(r.body).toMatchObject({ codigo: '2147180400' });
+      expect(r.body.erro).toMatch(/nº 2147180400/);
+      expect(banco['chromos_m77_2026-09-01']).toBeUndefined();
+      expect(contador?.ultimo).toBe(2147180526);
+      expect(Object.keys(r.body).sort()).toEqual(['codigo', 'erro']); // nem nome, nem sede, nem status
+    });
+    it('a recusa deixa um log na unidade, sem o nome da pessoa', async () => {
+      vivas = [{ codigo: 2147180400, substituido: 'Fulano de Tal' }];
+      await enviar(pedido());
+      const log = banco.__log.fields;
+      expect(log.acao.stringValue).toBe('SINALIZOU');
+      expect(log.escopo.stringValue).toBe('colegio');
+      expect(log.detalhes.stringValue).toMatch(/#2147180400/);
+      expect(log.detalhes.stringValue).not.toMatch(/Fulano/);
+    });
+    it('vale também para o token do Orkestria', async () => {
+      vi.stubEnv('SGPC_VAGAS_TOKEN_ORKESTRIA', 'segredo-ork');
+      vivas = [{ codigo: 2147180401, substituido: 'Fulano de Tal' }];
+      const r = await enviar(pedido({ origem: { sistema: 'Orkestria', caso: 'christus_dt_f9' }, motivo: 'Pedido de demissão' }), 'segredo-ork');
+      expect(r.code).toBe(409);
+    });
+    it('consulta 200 com corpo torto: 502, nada criado', async () => {
+      const antes = globalThis.fetch;
+      globalThis.fetch = (async (url: string, init?: RequestInit) =>
+        String(url).endsWith(':runQuery') && String(init?.body).includes('"escopo"') ? Response.json({ error: 'x' }) : antes(url, init)) as typeof fetch;
+      expect((await enviar(pedido())).code).toBe(502);
+      expect(banco['chromos_m77_2026-09-01']).toBeUndefined();
+    });
+    it('procura só nas vivas da MESMA unidade', async () => {
+      await enviar(pedido({ sede: 'CESIU' }));
+      const [escopo, status] = consultaVivas.compositeFilter.filters.map((f: any) => f.fieldFilter);
+      expect(escopo.value.stringValue).toBe('universidade');
+      expect(status.op).toBe('IN');
+      expect(status.value.arrayValue.values.map((v: any) => v.stringValue)).toEqual(['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO', 'PAUSADA', 'SUSPENSA']);
+    });
+    it('o reenvio do MESMO caso continua devolvendo a vaga (200), mesmo ela estando viva', async () => {
+      const a = await enviar(pedido());
+      vivas = [{ codigo: Number(a.body.codigo), substituido: 'Fulano de Tal (matrícula 77)' }];
+      const b = await enviar(pedido());
+      expect(b.code).toBe(200);
+      expect(b.body).toEqual(a.body);
+    });
+    it('outra pessoa (matrícula diferente) cria normalmente', async () => {
+      vivas = [{ codigo: 2147180400, substituido: 'Fulano de Tal (matrícula 78)' }];
+      expect((await enviar(pedido())).code).toBe(201);
+    });
+    it('falha ao ler as vagas vivas: 502, nunca cria às cegas', async () => {
+      const antes = globalThis.fetch;
+      globalThis.fetch = (async (url: string, init?: RequestInit) =>
+        String(url).endsWith(':runQuery') && String(init?.body).includes('"escopo"') ? new Response('', { status: 500 }) : antes(url, init)) as typeof fetch;
+      const r = await enviar(pedido());
+      expect(r.code).toBe(502);
+      expect(banco['chromos_m77_2026-09-01']).toBeUndefined();
+    });
   });
 
   it('aceita o corpo como texto JSON', async () => {

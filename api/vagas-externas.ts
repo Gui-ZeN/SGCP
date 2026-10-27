@@ -142,6 +142,48 @@ const paraFirestore = (campos: Record<string, string | number>) => ({
 });
 const codigoDe = (doc: any) => Number(doc?.fields?.codigo?.integerValue ?? doc?.fields?.codigo?.doubleValue ?? 0);
 
+// ── Substituição repetida (27/10/2026) ──────────────────────────────────────
+// A vaga lançada na tela e a mesma vinda daqui viravam duas (o RH fechava uma e
+// a outra "voltava"). Mesma regra de nome de src/utils/vaga.ts › vagasParecidas
+// (copiada: a função da Vercel não importa de src/).
+const VIVAS = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO', 'PAUSADA', 'SUSPENSA'];
+const partesDoNome = (s: string) => (s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+  .replace(/[^\p{L}\p{N} ]/gu, ' ').split(/\s+/).filter(p => p && !['de', 'da', 'do', 'dos', 'das', 'e'].includes(p));
+/** "Gilberto Maciel" é "Gilberto Maciel de Oliveira"; "Maria Eduarda Silva" não é "Maria Eduarda Costa". */
+function mesmaPessoa(a: string, b: string): boolean {
+  const [x, y] = [partesDoNome(a), partesDoNome(b)].sort((p, q) => p.length - q.length);
+  if (!x.length) return false;
+  if (x.length === 1) return y.length === 1 && x[0] === y[0];
+  return x.every((p, i) => p === y[i]);
+}
+/** "Fulano (matrícula 77)", como esta rota grava → nome e matrícula. */
+// ⚠️ Corta antes do regex: ele é quadrático em texto longo, e o campo da vaga
+// não tem limite no banco (revisão de segurança, 27/10/2026: 240 mil caracteres
+// = 1,7 s por pedido, e todo pedido da unidade estouraria o tempo).
+const separar = (s: string) => {
+  const t = (s || '').slice(0, 300);
+  const m = /^(.*?)\s*\(matr[ií]cula\s+([^)]+)\)\s*$/i.exec(t);
+  return m ? { nome: m[1], matricula: m[2].trim() } : { nome: t, matricula: '' };
+};
+const mesmaSede = (a: string, b: string) => partesDoNome(a).join(' ') === partesDoNome(b).join(' ');
+/**
+ * Código da vaga viva que já substitui a mesma pessoa, ou null. Com matrícula
+ * dos dois lados, ela decide (em qualquer sede). Só pelo nome, exige também a
+ * mesma sede: "Maria Silva" de outra sede é homônima, e aqui a recusa é dura
+ * (na tela só avisa).
+ */
+export function substituicaoRepetida(
+  pedido: { substituido: string; sede: string },
+  vivas: { codigo: number; substituido: string; sede: string }[],
+): number | null {
+  const a = separar(pedido.substituido);
+  const achada = vivas.find(v => {
+    const b = separar(v.substituido);
+    return a.matricula && b.matricula ? a.matricula === b.matricula : mesmaSede(pedido.sede, v.sede) && mesmaPessoa(a.nome, b.nome);
+  });
+  return achada ? achada.codigo : null;
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ erro: 'Use POST.' });
   const configurados = (Object.keys(SISTEMAS) as Sistema[])
@@ -189,6 +231,32 @@ export default async function handler(req: any, res: any) {
 
     const existente = await jaExiste();
     if (existente) return res.status(200).json({ id: pedido.docId, codigo: String(codigoDe(existente)) });
+
+    // DEPOIS do mesmo caso (o reenvio dele devolve a vaga, não é repetição):
+    // outra vaga viva da unidade substituindo a mesma pessoa → recusa.
+    const rv = await fetch(`${BASE}:runQuery`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ structuredQuery: {
+        from: [{ collectionId: 'vagas' }],
+        select: { fields: [{ fieldPath: 'codigo' }, { fieldPath: 'funcionarioSubstituido' }, { fieldPath: 'sede' }] },
+        where: { compositeFilter: { op: 'AND', filters: [
+          { fieldFilter: { field: { fieldPath: 'escopo' }, op: 'EQUAL', value: { stringValue: String(pedido.campos.escopo) } } },
+          { fieldFilter: { field: { fieldPath: 'status' }, op: 'IN', value: { arrayValue: { values: VIVAS.map(s => ({ stringValue: s })) } } } },
+        ] } },
+      } }),
+    });
+    if (!rv.ok) throw new Error(`vagas vivas: ${rv.status}`);
+    const vivas = ((await rv.json()) as any[]).filter(l => l.document)
+      .map(l => ({ codigo: codigoDe(l.document), substituido: campoTexto(l.document, 'funcionarioSubstituido'), sede: campoTexto(l.document, 'sede') }));
+    const repetida = substituicaoRepetida({ substituido: String(pedido.campos.funcionarioSubstituido), sede: String(pedido.campos.sede) }, vivas);
+    if (repetida !== null) {
+      // Log sem o nome da pessoa (o log não se apaga): o RH vê que o pedido veio e foi recusado.
+      await fetch(`${BASE}/logs`, { method: 'POST', headers: H, body: JSON.stringify(paraFirestore({
+        timestamp: new Date().toISOString(), usuario: 'sistema', acao: 'SINALIZOU', modulo: 'Vagas', regiao: '', escopo: String(pedido.campos.escopo),
+        detalhes: `Pedido do ${sistema} (caso ${pedido.caso}) recusado: a substituição já tem a vaga #${repetida} aberta.`,
+      })) }).catch(e => console.error('[vagas-externas] log não gravado', e?.message));
+      return res.status(409).json({ erro: `Já existe vaga aberta para substituir esta pessoa: nº ${repetida}. Nada foi criado.`, codigo: String(repetida) });
+    }
 
     // O número sai do CONTADOR ÚNICO `contadores/vagas`, o mesmo da tela
     // (src/lib/contador.ts, 15/10/2026). "Maior + 1" direto deixava o contador
