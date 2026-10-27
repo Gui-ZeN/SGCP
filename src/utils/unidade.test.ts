@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   regiaoDaSede, sedeEhUniversidade, vagaEhUniversidade,
   escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade,
-  acharSede, siglaCanonica, escopoDaSede, escopoParaGravar, escopoAoGravar
+  acharSede, siglaCanonica, escopoDaSede, escopoParaGravar, escopoAoGravar, escopoPelaSelecao
 } from './unidade';
 import type { Vaga } from '../types';
 import type { Sede } from '../hooks/useMetadata';
@@ -23,6 +23,19 @@ const VAGAS: Vaga[] = [
   vaga({ id: 'u2', vaga: 'Analista', sede: 'QUALQUER', origem: 'planilha-universidade' }), // origem manda, mesmo sede desconhecida
   vaga({ id: 'x1', vaga: 'Sem sede', sede: '' }), // sede vazia → Colégio (não some)
 ];
+
+describe('escopoPelaSelecao (candidato e log de uma seleção)', () => {
+  it('Administrador: a unidade GRAVADA na seleção vence a sede fora do catálogo', () => {
+    expect(escopoPelaSelecao(null, SEDES, { sede: 'SEDE QUE NÃO EXISTE', escopo: 'universidade' })).toBe('universidade');
+  });
+  it('Administrador, seleção sem unidade gravada (recém-criada): pela sede', () => {
+    expect(escopoPelaSelecao(null, SEDES, { sede: 'ALDEOTA' })).toBe('universidade');
+    expect(escopoPelaSelecao(null, SEDES, { sede: 'SUL' })).toBe('colegio');
+  });
+  it('quem não é Administrador grava sempre a própria unidade, mesmo com seleção de outra', () => {
+    expect(escopoPelaSelecao('colegio', SEDES, { sede: 'ALDEOTA', escopo: 'universidade' })).toBe('colegio');
+  });
+});
 
 describe('regiaoDaSede / sedeEhUniversidade', () => {
   it('resolve por nome (case-insensitive)', () => {

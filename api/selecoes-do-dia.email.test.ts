@@ -193,6 +193,27 @@ describe('relato concorda com a tela', () => {
     expect(jenifer).toContain('Agendou 1 seleção.');
     expect(jenifer).toContain('Kits do Setembro Amarelo — 120 kits.');
   });
+
+  it('movimento do funil (uma linha, `ref.quantos`) conta os candidatos — antes dizia "1" para 15', () => {
+    const dia = '22/09/2026';
+    const funil: EntradaLog[] = [
+      { timestamp: '2026-09-22T14:00:00.000Z', usuario: A, acao: 'ALTEROU', modulo: 'Candidatos', detalhes: 'Vaga #1 foi para Testes: 15 de 15 vieram.', ref: { quantos: 15 } },
+      { timestamp: '2026-09-22T14:01:00.000Z', usuario: A, acao: 'ALTEROU', modulo: 'Candidatos', detalhes: 'antigo, sem ref' },
+    ];
+    const r = relatoPorPessoa(funil, [], dia);
+    expect(r).toEqual(relatoDaTela(funil, [], dia));
+    expect(r[0].secoes.flatMap(s => s.frases)).toContain('Atualizou 16 candidatos em seleções.');
+  });
+
+  it('`quantos` forjado não vai para o e-mail: fica entre 1 e 200', () => {
+    const dia = '22/09/2026';
+    const linha = (quantos: any): EntradaLog => ({ timestamp: '2026-09-22T14:00:00.000Z', usuario: A, acao: 'ALTEROU', modulo: 'Candidatos', detalhes: '', ref: { quantos } });
+    for (const [quantos, esperado] of [['Infinity', '1 candidato'], [-3, '1 candidato'], [1e9, '200 candidatos'], ['abc', '1 candidato']] as const) {
+      const r = relatoPorPessoa([linha(quantos)], [], dia);
+      expect(r).toEqual(relatoDaTela([linha(quantos)], [], dia));
+      expect(r[0].secoes.flatMap(s => s.frases)).toContain(`Atualizou ${esperado} em seleções.`);
+    }
+  });
 });
 
 describe('e-mail das 18h é só do Colégio (29/09)', () => {

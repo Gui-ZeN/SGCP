@@ -513,7 +513,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
               <PlusCircle className="w-4.5 h-4.5" />
               {/* O botão diz o número: "Abrir Vaga" com 30 no campo esconderia
                   que o clique cria trinta registros. */}
-              {busy ? 'Salvando...' : parecidas.length ? 'Abrir mesmo assim' : quantas > 1 ? `Abrir ${quantas} Vagas` : 'Abrir Vaga'}
+              {busy ? 'Salvando...' : parecidas.length ? (quantas > 1 ? `Abrir ${quantas} mesmo assim` : 'Abrir mesmo assim') : quantas > 1 ? `Abrir ${quantas} Vagas` : 'Abrir Vaga'}
             </button>
           </div>
         </form>

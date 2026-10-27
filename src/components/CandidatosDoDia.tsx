@@ -60,6 +60,8 @@ export const CandidatosDoDia: React.FC<Props> = ({ selecao, candidatos, onSalvar
     try {
       await onRegistrar(nomes);
       setLista(['']);
+    } catch {
+      // Recusado (o aviso já saiu): os nomes ficam na tela para corrigir.
     } finally {
       setRegistrando(false);
     }

@@ -112,6 +112,8 @@ export const CandidatosPlanilha: React.FC<Props> = ({
       await onRegistrar(s, nomes);
       setLista(['']);
       requestAnimationFrame(() => { if (rolagem.current) rolagem.current.scrollTop = rolagem.current.scrollHeight; });
+    } catch {
+      // Recusado (o aviso já saiu): os nomes ficam na tela para corrigir.
     } finally { setAdicionando(false); }
   };
 

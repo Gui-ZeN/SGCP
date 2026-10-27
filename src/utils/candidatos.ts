@@ -96,3 +96,30 @@ export function numerosDoDia(candidatos: CandidatoDoDia[]): NumerosDoDia {
     status: pendentes > 0 ? 'agendado' : 'realizado',
   };
 }
+
+/** O que ESTA aba gravou há pouco num candidato (`null` = removido). */
+export interface GravacaoRecente<C> { selecaoId: string; campos: Partial<C> | null; quando: number }
+
+/**
+ * A lista da seleção com as gravações recentes desta aba por cima.
+ *
+ * ⚠️ Dois resultados lançados em sequência (auditoria de 27/10/2026): a escuta
+ * ainda não tinha trazido o 1º quando o 2º recalculava, e a seleção ficou com
+ * 1 ausente de 2 e "agendada". Por cima vai só o recente (`validade`): depois
+ * disso a escuta já tem o dado, e uma edição de outra pessoa vale.
+ */
+export function comGravacoesRecentes<C extends { id: string }>(
+  base: C[],
+  recentes: Map<string, GravacaoRecente<C>>,
+  selecaoId: string,
+  agora: number,
+  validade = 60_000,
+): C[] {
+  const porId = new Map(base.map(c => [c.id, c]));
+  for (const [id, r] of recentes) {
+    if (r.selecaoId !== selecaoId || agora - r.quando > validade) continue;
+    if (r.campos === null) porId.delete(id);
+    else porId.set(id, { ...porId.get(id), ...r.campos, id } as C);
+  }
+  return [...porId.values()];
+}

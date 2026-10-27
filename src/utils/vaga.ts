@@ -205,14 +205,58 @@ export function codigosSequenciais(existentes: { codigo: number }[], quantidade:
 }
 
 const EM_ANDAMENTO_OU_PARADA = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO', 'PAUSADA', 'SUSPENSA'];
-const partesDoNome = (s?: string) => normalizarNome((s || '').replace(/[^\p{L}\p{N} ]/gu, ' '))
+// Sem o " (matrícula 77)" que a rota de vagas externas acrescenta ao nome.
+const partesDoNome = (s?: string) => normalizarNome((s || '').replace(/\(matr[ií]cula[^)]*\)/gi, ' ').replace(/[^\p{L}\p{N} ]/gu, ' '))
   .split(' ').filter(p => p && !['de', 'da', 'do', 'dos', 'das', 'e'].includes(p));
-/** "Gilberto Maciel" é "Gilberto Maciel de Oliveira"; "Maria Eduarda Silva" não é "Maria Eduarda Costa". */
+/**
+ * "Gilberto Maciel" é "Gilberto Maciel de Oliveira"; "Maria Eduarda Silva" não é
+ * "Maria Eduarda Costa". A última palavra do nome menor vale pelo começo: o aviso
+ * não some e volta enquanto o RH digita ("Maria Eduarda S…").
+ */
 function mesmaPessoa(a?: string, b?: string): boolean {
   const [x, y] = [partesDoNome(a), partesDoNome(b)].sort((p, q) => p.length - q.length);
   if (!x.length) return false;
   if (x.length === 1) return y.length === 1 && x[0] === y[0];
-  return x.every((p, i) => p === y[i]);
+  return x.every((p, i) => (i === x.length - 1 ? y[i].startsWith(p) || p.startsWith(y[i]) : p === y[i]));
+}
+
+/**
+ * "Para Admissão" pelo Quadro (Por status, Cartões, arrastar para Admissão):
+ *  - 'encerrada': fechada ou cancelada não vai — reabrir é pelo Editar (antes o
+ *    arraste reabria a concluída em silêncio);
+ *  - 'so-status': já está na etapa de documentação, só o status estava atrás;
+ *  - 'funil': passa pelo passo "quem segue para a documentação" e termina em
+ *    DOCUMENTAÇÃO mesmo se estava pausada (27/10/2026: a pausada passava pelo
+ *    funil e continuava pausada, porque statusForEtapa não mexe em pausa).
+ */
+export function admissaoPeloQuadro(vaga: Vaga): 'encerrada' | 'so-status' | 'funil' {
+  if (encerrada(vaga.status)) return 'encerrada';
+  const etapa = normalizeEtapa(vaga);
+  return etapa === 'Documentação' || etapa === 'Aguardando admissão' ? 'so-status' : 'funil';
+}
+
+/**
+ * Etapas que o Editar oferece: só as do mesmo lado da documentação. Cruzar
+ * (ir para a documentação ou voltar dela) é pelo Quadro, que registra quem
+ * segue ou o motivo da desistência. A etapa atual entra sempre, para não sumir.
+ */
+/**
+ * Status que o Editar oferece: o mesmo lado da documentação também no Status
+ * (reauditoria de 27/10/2026: escolher DOCUMENTAÇÃO no Status levava a vaga para
+ * a Admissão sem o passo "quem segue", e voltar dela não pedia o motivo).
+ * O status atual entra sempre.
+ */
+export function statusDoEditar(statusDaVaga: string | undefined): Vaga['status'][] {
+  const todos: Vaga['status'][] = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO', 'SUSPENSA', 'PAUSADA', 'FECHADA', 'CANCELADA'];
+  const atual = (statusDaVaga || '').toUpperCase();
+  const fora = atual === 'DOCUMENTAÇÃO' ? ['ABERTA', 'REABERTA'] : ['DOCUMENTAÇÃO'];
+  return todos.filter(s => s === atual || !fora.includes(s));
+}
+
+export function etapasDoEditar(status: string | undefined, atual: string): string[] {
+  const doc = (status || '').toUpperCase() === 'DOCUMENTAÇÃO';
+  const lado = ETAPAS_FUNIL.filter(e => ETAPAS_DOC.includes(e) === doc) as string[];
+  return lado.includes(atual) ? lado : ETAPAS_FUNIL.filter(e => e === atual || lado.includes(e));
 }
 
 /**

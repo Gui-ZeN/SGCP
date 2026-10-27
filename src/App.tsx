@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, Suspense, type ComponentType } from 'react';
+import { useState, useEffect, useMemo, useRef, Suspense, type ComponentType } from 'react';
 import { dataISOLocal } from './utils/date';
 import { lazyComRetry } from './lib/lazyComRetry';
 import { useVagas } from './hooks/useVagas';
@@ -23,7 +23,7 @@ import { useFuncionarios } from './hooks/useFuncionarios';
 import { useOrganograma } from './hooks/useOrganograma';
 import { useAtividades } from './hooks/useAtividades';
 import { useCandidatos } from './hooks/useCandidatos';
-import { numerosDoDia } from './utils/candidatos';
+import { numerosDoDia, comGravacoesRecentes, type GravacaoRecente } from './utils/candidatos';
 import { atendeVaga, camposDoFormulario, origemDoSetor } from './utils/selecao';
 import type { Candidato, Selecao, Vaga, Turnover } from './types';
 import { convocacoesDasLinhas } from './utils/bancoCandidatos';
@@ -44,7 +44,7 @@ import { SLA_META_DIAS } from './constants/hr';
 import { ehSetembro } from './data/setembroAmarelo';
 import { ehOutubro } from './data/outubroRosa';
 import { useAppConfig } from './hooks/useAppConfig';
-import { regiaoDaSede, sedeEhUniversidade, escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade, REGIAO_UNIVERSIDADE, escopoParaGravar, vagaEhUniversidade, type Escopo } from './utils/unidade';
+import { regiaoDaSede, sedeEhUniversidade, escoparVagasPorUnidade, escoparSedesPorUnidade, escoparListaPorUnidade, REGIAO_UNIVERSIDADE, escopoParaGravar, escopoPelaSelecao, vagaEhUniversidade, type Escopo } from './utils/unidade';
 import { requisicaoParaVaga } from './utils/requisicao';
 
 // Enfeites de época (sazonais). Para adicionar um novo: importe o componente e
@@ -406,13 +406,16 @@ export default function App() {
   // cada edição do Administrador jogava para o Colégio o candidato da
   // Universidade cuja sede estivesse fora do catálogo (revisão de 14/10/2026).
   // O upsert é merge, então omitir o campo mantém o que o banco já tem.
-  const gravarCandidatoNaUnidade = (id: string, campos: Partial<Candidato>) => {
+  // `selecao`: quem acabou de criá-la passa direto — ela ainda não está em
+  // `selecoes`, e sem a sede o candidato do Administrador ia para o Colégio
+  // mesmo sendo da Universidade (auditoria de 27/10/2026).
+  const gravarCandidatoNaUnidade = (id: string, campos: Partial<Candidato>, selecao?: Pick<Selecao, 'sede' | 'escopo'>) => {
     // Da lista VIVA (e não do `candidatos` deste render): o registro antigo
     // pode ter acabado de chegar por `daSelecao`, antes de a tela redesenhar.
     const atual = candidatoAtual(id);
     if (atual?.escopo) return gravarCandidato(id, campos);
-    const sel = selecoes.find(s => s.id === (campos.selecaoId ?? atual?.selecaoId));
-    return gravarCandidato(id, { ...campos, escopo: escopoParaGravar(escopoLeitor, sedes || [], sel?.sede) });
+    const sel = selecao ?? selecoes.find(s => s.id === (campos.selecaoId ?? atual?.selecaoId));
+    return gravarCandidato(id, { ...campos, escopo: escopoDaSelecao(sel) });
   };
   // "Meu dia" é do Colégio (o Resumo do Dia não existe para a Universidade), e
   // a regra do banco só entrega o diário a ele.
@@ -536,26 +539,53 @@ export default function App() {
   // Unidade do log de candidato = a do candidato/seleção, não a sede da tela:
   // o Admin com uma sede do Colégio escolhida mexendo na Universidade gravava
   // o log no Colégio (revisão de segurança de 14/10/2026).
-  const escopoDaSelecao = (selecao?: Pick<Selecao, 'sede'>) => escopoParaGravar(escopoLeitor, sedes || [], selecao?.sede);
+  // Ver utils/unidade.ts › escopoPelaSelecao (a unidade gravada vence a sede).
+  const escopoDaSelecao = (selecao?: Pick<Selecao, 'sede' | 'escopo'>) => escopoPelaSelecao(escopoLeitor, sedes || [], selecao);
   const escopoDoCandidato = (c: Candidato) => c.escopo ?? escopoDaSelecao(selecoes.find(s => s.id === c.selecaoId));
   // ⚠️ `jaTinha` e a lista vêm de `daSelecao` (a lista COMPLETA da seleção),
   // nunca do `candidatos` da tela: desde 19/10/2026 a seleção de antes dos 60
   // dias pode não estar carregada, e recalcular com a lista vazia apagaria
   // os números do dia (leitura por partes — hooks/useCandidatos.ts).
   const recalcularSelecao = async (selecao: Selecao, lista: Pick<Candidato, 'resultado' | 'contratado' | 'motivo'>[], jaTinha: boolean) => {
-    if (!selecao.numerosPelaLista && jaTinha) return;
+    // `pelaLista`: o objeto `selecao` da tela pode ser de antes da 1ª gravação
+    // ligar a marca, e o 2º lançamento sairia aqui sem recalcular.
+    if (!selecao.numerosPelaLista && !pelaLista.current.has(selecao.id) && jaTinha) return;
     await updateSelecao(selecao.id, { ...numerosDoDia(lista), numerosPelaLista: true });
+    pelaLista.current.add(selecao.id);
   };
+
+  // ⚠️ Lançamentos em sequência na mesma seleção (auditoria de 27/10/2026: dois
+  // "ausente" a 29 ms um do outro deixaram a seleção com 1 ausente e agendada).
+  // Cada seleção grava numa fila, e o recálculo usa a lista com o que esta aba
+  // acabou de gravar por cima — a escuta ainda não trouxe.
+  const recentes = useRef(new Map<string, GravacaoRecente<Candidato>>());
+  const pelaLista = useRef(new Set<string>());
+  const filas = useRef(new Map<string, Promise<unknown>>());
+  // Todo caminho que grava candidato e recalcula entra na fila da(s) seleção(ões):
+  // remover logo depois de lançar um resultado também deixava a conta velha.
+  const naFila = <T,>(selecaoIds: string | string[], tarefa: () => Promise<T>): Promise<T> => {
+    const ids = [...new Set(Array.isArray(selecaoIds) ? selecaoIds : [selecaoIds])];
+    const vez = Promise.all(ids.map(id => (filas.current.get(id) || Promise.resolve()).catch(() => {}))).then(tarefa);
+    ids.forEach(id => filas.current.set(id, vez));
+    return vez;
+  };
+  const lembrar = (selecaoId: string, id: string, campos: Partial<Candidato> | null) =>
+    recentes.current.set(id, { selecaoId, campos, quando: Date.now() });
+  const listaDaSelecao = async (selecao: Selecao) =>
+    comGravacoesRecentes(await daSelecao(selecao), recentes.current, selecao.id, Date.now());
 
   // Sem a tela de carregamento global: lançar o resultado de 20 candidatos é
   // 20 trocas de campo, e a tela piscaria a cada uma. Erro ainda avisa.
-  const wrappedSalvarCandidato = async (selecao: Selecao, dados: Pick<Candidato, 'nome' | 'resultado' | 'contratado' | 'motivo' | 'observacao'>, id?: string) => {
+  const wrappedSalvarCandidato = (selecao: Selecao, dados: Pick<Candidato, 'nome' | 'resultado' | 'contratado' | 'motivo' | 'observacao'>, id?: string) =>
+    naFila(selecao.id, () => salvarCandidatoAgora(selecao, dados, id));
+  const salvarCandidatoAgora = async (selecao: Selecao, dados: Pick<Candidato, 'nome' | 'resultado' | 'contratado' | 'motivo' | 'observacao'>, id?: string) => {
     let antes: Candidato | undefined;
     try {
-      const atuais = await daSelecao(selecao);
+      const atuais = await listaDaSelecao(selecao);
       antes = id ? atuais.find(c => c.id === id) : undefined;
       const candidatoId = id || `cand_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      await gravarCandidatoNaUnidade(candidatoId, { ...dados, selecaoId: selecao.id, data: selecao.data });
+      await gravarCandidatoNaUnidade(candidatoId, { ...dados, selecaoId: selecao.id, data: selecao.data }, selecao);
+      lembrar(selecao.id, candidatoId, dados);
       const outros = atuais.filter(c => c.id !== candidatoId);
       await recalcularSelecao(selecao, [...outros, dados], atuais.length > 0);
       await logAction(id ? 'ALTEROU' : 'CRIOU', 'Candidatos',
@@ -598,17 +628,27 @@ export default function App() {
     }));
 
   /** Vários nomes de uma vez — a convocação costuma ser de 10, 20 pessoas. */
-  const wrappedRegistrarCandidatos = (selecao: Selecao, nomes: string[]) =>
-    executeWithLoading(`Registrando ${nomes.length} candidato(s)...`, async () => {
-      const atuais = await daSelecao(selecao);
+  const wrappedRegistrarCandidatos = async (selecao: Selecao, nomes: string[]) => {
+    // ⚠️ Antes de gravar: a regra do banco recusa nome com mais de 150 letras, e
+    // a recusa no meio gravava parte da lista e a tela limpava o resto. Lança o
+    // erro para quem chamou manter os nomes na tela (auditoria de 27/10/2026).
+    const longo = convocadosDe(nomes).find(c => c.nome.length > 150);
+    if (longo) {
+      const msg = `Um nome passa de 150 letras ("${longo.nome.slice(0, 40)}…"). Confira se não juntou duas pessoas na mesma linha.`;
+      notify(msg, 'error');
+      throw new Error(msg);
+    }
+    return naFila(selecao.id, () => executeWithLoading(`Registrando ${nomes.length} candidato(s)...`, async () => {
+      const atuais = await listaDaSelecao(selecao);
       const novos = convocadosDe(nomes);
-      for (const c of novos) await gravarCandidatoNaUnidade(c.id, { ...c, selecaoId: selecao.id, data: selecao.data });
+      for (const c of novos) { await gravarCandidatoNaUnidade(c.id, { ...c, selecaoId: selecao.id, data: selecao.data }, selecao); lembrar(selecao.id, c.id, c); }
       await recalcularSelecao(selecao, [...atuais, ...novos], atuais.length > 0);
       for (const c of novos) {
         await logAction('CRIOU', 'Candidatos', `Candidato registrado na seleção de ${selecao.cargo} (${selecao.data}).`,
           { ref: { cargo: selecao.cargo, data: selecao.data, candidato: c.id }, escopo: escopoDaSelecao(selecao) });
       }
-    });
+    }));
+  };
 
   /**
    * Excluir uma seleção AGENDADA (pedido da Coordenação, 08/10/2026). Só
@@ -640,26 +680,52 @@ export default function App() {
    * números das vagas ligadas e, se vieram nomes, registra cada um como
    * convocado (aí os números do dia passam a sair da lista).
    */
-  const criarSelecao = (campos: Omit<Selecao, 'id'>, nomes: string[] = []) =>
-    executeWithLoading(nomes.length ? `Criando a seleção com ${nomes.length} nome(s)...` : 'Criando a seleção...', async () => {
+  const criarSelecao = async (campos: Omit<Selecao, 'id'>, nomes: string[] = []) => {
+    // ⚠️ Antes de criar, e lançando o erro para o formulário (que fica aberto,
+    // com os nomes): a regra do banco recusa nome com mais de 150 letras, e a
+    // recusa no meio deixava a seleção criada sem parte dos nomes, calada
+    // (auditoria de 27/10/2026).
+    const longo = convocadosDe(nomes).find(c => c.nome.length > 150);
+    if (longo) throw new Error(`Um nome passa de 150 letras ("${longo.nome.slice(0, 40)}…"). Confira se não juntou duas pessoas na mesma linha.`);
+    return executeWithLoading(nomes.length ? `Criando a seleção com ${nomes.length} nome(s)...` : 'Criando a seleção...', async () => {
       const vagaIds = campos.vagaIds || [];
       const selecao = {
         ...campos,
         vagaCodigos: vagaIds.map(id => Number(vagas.find(v => v.id === id)?.codigo)).filter(n => Number.isFinite(n)),
+        // Com nomes, os números são da lista desde o início: se um nome falhar
+        // abaixo, lançar os resultados depois ainda recalcula a seleção.
+        ...(nomes.length ? { numerosPelaLista: true } : {}),
       };
       const id = await addSelecao(selecao);
       // Log no módulo PRÓPRIO, e não 'Vagas': o resumo diário conta alterações de
       // vaga numa linha só, e a seleção ali dentro sumiria na contagem.
       const ref = { cargo: selecao.cargo, sede: selecao.sede, data: selecao.data, convocados: selecao.convocados };
       await logAction('CRIOU', 'Seleções', campos.status === 'realizado'
-        ? `Seleção já realizada lançada: ${selecao.cargo} em ${selecao.sede}, ${selecao.data} — ${selecao.compareceram} de ${selecao.convocados} compareceram.`
+        ? nomes.length
+          ? `Seleção já realizada lançada: ${selecao.cargo} em ${selecao.sede}, ${selecao.data} — ${nomes.length} nome(s); os resultados vão pela lista.`
+          : `Seleção já realizada lançada: ${selecao.cargo} em ${selecao.sede}, ${selecao.data} — ${selecao.compareceram} de ${selecao.convocados} compareceram.`
         : `Seleção agendada: ${selecao.cargo} em ${selecao.sede}, ${selecao.data} — ${selecao.convocados} convocado(s)${selecao.vagaCodigos.length ? ` (vaga ${selecao.vagaCodigos.map(c => '#' + c).join(', ')})` : ''}.`,
         { ref: campos.status === 'realizado' ? { ...ref, compareceram: selecao.compareceram, tipo: 'lancamento' } : ref, escopo: unidadeDe(selecao) });
       if (!id || !nomes.length) return;
       const novos = convocadosDe(nomes);
-      for (const c of novos) await gravarCandidatoNaUnidade(c.id, { ...c, selecaoId: id, data: selecao.data });
-      await recalcularSelecao({ ...selecao, id } as Selecao, novos, false);
+      // Por id: com dois nomes iguais, filtrar pelo nome tirava da conta o que gravou.
+      const falharam = new Set<string>();
+      for (const c of novos) {
+        try { await gravarCandidatoNaUnidade(c.id, { ...c, selecaoId: id, data: selecao.data }, selecao); lembrar(id, c.id, c); }
+        catch { falharam.add(c.id); }
+      }
+      const gravados = novos.filter(c => !falharam.has(c.id));
+      // Nenhum gravou: recalcular com a lista vazia faria dela "realizada com 0".
+      if (gravados.length) await recalcularSelecao({ ...selecao, id } as Selecao, gravados, false);
+      // Uma linha por candidato, como no registro pela lista: senão os nomes
+      // lançados ao criar não entravam em "Registrou N candidatos" (27/10/2026).
+      for (const c of gravados) {
+        await logAction('CRIOU', 'Candidatos', `Candidato registrado na seleção de ${selecao.cargo} (${selecao.data}).`,
+          { ref: { cargo: selecao.cargo, data: selecao.data, candidato: c.id }, escopo: unidadeDe(selecao) });
+      }
+      if (falharam.size) throw new Error(`a seleção foi criada, mas ${falharam.size} nome(s) não foram gravados: ${novos.filter(c => falharam.has(c.id)).map(c => c.nome).join(', ')}. Lance-os na lista de candidatos da seleção.`);
     });
+  };
 
   /**
    * Os modais do Kanban (Entrevista → Testes → Documentação) mudam vários
@@ -667,13 +733,13 @@ export default function App() {
    * todos, refaz os números de cada seleção tocada e deixa UMA linha no log.
    */
   const atualizarCandidatos = (alteracoes: { candidato: Candidato; campos: Partial<Candidato> }[], resumo: string) =>
-    executeWithLoading('Atualizando os candidatos...', async () => {
+    naFila(alteracoes.map(a => a.candidato.selecaoId), () => executeWithLoading('Atualizando os candidatos...', async () => {
       // As listas completas ANTES de gravar (a seleção antiga pode não estar na tela).
       const tocadas = [...new Set(alteracoes.map(a => a.candidato.selecaoId))]
         .map(id => selecoes.find(s => s.id === id)).filter((s): s is Selecao => !!s);
       const listas = new Map<string, Candidato[]>();
-      for (const selecao of tocadas) listas.set(selecao.id, await daSelecao(selecao));
-      for (const { candidato, campos } of alteracoes) await gravarCandidatoNaUnidade(candidato.id, campos);
+      for (const selecao of tocadas) listas.set(selecao.id, await listaDaSelecao(selecao));
+      for (const { candidato, campos } of alteracoes) { await gravarCandidatoNaUnidade(candidato.id, campos); lembrar(candidato.selecaoId, candidato.id, campos); }
       for (const selecao of tocadas) {
         const atuais = listas.get(selecao.id) || [];
         const lista = atuais.map(c => {
@@ -682,17 +748,19 @@ export default function App() {
         });
         await recalcularSelecao(selecao, lista, atuais.length > 0);
       }
-      if (alteracoes.length) await logAction('ALTEROU', 'Candidatos', resumo, { escopo: escopoDoCandidato(alteracoes[0].candidato) });
-    });
+      // `quantos`: o Resumo do Dia e o e-mail contam os candidatos desta linha.
+      if (alteracoes.length) await logAction('ALTEROU', 'Candidatos', resumo, { ref: { quantos: alteracoes.length }, escopo: escopoDoCandidato(alteracoes[0].candidato) });
+    }));
 
   const wrappedRemoverCandidato = (selecao: Selecao, id: string) =>
-    executeWithLoading('Removendo candidato...', async () => {
-      const atuais = await daSelecao(selecao);
+    naFila(selecao.id, () => executeWithLoading('Removendo candidato...', async () => {
+      const atuais = await listaDaSelecao(selecao);
       await removerCandidato(id);
+      lembrar(selecao.id, id, null);
       await recalcularSelecao(selecao, atuais.filter(c => c.id !== id), atuais.length > 0);
       await logAction('EXCLUIU', 'Candidatos', `Candidato removido da seleção de ${selecao.cargo} (${selecao.data}).`,
         { ref: { cargo: selecao.cargo, data: selecao.data, candidato: id }, escopo: escopoDaSelecao(selecao) });
-    });
+    }));
 
   // Módulo Seleções (a planilha no sistema). O log diz o QUE foi: lançar
   // depois do fato é "lancamento" e corrigir é "edicao" — nenhum dos dois vira

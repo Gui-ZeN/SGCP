@@ -54,3 +54,29 @@ describe('nomesDoTexto (colar a lista da convocação)', () => {
     expect(nomesDoTexto('Ana  Souza\r\n\n  Bruno Lima \n')).toEqual(['Ana Souza', 'Bruno Lima']);
   });
 });
+
+import { comGravacoesRecentes, type GravacaoRecente } from './candidatos';
+
+describe('comGravacoesRecentes (lançar resultados em sequência)', () => {
+  type C = CandidatoDoDia & { id: string };
+  const base: C[] = [{ id: 'a', resultado: 'convocado' }, { id: 'b', resultado: 'convocado' }];
+  it('o 2º lançamento enxerga o 1º mesmo antes da escuta trazer (caso real: 1 ausente de 2, "agendada")', () => {
+    const recentes = new Map<string, GravacaoRecente<C>>([['a', { selecaoId: 's', campos: { resultado: 'ausente' }, quando: 1000 }]]);
+    // 2º: a escuta ainda mostra os dois "convocado"; grava "b" ausente por cima.
+    recentes.set('b', { selecaoId: 's', campos: { resultado: 'ausente' }, quando: 1029 });
+    const n = numerosDoDia(comGravacoesRecentes(base, recentes, 's', 1029));
+    expect(n).toMatchObject({ ausentes: 2, status: 'realizado' });
+  });
+  it('removido sai; de outra seleção e vencido não entram', () => {
+    const recentes = new Map<string, GravacaoRecente<C>>([
+      ['a', { selecaoId: 's', campos: null, quando: 1000 }],
+      ['b', { selecaoId: 'outra', campos: { resultado: 'ausente' }, quando: 1000 }],
+      ['x', { selecaoId: 's', campos: { resultado: 'compareceu' }, quando: 0 }],
+    ]);
+    expect(comGravacoesRecentes(base, recentes, 's', 61_000).map(c => [c.id, c.resultado])).toEqual([['b', 'convocado']]);
+  });
+  it('candidato novo (ainda fora da escuta) entra', () => {
+    const recentes = new Map<string, GravacaoRecente<C>>([['n', { selecaoId: 's', campos: { resultado: 'convocado' }, quando: 5 }]]);
+    expect(comGravacoesRecentes(base, recentes, 's', 10).map(c => c.id)).toEqual(['a', 'b', 'n']);
+  });
+});

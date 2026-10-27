@@ -75,6 +75,17 @@ export function escopoParaGravar(escopoDoLeitor: Escopo | null, sedes: Sede[], s
 }
 
 /**
+ * Unidade de algo que pertence a uma seleção (candidato, log). Quem não é
+ * Administrador: a própria. Administrador: a unidade GRAVADA na seleção, e a
+ * sede só na falta dela — pela sede só, a seleção da Universidade com sede fora
+ * do catálogo dava candidatos do Colégio, que o Colégio leria (revisão de
+ * segurança, 27/10/2026).
+ */
+export function escopoPelaSelecao(escopoDoLeitor: Escopo | null, sedes: Sede[], selecao?: { sede?: string; escopo?: Escopo }): Escopo {
+  return escopoDoLeitor ?? selecao?.escopo ?? escopoDaSede(sedes, selecao?.sede);
+}
+
+/**
  * Isolamento de um hook de coleção: `escopo` é a unidade de quem lê (null =
  * Administrador, lê tudo) e `pronto` segura a leitura até essa unidade ser
  * conhecida — uma leitura sem filtro no primeiro instante seria negada.

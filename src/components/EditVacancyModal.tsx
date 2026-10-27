@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Vaga } from '../types';
 import { dateFromValue, toISOInput, formatDateBR, monthAbbrFromDate, dataISOLocal } from '../utils/date';
 import { MOTIVOS_DESISTENCIA } from '../constants/hr';
-import { ETAPAS_FUNIL, normalizeEtapa, statusForEtapa } from '../utils/vaga';
+import { normalizeEtapa, etapasDoEditar, statusDoEditar, encerrada } from '../utils/vaga';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import { Modal } from './ui/Modal';
 
@@ -48,7 +48,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
   const [tempMotivoCancelamento, setTempMotivoCancelamento] = useState('');
   const [faltaMotivo, setFaltaMotivo] = useState(false);
 
-  const statusList = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO', 'SUSPENSA', 'PAUSADA', 'FECHADA', 'CANCELADA'];
+  const statusList = statusDoEditar(vaga.status);
 
   useEffect(() => {
     setTempStatus(vaga.status || 'ABERTA');
@@ -124,11 +124,9 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
       status: tempStatus,
       // Etapa da lista do funil (27/10/2026; antes era texto livre). Só grava se
       // mudou: regravar "Triagem de currículos" como "Triagem" zeraria os dias
-      // na etapa. Mudou e o status não foi mexido: acompanha a etapa, como no Kanban.
-      ...(tempEtapa !== normalizeEtapa(vaga) ? {
-        etapa: tempEtapa,
-        ...(tempStatus === vaga.status && statusForEtapa(vaga.status, tempEtapa) ? { status: statusForEtapa(vaga.status, tempEtapa) } : {}),
-      } : {}),
+      // na etapa. O status não acompanha: cruzar a documentação é pelo Quadro
+      // (etapasDoEditar nem oferece), que registra quem segue ou a desistência.
+      ...(tempEtapa !== normalizeEtapa(vaga) ? { etapa: tempEtapa } : {}),
       aprovado: tempAprovado,
       observacoes: tempObservacoes,
       responsavel: tempResponsavel,
@@ -156,7 +154,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
   // Preencher o aprovado NÃO fecha a vaga (21/10/2026: o RH da Universidade
   // preenchia, salvava e a vaga seguia em Documentação — "fechei e voltou").
   // Fechar é concluir: data de conclusão, Experiência, contratado na seleção.
-  const aprovadoSemConcluir = !!onConcluir && !!tempAprovado.trim() && tempStatus !== 'FECHADA' && vaga.status !== 'FECHADA';
+  const aprovadoSemConcluir = !!onConcluir && !!tempAprovado.trim() && !encerrada(tempStatus) && !encerrada(vaga.status);
 
   return (
     <Modal
@@ -364,8 +362,11 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
                 value={tempEtapa}
                 onChange={(e) => setTempEtapa(e.target.value)}
               >
-                {ETAPAS_FUNIL.map(e => <option key={e} value={e}>{e}</option>)}
+                {etapasDoEditar(vaga.status, normalizeEtapa(vaga)).map(e => <option key={e} value={e}>{e}</option>)}
               </select>
+              {vaga.status !== 'DOCUMENTAÇÃO' && !encerrada(vaga.status) && (
+                <p className="text-[12px] mt-1" style={{ color: 'var(--tinta-3)' }}>Para a documentação, use "Para Admissão" no quadro: ele registra quem segue.</p>
+              )}
             </div>
           </div>
 

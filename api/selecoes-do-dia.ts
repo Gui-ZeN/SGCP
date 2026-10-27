@@ -236,7 +236,11 @@ function frasesDeCandidatos(es: EntradaLog[]): string[] {
   const porSelecao = new Map<string, { cargo: string; data: string; novos: Set<string>; resultados: Set<string> }>();
   let semRef = 0;
   for (const e of es) {
-    if (!e.ref) { semRef++; continue; }
+    // Movimento do funil (Kanban): UMA linha para vários candidatos, com
+    // `ref.quantos` — antes contava "Atualizou 1 candidato" para 15 (27/10/2026).
+    // Entre 1 e 200: o log é gravado pela tela, e um valor forjado (Infinity,
+    // negativo) iria para o e-mail da diretoria (revisão de segurança, 27/10/2026).
+    if (!e.ref || !txt(e.ref, 'cargo')) { semRef += Math.min(200, Math.max(1, Math.floor(num(e.ref, 'quantos')) || 1)); continue; }
     const k = `${txt(e.ref, 'cargo')}|${txt(e.ref, 'data')}`;
     const g = porSelecao.get(k) || { cargo: txt(e.ref, 'cargo'), data: txt(e.ref, 'data'), novos: new Set<string>(), resultados: new Set<string>() };
     // Por candidato, não por linha: lançar e corrigir o resultado da mesma

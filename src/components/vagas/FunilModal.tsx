@@ -160,7 +160,8 @@ function PassoCandidatos(p: Props) {
   const lancarNomes = async () => {
     if (!ultimaSelecao || !nomesPreenchidos(novos).length) return;
     setSalvando(true);
-    try { await p.registrarNomes(ultimaSelecao, nomesPreenchidos(novos)); setNovos(['']); } finally { setSalvando(false); }
+    // Recusado (o aviso já saiu): os nomes ficam na tela para corrigir.
+    try { await p.registrarNomes(ultimaSelecao, nomesPreenchidos(novos)); setNovos(['']); } catch { /* idem */ } finally { setSalvando(false); }
   };
 
   // ⚠️ Antes, sem entrevista ligada, o modal mandava VOLTAR e passar por
@@ -264,7 +265,8 @@ function PassoCandidatos(p: Props) {
                       </div>
                     ) : (
                       <select className="campo" value={r} onChange={e => setResultado(x => ({ ...x, [c.id]: e.target.value as Candidato['resultado'] }))} aria-label={`Resultado do teste de ${c.nome}`}>
-                        {resultadosTeste.map(o => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
+                        {/* O resultado atual entra mesmo fora da lista (ausente/convocado): sem ele o select mostraria "Compareceu" sem estar gravado. */}
+                        {(resultadosTeste.some(o => o.id === r) ? resultadosTeste : [...RESULTADOS.filter(o => o.id === r), ...resultadosTeste]).map(o => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
                       </select>
                     )}
                   </td>
@@ -275,7 +277,8 @@ function PassoCandidatos(p: Props) {
                       title={podeSeguir ? undefined : 'Marque antes que a pessoa veio'} style={{ opacity: podeSeguir ? 1 : 0.4 }}>
                       <button type="button" disabled={!podeSeguir} aria-pressed={!!segue[c.id]}
                         onClick={() => setSegue(x => ({ ...x, [c.id]: true }))}>Sim</button>
-                      <button type="button" disabled={!podeSeguir} aria-pressed={!segue[c.id]}
+                      {/* "Não" sempre livre: quem não veio mas já estava nos testes (dado antigo) precisa poder sair. */}
+                      <button type="button" disabled={!podeSeguir && !segue[c.id]} aria-pressed={!segue[c.id]}
                         onClick={() => setSegue(x => ({ ...x, [c.id]: false }))}>Não</button>
                     </div>
                   </td>

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { codigosSequenciais, encerrada, getDiasEmAberto, getSlaInfo, isPausedOrSuspended, normalizeEtapa, statusForEtapa, vagaAtrasada, vagasParecidas } from './vaga';
+import { admissaoPeloQuadro, codigosSequenciais, encerrada, etapasDoEditar, statusDoEditar, getDiasEmAberto, getSlaInfo, isPausedOrSuspended, normalizeEtapa, statusForEtapa, vagaAtrasada, vagasParecidas } from './vaga';
 import type { Vaga } from '../types';
 
 const vaga = (p: Partial<Vaga>) => p as Vaga;
@@ -148,6 +148,46 @@ describe('vaga cancelada', () => {
   });
 });
 
+describe('admissaoPeloQuadro', () => {
+  it('pausada ou suspensa passa pelo funil (e termina em DOCUMENTAÇÃO — o quadro força o status)', () => {
+    expect(admissaoPeloQuadro(vaga({ status: 'PAUSADA', etapa: 'Triagem' }))).toBe('funil');
+    expect(admissaoPeloQuadro(vaga({ status: 'SUSPENSA', etapa: 'Entrevista' }))).toBe('funil');
+  });
+  it('fechada ou cancelada não vai (antes o arraste reabria a concluída)', () => {
+    expect(admissaoPeloQuadro(vaga({ status: 'FECHADA', etapa: 'Processo Concluído' }))).toBe('encerrada');
+    expect(admissaoPeloQuadro(vaga({ status: 'CANCELADA' }))).toBe('encerrada');
+  });
+  it('já na etapa de documentação com status atrás: só acerta o status', () => {
+    expect(admissaoPeloQuadro(vaga({ status: 'ABERTA', etapa: 'Entrega de documentação' }))).toBe('so-status');
+    expect(admissaoPeloQuadro(vaga({ status: 'ABERTA', etapa: 'Triagem de currículos' }))).toBe('funil');
+  });
+});
+
+describe('statusDoEditar (o Status também não cruza a documentação)', () => {
+  it('vaga aberta não oferece DOCUMENTAÇÃO', () => {
+    expect(statusDoEditar('ABERTA')).toEqual(['ABERTA', 'REABERTA', 'SUSPENSA', 'PAUSADA', 'FECHADA', 'CANCELADA']);
+  });
+  it('vaga em documentação não volta para ABERTA/REABERTA pelo Editar', () => {
+    expect(statusDoEditar('DOCUMENTAÇÃO')).toEqual(['DOCUMENTAÇÃO', 'SUSPENSA', 'PAUSADA', 'FECHADA', 'CANCELADA']);
+  });
+  it('pausada ou fechada reabrem como ABERTA, não direto em DOCUMENTAÇÃO', () => {
+    expect(statusDoEditar('PAUSADA')).not.toContain('DOCUMENTAÇÃO');
+    expect(statusDoEditar('FECHADA')).toContain('ABERTA');
+  });
+});
+
+describe('etapasDoEditar', () => {
+  it('vaga aberta não oferece Documentação (cruzar é pelo Quadro, com o funil)', () => {
+    expect(etapasDoEditar('ABERTA', 'Triagem')).toEqual(['Triagem', 'Entrevista', 'Testes']);
+  });
+  it('vaga em documentação não oferece voltar para Triagem (o Quadro pede o motivo)', () => {
+    expect(etapasDoEditar('DOCUMENTAÇÃO', 'Documentação')).toEqual(['Documentação', 'Aguardando admissão']);
+  });
+  it('a etapa atual nunca some, mesmo do outro lado', () => {
+    expect(etapasDoEditar('ABERTA', 'Documentação')).toEqual(['Triagem', 'Entrevista', 'Testes', 'Documentação']);
+  });
+});
+
 describe('vagasParecidas', () => {
   const v = (p: Partial<Vaga>) => ({ status: 'ABERTA', vaga: 'ASG', sede: 'DOM LUÍS', solicitante: 'João Victor', ...p }) as Vaga;
   it('mesmo substituído em vaga aberta → avisa, mesmo com o cargo escrito diferente', () => {
@@ -172,6 +212,16 @@ describe('vagasParecidas', () => {
   it('só o prenome casa só com o mesmo prenome sozinho', () => {
     const lista = [v({ id: 'a', funcionarioSubstituido: 'Josué' }), v({ id: 'b', funcionarioSubstituido: 'Josué Lima' })];
     expect(vagasParecidas({ vaga: 'ASG', sede: 'PE', solicitante: 'X', funcionarioSubstituido: 'josue' }, lista).map(x => x.id)).toEqual(['a']);
+  });
+  it('nome gravado pela rota externa, com " (matrícula 77)", ainda casa', () => {
+    expect(vagasParecidas({ vaga: 'ASG', sede: 'SUL 2', solicitante: 'X', funcionarioSubstituido: 'Gilberto Maciel de Oliveira' }, [v({ funcionarioSubstituido: 'Gilberto Maciel (matrícula 77)' })])).toHaveLength(1);
+  });
+  it('o aviso não pisca enquanto o RH digita o sobrenome', () => {
+    const lista = [v({ funcionarioSubstituido: 'Maria Eduarda Silva' })];
+    for (const digitado of ['Maria Eduarda', 'Maria Eduarda S', 'Maria Eduarda Sil', 'Maria Eduarda Silva']) {
+      expect(vagasParecidas({ vaga: 'ASG', sede: 'PE', solicitante: 'X', funcionarioSubstituido: digitado }, lista)).toHaveLength(1);
+    }
+    expect(vagasParecidas({ vaga: 'ASG', sede: 'PE', solicitante: 'X', funcionarioSubstituido: 'Maria Eduarda C' }, lista)).toEqual([]);
   });
   it('substituído diferente não avisa', () => {
     expect(vagasParecidas({ vaga: 'ASG', sede: 'DOM LUÍS', solicitante: 'João Victor', funcionarioSubstituido: 'Paulo Cesar' }, [v({ funcionarioSubstituido: 'Gilberto Maciel' })])).toEqual([]);

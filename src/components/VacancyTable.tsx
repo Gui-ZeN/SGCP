@@ -35,7 +35,7 @@ import {
 import { exportToXlsx } from '../utils/xlsxExporter';
 import { SLA_META_DIAS } from '../constants/hr';
 import { ReguaFunil, funilDasVagas } from './vagas/ReguaFunil';
-import { parseDateDDMMYYYY, isPausedOrSuspended, getDiasEmAberto, ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa, statusForEtapa, vagaAtrasada, encerrada } from '../utils/vaga';
+import { parseDateDDMMYYYY, isPausedOrSuspended, getDiasEmAberto, ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa, statusForEtapa, vagaAtrasada, encerrada, admissaoPeloQuadro } from '../utils/vaga';
 import { funilDaVaga, funilEfetivo, selecoesDaVaga, atendeVaga, camposDoFormulario, type FunilDaVaga } from '../utils/selecao';
 
 interface VacancyTableProps {
@@ -367,9 +367,11 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   const podeConduzirFunil = canManageVagas && !!candidatos && !!criarSelecao && !!registrarCandidatos && !!atualizarCandidatos;
   // Triagem → Entrevista sem entrevista agendada: o formulário único, com a vaga marcada.
   const [entrevistaPara, setEntrevistaPara] = useState<Vaga | null>(null);
-  const [funilMove, setFunilMove] = useState<{ vaga: Vaga; de: string; para: 'Entrevista' | 'Testes' | 'Documentação' } | null>(null);
-  const moverParaEtapa = async (v: Vaga, etapa: string) => {
-    const novoStatus = statusForEtapa(v.status, etapa);
+  // `status`: o status final quando quem move sabe qual é (Para Admissão termina
+  // em DOCUMENTAÇÃO mesmo saindo de uma pausa).
+  const [funilMove, setFunilMove] = useState<{ vaga: Vaga; de: string; para: 'Entrevista' | 'Testes' | 'Documentação'; status?: Vaga['status'] } | null>(null);
+  const moverParaEtapa = async (v: Vaga, etapa: string, status?: Vaga['status']) => {
+    const novoStatus = status && status !== v.status ? status : statusForEtapa(v.status, etapa);
     await updateVaga(v.id, novoStatus ? { etapa, status: novoStatus } : { etapa });
   };
 
@@ -380,12 +382,13 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
    * documentação (status desencontrado), só acerta o status.
    */
   const paraAdmissao = (v: Vaga) => {
-    const atual = normalizeEtapa(v);
-    if (atual === 'Documentação' || atual === 'Aguardando admissão') updateVaga(v.id, { status: 'DOCUMENTAÇÃO' });
-    else handleEtapaDrop(v.id, 'Documentação');
+    const decisao = admissaoPeloQuadro(v);
+    if (decisao === 'encerrada') alert(`A vaga nº ${v.codigo} está ${v.status === 'CANCELADA' ? 'cancelada' : 'concluída'}. Para reabrir, use Editar.`);
+    else if (decisao === 'so-status') updateVaga(v.id, { status: 'DOCUMENTAÇÃO' });
+    else handleEtapaDrop(v.id, 'Documentação', 'DOCUMENTAÇÃO');
   };
 
-  const handleEtapaDrop = async (vagaId: string, etapa: string) => {
+  const handleEtapaDrop = async (vagaId: string, etapa: string, statusFinal?: Vaga['status']) => {
     const v = vagas.find(x => x.id === vagaId);
     if (!v) return;
     const atual = normalizeEtapa(v);
@@ -404,7 +407,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
     if (podeConduzirFunil && (etapa === 'Entrevista' || etapa === 'Testes' || etapa === 'Documentação')) {
       const temAgendada = selecoesDaVaga(selecoes, v).some(s => s.status === 'agendado');
       if (etapa === 'Entrevista' && !temAgendada) setEntrevistaPara(v);
-      else setFunilMove({ vaga: v, de: atual, para: etapa });
+      else setFunilMove({ vaga: v, de: atual, para: etapa, status: statusFinal });
       return;
     }
     // Sem acesso aos candidatos: Triagem → Entrevista confirma os números, como antes.
@@ -413,8 +416,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       return;
     }
     // Demais avanços: move direto (sincroniza o status quando aplicável).
-    const novoStatus = statusForEtapa(v.status, etapa);
-    await updateVaga(vagaId, novoStatus ? { etapa, status: novoStatus } : { etapa });
+    await moverParaEtapa(v, etapa, statusFinal);
   };
 
   // 1B. DIALOG HANDLERS TO REMOVE BROWSER PROMPTS (UPGRADING RECRUITER EXPERIENCE)
@@ -1201,7 +1203,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           marcarOutra={() => { setEntrevistaPara(funilMove.vaga); setFunilMove(null); }}
           registrarNomes={registrarCandidatos!}
           atualizar={atualizarCandidatos!}
-          mover={() => moverParaEtapa(funilMove.vaga, funilMove.para)}
+          mover={() => moverParaEtapa(funilMove.vaga, funilMove.para, funilMove.status)}
           registrarEntrevista={criarSelecao ? async (data, nomes) => {
             // A mesma seleção que o formulário único criaria, com a vaga marcada.
             const { erros, campos } = camposDoFormulario(formularioDaVaga(funilMove.vaga, { data, responsavel: responsavelPadrao, convocados: nomes.length }));

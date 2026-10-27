@@ -144,8 +144,10 @@ const codigoDe = (doc: any) => Number(doc?.fields?.codigo?.integerValue ?? doc?.
 
 // ── Substituição repetida (27/10/2026) ──────────────────────────────────────
 // A vaga lançada na tela e a mesma vinda daqui viravam duas (o RH fechava uma e
-// a outra "voltava"). Mesma regra de nome de src/utils/vaga.ts › vagasParecidas
-// (copiada: a função da Vercel não importa de src/).
+// a outra "voltava"). Regra de nome MAIS ESTRITA que a de src/utils/vaga.ts ›
+// vagasParecidas (lá a última palavra vale pelo começo, porque é só aviso
+// enquanto se digita; aqui a recusa é dura). Não importa de src/: a função da
+// Vercel não empacota.
 const VIVAS = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO', 'PAUSADA', 'SUSPENSA'];
 const partesDoNome = (s: string) => (s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
   .replace(/[^\p{L}\p{N} ]/gu, ' ').split(/\s+/).filter(p => p && !['de', 'da', 'do', 'dos', 'das', 'e'].includes(p));

@@ -95,18 +95,23 @@ export function ModalSelecao({ titulo, antes, inicial, sedes, vagas, sugestoes, 
     if (ligadas.length) return { ...x, vagaIds: [...ligadas, v.id] };
     return { ...x, vagaIds: [v.id], cargo: v.vaga, setor: v.setor || '', gestor: v.solicitante || '' };
   });
-  const numeroCampo = (k: 'convocados' | 'compareceram' | 'ausentes' | 'desistiram' | 'contratados', r: string, valor = f[k]) => (
+  const numeroCampo = (k: 'convocados' | 'compareceram' | 'ausentes' | 'desistiram' | 'contratados', r: string, valor = f[k], travado = false) => (
     <label className="block">
       <span className={rotulo}>{r}</span>
-      <input type="number" min={0} inputMode="numeric" className="campo w-full tabular-nums"
+      <input type="number" min={0} inputMode="numeric" className="campo w-full tabular-nums" readOnly={travado}
+        title={travado ? 'Com nomes, os convocados são os nomes da lista' : undefined}
         value={valor || ''} onChange={e => set(k, Number(e.target.value) || 0)} />
     </label>
   );
 
   const salvar = async () => {
     // Planilha pelo setor. Sem setor (histórico da aba pedagógica, que não tem
-    // a coluna), fica a que já estava. Com nomes, convocados é pelo menos a lista.
-    const g = { ...f, origem: f.setor ? origemDoSetor(f.setor) : f.origem, convocados: Math.max(f.convocados, nomes.length) };
+    // a coluna), fica a que já estava.
+    // ⚠️ Com nomes, os números SÃO a lista (o recálculo regrava em seguida): os
+    // campos escondidos não valem — antes ainda eram validados ("10 passa dos
+    // convocados" sobre campo invisível) e iam para o log (auditoria de 27/10/2026).
+    const g = { ...f, origem: f.setor ? origemDoSetor(f.setor) : f.origem,
+      ...(nomes.length ? { convocados: nomes.length, compareceram: 0, ausentes: 0, desistiram: 0, contratados: 0 } : {}) };
     const { erros: e0, campos } = camposDoFormulario(numerosDaLista ? { ...g, convocados: Math.max(1, g.convocados) } : g);
     const e = !semVaga && !(f.vagaIds || []).length ? ['Escolha a vaga, ou use "Seleção sem vaga aberta".', ...e0.filter(x => !/cargo/i.test(x))] : e0;
     setErros(e);
@@ -226,7 +231,7 @@ export function ModalSelecao({ titulo, antes, inicial, sedes, vagas, sugestoes, 
                 A seleção já aconteceu
               </label>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3">
-                {numeroCampo('convocados', 'Convocados *', Math.max(f.convocados, nomes.length))}
+                {numeroCampo('convocados', 'Convocados *', nomes.length || f.convocados, nomes.length > 0)}
                 {f.jaAconteceu && !nomes.length && <>
                   {numeroCampo('compareceram', 'Compareceram')}
                   {numeroCampo('ausentes', 'Ausentes')}
