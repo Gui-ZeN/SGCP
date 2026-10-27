@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Vaga } from '../types';
-import { dateFromValue, toISOInput, formatDateBR, monthAbbrFromDate } from '../utils/date';
+import { dateFromValue, toISOInput, formatDateBR, monthAbbrFromDate, dataISOLocal } from '../utils/date';
 import { MOTIVOS_DESISTENCIA } from '../constants/hr';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import { Modal } from './ui/Modal';
@@ -43,7 +43,11 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
   const [tempCandAprovados, setTempCandAprovados] = useState<number>(0);
   const [tempMotivoDesistencia, setTempMotivoDesistencia] = useState('');
 
-  const statusList = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO', 'SUSPENSA', 'PAUSADA', 'FECHADA'];
+  // Cancelada (27/10/2026): exige motivo e sai dos indicadores.
+  const [tempMotivoCancelamento, setTempMotivoCancelamento] = useState('');
+  const [faltaMotivo, setFaltaMotivo] = useState(false);
+
+  const statusList = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO', 'SUSPENSA', 'PAUSADA', 'FECHADA', 'CANCELADA'];
 
   useEffect(() => {
     setTempStatus(vaga.status || 'ABERTA');
@@ -77,10 +81,14 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
     setTempCandCompareceram(vaga.candCompareceram || 0);
     setTempCandAprovados(vaga.candAprovados || 0);
     setTempMotivoDesistencia(vaga.motivoDesistencia || '');
+    setTempMotivoCancelamento(vaga.motivoCancelamento || '');
+    setFaltaMotivo(false);
   }, [vaga]);
 
   /** `concluir`: depois de salvar, abre o Concluir com a vaga já atualizada. */
   const handleSave = async (concluir = false) => {
+    const cancelando = tempStatus === 'CANCELADA';
+    if (cancelando && !tempMotivoCancelamento.trim()) { setFaltaMotivo(true); return; }
     let finalSolicitacao = vaga.solicitacao;
     let finalMesSolicitacao = vaga.mesSolicitacao;
     if (tempSolicitacao && tempSolicitacao !== vaga.solicitacao) {
@@ -126,7 +134,11 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
         candCompareceram: Number(tempCandCompareceram) || 0,
         candAprovados: Number(tempCandAprovados) || 0,
       }),
-      motivoDesistencia: tempMotivoDesistencia
+      motivoDesistencia: tempMotivoDesistencia,
+      // Reaberta depois de cancelada: o motivo antigo sai junto.
+      ...(cancelando
+        ? { motivoCancelamento: tempMotivoCancelamento.trim(), canceladaEm: vaga.status === 'CANCELADA' && vaga.canceladaEm ? vaga.canceladaEm : dataISOLocal() }
+        : vaga.status === 'CANCELADA' ? { motivoCancelamento: '', canceladaEm: '' } : {}),
     };
     await onSave(vaga.id, campos);
 
@@ -319,6 +331,23 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
                 ))}
               </select>
             </div>
+            {tempStatus === 'CANCELADA' && (
+              <div className="col-span-2">
+                <label htmlFor="modal-motivo-cancelamento" className="block text-[13px] font-semibold text-slate-700 mb-1">Motivo do cancelamento <span className="text-orange-500">*</span></label>
+                <textarea
+                  id="modal-motivo-cancelamento"
+                  rows={2}
+                  className="campo w-full"
+                  placeholder="Ex.: gestor desistiu da vaga, remanejamento interno"
+                  value={tempMotivoCancelamento}
+                  aria-invalid={faltaMotivo || undefined}
+                  onChange={(e) => { setTempMotivoCancelamento(e.target.value); setFaltaMotivo(false); }}
+                />
+                <p className="text-[12.5px] mt-1" style={{ color: faltaMotivo ? 'var(--atraso)' : 'var(--tinta-3)' }} role={faltaMotivo ? 'alert' : undefined}>
+                  {faltaMotivo ? 'Diga o motivo para cancelar a vaga.' : 'A vaga cancelada sai do quadro e dos indicadores; fica em "Canceladas".'}
+                </p>
+              </div>
+            )}
 
             <div>
               <label htmlFor="modal-etapa" className="block text-[13px] font-semibold text-slate-700 mb-1">Etapa Atual</label>

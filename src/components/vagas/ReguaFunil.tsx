@@ -1,7 +1,7 @@
 import type React from 'react';
 import type { Vaga } from '../../types';
 import { SLA_META_DIAS } from '../../constants/hr';
-import { ETAPAS_FUNIL, normalizeEtapa, isPausedOrSuspended, vagaAtrasada } from '../../utils/vaga';
+import { ETAPAS_FUNIL, normalizeEtapa, isPausedOrSuspended, vagaAtrasada, encerrada } from '../../utils/vaga';
 import { corEtapa } from './CartaoVaga';
 
 export interface Funil {
@@ -13,7 +13,7 @@ export interface Funil {
 
 /** Quantas vagas vivas há em cada etapa, e quantas passaram da meta. */
 export function funilDasVagas(vagas: Vaga[]): Funil {
-  const vivas = vagas.filter(v => v.status !== 'FECHADA');
+  const vivas = vagas.filter(v => !encerrada(v.status));
   return {
     total: vivas.length,
     porEtapa: ETAPAS_FUNIL.map(etapa => ({ etapa, n: vivas.filter(v => normalizeEtapa(v) === etapa).length })),

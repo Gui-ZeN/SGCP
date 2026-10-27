@@ -32,7 +32,7 @@ export interface PlanoDeImportacao {
   ignoradas: string[];
 }
 
-const STATUS_VALIDOS: Vaga['status'][] = ['ABERTA', 'FECHADA', 'PAUSADA', 'SUSPENSA', 'DOCUMENTAÇÃO', 'REABERTA'];
+const STATUS_VALIDOS: Vaga['status'][] = ['ABERTA', 'FECHADA', 'PAUSADA', 'SUSPENSA', 'DOCUMENTAÇÃO', 'REABERTA', 'CANCELADA'];
 
 function normalizarStatus(valor: unknown): Vaga['status'] {
   const texto = cleanText(valor).toUpperCase();
@@ -41,6 +41,7 @@ function normalizarStatus(valor: unknown): Vaga['status'] {
   if (texto.startsWith('FECH')) return 'FECHADA';
   if (texto.startsWith('PAUS')) return 'PAUSADA';
   if (texto.startsWith('SUSP')) return 'SUSPENSA';
+  if (texto.startsWith('CANC')) return 'CANCELADA';
   if (texto.startsWith('REAB')) return 'REABERTA';
   if (texto.startsWith('DOC')) return 'DOCUMENTAÇÃO';
   return 'ABERTA';

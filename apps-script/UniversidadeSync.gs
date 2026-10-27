@@ -335,6 +335,7 @@ function normalizarStatus_(v) {
   const s = normalizar_(v);
   if (s.indexOf('fechad') >= 0 || s.indexOf('conclu') >= 0) return 'FECHADA';
   if (s.indexOf('paus') >= 0) return 'PAUSADA';
+  if (s.indexOf('cancel') >= 0) return 'CANCELADA';
   if (s.indexOf('suspens') >= 0) return 'SUSPENSA';
   if (s.indexOf('document') >= 0 || s.indexOf('admiss') >= 0) return 'DOCUMENTAÇÃO';
   if (s.indexOf('reabert') >= 0) return 'REABERTA';

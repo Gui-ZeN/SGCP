@@ -26,6 +26,14 @@ export function parseDateDDMMYYYY(dateStr?: string): Date | null {
   return null;
 }
 
+/**
+ * Fechada ou cancelada: a vaga saiu do processo. Cancelada (27/10/2026) não é
+ * concluída — fica fora dos indicadores e do quadro, num canto à parte.
+ */
+export function encerrada(status?: string): boolean {
+  return ['FECHADA', 'CANCELADA'].includes((status || '').toUpperCase());
+}
+
 export function isPausedOrSuspended(status?: string): boolean {
   return ['PAUSADA', 'SUSPENSA'].includes((status || '').toUpperCase());
 }
@@ -118,11 +126,11 @@ const ETAPAS_DOC = ['Documentação', 'Aguardando admissão'];
 /**
  * Status que a vaga deveria ter ao chegar numa etapa do funil — para manter o
  * Kanban "Por status" coerente com o "Por etapa". Devolve o novo status, ou
- * undefined quando nada deve mudar. NÃO mexe em PAUSADA/SUSPENSA/FECHADA.
+ * undefined quando nada deve mudar. NÃO mexe em PAUSADA/SUSPENSA/FECHADA/CANCELADA.
  */
 export function statusForEtapa(currentStatus: string | undefined, novaEtapa: string): Vaga['status'] | undefined {
   const cur = (currentStatus || '').toUpperCase();
-  if (cur === 'PAUSADA' || cur === 'SUSPENSA' || cur === 'FECHADA') return undefined;
+  if (cur === 'PAUSADA' || cur === 'SUSPENSA' || encerrada(cur)) return undefined;
   if (ETAPAS_DOC.includes(novaEtapa)) {
     return cur === 'DOCUMENTAÇÃO' ? undefined : 'DOCUMENTAÇÃO';
   }
@@ -176,7 +184,7 @@ export function diasNestaEtapa(vaga: Vaga): number {
  * na outra para as mesmas vagas.
  */
 export function vagaAtrasada(vaga: Vaga): boolean {
-  return vaga.status !== 'FECHADA' && !isPausedOrSuspended(vaga.status) && diasNestaEtapa(vaga) > SLA_META_DIAS;
+  return !encerrada(vaga.status) && !isPausedOrSuspended(vaga.status) && diasNestaEtapa(vaga) > SLA_META_DIAS;
 }
 
 /**

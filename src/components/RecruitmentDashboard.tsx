@@ -110,7 +110,9 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
     const noP = (d?: string) => noPeriodo(periodo, anoMes(d));
     const integSede = integracoes.filter(i => daSede(i.sede));
     return {
-      vagas: vagas.filter(v => daSede(v.sede)),
+      // Cancelada fica fora de todo indicador (27/10/2026): não foi preenchida
+      // nem está em andamento.
+      vagas: vagas.filter(v => v.status !== 'CANCELADA' && daSede(v.sede)),
       selecoes: selecoes.filter(s => daSede(s.sede) && noP(s.data)),
       selecoesSede: selecoes.filter(s => daSede(s.sede)),
       treinamentos: treinamentos.filter(t => daSede(t.unidade) && noP(t.dataInicio)),

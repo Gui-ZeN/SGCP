@@ -2,11 +2,11 @@ import React from 'react';
 import { Vaga, Selecao, Requisicao } from '../../types';
 import { ehRealizada, type FunilEfetivo } from '../../utils/selecao';
 import { SystemLog } from '../../hooks/useLogs';
-import { getDiasEmAberto, getSlaInfo, isPausedOrSuspended } from '../../utils/vaga';
+import { getDiasEmAberto, getSlaInfo, isPausedOrSuspended, encerrada } from '../../utils/vaga';
 import { Check, Pencil, Trash2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Atalho } from '../ui/Atalhos';
-import { toISOInput } from '../../utils/date';
+import { toISOInput, formatDateBR } from '../../utils/date';
 
 /**
  * Detalhes da vaga. Era uma gaveta que abria na lateral; desde 08/10/2026 abre
@@ -43,7 +43,7 @@ export const VagaDetailsDrawer: React.FC<VagaDetailsDrawerProps> = ({
 }) => {
   const dias = getDiasEmAberto(vaga);
   const pausada = isPausedOrSuspended(vaga.status);
-  const sla = getSlaInfo(dias, vaga.status === 'FECHADA', pausada);
+  const sla = getSlaInfo(dias, encerrada(vaga.status), pausada);
   const corPrazo = pausada ? 'var(--etapa-pausa)'
     : /Crítico/.test(sla.label) ? 'var(--atraso)'
     : /Alerta/.test(sla.label) ? '#B7791F'
@@ -64,7 +64,7 @@ export const VagaDetailsDrawer: React.FC<VagaDetailsDrawerProps> = ({
         <>
           <button type="button" className="btn btn-perigo mr-auto" onClick={() => onExcluir(vaga)}><Trash2 />Excluir</button>
           <button type="button" className="btn" onClick={() => onEditar(vaga)}><Pencil />Editar</button>
-          {vaga.status !== 'FECHADA' && (
+          {!encerrada(vaga.status) && (
             <button type="button" className="btn btn-primario" onClick={() => onConcluir(vaga)}><Check />Concluir vaga</button>
           )}
         </>
@@ -72,7 +72,13 @@ export const VagaDetailsDrawer: React.FC<VagaDetailsDrawerProps> = ({
         <button type="button" className="btn" onClick={onClose}>Fechar</button>
       )}
     >
-      <section className="secao">
+      {vaga.status === 'CANCELADA' && (
+        <section className="secao">
+          <h3 className="secao-titulo">Cancelada{vaga.canceladaEm && <span className="font-normal" style={{ color: 'var(--tinta-3)' }}>em {formatDateBR(vaga.canceladaEm)}</span>}</h3>
+          <p className="text-[14px]" style={{ color: 'var(--tinta-2)' }}>{vaga.motivoCancelamento || 'Sem motivo registrado.'}</p>
+        </section>
+      )}
+      {vaga.status !== 'CANCELADA' && <section className="secao">
         <h3 className="secao-titulo">
           Prazo
           <span className="etiqueta" style={{ color: corPrazo, background: 'var(--superficie)' }}>{sla.label.replace('SLA ', '')}</span>
@@ -84,7 +90,7 @@ export const VagaDetailsDrawer: React.FC<VagaDetailsDrawerProps> = ({
           Aberta em {vaga.solicitacao} · <b style={{ color: 'var(--tinta)' }}>{dias} dias</b>
           {vaga.conclusao ? ` · fechada em ${vaga.conclusao}` : ''} · {sla.desc}
         </p>
-      </section>
+      </section>}
 
       <section className="secao">
         <dl className="ficha">
@@ -112,7 +118,7 @@ export const VagaDetailsDrawer: React.FC<VagaDetailsDrawerProps> = ({
                 ? <>{vaga.aprovado}{vaga.status === 'FECHADA' && <>{' · '}<Atalho para="experiencias" params={{ pessoa: vaga.aprovado }}>ver na Experiência</Atalho></>}</>
                 : vaga.status === 'FECHADA'
                   ? <span className="etiqueta etiqueta-atraso">Não informado</span>
-                  : <span style={{ color: 'var(--tinta-3)', fontWeight: 500 }}>Ainda em aberto</span>}
+                  : <span style={{ color: 'var(--tinta-3)', fontWeight: 500 }}>{vaga.status === 'CANCELADA' ? '—' : 'Ainda em aberto'}</span>}
             </dd>
           </div>
         </dl>
@@ -132,11 +138,11 @@ export const VagaDetailsDrawer: React.FC<VagaDetailsDrawerProps> = ({
         </section>
       )}
 
-      {(selecoes.length > 0 || (podeNovaSelecao && vaga.status !== 'FECHADA')) && (
+      {(selecoes.length > 0 || (podeNovaSelecao && !encerrada(vaga.status))) && (
         <section className="secao">
           <h3 className="secao-titulo">
             Seleções desta vaga
-            {podeNovaSelecao && vaga.status !== 'FECHADA' && (
+            {podeNovaSelecao && !encerrada(vaga.status) && (
               <Atalho para="selecoesLista" params={{ novaSelecao: vaga.id }} className="btn btn-sm">+ Nova seleção para esta vaga</Atalho>
             )}
           </h3>

@@ -60,7 +60,8 @@ function normalizeStatus(value: unknown): Vaga['status'] {
   const raw = normalizeKey(value);
   if (raw.includes('fech') || raw.includes('concl')) return 'FECHADA';
   if (raw.includes('paus')) return 'PAUSADA';
-  if (raw.includes('susp') || raw.includes('cancel')) return 'SUSPENSA';
+  if (raw.includes('cancel')) return 'CANCELADA';
+  if (raw.includes('susp')) return 'SUSPENSA';
   if (raw.includes('doc')) return 'DOCUMENTAÇÃO';
   if (raw.includes('reab')) return 'REABERTA';
   return 'ABERTA';

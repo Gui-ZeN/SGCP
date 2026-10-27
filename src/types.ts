@@ -10,7 +10,7 @@ export interface Vaga {
   codigo: number; // Single code
   vaga: string; // Job title
   sede: string; // Branch/Sede
-  status: 'ABERTA' | 'FECHADA' | 'PAUSADA' | 'SUSPENSA' | 'DOCUMENTAÇÃO' | 'REABERTA';
+  status: 'ABERTA' | 'FECHADA' | 'PAUSADA' | 'SUSPENSA' | 'DOCUMENTAÇÃO' | 'REABERTA' | 'CANCELADA';
   setor: string; // Department
   sexo?: 'INDIFERENTE' | 'FEMININO' | 'MASCULINO';
   solicitacao: string; // Request date (DD/MM/YYYY)
@@ -38,6 +38,8 @@ export interface Vaga {
   candCompareceram?: number;
   candAprovados?: number;
   motivoDesistencia?: string; // Motivo padronizado de desistência (lista fixa)
+  motivoCancelamento?: string; // Obrigatório ao cancelar (27/10/2026)
+  canceladaEm?: string; // ISO date (YYYY-MM-DD) do cancelamento
   origem?: string; // Fonte do registro. Ex.: 'planilha-universidade' (sincronizado de planilha externa; somente-leitura no SGCP). Vazio/ausente = criado no próprio sistema.
 }
 

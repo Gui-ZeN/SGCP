@@ -39,7 +39,7 @@ import { LogoSGPC } from './components/LogoSGPC';
 import { MenuLateral, type ItemMenu } from './components/MenuLateral';
 import { Modal } from './components/ui/Modal';
 import { lerRota, linkPara, type Aba, type ParametrosDaRota } from './lib/rotas';
-import { vagaAtrasada } from './utils/vaga';
+import { vagaAtrasada, encerrada } from './utils/vaga';
 import { SLA_META_DIAS } from './constants/hr';
 import { ehSetembro } from './data/setembroAmarelo';
 import { ehOutubro } from './data/outubroRosa';
@@ -394,7 +394,7 @@ export default function App() {
   // O Kanban mostra os candidatos das seleções ligadas às vagas em andamento —
   // a vaga aberta há 3 meses tem seleção de antes da janela ao vivo.
   const selecoesDasVagasAbertas = useMemo(() => {
-    const abertas = scopedVagas.filter(v => v.status !== 'FECHADA');
+    const abertas = scopedVagas.filter(v => !encerrada(v.status));
     return abertas.length ? scopedSelecoes.filter(s => abertas.some(v => atendeVaga(s, v))) : [];
   }, [scopedVagas, scopedSelecoes]);
   useEffect(() => {
@@ -568,7 +568,7 @@ export default function App() {
     // Contratado na seleção → sugere como aprovado da vaga ligada (só sugere:
     // quem confirma é o RH, e concluir a vaga continua no Quadro).
     if (dados.contratado === 'sim' && antes?.contratado !== 'sim') {
-      const vaga = vagas.find(v => atendeVaga(selecao, v) && !v.aprovado && v.status !== 'FECHADA');
+      const vaga = vagas.find(v => atendeVaga(selecao, v) && !v.aprovado && !encerrada(v.status));
       if (vaga) {
         // "Registrar e concluir" (21/10/2026): só registrar o aprovado deixava a
         // vaga em Documentação, e o RH entendia que tinha fechado. Agora o nome

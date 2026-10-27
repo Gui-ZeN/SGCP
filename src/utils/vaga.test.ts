@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { codigosSequenciais, getDiasEmAberto, getSlaInfo, isPausedOrSuspended, normalizeEtapa, statusForEtapa, vagasParecidas } from './vaga';
+import { codigosSequenciais, encerrada, getDiasEmAberto, getSlaInfo, isPausedOrSuspended, normalizeEtapa, statusForEtapa, vagaAtrasada, vagasParecidas } from './vaga';
 import type { Vaga } from '../types';
 
 const vaga = (p: Partial<Vaga>) => p as Vaga;
@@ -128,6 +128,23 @@ describe('codigosSequenciais', () => {
     expect(codigosSequenciais([{ codigo: 5 }], 0)).toEqual([]);
     expect(codigosSequenciais([{ codigo: 5 }], -3)).toEqual([]);
     expect(codigosSequenciais([{ codigo: 5 }], NaN)).toEqual([]);
+  });
+});
+
+describe('vaga cancelada', () => {
+  it('é encerrada, como a fechada', () => {
+    expect(encerrada('CANCELADA')).toBe(true);
+    expect(encerrada('FECHADA')).toBe(true);
+    expect(encerrada('SUSPENSA')).toBe(false);
+  });
+  it('nunca conta como atrasada, por mais antiga que seja', () => {
+    expect(vagaAtrasada(vaga({ status: 'CANCELADA', etapaDesde: '2020-01-01', solicitacao: '01/01/2020' }))).toBe(false);
+  });
+  it('mudar a etapa não mexe no status', () => {
+    expect(statusForEtapa('CANCELADA', 'Documentação')).toBeUndefined();
+  });
+  it('não é vaga parecida (não avisa ao abrir outra para o mesmo substituído)', () => {
+    expect(vagasParecidas({ vaga: 'ASG', sede: 'PE', solicitante: 'X', funcionarioSubstituido: 'Ana Lima' }, [vaga({ status: 'CANCELADA', funcionarioSubstituido: 'Ana Lima' })])).toEqual([]);
   });
 });
 

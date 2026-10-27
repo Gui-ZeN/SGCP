@@ -35,7 +35,7 @@ import {
 import { exportToXlsx } from '../utils/xlsxExporter';
 import { SLA_META_DIAS } from '../constants/hr';
 import { ReguaFunil, funilDasVagas } from './vagas/ReguaFunil';
-import { parseDateDDMMYYYY, isPausedOrSuspended, getDiasEmAberto, ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa, statusForEtapa, vagaAtrasada } from '../utils/vaga';
+import { parseDateDDMMYYYY, isPausedOrSuspended, getDiasEmAberto, ETAPAS_FUNIL, normalizeEtapa, diasNestaEtapa, statusForEtapa, vagaAtrasada, encerrada } from '../utils/vaga';
 import { funilDaVaga, funilEfetivo, selecoesDaVaga, atendeVaga, camposDoFormulario, type FunilDaVaga } from '../utils/selecao';
 
 interface VacancyTableProps {
@@ -168,6 +168,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   // status continua a um clique, para quem quer o retrato administrativo.
   const [kanbanGroupBy, setKanbanGroupBy] = useState<'status' | 'etapa'>('etapa');
   const [showConcluidasEtapa, setShowConcluidasEtapa] = useState(false);
+  // Canceladas (27/10/2026): num canto à parte, escondidas até pedir.
+  const [verCanceladas, setVerCanceladas] = useState(false);
   const [selectedDetailsVaga, setSelectedDetailsVaga] = useState<Vaga | null>(null);
   // Botões de filtro: somam entre si (Em andamento + Atrasadas…). Nenhum = todas.
   const [statusGroupFilter, setStatusGroupFilter] = useState<('ATIVAS' | 'CONCLUIDAS' | 'ALERTA_SLA')[]>([]);
@@ -185,7 +187,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       setSelectedSede(!isAdmin && userSede ? [userSede] : []);
       setCurrentPage(1);
       const alvo = vagas.find(v => String(v.codigo) === focusVaga.codigo);
-      if (alvo && focusVaga.concluir && alvo.status !== 'FECHADA') setVagaToConclude(alvo);
+      if (alvo?.status === 'CANCELADA') setVerCanceladas(true);
+      if (alvo && focusVaga.concluir && !encerrada(alvo.status)) setVagaToConclude(alvo);
       else if (alvo) setSelectedDetailsVaga(alvo);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -502,7 +505,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
   // 2. AGGREGATING ADVANCED KPIS (Respects selected Sede)
   const stats = useMemo(() => {
-    const relevantVagas = vagas.filter(v => sedeMarcada(v) && responsavelMarcado(v));
+    const relevantVagas = vagas.filter(v => v.status !== 'CANCELADA' && sedeMarcada(v) && responsavelMarcado(v));
 
     const total = relevantVagas.length;
     let ativas = 0;
@@ -583,7 +586,9 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   };
 
   // Filter & Sort Logic
-  const filteredVagas = useMemo(() => {
+  // Filtra todas (canceladas inclusive); o quadro usa as vivas e o canto
+  // "Canceladas" as outras, com os mesmos filtros.
+  const filtradas = useMemo(() => {
     let result = [...vagas];
 
     // Text search (case insensitive)
@@ -638,6 +643,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
 
     return result;
   }, [vagas, searchTerm, selectedSede, selectedStatus, selectedSetor, selectedResponsavel, sortBy, sortOrder, statusGroupFilter, userSede, isAdmin]);
+  const filteredVagas = useMemo(() => filtradas.filter(v => v.status !== 'CANCELADA'), [filtradas]);
+  const canceladas = useMemo(() => filtradas.filter(v => v.status === 'CANCELADA'), [filtradas]);
 
   // Paginated chunk
   const paginatedVagas = useMemo(() => {
@@ -721,6 +728,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       FECHADA: ['Concluída', 'var(--etapa-admissao)', 'var(--etapa-admissao-fundo)'],
       PAUSADA: ['Pausada', 'var(--etapa-pausa)', 'var(--etapa-pausa-fundo)'],
       SUSPENSA: ['Suspensa', 'var(--etapa-pausa)', 'var(--etapa-pausa-fundo)'],
+      CANCELADA: ['Cancelada', 'var(--tinta-2)', 'var(--superficie)'],
       'DOCUMENTAÇÃO': ['Admissão', 'var(--etapa-documentacao)', 'var(--etapa-documentacao-fundo)'],
     } as Record<string, [string, string, string]>)[status] ?? [status, 'var(--tinta-2)', 'var(--superficie)'];
     return <span className="etiqueta" style={{ color: cor, background: fundo }}>{rotulo}</span>;
@@ -879,6 +887,11 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
             Mostrar concluídas
           </label>
         )}
+        {(canceladas.length > 0 || verCanceladas) && (
+          <button type="button" className="chip" aria-pressed={verCanceladas} onClick={() => setVerCanceladas(x => !x)} title="Vagas canceladas ficam fora do quadro e dos indicadores">
+            Canceladas <b>{canceladas.length}</b>
+          </button>
+        )}
         {filtrosAtivos && <button type="button" className="btn-texto" onClick={limparFiltros}>Limpar filtros</button>}
         <label className="campo-busca">
           <Search aria-hidden="true" />
@@ -899,7 +912,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           <div className="quadro">
             {ETAPAS_FUNIL.map((etapa, idx) => {
               const lista = filteredVagas
-                .filter(v => v.status !== 'FECHADA' && normalizeEtapa(v) === etapa)
+                .filter(v => !encerrada(v.status) && normalizeEtapa(v) === etapa)
                 // Pausada vai para o fim: o prazo dela está parado, não pede ação.
                 .sort((a, b) => Number(isPausedOrSuspended(a.status)) - Number(isPausedOrSuspended(b.status)) || diasNestaEtapa(b) - diasNestaEtapa(a));
               const proxima = ETAPAS_FUNIL[idx + 1];
@@ -1002,7 +1015,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                   <tr><td colSpan={7} className="text-center py-10" style={{ color: 'var(--tinta-3)' }}>Nenhuma vaga com esses filtros.</td></tr>
                 ) : paginatedVagas.map(vaga => {
                   const dias = getDiasEmAberto(vaga);
-                  const atrasada = vaga.status !== 'FECHADA' && !isPausedOrSuspended(vaga.status) && dias > SLA_META_DIAS;
+                  const atrasada = !encerrada(vaga.status) && !isPausedOrSuspended(vaga.status) && dias > SLA_META_DIAS;
                   return (
                     <tr key={vaga.id}>
                       <td className="num" data-rotulo="Nº">{vaga.codigo}</td>
@@ -1031,7 +1044,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
                           {canManageVagas && (
                             <>
                               <button type="button" className="btn btn-sm" onClick={() => startEditing(vaga)}>Editar</button>
-                              {vaga.status !== 'FECHADA' && <button type="button" className="btn btn-sm" onClick={() => handleOpenConcludeModal(vaga)}>Concluir</button>}
+                              {!encerrada(vaga.status) && <button type="button" className="btn btn-sm" onClick={() => handleOpenConcludeModal(vaga)}>Concluir</button>}
                               <button type="button" className="btn btn-sm btn-perigo" onClick={() => excluirVaga(vaga)}>Excluir</button>
                             </>
                           )}
@@ -1054,6 +1067,39 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
             : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">{paginatedVagas.map(v => cartaoPorTempoAberto(v, 'var(--etapa-entrevista)'))}</div>}
           {paginacao && <div className="painel">{paginacao}</div>}
         </div>
+      )}
+
+      {verCanceladas && (
+        <section className="painel overflow-hidden" aria-label="Vagas canceladas">
+          <h3 className="px-4 pt-4 text-[15px] font-bold" style={{ color: 'var(--tinta)' }}>
+            Canceladas <span style={{ color: 'var(--tinta-3)' }}>{canceladas.length}</span>
+            <span className="block text-[12.5px] font-normal" style={{ color: 'var(--tinta-3)' }}>Fora do quadro e dos indicadores. Para reabrir, edite e troque o status.</span>
+          </h3>
+          {canceladas.length === 0 ? (
+            <p className="px-4 pb-4 pt-2 text-[13px]" style={{ color: 'var(--tinta-3)' }}>Nenhuma vaga cancelada com esses filtros.</p>
+          ) : (
+            <table className="tabela tabela-empilha mt-2">
+              <thead><tr><th>Nº</th><th>Cargo</th><th>Sede</th><th>Cancelada em</th><th>Motivo</th><th className="text-right">Ações</th></tr></thead>
+              <tbody>
+                {canceladas.map(v => (
+                  <tr key={v.id}>
+                    <td className="num" data-rotulo="Nº">{v.codigo}</td>
+                    <td><button type="button" className="font-bold text-left hover:underline" onClick={() => setSelectedDetailsVaga(v)}>{v.vaga}</button></td>
+                    <td className="whitespace-nowrap" data-rotulo="Sede">{getSedeSigla(v.sede)}</td>
+                    <td className="whitespace-nowrap" data-rotulo="Cancelada em">{v.canceladaEm ? formatDateBR(v.canceladaEm) : '—'}</td>
+                    <td data-rotulo="Motivo">{v.motivoCancelamento || '—'}</td>
+                    <td>
+                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                        <button type="button" className="btn btn-sm" onClick={() => setSelectedDetailsVaga(v)}>Detalhes</button>
+                        {canManageVagas && <button type="button" className="btn btn-sm" onClick={() => startEditing(v)}>Editar</button>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
       )}
 
       {/* SECTION 4: SLIDING RIGHT DETAILS DRAWER (THE MAGICAL UX PIECE) */}
@@ -1135,7 +1181,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
           para={funilMove.para}
           lista={candidatosDaVaga(funilMove.vaga, selecoes, candidatos!)}
           selecoesLigadas={selecoesDaVaga(selecoes, funilMove.vaga)}
-          vagasDaSelecao={s => vagas.filter(v => v.status !== 'FECHADA' && atendeVaga(s, v))}
+          vagasDaSelecao={s => vagas.filter(v => !encerrada(v.status) && atendeVaga(s, v))}
           funil={funilEfetivo(funilMove.vaga, selecoes)}
           aoFechar={() => setFunilMove(null)}
           marcarOutra={() => { setEntrevistaPara(funilMove.vaga); setFunilMove(null); }}
