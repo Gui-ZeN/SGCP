@@ -317,6 +317,12 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       return;
     }
 
+    if (laneId === 'lane-doc') {
+      // O passo do funil é a própria confirmação.
+      paraAdmissao(targetVaga);
+      return;
+    }
+
     const laneTitles: Record<string, string> = {
       'lane-aberta': 'Ativas / Abertas',
       'lane-doc': 'Admissão / Doc',
@@ -342,10 +348,6 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       if (targetVaga.status !== 'ABERTA' && targetVaga.status !== 'REABERTA') {
         await updateVaga(vagaId, { status: 'ABERTA' });
       }
-    } else if (laneId === 'lane-doc') {
-      if (targetVaga.status !== 'DOCUMENTAÇÃO') {
-        await updateVaga(vagaId, { status: 'DOCUMENTAÇÃO', etapa: 'Contratação / Docs' });
-      }
     } else if (laneId === 'lane-paused') {
       if (targetVaga.status !== 'PAUSADA' && targetVaga.status !== 'SUSPENSA') {
         await updateVaga(vagaId, { status: 'PAUSADA' });
@@ -369,6 +371,18 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   const moverParaEtapa = async (v: Vaga, etapa: string) => {
     const novoStatus = statusForEtapa(v.status, etapa);
     await updateVaga(v.id, novoStatus ? { etapa, status: novoStatus } : { etapa });
+  };
+
+  /**
+   * "Para Admissão" no Por status e nos Cartões (27/10/2026): o mesmo passo do
+   * funil do Kanban por etapa (quem segue para a documentação). Antes só trocava
+   * o status, e a vaga ia para Documentação sem ninguém marcado. Já na etapa de
+   * documentação (status desencontrado), só acerta o status.
+   */
+  const paraAdmissao = (v: Vaga) => {
+    const atual = normalizeEtapa(v);
+    if (atual === 'Documentação' || atual === 'Aguardando admissão') updateVaga(v.id, { status: 'DOCUMENTAÇÃO' });
+    else handleEtapaDrop(v.id, 'Documentação');
   };
 
   const handleEtapaDrop = async (vagaId: string, etapa: string) => {
@@ -800,7 +814,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       pausar={() => openPauseModal(vaga)}
       retomar={() => updateVaga(vaga.id, { status: 'ABERTA' })}
       avancar={vaga.status === 'ABERTA' || vaga.status === 'REABERTA'
-        ? { rotulo: 'Para Admissão', cor: 'var(--etapa-documentacao)', acao: () => updateVaga(vaga.id, { status: 'DOCUMENTAÇÃO', etapa: 'Contratação / Docs' }) }
+        ? { rotulo: 'Para Admissão', cor: 'var(--etapa-documentacao)', acao: () => paraAdmissao(vaga) }
         : undefined}
       concluir={vaga.status === 'DOCUMENTAÇÃO' ? () => handleOpenConcludeModal(vaga) : undefined}
       {...(comArrasto ? arrastar(vaga) : {})}

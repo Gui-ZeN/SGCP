@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Vaga } from '../types';
 import { dateFromValue, toISOInput, formatDateBR, monthAbbrFromDate, dataISOLocal } from '../utils/date';
 import { MOTIVOS_DESISTENCIA } from '../constants/hr';
+import { ETAPAS_FUNIL, normalizeEtapa, statusForEtapa } from '../utils/vaga';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import { Modal } from './ui/Modal';
 
@@ -51,7 +52,7 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
 
   useEffect(() => {
     setTempStatus(vaga.status || 'ABERTA');
-    setTempEtapa(vaga.etapa || '');
+    setTempEtapa(normalizeEtapa(vaga));
     setTempAprovado(vaga.aprovado || '');
     setTempObservacoes(vaga.observacoes || '');
     setTempResponsavel(vaga.responsavel || '');
@@ -121,7 +122,13 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
       solicitacao: finalSolicitacao,
       mesSolicitacao: finalMesSolicitacao,
       status: tempStatus,
-      etapa: tempEtapa,
+      // Etapa da lista do funil (27/10/2026; antes era texto livre). Só grava se
+      // mudou: regravar "Triagem de currículos" como "Triagem" zeraria os dias
+      // na etapa. Mudou e o status não foi mexido: acompanha a etapa, como no Kanban.
+      ...(tempEtapa !== normalizeEtapa(vaga) ? {
+        etapa: tempEtapa,
+        ...(tempStatus === vaga.status && statusForEtapa(vaga.status, tempEtapa) ? { status: statusForEtapa(vaga.status, tempEtapa) } : {}),
+      } : {}),
       aprovado: tempAprovado,
       observacoes: tempObservacoes,
       responsavel: tempResponsavel,
@@ -351,14 +358,14 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
 
             <div>
               <label htmlFor="modal-etapa" className="block text-[13px] font-semibold text-slate-700 mb-1">Etapa Atual</label>
-              <input
+              <select
                 id="modal-etapa"
-                type="text"
                 className="campo w-full"
-                placeholder="Ex: Entrevista, Triagem, etc."
                 value={tempEtapa}
                 onChange={(e) => setTempEtapa(e.target.value)}
-              />
+              >
+                {ETAPAS_FUNIL.map(e => <option key={e} value={e}>{e}</option>)}
+              </select>
             </div>
           </div>
 
