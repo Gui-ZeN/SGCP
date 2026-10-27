@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { codigosSequenciais, getDiasEmAberto, getSlaInfo, isPausedOrSuspended, normalizeEtapa, statusForEtapa } from './vaga';
+import { codigosSequenciais, getDiasEmAberto, getSlaInfo, isPausedOrSuspended, normalizeEtapa, statusForEtapa, vagasParecidas } from './vaga';
 import type { Vaga } from '../types';
 
 const vaga = (p: Partial<Vaga>) => p as Vaga;
@@ -128,5 +128,35 @@ describe('codigosSequenciais', () => {
     expect(codigosSequenciais([{ codigo: 5 }], 0)).toEqual([]);
     expect(codigosSequenciais([{ codigo: 5 }], -3)).toEqual([]);
     expect(codigosSequenciais([{ codigo: 5 }], NaN)).toEqual([]);
+  });
+});
+
+describe('vagasParecidas', () => {
+  const v = (p: Partial<Vaga>) => ({ status: 'ABERTA', vaga: 'ASG', sede: 'DOM LUÍS', solicitante: 'João Victor', ...p }) as Vaga;
+  it('mesmo substituído em vaga aberta → avisa, mesmo com o cargo escrito diferente', () => {
+    const lista = [v({ id: 'a', vaga: 'Agente Acadêmico de Coordenação', funcionarioSubstituido: 'Verônica Daniele Albuquerque' })];
+    expect(vagasParecidas({ vaga: 'Agente de Coordenação Acadêmico', sede: 'EUSEBIO', solicitante: 'X', funcionarioSubstituido: 'veronica daniele' }, lista).map(x => x.id)).toEqual(['a']);
+  });
+  it('vaga FECHADA não conta (substituir de novo a mesma pessoa é outra vaga)', () => {
+    const lista = [v({ status: 'FECHADA', funcionarioSubstituido: 'Gilberto Maciel' })];
+    expect(vagasParecidas({ vaga: 'ASG', sede: 'DOM LUÍS', solicitante: 'João', funcionarioSubstituido: 'Gilberto Maciel de Oliveira' }, lista)).toEqual([]);
+  });
+  it('pausada ou suspensa conta: ela volta e vira duas', () => {
+    expect(vagasParecidas({ vaga: 'ASG', sede: 'DOM LUÍS', solicitante: 'João', funcionarioSubstituido: 'Dulce Maria' }, [v({ status: 'SUSPENSA', funcionarioSubstituido: 'Dulce Maria da Silva' })])).toHaveLength(1);
+  });
+  it('sem substituído: só com o mesmo cargo, sede e solicitante', () => {
+    const lista = [v({ id: 'a' }), v({ id: 'b', sede: 'ALDEOTA' }), v({ id: 'c', solicitante: 'Rayanne' })];
+    expect(vagasParecidas({ vaga: 'asg ', sede: 'Dom Luís', solicitante: 'joão victor ', funcionarioSubstituido: '' }, lista).map(x => x.id)).toEqual(['a']);
+  });
+  it('mesmo prenome, sobrenome diferente: pessoas diferentes', () => {
+    const lista = [v({ funcionarioSubstituido: 'Maria Eduarda Oliveira Silva' })];
+    expect(vagasParecidas({ vaga: 'Auxiliar de Cantina', sede: 'PE', solicitante: 'X', funcionarioSubstituido: 'Maria Eduarda de Oliveira Costa' }, lista)).toEqual([]);
+  });
+  it('só o prenome casa só com o mesmo prenome sozinho', () => {
+    const lista = [v({ id: 'a', funcionarioSubstituido: 'Josué' }), v({ id: 'b', funcionarioSubstituido: 'Josué Lima' })];
+    expect(vagasParecidas({ vaga: 'ASG', sede: 'PE', solicitante: 'X', funcionarioSubstituido: 'josue' }, lista).map(x => x.id)).toEqual(['a']);
+  });
+  it('substituído diferente não avisa', () => {
+    expect(vagasParecidas({ vaga: 'ASG', sede: 'DOM LUÍS', solicitante: 'João Victor', funcionarioSubstituido: 'Paulo Cesar' }, [v({ funcionarioSubstituido: 'Gilberto Maciel' })])).toEqual([]);
   });
 });

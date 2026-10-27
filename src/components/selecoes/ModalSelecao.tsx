@@ -6,9 +6,9 @@
  *
  * A seleção nasce de uma vaga aberta (24/09/2026): cargo, setor, gestor e
  * planilha vêm dela, e ligar soma o funil da vaga sozinho. "Sem vaga" (banco de
- * talentos) continua possível. Ao criar uma AGENDADA dá para lançar os nomes
- * já aqui, um por campo; a realizada tem os resultados lançados por nome
- * depois, na lista de candidatos.
+ * talentos) continua possível. Ao criar, dá para lançar os nomes já aqui, um
+ * por campo — agendada OU já realizada; com nomes, os números saem da lista e
+ * o resultado de cada um é marcado depois, na lista de candidatos.
  */
 import { useState, type ReactNode } from 'react';
 import type { Selecao, Vaga } from '../../types';
@@ -62,7 +62,7 @@ interface Props {
   sugestoes: SugestoesSelecao;
   /** Edição de seleção cujos números saem da lista de candidatos. */
   numerosDaLista?: boolean;
-  /** Criando: mostra a lista de nomes (só para agendada). */
+  /** Criando: mostra a lista de nomes. */
   comNomes?: boolean;
   /** Botão a mais, à esquerda do rodapé ("Só mover, marcar depois"). */
   acaoExtra?: { rotulo: string; acao: () => void | Promise<void> };
@@ -79,7 +79,10 @@ export function ModalSelecao({ titulo, antes, inicial, sedes, vagas, sugestoes, 
   const set = <K extends keyof FormularioSelecao>(k: K, v: FormularioSelecao[K]) => setF(x => ({ ...x, [k]: v }));
   // Seleção antiga sem vaga ligada abre com os campos livres; nova abre pedindo a vaga.
   const [semVaga, setSemVaga] = useState(!(inicial.vagaIds || []).length && !!inicial.cargo);
-  const nomes = comNomes && !f.jaAconteceu ? nomesPreenchidos(lista) : [];
+  // ⚠️ Vale também para a já realizada: antes, marcar "A seleção já aconteceu"
+  // depois de digitar os nomes escondia a lista e os descartava sem aviso (15/10/2026:
+  // ~33 dias da Universidade gravados com convocados e nenhum candidato).
+  const nomes = comNomes ? nomesPreenchidos(lista) : [];
 
   const trocarSede = (sede: string) =>
     setF(x => semVaga ? { ...x, sede } : { ...x, sede, vagaIds: [], cargo: '', setor: '', gestor: '' });
@@ -224,7 +227,7 @@ export function ModalSelecao({ titulo, antes, inicial, sedes, vagas, sugestoes, 
               </label>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3">
                 {numeroCampo('convocados', 'Convocados *', Math.max(f.convocados, nomes.length))}
-                {f.jaAconteceu && <>
+                {f.jaAconteceu && !nomes.length && <>
                   {numeroCampo('compareceram', 'Compareceram')}
                   {numeroCampo('ausentes', 'Ausentes')}
                   {numeroCampo('desistiram', 'Desistiram')}
@@ -232,11 +235,12 @@ export function ModalSelecao({ titulo, antes, inicial, sedes, vagas, sugestoes, 
                 </>}
               </div>
               {!f.jaAconteceu && <p className={nota} style={{ color: 'var(--tinta-3)' }}>Fica como agendada. O resultado é lançado depois, pela lista de candidatos.</p>}
+              {f.jaAconteceu && nomes.length > 0 && <p className={nota} style={{ color: 'var(--tinta-3)' }}>Com os nomes, os números saem da lista: depois de salvar, marque na lista de candidatos quem veio e o resultado de cada um.</p>}
             </>
           )}
         </div>
 
-        {comNomes && !f.jaAconteceu && (
+        {comNomes && (
           <div>
             <span className={rotulo}>Quem foi chamado <span className="font-normal" style={{ color: 'var(--tinta-3)' }}>(opcional)</span></span>
             <ListaDeNomes nomes={lista} onChange={setLista} />

@@ -1120,6 +1120,7 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
             setores={setores}
             nomesUsados={nomesDeVagaUsados}
             criarSetor={canManageVagas ? addSetor : undefined}
+            vagas={vagas}
             onSuccess={() => setShowAddVagaModal(false)}
             userSede={userSede}
           />

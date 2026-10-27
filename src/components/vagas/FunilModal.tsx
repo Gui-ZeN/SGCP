@@ -269,11 +269,15 @@ function PassoCandidatos(p: Props) {
                     )}
                   </td>
                   <td data-rotulo={testes ? 'Vai p/ testes' : 'Segue'}>
-                    <label className="inline-flex items-center gap-2 cursor-pointer text-[14px]" style={{ opacity: podeSeguir ? 1 : 0.4 }}>
-                      <input type="checkbox" className="w-4 h-4" style={{ accentColor: 'var(--tinta)' }} disabled={!podeSeguir}
-                        checked={!!segue[c.id]} onChange={e => setSegue(x => ({ ...x, [c.id]: e.target.checked }))} />
-                      {segue[c.id] ? 'Sim' : 'Não'}
-                    </label>
+                    {/* ⚠️ Sim/Não lado a lado: a caixa de marcar só mostrava "Não"
+                        (virava "Sim" ao marcar) e o RH lia que não havia a opção. */}
+                    <div className="seg" role="group" aria-label={`${c.nome} ${testes ? 'vai para os testes' : 'segue para a documentação'}?`}
+                      title={podeSeguir ? undefined : 'Marque antes que a pessoa veio'} style={{ opacity: podeSeguir ? 1 : 0.4 }}>
+                      <button type="button" disabled={!podeSeguir} aria-pressed={!!segue[c.id]}
+                        onClick={() => setSegue(x => ({ ...x, [c.id]: true }))}>Sim</button>
+                      <button type="button" disabled={!podeSeguir} aria-pressed={!segue[c.id]}
+                        onClick={() => setSegue(x => ({ ...x, [c.id]: false }))}>Não</button>
+                    </div>
                   </td>
                   {!testes && (
                     <td data-rotulo="Para a vaga">

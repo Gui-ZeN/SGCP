@@ -9,6 +9,7 @@
 
 import { Vaga } from '../types';
 import { SLA_META_DIAS } from '../constants/hr';
+import { normalizarNome } from './catalogo';
 
 /** Parse de data no formato BR (DD/MM/YYYY). Retorna null se inválida. */
 export function parseDateDDMMYYYY(dateStr?: string): Date | null {
@@ -193,4 +194,36 @@ export function codigosSequenciais(existentes: { codigo: number }[], quantidade:
   const quantas = Math.max(0, Math.floor(quantidade) || 0);
   const maior = existentes.length > 0 ? Math.max(...existentes.map(v => v.codigo || 0)) : 1000;
   return Array.from({ length: quantas }, (_, i) => maior + 1 + i);
+}
+
+const EM_ANDAMENTO_OU_PARADA = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO', 'PAUSADA', 'SUSPENSA'];
+const partesDoNome = (s?: string) => normalizarNome((s || '').replace(/[^\p{L}\p{N} ]/gu, ' '))
+  .split(' ').filter(p => p && !['de', 'da', 'do', 'dos', 'das', 'e'].includes(p));
+/** "Gilberto Maciel" é "Gilberto Maciel de Oliveira"; "Maria Eduarda Silva" não é "Maria Eduarda Costa". */
+function mesmaPessoa(a?: string, b?: string): boolean {
+  const [x, y] = [partesDoNome(a), partesDoNome(b)].sort((p, q) => p.length - q.length);
+  if (!x.length) return false;
+  if (x.length === 1) return y.length === 1 && x[0] === y[0];
+  return x.every((p, i) => p === y[i]);
+}
+
+/**
+ * Vagas não fechadas que parecem a que está sendo aberta. Em 27/10/2026 o RH
+ * da Universidade tinha ~9 vagas lançadas duas vezes (a da planilha e uma
+ * criada de novo na tela): fechava uma, a outra seguia aberta e parecia que
+ * "a vaga voltou". Avisa, não trava — duas posições iguais podem ser reais.
+ *  - com substituído: o mesmo substituído (um nome é o começo do outro) — o cargo vem com
+ *    grafias diferentes ("Agente Acadêmico de Coordenação" × "Agente de
+ *    Coordenação Acadêmico"), a pessoa substituída não;
+ *  - sem substituído: mesmo cargo, sede e solicitante.
+ */
+export function vagasParecidas(
+  nova: Pick<Vaga, 'vaga' | 'sede' | 'solicitante' | 'funcionarioSubstituido'>,
+  vagas: Vaga[],
+): Vaga[] {
+  const abertas = vagas.filter(v => EM_ANDAMENTO_OU_PARADA.includes(v.status));
+  if (partesDoNome(nova.funcionarioSubstituido).length) return abertas.filter(v => mesmaPessoa(v.funcionarioSubstituido, nova.funcionarioSubstituido));
+  const cargo = normalizarNome(nova.vaga), sede = normalizarNome(nova.sede);
+  if (!cargo || !partesDoNome(nova.solicitante).length) return [];
+  return abertas.filter(v => normalizarNome(v.vaga) === cargo && normalizarNome(v.sede) === sede && mesmaPessoa(v.solicitante, nova.solicitante));
 }

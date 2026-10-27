@@ -101,7 +101,8 @@
 }
 @media (max-width: 480px) { .seg button { padding: 0 11px; } }
 .seg button + button { border-left: 1px solid var(--fio-campo); }
-.seg button:hover { color: var(--tinta); background: #F6F7F9; }
+.seg button:hover:not(:disabled) { color: var(--tinta); background: #F6F7F9; }
+.seg button:disabled { cursor: default; }
 .seg button[aria-pressed="true"] { background: var(--tinta); color: #fff; }
 
 /* ── Filtros ─────────────────────────────────────────────────────────── */

@@ -9,6 +9,7 @@ import { toISOInput, formatDateBR, monthAbbrFromDate, yearFromDate } from '../ut
 import { PlusCircle, CheckCircle, X } from 'lucide-react';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import { sugestoesDeCargo, setorExistente } from '../utils/catalogo';
+import { vagasParecidas } from '../utils/vaga';
 
 interface AddVacancyFormProps {
   /** `quantidade` abre N posições iguais de uma vez — ver `addVagas` em useVagas. */
@@ -22,9 +23,11 @@ interface AddVacancyFormProps {
   nomesUsados?: string[];
   /** Cadastra um setor novo. Ausente = sem o "+ Novo setor". */
   criarSetor?: (nome: string) => Promise<void>;
+  /** As vagas que a pessoa enxerga — para avisar quando a nova já existe. */
+  vagas?: Vaga[];
 }
 
-export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSuccess, sedes, cargos, setores, userSede, nomesUsados = [], criarSetor }) => {
+export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSuccess, sedes, cargos, setores, userSede, nomesUsados = [], criarSetor, vagas = [] }) => {
   const [vagaName, setVagaName] = useState('');
   const [sede, setSede] = useState(userSede || 'DT');
 
@@ -50,6 +53,11 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
   // deixa a pessoa apagar para redigitar (o campo volta a 1 no meio da edição).
   const [quantidade, setQuantidade] = useState('1');
   const quantas = Math.max(1, Math.min(200, Math.floor(Number(quantidade)) || 1));
+
+  const parecidas = useMemo(
+    () => vagasParecidas({ vaga: vagaName, sede, solicitante, funcionarioSubstituido }, vagas),
+    [vagaName, sede, solicitante, funcionarioSubstituido, vagas]
+  );
 
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -471,6 +479,20 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
             />
           </div>
 
+          {parecidas.length > 0 && (
+            <div role="alert" className="rounded-md px-3.5 py-2.5 text-[13.5px]" style={{ background: 'var(--atraso-fundo)', color: 'var(--atraso)' }}>
+              <p className="font-semibold">
+                {parecidas.length === 1 ? 'Já existe uma vaga parecida' : `Já existem ${parecidas.length} vagas parecidas`} sem fechar:
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {parecidas.slice(0, 5).map(v => (
+                  <li key={v.id}>nº {v.codigo} · {v.vaga} · {v.sede} · {v.status === 'DOCUMENTAÇÃO' ? 'Documentação' : v.status.charAt(0) + v.status.slice(1).toLowerCase()} · aberta em {v.solicitacao}</li>
+                ))}
+              </ul>
+              <p className="mt-1">Se for a mesma, use a que já existe. Abrir outra faz a vaga aparecer duas vezes.</p>
+            </div>
+          )}
+
           {/* Buttons */}
           <div className="flex items-center justify-end gap-3 pt-6 mt-6 border-t border-slate-100">
             <button
@@ -491,7 +513,7 @@ export const AddVacancyForm: React.FC<AddVacancyFormProps> = ({ addVaga, onSucce
               <PlusCircle className="w-4.5 h-4.5" />
               {/* O botão diz o número: "Abrir Vaga" com 30 no campo esconderia
                   que o clique cria trinta registros. */}
-              {busy ? 'Salvando...' : quantas > 1 ? `Abrir ${quantas} Vagas` : 'Abrir Vaga'}
+              {busy ? 'Salvando...' : parecidas.length ? 'Abrir mesmo assim' : quantas > 1 ? `Abrir ${quantas} Vagas` : 'Abrir Vaga'}
             </button>
           </div>
         </form>
