@@ -123,3 +123,25 @@ export function comGravacoesRecentes<C extends { id: string }>(
   }
   return [...porId.values()];
 }
+
+/**
+ * Os números a gravar na seleção depois de mexer na lista, ou `null` quando ela
+ * não é recalculada:
+ *  - dia de números digitados (sem `numerosPelaLista`) que já tinha candidatos;
+ *  - importada com candidato sem resultado (27/10/2026): a planilha antiga trazia
+ *    o nome sem dizer se a pessoa veio, e recalcular faria a seleção realizada
+ *    virar "agendada" (fora dos Indicadores) só por corrigir um nome. Fica com
+ *    os números da planilha até todos terem resultado — marcar "compareceu"
+ *    para todos inventaria 432 presenças em 66 dias (decisão do Guilherme).
+ */
+export function recalculoDaSelecao(
+  selecao: Pick<Selecao, 'numerosPelaLista' | 'importadoDe'>,
+  lista: CandidatoDoDia[],
+  jaTinha: boolean,
+  jaPelaLista = false,
+): ReturnType<typeof numerosDoDia> | null {
+  if (!selecao.numerosPelaLista && !jaPelaLista && jaTinha) return null;
+  const n = numerosDoDia(lista);
+  if (selecao.importadoDe && n.status === 'agendado') return null;
+  return n;
+}

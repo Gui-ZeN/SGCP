@@ -23,7 +23,7 @@ import { useFuncionarios } from './hooks/useFuncionarios';
 import { useOrganograma } from './hooks/useOrganograma';
 import { useAtividades } from './hooks/useAtividades';
 import { useCandidatos } from './hooks/useCandidatos';
-import { numerosDoDia, comGravacoesRecentes, type GravacaoRecente } from './utils/candidatos';
+import { recalculoDaSelecao, comGravacoesRecentes, type GravacaoRecente } from './utils/candidatos';
 import { atendeVaga, camposDoFormulario, origemDoSetor } from './utils/selecao';
 import type { Candidato, Selecao, Vaga, Turnover } from './types';
 import { convocacoesDasLinhas } from './utils/bancoCandidatos';
@@ -549,8 +549,9 @@ export default function App() {
   const recalcularSelecao = async (selecao: Selecao, lista: Pick<Candidato, 'resultado' | 'contratado' | 'motivo'>[], jaTinha: boolean) => {
     // `pelaLista`: o objeto `selecao` da tela pode ser de antes da 1ª gravação
     // ligar a marca, e o 2º lançamento sairia aqui sem recalcular.
-    if (!selecao.numerosPelaLista && !pelaLista.current.has(selecao.id) && jaTinha) return;
-    await updateSelecao(selecao.id, { ...numerosDoDia(lista), numerosPelaLista: true });
+    const numeros = recalculoDaSelecao(selecao, lista, jaTinha, pelaLista.current.has(selecao.id));
+    if (!numeros) return;
+    await updateSelecao(selecao.id, { ...numeros, numerosPelaLista: true });
     pelaLista.current.add(selecao.id);
   };
 

@@ -286,6 +286,8 @@ export interface Selecao {
    * mesmo cuidado da QUANTI.
    */
   numerosPelaLista?: boolean;
+  /** De onde veio, quando importada por script (ex.: "planilha SELEÇÕES GERAIS (Universidade)"). */
+  importadoDe?: string;
   /** @deprecated Formato de vínculo único, anterior à lista. Só leitura. */
   vagaId?: string;
   /** @deprecated Ver `vagaCodigos`. */

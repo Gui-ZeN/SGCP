@@ -80,3 +80,23 @@ describe('comGravacoesRecentes (lançar resultados em sequência)', () => {
     expect(comGravacoesRecentes(base, recentes, 's', 10).map(c => c.id)).toEqual(['a', 'b', 'n']);
   });
 });
+
+import { recalculoDaSelecao } from './candidatos';
+
+describe('recalculoDaSelecao', () => {
+  const lista = (...r: CandidatoDoDia['resultado'][]): CandidatoDoDia[] => r.map(resultado => ({ resultado }));
+  it('importada com nome sem resultado: não recalcula (não vira "agendada" por corrigir um nome)', () => {
+    expect(recalculoDaSelecao({ numerosPelaLista: true, importadoDe: 'planilha' }, lista('convocado', 'ausente'), true)).toBeNull();
+  });
+  it('importada com todos os resultados: recalcula (corrigir um resultado muda o número)', () => {
+    expect(recalculoDaSelecao({ numerosPelaLista: true, importadoDe: 'planilha' }, lista('compareceu', 'ausente'), true)).toMatchObject({ compareceram: 1, ausentes: 1, status: 'realizado' });
+  });
+  it('lançada no sistema com pendente: recalcula e fica agendada, como antes', () => {
+    expect(recalculoDaSelecao({ numerosPelaLista: true }, lista('convocado'), true)).toMatchObject({ status: 'agendado' });
+  });
+  it('números digitados que já tinham candidatos: não recalcula; primeira gravação desta aba liga', () => {
+    expect(recalculoDaSelecao({}, lista('ausente'), true)).toBeNull();
+    expect(recalculoDaSelecao({}, lista('ausente'), true, true)).toMatchObject({ ausentes: 1 });
+    expect(recalculoDaSelecao({}, lista('ausente'), false)).toMatchObject({ ausentes: 1 });
+  });
+});
