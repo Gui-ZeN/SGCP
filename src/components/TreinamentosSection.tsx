@@ -4,14 +4,15 @@
  */
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Treinamento } from '../types';
+import { Treinamento, Participante } from '../types';
 import { toISOInput } from '../utils/date';
 import { exportToXlsx } from '../utils/xlsxExporter';
-import { Search, Plus, Download, Trash2, Pencil, Upload, Loader2 } from 'lucide-react';
+import { Search, Plus, Download, Trash2, Pencil, Upload, Loader2, Users } from 'lucide-react';
 import { Sede } from '../hooks/useMetadata';
 import { Modal } from './ui/Modal';
 import { FiltroMultiplo } from './ui/FiltroMultiplo';
 import { Kpi } from './indicadores/ui';
+import { PresencaModal } from './treinamentos/PresencaModal';
 
 interface TreinamentosSectionProps {
   treinamentos: Treinamento[];
@@ -26,6 +27,8 @@ interface TreinamentosSectionProps {
   // Import da planilha "Monitoramento Treinamentos" da Universidade (botão só
   // aparece quando o App passa o handler — usuário da Universidade ou admin).
   onImportUniversidade?: (file: File) => Promise<void>;
+  /** Grava quem participou de uma turma da Infra (presença por nome, 28/10/2026). */
+  salvarPresenca?: (turma: Treinamento, participantes: Participante[]) => Promise<void>;
 }
 
 export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({ 
@@ -38,8 +41,12 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
   userSede,
   isAdmin = false,
   canManage = true,
-  onImportUniversidade
+  onImportUniversidade,
+  salvarPresenca
 }) => {
+  // A turma cuja presença está aberta (só turmas da Infra).
+  const [presencaDe, setPresencaDe] = useState<Treinamento | null>(null);
+  const [infra, setInfra] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [importandoUni, setImportandoUni] = useState(false);
   const uniFileRef = useRef<HTMLInputElement>(null);
@@ -117,6 +124,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
     setQtdRealizada(10);
     setValorInvestido(500);
     setMesReferenciaOverride('');
+    setInfra(false);
     setEditingTreinamento(null);
     setErrorMsg('');
   };
@@ -140,6 +148,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
     setQtdRealizada(treinamento.qtdRealizada || 0);
     setValorInvestido(treinamento.valorInvestido || 0);
     setMesReferenciaOverride(treinamento.mesReferencia || '');
+    setInfra(!!treinamento.infra);
     setErrorMsg('');
     setShowAddForm(true);
   };
@@ -242,7 +251,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
       qtdPrevista: Number(qtdPrevista) || 0,
       qtdRealizada: Number(qtdRealizada) || 0,
       totalHorasFormacao: totalCalculatedHours,
-      valorInvestido: Number(valorInvestido) || 0
+      valorInvestido: Number(valorInvestido) || 0,
+      infra
     };
 
     try {
@@ -382,6 +392,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                 <h3>{t.tema}</h3>
                 <p className="cartao-item-meta">{t.dataInicio}{t.dataTermino ? ` a ${t.dataTermino}` : ''}</p>
 
+                {t.infra && <p className="mt-1"><span className="etiqueta">Infra · presença por nome</span></p>}
                 <dl className="ficha mt-3">
                   <div><dt>Facilitador</dt><dd className="truncate" title={t.facilitador}>{t.facilitador || '—'}</dd></div>
                   <div><dt>Público</dt><dd className="truncate" title={t.publico}>{t.publico || '—'}</dd></div>
@@ -406,6 +417,11 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
 
                 {canManage && (
                   <div className="cartao-item-acoes mt-auto">
+                    {t.infra && salvarPresenca && (
+                      <button type="button" className="btn-texto inline-flex items-center gap-1.5" onClick={() => setPresencaDe(t)}>
+                        <Users className="w-3.5 h-3.5" aria-hidden="true" /> Quem participou
+                      </button>
+                    )}
                     <button type="button" className="btn-texto inline-flex items-center gap-1.5" onClick={() => openEditForm(t)}>
                       <Pencil className="w-3.5 h-3.5" aria-hidden="true" /> Editar
                     </button>
@@ -492,6 +508,15 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                 value={publico} onChange={(e) => setPublico(e.target.value)} />
             </label>
 
+            {/* O RH declara (não é deduzido do texto do público): turma da Infra marca a presença por nome. */}
+            <label className="inline-flex items-center gap-2 text-[14px] font-semibold cursor-pointer">
+              {/* Com presença gravada fica marcada: desmarcar esconderia a lista e deixaria o Realizado travado. */}
+              <input type="checkbox" className="w-4 h-4" style={{ accentColor: 'var(--tinta)' }} checked={infra}
+                disabled={!!editingTreinamento?.presencaPelaLista} onChange={e => setInfra(e.target.checked)} />
+              Turma da Infra (ASG): marcar quem participou pelo quadro do Chromos
+              {editingTreinamento?.presencaPelaLista && <span className="font-normal" style={{ color: 'var(--tinta-3)' }}>(já tem presença marcada)</span>}
+            </label>
+
             <div className="grid grid-cols-3 gap-3">
               <label className="block">
                 <span className="rotulo">Previstos</span>
@@ -499,7 +524,10 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
               </label>
               <label className="block">
                 <span className="rotulo">Participaram</span>
-                <input type="number" min={0} className="campo w-full tabular-nums" value={qtdRealizada} onChange={(e) => setQtdRealizada(Number(e.target.value))} />
+                {/* Com a presença por nome, o número é a lista ("Quem participou" no cartão). */}
+                <input type="number" min={0} className="campo w-full tabular-nums" value={qtdRealizada} readOnly={!!editingTreinamento?.presencaPelaLista}
+                  title={editingTreinamento?.presencaPelaLista ? 'Vem da lista de quem participou' : undefined}
+                  onChange={(e) => setQtdRealizada(Number(e.target.value))} />
               </label>
               <label className="block">
                 <span className="rotulo">Valor (R$)</span>
@@ -508,6 +536,10 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
             </div>
           </form>
         </Modal>
+      )}
+
+      {presencaDe && salvarPresenca && (
+        <PresencaModal turma={presencaDe} onSalvar={lista => salvarPresenca(presencaDe, lista)} aoFechar={() => setPresencaDe(null)} />
       )}
     </div>
   );

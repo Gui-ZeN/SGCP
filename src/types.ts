@@ -62,6 +62,22 @@ export interface Treinamento {
   qtdRealizada: number;
   totalHorasFormacao: number;
   valorInvestido: number;
+  /** Turma do público da Infra (ASG): o RH declara, e a presença sai do quadro do Chromos (28/10/2026). */
+  infra?: boolean;
+  /** Com a presença marcada por nome, `qtdRealizada` é a contagem da lista (`presencas/{id}`). */
+  presencaPelaLista?: boolean;
+}
+
+/**
+ * Quem participou de uma turma (`presencas/{idDaTurma}`, só editor lê). Retrato
+ * do momento: quem sair do Chromos depois continua no histórico.
+ */
+export interface Participante {
+  matricula: string;
+  nome: string;
+  sede: string;
+  /** Lançado à mão: não estava no quadro do Chromos (quadro desatualizado). */
+  foraDoQuadro?: boolean;
 }
 
 export interface Experiencia {

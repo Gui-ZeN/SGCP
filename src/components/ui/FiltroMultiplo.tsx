@@ -23,10 +23,12 @@ export function FiltroMultiplo({ rotulo, opcoes, selecionados, onChange, todos =
   useEffect(() => {
     if (!aberto) return;
     const fora = (e: MouseEvent) => { if (!raiz.current?.contains(e.target as Node)) setAberto(false); };
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setAberto(false); };
+    // ⚠️ Na CAPTURA, e parando ali: dentro de um Modal, o Esc que fecha o
+    // filtro fechava o modal junto — e a presença marcada se perdia (28/10/2026).
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setAberto(false); } };
     document.addEventListener('mousedown', fora);
-    document.addEventListener('keydown', esc);
-    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('keydown', esc); };
+    document.addEventListener('keydown', esc, true);
+    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('keydown', esc, true); };
   }, [aberto]);
 
   const marcados = new Set(selecionados);

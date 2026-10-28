@@ -25,7 +25,8 @@ import { useAtividades } from './hooks/useAtividades';
 import { useCandidatos } from './hooks/useCandidatos';
 import { recalculoDaSelecao, comGravacoesRecentes, type GravacaoRecente } from './utils/candidatos';
 import { atendeVaga, camposDoFormulario, origemDoSetor } from './utils/selecao';
-import type { Candidato, Selecao, Vaga, Turnover } from './types';
+import type { Candidato, Selecao, Vaga, Turnover, Treinamento, Participante } from './types';
+import { salvarPresenca, apagarTurmaComPresenca, realinharPresenca } from './hooks/usePresencas';
 import { convocacoesDasLinhas } from './utils/bancoCandidatos';
 import { ProvedorBanco, useNaoChamar } from './hooks/useBancoCandidatos';
 import { FichaDaPessoa } from './components/banco/FichaDaPessoa';
@@ -1012,14 +1013,27 @@ export default function App() {
   const wrappedDeleteTreinamento = (id: string) => 
     executeWithLoading("Excluindo registro de treinamento...", async () => {
       const t = treinamentos.find(item => item.id === id);
-      await deleteTreinamento(id);
+      // Com presença por nome, a lista sai no mesmo lote (nomes não ficam órfãos).
+      if (t?.presencaPelaLista) await apagarTurmaComPresenca(t);
+      else await deleteTreinamento(id);
       await logAction('EXCLUIU', 'Treinamentos', `Treinamento #${t?.codigo || id} sobre "${t?.tema || ''}" excluído.`, { escopo: unidadeDe({ escopo: t?.escopo, sede: t?.unidade }) });
     });
+
+  // Presença por nome numa turma da Infra (28/10/2026). O log leva a contagem,
+  // nunca os nomes: log não se apaga.
+  const wrappedSalvarPresenca = async (turma: Treinamento, participantes: Participante[]) => {
+    await salvarPresenca(turma, participantes);
+    const fora = participantes.filter(p => p.foraDoQuadro).length;
+    await logAction('ALTEROU', 'Treinamentos', `Presença do treinamento #${turma.codigo || turma.id} sobre "${turma.tema}": ${participantes.length} participante(s)${fora ? `, ${fora} fora do quadro do Chromos` : ''}.`,
+      { escopo: unidadeDe({ escopo: turma.escopo, sede: turma.unidade }) });
+  };
 
   const wrappedUpdateTreinamento = (id: string, updatedFields: any) =>
     executeWithLoading("Atualizando registro de treinamento...", async () => {
       const t = treinamentos.find(item => item.id === id);
       await updateTreinamento(id, updatedFields);
+      // O Administrador pode mudar a unidade da turma (pela sede): a presença acompanha.
+      if (t?.presencaPelaLista && updatedFields.unidade !== undefined && updatedFields.unidade !== t.unidade) await realinharPresenca(id);
       await logAction('ALTEROU', 'Treinamentos', `Treinamento #${t?.codigo || id} sobre "${updatedFields.tema || t?.tema || ''}" atualizado.`, { escopo: unidadeDe({ escopo: t?.escopo, sede: t?.unidade }) });
     });
 
@@ -1669,6 +1683,7 @@ export default function App() {
               isAdmin={isAdmin || isCoord}
               canManage={canManageModules}
               onImportUniversidade={podeVerIntegracao ? handleImportTreinosUni : undefined}
+              salvarPresenca={canManageModules ? wrappedSalvarPresenca : undefined}
             />
           )}
 

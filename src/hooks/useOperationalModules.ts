@@ -395,7 +395,11 @@ export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade 
       try {
         if (replace) {
           const snap = await getDocs(daMinhaUnidade('treinamentos'));
-          await Promise.all(snap.docs.map((docSnap: any) => deleteDoc(doc(db, 'treinamentos', docSnap.id))));
+          // A presença por nome (28/10/2026) sai junto: nomes não ficam órfãos no banco.
+          await Promise.all(snap.docs.map(async (docSnap: any) => {
+            if (docSnap.data()?.presencaPelaLista) await deleteDoc(doc(db, 'presencas', docSnap.id));
+            await deleteDoc(doc(db, 'treinamentos', docSnap.id));
+          }));
         }
         const existingCodes = replace ? new Set<number>() : new Set(treina.items.map(t => t.codigo));
         const toCreate = imported.filter(t => !existingCodes.has(t.codigo));
