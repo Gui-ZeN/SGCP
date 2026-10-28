@@ -64,6 +64,11 @@ const SEDE_DA_PLANILHA = {
   'benfica': 'UNIBENFICA', 'cesiu': 'CESIU', 'cvu': 'CVU',
   'cd': 'CD UNIVERSIDADE', 'dt': 'DIONISIO TORRES UNIVERSIDADE', 'cevet': 'CEVET', 'ceo': 'CEO', 'geral': 'GERAL UNIVERSIDADE',
 };
+// CVU e CESIU deixaram de ser sede (28/10/2026, scripts/cvu-cesiu-para-setor.mjs):
+// gravam sede ALDEOTA e setor CVU/CESIU. ⚠️ O rótulo "CESIU"/"CVU" continua
+// no agrupamento e no ID da seleção (data|cargo|sede): trocá-lo ali mudaria o
+// id, e reimportar DUPLICARIA as seleções já gravadas.
+const VIROU_SETOR = { CESIU: 'CESIU', CVU: 'CVU' };
 // "DL/PQL", "PE/Benfica"…: a primeira sede citada. Vazio ou ">": Geral.
 const sedeDe = rotulo => {
   const partes = norm(rotulo).split('/').map(s => s.trim()).filter(Boolean);
@@ -193,7 +198,10 @@ for (const g of grupos.values()) {
   const ausentes = g.nomes.filter(n => n.resultado === 'ausente').length;
   const pendentes = g.nomes.filter(n => n.resultado === 'convocado').length;
   selecoes.push({
-    id, data: g.data, cargo, sede: g.sede, setor: maisVotado(g.setores), gestor: maisVotado(g.gestores), responsavel: maisVotado(g.rhs),
+    id, data: g.data, cargo,
+    sede: VIROU_SETOR[g.sede] ? 'ALDEOTA' : g.sede,
+    setor: VIROU_SETOR[g.sede] || maisVotado(g.setores),
+    gestor: maisVotado(g.gestores), responsavel: maisVotado(g.rhs),
     origem: 'geral', convocados: g.nomes.length, ausentes, compareceram: g.nomes.length - ausentes - pendentes,
     desistiram: g.nomes.filter(n => n.resultado === 'desistiu').length, contratados: g.nomes.filter(n => n.contratado === 'sim').length,
     motivos: {},
