@@ -369,6 +369,28 @@ service cloud.firestore {
       allow delete: if apagaNaUnidade();
     }
 
+    // Presença em treinamento (28/10/2026): quem fez qual turma — nome e
+    // matrícula. Só EDITOR lê: o Visualizador lê a turma e o Realizado (em
+    // `treinamentos`), não os nomes. Um documento por turma, com o id dela.
+    // ⚠️ As Rules não percorrem lista: o formato de cada participante é
+    // validado no cliente. Aqui: chaves exatas, lista com teto, e a mesma
+    // unidade da turma (que precisa existir).
+    function presencaValida(id) {
+      return incoming().keys().hasOnly(['escopo', 'participantes', 'atualizadoEm'])
+        && incoming().participantes is list && incoming().participantes.size() <= 300
+        && incoming().get('atualizadoEm', '') is string
+        && escopoValido(incoming()) && daMinhaUnidade(incoming().escopo)
+        && exists(/databases/$(database)/documents/treinamentos/$(id))
+        && get(/databases/$(database)/documents/treinamentos/$(id)).data.get('escopo', '') == incoming().escopo;
+    }
+
+    match /presencas/{treinamentoId} {
+      allow read: if isEditor() && daMinhaUnidade(resource.data.get('escopo', ''));
+      allow create: if isEditor() && presencaValida(treinamentoId);
+      allow update: if isEditor() && daMinhaUnidade(existing().get('escopo', '')) && presencaValida(treinamentoId);
+      allow delete: if isEditor() && daMinhaUnidade(existing().get('escopo', ''));
+    }
+
     match /experiencia/{experienciaId} {
       allow read: if leDaUnidade();
       allow create: if criaNaUnidade();

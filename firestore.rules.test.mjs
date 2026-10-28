@@ -21,6 +21,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  writeBatch,
   deleteDoc,
   collection,
   query,
@@ -107,6 +108,11 @@ async function seed() {
     await setDoc(doc(db, "entrevistas", "eUni"), { codigo: 401, colaborador: "Saiu da Uni", dataEntrevista: "01/02/2026", escopo: "universidade" });
     await setDoc(doc(db, "entrevistas", "eLegada"), { codigo: 402, colaborador: "Sem escopo", dataEntrevista: "01/03/2026" });
     await setDoc(doc(db, "candidatos", "cUni"), { selecaoId: "sUni", data: "01/02/2026", nome: "Candidata da Uni", resultado: "aprovado", escopo: "universidade" });
+    // Presença em treinamento (28/10/2026): uma turma de cada unidade, e a presença já gravada de cada.
+    await setDoc(doc(db, "treinamentos", "tCol"), { tema: "NR 35", escopo: "colegio", infra: true });
+    await setDoc(doc(db, "presencas", "tCol"), { escopo: "colegio", participantes: [{ matricula: "1", nome: "Ana", sede: "DT1" }], atualizadoEm: "2026-10-28" });
+    await setDoc(doc(db, "presencas", "daUni"), { escopo: "universidade", participantes: [], atualizadoEm: "2026-10-28" });
+    await setDoc(doc(db, "presencas", "legada"), { participantes: [] });
     await setDoc(doc(db, "sedes", "s1"), { nome: "DT", regiao: "Sudeste" });
     await setDoc(doc(db, "sedes", "sUni"), { nome: "PE", regiao: "Universidade" });
     // sede legada sem o campo `regiao`: a regra nao pode ESTOURAR por causa disso
@@ -1011,3 +1017,86 @@ test("organograma: anonimo NAO pode criar (nao ha formulario publico aqui)", () 
 
 test("organograma: analista pode apagar caixa (desenho e' editavel)", () =>
   assertSucceeds(deleteDoc(doc(ctx.user(ANALISTA_EMAIL), "organograma", "o1"))));
+
+// --- Presença em treinamento (28/10/2026, casos P do revisor de segurança) ---
+const presenca = (participantes = [{ matricula: "2", nome: "Bia", sede: "DT1" }], escopo = "colegio") =>
+  ({ escopo, participantes, atualizadoEm: "2026-10-28" });
+
+test("presencas P14: analista do Colégio grava (do quadro e manual) e lê em turma do Colégio", async () => {
+  await assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "tCol"),
+    presenca([{ matricula: "2", nome: "Bia", sede: "DT1" }, { matricula: "", nome: "Fora do Quadro", sede: "", foraDoQuadro: true }])));
+  await assertSucceeds(getDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "tCol")));
+});
+
+test("presencas P1/P11: Visualizador não lê nem grava", async () => {
+  await assertFails(getDoc(doc(ctx.user(VIEWER_EMAIL), "presencas", "tCol")));
+  await assertFails(setDoc(doc(ctx.user(VIEWER_EMAIL), "presencas", "tCol"), presenca()));
+});
+
+test("presencas P2/P3: Colégio não lê a da Universidade nem a sem escopo; Admin lê", async () => {
+  await assertFails(getDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "daUni")));
+  await assertFails(getDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "legada")));
+  await assertSucceeds(getDoc(doc(ctx.user(ADMIN_DOC_EMAIL), "presencas", "legada")));
+  await assertSucceeds(getDoc(doc(ctx.user(ANA_UNI), "presencas", "daUni")));
+});
+
+test("presencas P4: não cadastrado não lê", () =>
+  assertFails(getDoc(doc(ctx.user(STRANGER_EMAIL), "presencas", "tCol"))));
+
+test("presencas P5/P6/P7: escopo de outra unidade, turma de outra unidade ou turma inexistente: nega", async () => {
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "tCol"), presenca(undefined, "universidade")));
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "daUni"), presenca()));
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "naoExiste"), presenca()));
+  // Coordenador da Universidade também não grava na turma do Colégio.
+  await assertFails(setDoc(doc(ctx.user(COORD_UNI_EMAIL), "presencas", "tCol"), presenca(undefined, "universidade")));
+});
+
+test("presencas P8/P9/P10: teto de 300, lista de verdade e só as chaves permitidas", async () => {
+  const p = (i) => ({ matricula: String(i), nome: `P${i}`, sede: "DT1" });
+  await assertSucceeds(setDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "tCol"), presenca(Array.from({ length: 300 }, (_, i) => p(i)))));
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "tCol"), presenca(Array.from({ length: 301 }, (_, i) => p(i)))));
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "tCol"), { ...presenca(), participantes: "texto" }));
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "tCol"), { ...presenca(), participantes: {} }));
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "tCol"), { ...presenca(), obs: "x" }));
+  await assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "tCol"), { ...presenca(), qtd: 3 }));
+});
+
+test("presencas P12: mudar o escopo de uma existente para a outra unidade: nega", () =>
+  assertFails(setDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "tCol"), presenca(undefined, "universidade"))));
+
+test("presencas P13: editor da unidade apaga; da outra unidade, não", async () => {
+  await assertFails(deleteDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "daUni")));
+  await assertSucceeds(deleteDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "tCol")));
+});
+
+test("presencas P15: a turma continua legível pelo Visualizador (o Realizado é dela)", () =>
+  assertSucceeds(getDoc(doc(ctx.user(VIEWER_EMAIL), "treinamentos", "tCol"))));
+
+test("presencas: turma nova — presença e Realizado no MESMO lote (o salvarPresenca do app)", async () => {
+  await testEnv.withSecurityRulesDisabled(async (c) => {
+    await setDoc(doc(c.firestore(), "treinamentos", "tNova"), { tema: "Integração", escopo: "colegio", infra: true, qtdRealizada: 0 });
+  });
+  const db = ctx.user(ANALISTA_EMAIL);
+  const lote = writeBatch(db);
+  lote.set(doc(db, "presencas", "tNova"), presenca());
+  lote.update(doc(db, "treinamentos", "tNova"), { qtdRealizada: 1, totalHorasFormacao: 4, presencaPelaLista: true });
+  await assertSucceeds(lote.commit());
+});
+
+test("presencas: ler a que ainda não existe é negado a quem não é Admin (por isso o app nem tenta)", () =>
+  assertFails(getDoc(doc(ctx.user(ANALISTA_EMAIL), "presencas", "aindaNaoExiste"))));
+
+test("presencas: Admin move a turma de unidade e realinha a presença; aí a nova unidade apaga as duas em lote", async () => {
+  await testEnv.withSecurityRulesDisabled(async (c) => {
+    await setDoc(doc(c.firestore(), "treinamentos", "tMove"), { tema: "NR 10", escopo: "colegio", presencaPelaLista: true });
+    await setDoc(doc(c.firestore(), "presencas", "tMove"), presenca());
+  });
+  const admin = ctx.user(ADMIN_DOC_EMAIL);
+  await assertSucceeds(updateDoc(doc(admin, "treinamentos", "tMove"), { escopo: "universidade" }));
+  await assertSucceeds(updateDoc(doc(admin, "presencas", "tMove"), { escopo: "universidade" }));
+  const uni = ctx.user(ANA_UNI);
+  const lote = writeBatch(uni);
+  lote.delete(doc(uni, "presencas", "tMove"));
+  lote.delete(doc(uni, "treinamentos", "tMove"));
+  await assertSucceeds(lote.commit());
+});
