@@ -50,7 +50,7 @@ let pedidosAoChromos: string[];
 const original = globalThis.fetch;
 beforeEach(() => {
   vi.stubEnv('CROMOS_ABSENTEISMO_URL', 'https://cromos.teste/api/absenteismo-externo');
-  vi.stubEnv('CROMOS_ABSENTEISMO_TOKEN', SEGREDO);
+  vi.stubEnv('CHAVE_SGPC', SEGREDO);
   vi.spyOn(console, 'error').mockImplementation(() => {});
   pedidosAoChromos = [];
   doChromos = async () => Response.json({ pessoas: PESSOAS, geradoEm: 'x' });
@@ -120,9 +120,14 @@ describe('handler — a porta', () => {
   it('Q1 sem segredo, sem URL ou URL http: 503, e o Chromos não é chamado', async () => {
     for (const [url, seg] of [['', SEGREDO], ['https://cromos.teste/x', ''], ['http://cromos.teste/x', SEGREDO]]) {
       vi.stubEnv('CROMOS_ABSENTEISMO_URL', url);
-      vi.stubEnv('CROMOS_ABSENTEISMO_TOKEN', seg);
+      vi.stubEnv('CHAVE_SGPC', seg);
       expect((await como('analista@x.com')).code).toBe(503);
     }
+    expect(pedidosAoChromos).toEqual([]);
+  });
+  it('M1 chave do SGPC curta vale como ausente: 503, e o Chromos não é chamado', async () => {
+    vi.stubEnv('CHAVE_SGPC', 'a'.repeat(31));
+    expect((await como('analista@x.com')).code).toBe(503);
     expect(pedidosAoChromos).toEqual([]);
   });
   it('Q2 sem Authorization, Basic ou Bearer vazio: 401', async () => {

@@ -36,6 +36,15 @@
         ],
         "createdAt": "2026-10-08T19:51:15.961Z",
         "reason": "falso positivo: lixeira com text-slate-400 em repouso e hover:bg-rose-50+hover:text-rose-600 juntos; o detector lê a variante hover como estado parado (mesmo caso de SelecoesSection)"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "api/quadro-infra.test.ts"
+        ],
+        "createdAt": "2026-10-28T20:05:23.041Z",
+        "reason": "Claude: fixture de XSS ('<img onerror=x>') em teste de lerPessoas, não é UI"
       }
     ]
   }

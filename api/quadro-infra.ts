@@ -64,7 +64,10 @@ export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') return res.status(405).json({ erro: 'método não permitido' });
 
   const alvo = urlDoQuadro(process.env.CROMOS_ABSENTEISMO_URL);
-  const segredo = process.env.CROMOS_ABSENTEISMO_TOKEN;
+  // A chave do SGPC, a mesma do absenteísmo (uma por sistema). Curta vale como
+  // ausente, como do lado de lá: não manda o que o Chromos vai recusar.
+  const chave = process.env.CHAVE_SGPC?.trim() || '';
+  const segredo = chave.length >= 32 ? chave : '';
   if (!alvo || !segredo) return res.status(503).json({ erro: 'integração com o Chromos não configurada' });
 
   const [tipo, token] = String(req.headers?.authorization || '').split(' ');
