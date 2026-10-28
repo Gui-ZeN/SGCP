@@ -1,9 +1,9 @@
 /**
  * Vagas criadas por outro sistema:
  *  - Chromos (06/10/2026): substituição de quem abandonou o emprego (15 dias
- *    corridos de falta injustificada). Token `SGPC_VAGAS_TOKEN`.
+ *    corridos de falta injustificada). Chave `CHAVE_CROMOS`.
  *  - Orkestria (13/10/2026): o supervisor DESLIGA a pessoa (data + motivo) e a
- *    vaga de substituição nasce aqui. Token `SGPC_VAGAS_TOKEN_ORKESTRIA`.
+ *    vaga de substituição nasce aqui. Chave `CHAVE_ORKESTRIA`.
  *
  * POST /api/vagas-externas · Authorization: Bearer <token do sistema>
  *
@@ -28,12 +28,37 @@ const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Se
 const CASO = /^[A-Za-z0-9_.-]{1,100}$/;
 export const MOTIVO = 'Substituição por desligamento';
 
-/** Quem pode abrir vaga aqui. Um token por sistema: vazar um não abre o outro. */
+/**
+ * Quem pode abrir vaga aqui: a chave de cada sistema que chama (28/10/2026 — uma
+ * chave por sistema, a mesma em toda Vercel onde mora; mapa no vault,
+ * "Integrações e Segredos"). Vazar uma não abre a outra.
+ */
 export const SISTEMAS = {
-  Chromos: { env: 'SGPC_VAGAS_TOKEN', prefixo: 'chromos', motivoPadrao: 'abandono de emprego' },
-  Orkestria: { env: 'SGPC_VAGAS_TOKEN_ORKESTRIA', prefixo: 'orkestria', motivoPadrao: 'desligamento' },
+  Chromos: { env: 'CHAVE_CROMOS', prefixo: 'chromos', motivoPadrao: 'abandono de emprego' },
+  Orkestria: { env: 'CHAVE_ORKESTRIA', prefixo: 'orkestria', motivoPadrao: 'desligamento' },
 } as const;
 export type Sistema = keyof typeof SISTEMAS;
+
+/** Abaixo disso não é segredo, é senha de teste esquecida no painel: vale como ausente. */
+export const CHAVE_MINIMA = 32;
+
+const valida = (v: unknown) => {
+  const t = String(v || '').trim();
+  return t.length >= CHAVE_MINIMA ? t : '';
+};
+
+/**
+ * As chaves válidas de uma variável: a atual e a `_ANTERIOR` (troca sem queda —
+ * o valor velho vale junto até ser apagado). A anterior SÓ junto de uma atual
+ * válida: sozinha, esquecida, valeria para sempre. Risco aceito (Guilherme,
+ * 28/10/2026, ADR no vault): quem recebe guarda a chave crua de quem chama.
+ */
+function chavesDe(env: string): { segredo: string; anterior: boolean }[] {
+  const atual = valida(process.env[env]);
+  if (!atual) return [];
+  const anterior = valida(process.env[`${env}_ANTERIOR`]);
+  return [{ segredo: atual, anterior: false }, ...(anterior ? [{ segredo: anterior, anterior: true }] : [])];
+}
 
 export function segredoConfere(recebido: string, esperado: string): boolean {
   const h = (s: string) => crypto.createHash('sha256').update(s).digest();
@@ -189,19 +214,25 @@ export function substituicaoRepetida(
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ erro: 'Use POST.' });
   const configurados = (Object.keys(SISTEMAS) as Sistema[])
-    .map(s => [s, process.env[SISTEMAS[s].env] || ''] as const)
-    .filter(([, segredo]) => segredo);
+    .flatMap(s => chavesDe(SISTEMAS[s].env).map(c => ({ ...c, s })));
   if (!configurados.length) return res.status(503).json({ erro: 'Integração de vagas externas não configurada.' });
-  // Dois sistemas com o mesmo segredo: o token deixaria de dizer quem fala (o
-  // primeiro da lista ganharia sempre). Fecha em vez de adivinhar.
-  if (new Set(configurados.map(([, segredo]) => segredo)).size < configurados.length) {
-    console.error('[vagas-externas] dois sistemas com o mesmo token — configure segredos diferentes');
+  // Dois sistemas com a mesma chave: ela deixaria de dizer quem fala (o primeiro
+  // da lista ganharia sempre). A do próprio SGPC entra na conta: igual a ela,
+  // quem lê a Vercel de quem o SGPC chama abriria vaga aqui. Fecha em vez de adivinhar.
+  const todas = [...configurados, ...chavesDe('CHAVE_SGPC').map(c => ({ ...c, s: 'SGPC' }))];
+  if (todas.some((a, i) => todas.slice(i + 1).some(b => a.s !== b.s && segredoConfere(a.segredo, b.segredo)))) {
+    console.error('[vagas-externas] dois sistemas com a mesma chave — configure chaves diferentes');
     return res.status(503).json({ erro: 'Integração de vagas externas mal configurada.' });
   }
-  const [tipo, token] = String(req.headers?.authorization || '').split(' ');
-  const sistema = tipo?.toLowerCase() === 'bearer'
-    ? configurados.find(([, segredo]) => segredoConfere(token || '', segredo))?.[0]
+  // Confere TODAS (sem parar na primeira): o tempo não diz qual existe.
+  // Só `Bearer <chave>`: o que sobrar depois dela recusa, como nos outros três sistemas.
+  const [tipo, token, ...resto] = String(req.headers?.authorization || '').split(' ');
+  const casada = tipo?.toLowerCase() === 'bearer' && !resto.length
+    ? configurados.filter(c => segredoConfere(token || '', c.segredo))[0]
     : undefined;
+  // A anterior no log é o que diz quando ela já pode ser apagada.
+  if (casada?.anterior) console.warn('[vagas-externas] chamada com a chave ANTERIOR de', casada.s);
+  const sistema = casada?.s;
   if (!sistema) return res.status(401).json({ erro: 'Credencial recusada.' });
 
   let corpo = req.body;

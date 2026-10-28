@@ -54,7 +54,10 @@ export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') return res.status(405).json({ erro: 'método não permitido' });
 
   const url = process.env.CROMOS_ABSENTEISMO_URL;
-  const segredo = process.env.CROMOS_ABSENTEISMO_TOKEN;
+  // A chave do SGPC (uma por sistema; a mesma na Vercel do Chromos). Curta vale
+  // como ausente, como do lado de lá: não manda o que o Chromos vai recusar.
+  const chave = process.env.CHAVE_SGPC?.trim() || '';
+  const segredo = chave.length >= 32 ? chave : '';
   // "Não ligado" e "falhou" respondem diferente: a tela diz qual dos dois.
   if (!url || !segredo) return res.status(503).json({ erro: 'integração com o Chromos não configurada' });
 

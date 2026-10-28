@@ -24,6 +24,9 @@ const pedido = (extra: Record<string, unknown> = {}) => ({
 });
 const AGORA = new Date('2026-10-06T02:00:00Z'); // 23h de 05/10 em Fortaleza
 
+const CRO = 'segredo-do-chromos-com-32-caracteres-ou-mais';
+const ORK = 'segredo-do-orkestria-com-32-caracteres-ou-mais';
+
 describe('validarPedido', () => {
   it('monta a vaga como o formulário: ABERTA, triagem, RH, sede pelo NOME, cargo do catálogo', () => {
     const r = validarPedido(pedido(), CAT, AGORA);
@@ -117,7 +120,7 @@ describe('handler', () => {
   let consultaVivas: any;
 
   beforeEach(() => {
-    vi.stubEnv('SGPC_VAGAS_TOKEN', 'segredo');
+    vi.stubEnv('CHAVE_CROMOS', CRO);
     vi.spyOn(console, 'error').mockImplementation(() => {});
     banco = {};
     criarFalha = false;
@@ -157,7 +160,7 @@ describe('handler', () => {
   });
   afterEach(() => { globalThis.fetch = original; vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
-  const enviar = async (corpo: unknown, token = 'segredo', method = 'POST') => {
+  const enviar = async (corpo: unknown, token = CRO, method = 'POST') => {
     const r = resposta();
     await handler({ method, headers: { authorization: `Bearer ${token}` }, body: corpo }, r);
     return r;
@@ -165,8 +168,8 @@ describe('handler', () => {
 
   it('sem a variável: 503; token errado: 401; GET: 405', async () => {
     expect((await enviar(pedido(), 'errado')).code).toBe(401);
-    expect((await enviar(pedido(), 'segredo', 'GET')).code).toBe(405);
-    vi.stubEnv('SGPC_VAGAS_TOKEN', '');
+    expect((await enviar(pedido(), CRO, 'GET')).code).toBe(405);
+    vi.stubEnv('CHAVE_CROMOS', '');
     expect((await enviar(pedido())).code).toBe(503);
   });
 
@@ -245,9 +248,9 @@ describe('handler', () => {
       expect(log.detalhes.stringValue).not.toMatch(/Fulano/);
     });
     it('vale também para o token do Orkestria', async () => {
-      vi.stubEnv('SGPC_VAGAS_TOKEN_ORKESTRIA', 'segredo-ork');
+      vi.stubEnv('CHAVE_ORKESTRIA', ORK);
       vivas = [{ codigo: 2147180401, substituido: 'Fulano de Tal' }];
-      const r = await enviar(pedido({ origem: { sistema: 'Orkestria', caso: 'christus_dt_f9' }, motivo: 'Pedido de demissão' }), 'segredo-ork');
+      const r = await enviar(pedido({ origem: { sistema: 'Orkestria', caso: 'christus_dt_f9' }, motivo: 'Pedido de demissão' }), ORK);
       expect(r.code).toBe(409);
     });
     it('consulta 200 com corpo torto: 502, nada criado', async () => {
@@ -292,10 +295,10 @@ describe('handler', () => {
   describe('Orkestria (desligamento)', () => {
     const doOrkestria = (extra: Record<string, unknown> = {}) =>
       pedido({ origem: { sistema: 'Orkestria', caso: 'christus_dt_f6' }, motivo: 'Pedido de demissão', ...extra });
-    beforeEach(() => vi.stubEnv('SGPC_VAGAS_TOKEN_ORKESTRIA', 'segredo-ork'));
+    beforeEach(() => vi.stubEnv('CHAVE_ORKESTRIA', ORK));
 
     it('com o token do Orkestria: vaga própria (prefixo, origem e texto do Orkestria)', async () => {
-      const r = await enviar(doOrkestria(), 'segredo-ork');
+      const r = await enviar(doOrkestria(), ORK);
       expect(r.code).toBe(201);
       expect(r.body.id).toBe('orkestria_christus_dt_f6');
       const f = banco['orkestria_christus_dt_f6'].fields;
@@ -306,10 +309,10 @@ describe('handler', () => {
     });
 
     it('o token do Orkestria não abre vaga em nome do Chromos, nem o contrário', async () => {
-      const a = await enviar(pedido(), 'segredo-ork');
+      const a = await enviar(pedido(), ORK);
       expect(a.code).toBe(400);
       expect(a.body.erro).toMatch(/esperado "Orkestria"/);
-      const b = await enviar(doOrkestria(), 'segredo');
+      const b = await enviar(doOrkestria(), CRO);
       expect(b.code).toBe(400);
       expect(b.body.erro).toMatch(/esperado "Chromos"/);
     });
@@ -317,18 +320,18 @@ describe('handler', () => {
     it('motivos da lista passam como vieram (com ou sem acento/caixa)', async () => {
       for (const [enviado, gravado] of [['Demissão sem justa causa', 'Demissão sem justa causa'], ['TRANSFERENCIA', 'Transferência']]) {
         banco = {};
-        await enviar(doOrkestria({ motivo: enviado }), 'segredo-ork');
+        await enviar(doOrkestria({ motivo: enviado }), ORK);
         expect(banco['orkestria_christus_dt_f6'].fields.observacoes.stringValue).toContain(gravado);
       }
     });
 
     it('"Outros" (fora da lista) cai no padrão', async () => {
-      await enviar(doOrkestria({ motivo: 'Outros' }), 'segredo-ork');
+      await enviar(doOrkestria({ motivo: 'Outros' }), ORK);
       expect(banco['orkestria_christus_dt_f6'].fields.observacoes.stringValue).toContain('— desligamento.');
     });
 
     it('motivo fora da lista (ex.: disciplinar) vira "desligamento"; o log não leva motivo', async () => {
-      const r = await enviar(doOrkestria({ motivo: 'Justa causa por furto no almoxarifado' }), 'segredo-ork');
+      const r = await enviar(doOrkestria({ motivo: 'Justa causa por furto no almoxarifado' }), ORK);
       expect(r.code).toBe(201);
       const obs = banco['orkestria_christus_dt_f6'].fields.observacoes.stringValue;
       expect(obs).not.toMatch(/furto|justa causa/i);
@@ -337,15 +340,57 @@ describe('handler', () => {
     });
 
     it('os dois sistemas com o mesmo segredo: 503, nunca adivinhar quem fala', async () => {
-      vi.stubEnv('SGPC_VAGAS_TOKEN_ORKESTRIA', 'segredo');
-      expect((await enviar(doOrkestria(), 'segredo')).code).toBe(503);
-      expect((await enviar(pedido(), 'segredo')).code).toBe(503);
+      vi.stubEnv('CHAVE_ORKESTRIA', CRO);
+      expect((await enviar(doOrkestria(), CRO)).code).toBe(503);
+      expect((await enviar(pedido(), CRO)).code).toBe(503);
     });
 
     it('basta um token configurado para a rota abrir; o outro sistema leva 401', async () => {
-      vi.stubEnv('SGPC_VAGAS_TOKEN', '');
-      expect((await enviar(doOrkestria(), 'segredo-ork')).code).toBe(201);
-      expect((await enviar(pedido(), 'segredo')).code).toBe(401);
+      vi.stubEnv('CHAVE_CROMOS', '');
+      expect((await enviar(doOrkestria(), ORK)).code).toBe(201);
+      expect((await enviar(pedido(), CRO)).code).toBe(401);
+    });
+
+    // Casos do revisor de segurança para as chaves entre sistemas (28/10/2026).
+    it('V4 a chave do próprio SGPC não abre vaga: 401; igual à de quem chama: 503', async () => {
+      const K_S = 'chave-do-sgpc-de-teste-com-32-caracteres';
+      vi.stubEnv('CHAVE_SGPC', K_S);
+      expect((await enviar(pedido(), K_S)).code).toBe(401);
+      vi.stubEnv('CHAVE_SGPC', CRO);
+      expect((await enviar(pedido(), CRO)).code).toBe(503);
+    });
+
+    it('texto depois da chave: 401 (revisão de 28/10)', async () => {
+      expect((await enviar(pedido(), `${CRO} lixo`)).code).toBe(401);
+    });
+
+    it('V3 a chave do Chromos com o corpo dizendo Orkestria: recusado (o sistema vem da chave)', async () => {
+      expect((await enviar(doOrkestria(), CRO)).code).toBe(400);
+      expect((await enviar(pedido(), ORK)).code).toBe(400);
+    });
+
+    it('E3 chave de 31 caracteres vale como ausente: nem ela mesma abre', async () => {
+      const curta = 'a'.repeat(31);
+      vi.stubEnv('CHAVE_CROMOS', curta);
+      expect((await enviar(pedido(), curta)).code).toBe(401);
+      vi.stubEnv('CHAVE_ORKESTRIA', '');
+      expect((await enviar(pedido(), curta)).code).toBe(503);
+    });
+
+    it('a anterior abre como o MESMO sistema e sai no log; sozinha não vale; igual à de outro sistema: 503', async () => {
+      const ANT = 'chave-ANTERIOR-do-chromos-com-32-caracteres';
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.stubEnv('CHAVE_CROMOS_ANTERIOR', ANT);
+      const r = await enviar(pedido(), ANT);
+      expect(r.code).toBe(201);
+      expect(r.body.id).toMatch(/^chromos_/);
+      expect(vi.mocked(console.warn).mock.calls.flat().join(' ')).toContain('ANTERIOR');
+      expect(vi.mocked(console.warn).mock.calls.flat().join(' ')).not.toContain(ANT);
+      vi.stubEnv('CHAVE_CROMOS', '');
+      expect((await enviar(pedido({ origem: { sistema: 'Chromos', caso: 'outro_caso' } }), ANT)).code).toBe(401);
+      vi.stubEnv('CHAVE_CROMOS', CRO);
+      vi.stubEnv('CHAVE_CROMOS_ANTERIOR', ORK);
+      expect((await enviar(pedido(), CRO)).code).toBe(503);
     });
   });
 });

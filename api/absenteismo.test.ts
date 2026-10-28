@@ -60,9 +60,17 @@ describe('handler', () => {
     await handler({ method: 'GET', headers: {}, query: {} }, r);
     expect(r.code).toBe(503);
   });
+  it('M1 chave do SGPC curta vale como ausente: 503, e nada sai ao Chromos', async () => {
+    vi.stubEnv('CROMOS_ABSENTEISMO_URL', 'https://cromos/api/absenteismo-externo');
+    vi.stubEnv('CHAVE_SGPC', 'a'.repeat(31));
+    const r = resposta();
+    await handler({ method: 'GET', headers: { authorization: 'Bearer x' }, query: { de: '2026-01', ate: '2026-09' } }, r);
+    expect(r.code).toBe(503);
+  });
+
   it('sem token: 401; período inválido: 400', async () => {
     vi.stubEnv('CROMOS_ABSENTEISMO_URL', 'https://cromos/api/absenteismo-externo');
-    vi.stubEnv('CROMOS_ABSENTEISMO_TOKEN', 's');
+    vi.stubEnv('CHAVE_SGPC', 'chave-do-sgpc-de-teste-com-32-caracteres');
     const a = resposta();
     await handler({ method: 'GET', headers: {}, query: { de: '2026-01', ate: '2026-09' } }, a);
     expect(a.code).toBe(401);
