@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { admissaoPeloQuadro, codigosSequenciais, encerrada, etapasDoEditar, statusDoEditar, getDiasEmAberto, getSlaInfo, isPausedOrSuspended, normalizeEtapa, statusForEtapa, vagaAtrasada, vagasParecidas } from './vaga';
+import { admissaoPeloQuadro, codigosSequenciais, encerrada, etapasDoEditar, etapaAoTrocarStatus, statusDoEditar, getDiasEmAberto, getSlaInfo, isPausedOrSuspended, normalizeEtapa, statusForEtapa, vagaAtrasada, vagasParecidas } from './vaga';
 import type { Vaga } from '../types';
 
 const vaga = (p: Partial<Vaga>) => p as Vaga;
@@ -163,16 +163,32 @@ describe('admissaoPeloQuadro', () => {
   });
 });
 
-describe('statusDoEditar (o Status também não cruza a documentação)', () => {
-  it('vaga aberta não oferece DOCUMENTAÇÃO', () => {
-    expect(statusDoEditar('ABERTA')).toEqual(['ABERTA', 'REABERTA', 'SUSPENSA', 'PAUSADA', 'FECHADA', 'CANCELADA']);
+describe('statusDoEditar (30/10/2026: o Editar oferece a DOCUMENTAÇÃO)', () => {
+  it('todos os status, de qualquer lado', () => {
+    expect(statusDoEditar('ABERTA')).toContain('DOCUMENTAÇÃO');
+    expect(statusDoEditar('DOCUMENTAÇÃO')).toContain('ABERTA');
   });
-  it('vaga em documentação não volta para ABERTA/REABERTA pelo Editar', () => {
-    expect(statusDoEditar('DOCUMENTAÇÃO')).toEqual(['DOCUMENTAÇÃO', 'SUSPENSA', 'PAUSADA', 'FECHADA', 'CANCELADA']);
+});
+
+describe('etapaAoTrocarStatus (os dois Kanbans batem)', () => {
+  it('entrar na documentação leva à etapa Documentação; quem já está lá fica', () => {
+    expect(etapaAoTrocarStatus('DOCUMENTAÇÃO', 'Triagem')).toBe('Documentação');
+    expect(etapaAoTrocarStatus('DOCUMENTAÇÃO', 'Aguardando admissão')).toBe('Aguardando admissão');
   });
-  it('pausada ou fechada reabrem como ABERTA, não direto em DOCUMENTAÇÃO', () => {
-    expect(statusDoEditar('PAUSADA')).not.toContain('DOCUMENTAÇÃO');
-    expect(statusDoEditar('FECHADA')).toContain('ABERTA');
+  it('voltar para aberta sai das etapas da documentação, e a coluna segue', () => {
+    expect(etapaAoTrocarStatus('ABERTA', 'Documentação')).toBe('Triagem');
+    expect(etapaAoTrocarStatus('REABERTA', 'Aguardando admissão')).toBe('Triagem');
+    expect(etapaAoTrocarStatus('ABERTA', 'Testes')).toBe('Testes');
+  });
+  it('pausar ou concluir não mexe na etapa', () => {
+    expect(etapaAoTrocarStatus('PAUSADA', 'Documentação')).toBe('Documentação');
+    expect(etapaAoTrocarStatus('FECHADA', 'Testes')).toBe('Testes');
+  });
+  it('a vaga salva assim cai em Documentação no Kanban por etapa', () => {
+    const v = { status: 'DOCUMENTAÇÃO', etapa: etapaAoTrocarStatus('DOCUMENTAÇÃO', 'Triagem') } as Parameters<typeof normalizeEtapa>[0];
+    expect(normalizeEtapa(v)).toBe('Documentação');
+    const volta = { status: 'ABERTA', etapa: etapaAoTrocarStatus('ABERTA', 'Documentação') } as Parameters<typeof normalizeEtapa>[0];
+    expect(normalizeEtapa(volta)).toBe('Triagem');
   });
 });
 

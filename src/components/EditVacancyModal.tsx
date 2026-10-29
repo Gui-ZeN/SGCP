@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Vaga } from '../types';
 import { dateFromValue, toISOInput, formatDateBR, monthAbbrFromDate, dataISOLocal } from '../utils/date';
 import { MOTIVOS_DESISTENCIA } from '../constants/hr';
-import { normalizeEtapa, etapasDoEditar, statusDoEditar, encerrada } from '../utils/vaga';
+import { normalizeEtapa, etapasDoEditar, etapaAoTrocarStatus, statusDoEditar, encerrada } from '../utils/vaga';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import { Modal } from './ui/Modal';
 
@@ -124,8 +124,8 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
       status: tempStatus,
       // Etapa da lista do funil (27/10/2026; antes era texto livre). Só grava se
       // mudou: regravar "Triagem de currículos" como "Triagem" zeraria os dias
-      // na etapa. O status não acompanha: cruzar a documentação é pelo Quadro
-      // (etapasDoEditar nem oferece), que registra quem segue ou a desistência.
+      // na etapa. Trocar o status para dentro ou fora da documentação já ajustou
+      // a etapa (etapaAoTrocarStatus), e ela é gravada aqui.
       ...(tempEtapa !== normalizeEtapa(vaga) ? { etapa: tempEtapa } : {}),
       aprovado: tempAprovado,
       observacoes: tempObservacoes,
@@ -329,7 +329,12 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
                 id="modal-status"
                 className="campo w-full"
                 value={tempStatus}
-                onChange={(e) => setTempStatus(e.target.value as Vaga['status'])}
+                onChange={(e) => {
+                  const novo = e.target.value as Vaga['status'];
+                  setTempStatus(novo);
+                  // A etapa acompanha: Documentação no Status = coluna Documentação nos dois Kanbans.
+                  setTempEtapa(et => etapaAoTrocarStatus(novo, et));
+                }}
               >
                 {statusList.map((st, idx) => (
                   <option key={idx} value={st}>{st === 'FECHADA' ? 'CONCLUÍDA' : st}</option>
@@ -362,10 +367,10 @@ export const EditVacancyModal: React.FC<EditVacancyModalProps> = ({ vaga, cargos
                 value={tempEtapa}
                 onChange={(e) => setTempEtapa(e.target.value)}
               >
-                {etapasDoEditar(vaga.status, normalizeEtapa(vaga)).map(e => <option key={e} value={e}>{e}</option>)}
+                {etapasDoEditar(tempStatus, tempEtapa).map(e => <option key={e} value={e}>{e}</option>)}
               </select>
-              {vaga.status !== 'DOCUMENTAÇÃO' && !encerrada(vaga.status) && (
-                <p className="text-[12px] mt-1" style={{ color: 'var(--tinta-3)' }}>Para a documentação, use "Para Admissão" no quadro: ele registra quem segue.</p>
+              {tempEtapa !== normalizeEtapa(vaga) && (
+                <p className="text-[12px] mt-1" style={{ color: 'var(--tinta-3)' }}>Ao salvar, abre o mesmo passo de quando se arrasta no Kanban.</p>
               )}
             </div>
           </div>

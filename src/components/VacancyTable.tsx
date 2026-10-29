@@ -524,8 +524,19 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   };
 
   const handleEditSave = async (id: string, updatedFields: Partial<Vaga>) => {
+    // Trocar a etapa pelo Editar passa pelo MESMO passo do arrastar no Kanban
+    // (30/10/2026): o resto salva já, e status + etapa ficam com o funil — a
+    // entrevista, quem vai para os testes, quem segue para a documentação, ou o
+    // motivo da desistência na volta.
+    const atual = vagas.find(v => v.id === id);
+    if (atual && updatedFields.etapa && updatedFields.etapa !== normalizeEtapa(atual)) {
+      const { status, etapa, ...resto } = updatedFields;
+      await updateVaga(id, resto);
+      await handleEtapaDrop(id, etapa!, status);
+      return;
+    }
     await updateVaga(id, updatedFields);
-    
+
     if (selectedDetailsVaga && selectedDetailsVaga.id === id) {
       setSelectedDetailsVaga({ ...selectedDetailsVaga, ...updatedFields });
     }

@@ -236,23 +236,35 @@ export function admissaoPeloQuadro(vaga: Vaga): 'encerrada' | 'so-status' | 'fun
 }
 
 /**
- * Etapas que o Editar oferece: só as do mesmo lado da documentação. Cruzar
- * (ir para a documentação ou voltar dela) é pelo Quadro, que registra quem
- * segue ou o motivo da desistência. A etapa atual entra sempre, para não sumir.
+ * Status que o Editar oferece: todos. De 27 a 30/10/2026 a DOCUMENTAÇÃO ficou
+ * só no Quadro ("Para Admissão", que marca quem segue), mas o RH procurava no
+ * Status e não achava (pedido do Guilherme, 30/10/2026). Agora o Editar leva
+ * para a documentação também; a etapa acompanha (`etapaAoTrocarStatus`), e a
+ * vaga cai na coluna Documentação dos dois Kanbans. Ao salvar, toda troca de
+ * etapa passa pelo funil do Quadro, como no arrastar (VacancyTable,
+ * handleEditSave): quem segue, ou o motivo da desistência na volta.
  */
-/**
- * Status que o Editar oferece: o mesmo lado da documentação também no Status
- * (reauditoria de 27/10/2026: escolher DOCUMENTAÇÃO no Status levava a vaga para
- * a Admissão sem o passo "quem segue", e voltar dela não pedia o motivo).
- * O status atual entra sempre.
- */
-export function statusDoEditar(statusDaVaga: string | undefined): Vaga['status'][] {
-  const todos: Vaga['status'][] = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO', 'SUSPENSA', 'PAUSADA', 'FECHADA', 'CANCELADA'];
-  const atual = (statusDaVaga || '').toUpperCase();
-  const fora = atual === 'DOCUMENTAÇÃO' ? ['ABERTA', 'REABERTA'] : ['DOCUMENTAÇÃO'];
-  return todos.filter(s => s === atual || !fora.includes(s));
+export function statusDoEditar(_statusDaVaga?: string): Vaga['status'][] {
+  return ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO', 'SUSPENSA', 'PAUSADA', 'FECHADA', 'CANCELADA'];
 }
 
+/**
+ * A etapa que acompanha a troca de status no Editar, para os dois Kanbans
+ * baterem: entrar na DOCUMENTAÇÃO leva à etapa Documentação; voltar para
+ * aberta tira das etapas da documentação (senão "Documentação" no texto da
+ * etapa a mantinha naquela coluna do Kanban por etapa).
+ */
+export function etapaAoTrocarStatus(novoStatus: string, etapaAtual: string): string {
+  const doc = ETAPAS_DOC.includes(etapaAtual);
+  if (novoStatus === 'DOCUMENTAÇÃO' && !doc) return 'Documentação';
+  if ((novoStatus === 'ABERTA' || novoStatus === 'REABERTA') && doc) return 'Triagem';
+  return etapaAtual;
+}
+
+/**
+ * Etapas que o Editar oferece: as do lado do status escolhido (documentação
+ * ou não). A etapa atual entra sempre, para não sumir.
+ */
 export function etapasDoEditar(status: string | undefined, atual: string): string[] {
   const doc = (status || '').toUpperCase() === 'DOCUMENTAÇÃO';
   const lado = ETAPAS_FUNIL.filter(e => ETAPAS_DOC.includes(e) === doc) as string[];
