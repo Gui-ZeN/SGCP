@@ -91,14 +91,17 @@ export function htmlDaListaDePresenca(d: DadosDaLista): string {
   .cab .tit { text-align: center; font-size: 11pt; } .cab .ctl { width: 20%; font-size: 9.5pt; }
   .faixa { background: #000; color: #fff; text-align: center; font-size: 9pt; letter-spacing: .04em; padding: 2px; margin-top: 4mm;
            -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .dados .lin { display: flex; border-bottom: 1px solid #000; padding: 3px 0; gap: 6px; }
+  /* Caixa fechada como o resto da folha (antes só tinha as linhas horizontais). */
+  .dados { border: 1px solid #000; border-top: 0; }
+  .dados .lin { display: flex; border-bottom: 1px solid #000; padding: 3px 6px; gap: 6px; }
+  .dados .lin:last-child { border-bottom: 0; }
   .dados .r { font-weight: bold; white-space: nowrap; } .dados .v { flex: 1; } .dados .sep { width: 4mm; }
   .lista { margin-top: 3mm; } .lista th, .lista td { border: 1px solid #000; height: 6.1mm; padding: 0 5px; }
   .lista th { background: #eee; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .lista .n { width: 9mm; text-align: center; } .lista .s { width: 14%; }
   /* Nome numa linha só (a altura da linha é fixa: quebrar empurrava a folha); longo demais, reticências. */
   .lista .nome { width: 46%; max-width: 0; font-size: 9pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .rod { margin-top: auto; } .rod td { border-top: 1px solid #000; height: 14mm; vertical-align: top; width: 50%; padding: 3px; }
+  .rod { margin-top: auto; } .rod td { border: 1px solid #000; height: 14mm; vertical-align: top; width: 50%; padding: 3px; }
 </style></head><body>${folhas.map((f, i) => folha(f, i + 1)).join('')}</body></html>`;
 }
 
