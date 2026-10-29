@@ -92,8 +92,8 @@ describe('pontos da auditoria', () => {
 
 describe('treinamentosDoMes', () => {
   it('o mesmo tema em várias sessões vira uma ação só', () => {
-    const t = (p: Partial<Treinamento>) => ({ tema: 'Recepção que faz a diferença', dataInicio: '10/09/2026', unidade: 'PARQUE ECOLÓGICO', qtdPrevista: 15, qtdRealizada: 12, ...p }) as Treinamento;
+    const t = (p: Partial<Treinamento>) => ({ id: p.dataInicio === '10/10/2026' ? 'c' : p.tema ? 'b' : 'a', tema: 'Recepção que faz a diferença', dataInicio: '10/09/2026', unidade: 'PARQUE ECOLÓGICO', qtdPrevista: 15, qtdRealizada: 12, ...p }) as Treinamento;
     expect(treinamentosDoMes([t({}), t({ tema: 'recepção que faz a diferença ', qtdRealizada: 12 }), t({ dataInicio: '10/10/2026' })], 2026, 9))
-      .toEqual([{ tema: 'Recepção que faz a diferença', previstos: 30, presentes: 24, turmas: 2, sedes: ['PARQUE ECOLÓGICO'] }]);
+      .toEqual([{ tema: 'Recepção que faz a diferença', previstos: 30, presentes: 24, turmas: 2, sedes: ['PARQUE ECOLÓGICO'], ids: ['a', 'b'] }]);
   });
 });

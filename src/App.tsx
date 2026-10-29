@@ -27,6 +27,7 @@ import { recalculoDaSelecao, comGravacoesRecentes, type GravacaoRecente } from '
 import { atendeVaga, camposDoFormulario, origemDoSetor } from './utils/selecao';
 import type { Candidato, Selecao, Vaga, Turnover, Treinamento, Participante } from './types';
 import { salvarPresenca, apagarTurmaComPresenca, realinharPresenca } from './hooks/usePresencas';
+import { apagarAnexosDaTurma } from './hooks/useAnexos';
 import { convocacoesDasLinhas } from './utils/bancoCandidatos';
 import { ProvedorBanco, useNaoChamar } from './hooks/useBancoCandidatos';
 import { FichaDaPessoa } from './components/banco/FichaDaPessoa';
@@ -1025,6 +1026,9 @@ export default function App() {
   const wrappedDeleteTreinamento = (id: string) => 
     executeWithLoading("Excluindo registro de treinamento...", async () => {
       const t = treinamentos.find(item => item.id === id);
+      // Anexos primeiro (lixeira do Drive): se falhar, a turma fica — senão as
+      // fotos sobravam no Drive à vista das coordenadoras (29/10/2026).
+      await apagarAnexosDaTurma(id);
       // Com presença por nome, a lista sai no mesmo lote (nomes não ficam órfãos).
       if (t?.presencaPelaLista) await apagarTurmaComPresenca(t);
       else await deleteTreinamento(id);

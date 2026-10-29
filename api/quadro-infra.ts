@@ -59,6 +59,42 @@ export function lerPessoas(corpo: unknown, unidade: Unidade | null): PessoaDoQua
   return saida.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
+/**
+ * Quem pede é EDITOR de treinamentos, e de qual unidade (travas 1 a 3). Volta
+ * `{ unidade }` (null = Administrador, as duas) ou a recusa pronta
+ * `{ status, erro }`. Também usada pelos anexos (api/anexos.ts), que têm a
+ * mesma regra de acesso da presença.
+ */
+export async function editorQuePede(req: any, rota: string): Promise<{ email: string; unidade: Unidade | null } | { status: number; erro: string }> {
+  const [tipo, token] = String(req.headers?.authorization || '').split(' ');
+  if (tipo?.toLowerCase() !== 'bearer' || !token) return { status: 401, erro: 'sem credencial' };
+
+  let email: string;
+  try {
+    email = await verificarIdToken(token, PROJETO);
+  } catch (e: any) {
+    console.error(`[${rota}] token recusado`, e?.message);
+    return { status: 401, erro: 'credencial recusada' };
+  }
+
+  try {
+    const acesso = await tokenDeAcesso();
+    const r = await fetch(`${BASE}/usuarios/${encodeURIComponent(email)}`, { headers: { Authorization: `Bearer ${acesso}` } });
+    if (r.status === 404) return { status: 403, erro: 'usuário sem cadastro no SGPC' };
+    if (!r.ok) throw new Error(`usuarios: ${r.status}`);
+    const doc = await r.json();
+    const papel = campoTexto(doc, 'role');
+    if (!EDITORES.includes(papel)) return { status: 403, erro: 'só quem edita os treinamentos tem acesso' };
+    if (papel === 'Administrador') return { email, unidade: null };
+    const u = doc?.fields?.unidade === undefined ? 'colegio' : campoTexto(doc, 'unidade');
+    if (u !== 'colegio' && u !== 'universidade') return { status: 403, erro: 'unidade do cadastro não reconhecida' };
+    return { email, unidade: u };
+  } catch (e: any) {
+    console.error(`[${rota}] não deu para ler o cadastro`, e?.message);
+    return { status: 502, erro: 'não deu para conferir o cadastro' };
+  }
+}
+
 export default async function handler(req: any, res: any) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'GET') return res.status(405).json({ erro: 'método não permitido' });
@@ -70,36 +106,9 @@ export default async function handler(req: any, res: any) {
   const segredo = chave.length >= 32 ? chave : '';
   if (!alvo || !segredo) return res.status(503).json({ erro: 'integração com o Chromos não configurada' });
 
-  const [tipo, token] = String(req.headers?.authorization || '').split(' ');
-  if (tipo?.toLowerCase() !== 'bearer' || !token) return res.status(401).json({ erro: 'sem credencial' });
-
-  let email: string;
-  try {
-    email = await verificarIdToken(token, PROJETO);
-  } catch (e: any) {
-    console.error('[quadro-infra] token recusado', e?.message);
-    return res.status(401).json({ erro: 'credencial recusada' });
-  }
-
-  let unidade: Unidade | null;
-  try {
-    const acesso = await tokenDeAcesso();
-    const r = await fetch(`${BASE}/usuarios/${encodeURIComponent(email)}`, { headers: { Authorization: `Bearer ${acesso}` } });
-    if (r.status === 404) return res.status(403).json({ erro: 'usuário sem cadastro no SGPC' });
-    if (!r.ok) throw new Error(`usuarios: ${r.status}`);
-    const doc = await r.json();
-    const papel = campoTexto(doc, 'role');
-    if (!EDITORES.includes(papel)) return res.status(403).json({ erro: 'só quem edita os treinamentos vê o quadro' });
-    if (papel === 'Administrador') unidade = null;
-    else {
-      const u = doc?.fields?.unidade === undefined ? 'colegio' : campoTexto(doc, 'unidade');
-      if (u !== 'colegio' && u !== 'universidade') return res.status(403).json({ erro: 'unidade do cadastro não reconhecida' });
-      unidade = u;
-    }
-  } catch (e: any) {
-    console.error('[quadro-infra] não deu para ler o cadastro', e?.message);
-    return res.status(502).json({ erro: 'não deu para conferir o cadastro' });
-  }
+  const quem = await editorQuePede(req, 'quadro-infra');
+  if ('status' in quem) return res.status(quem.status).json({ erro: quem.erro });
+  const { unidade } = quem;
 
   try {
     const r = await fetch(alvo, { headers: { Authorization: `Bearer ${segredo}` }, signal: AbortSignal.timeout(PRAZO_MS) });

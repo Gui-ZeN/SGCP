@@ -7,13 +7,14 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Treinamento, Participante } from '../types';
 import { toISOInput } from '../utils/date';
 import { exportToXlsx } from '../utils/xlsxExporter';
-import { Search, Plus, Download, Trash2, Pencil, Upload, Loader2, Users, Printer } from 'lucide-react';
+import { Search, Plus, Download, Trash2, Pencil, Upload, Loader2, Users, Printer, Paperclip } from 'lucide-react';
 import { Sede } from '../hooks/useMetadata';
 import { Modal } from './ui/Modal';
 import { FiltroMultiplo } from './ui/FiltroMultiplo';
 import { Kpi } from './indicadores/ui';
 import { PresencaModal } from './treinamentos/PresencaModal';
 import { ImprimirListaModal } from './treinamentos/ImprimirListaModal';
+import { AnexosModal } from './treinamentos/AnexosModal';
 import { sedesDaTurma, turmaNaSede, erroDasSedes } from '../utils/treinamentos';
 
 interface TreinamentosSectionProps {
@@ -55,6 +56,11 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
   // Turma da Infra recém-registrada: "Quem participou" abre assim que ela
   // chega da escuta (com a unidade carimbada, que a presença precisa).
   const [abrirPresencaDe, setAbrirPresencaDe] = useState<string | null>(null);
+  // Fotos e PDFs da turma (29/10/2026). Ao registrar, abre sozinho — depois de
+  // "Quem participou", na turma da Infra — para anexar a lista assinada e as fotos.
+  const [anexosDe, setAnexosDe] = useState<Treinamento | null>(null);
+  const [abrirAnexosDe, setAbrirAnexosDe] = useState<string | null>(null);
+  const anexosDepoisDaPresenca = useRef<string | null>(null);
   // Sedes da turma no formulário (28/10/2026: múltipla escolha).
   const [sedesForm, setSedesForm] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -183,6 +189,11 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
     const nova = treinamentos.find(t => t.id === abrirPresencaDe);
     if (nova?.escopo) { setPresencaDe(nova); setAbrirPresencaDe(null); }
   }, [abrirPresencaDe, treinamentos]);
+  useEffect(() => {
+    if (!abrirAnexosDe) return;
+    const nova = treinamentos.find(t => t.id === abrirAnexosDe);
+    if (nova?.escopo) { setAnexosDe(nova); setAbrirAnexosDe(null); }
+  }, [abrirAnexosDe, treinamentos]);
 
   // Stats
   const stats = useMemo(() => {
@@ -281,7 +292,10 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
         await updateTreinamento(editingTreinamento.id, payload);
       } else {
         const id = await addTreinamento(payload);
-        if (infra && salvarPresenca && typeof id === 'string') setAbrirPresencaDe(id);
+        if (typeof id === 'string') {
+          if (infra && salvarPresenca) { setAbrirPresencaDe(id); anexosDepoisDaPresenca.current = id; }
+          else setAbrirAnexosDe(id);
+        }
       }
       resetForm();
       setShowAddForm(false);
@@ -449,6 +463,9 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                         <Users className="w-3.5 h-3.5" aria-hidden="true" /> Quem participou
                       </button>
                     )}
+                    <button type="button" className="btn-texto inline-flex items-center gap-1.5" onClick={() => setAnexosDe(t)}>
+                      <Paperclip className="w-3.5 h-3.5" aria-hidden="true" /> Anexos
+                    </button>
                     <button type="button" className="btn-texto inline-flex items-center gap-1.5" onClick={() => openEditForm(t)}>
                       <Pencil className="w-3.5 h-3.5" aria-hidden="true" /> Editar
                     </button>
@@ -574,8 +591,13 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
       {imprimirAvulsa && <ImprimirListaModal aoFechar={() => setImprimirAvulsa(false)} />}
 
       {presencaDe && salvarPresenca && (
-        <PresencaModal turma={presencaDe} onSalvar={lista => salvarPresenca(presencaDe, lista)} aoFechar={() => setPresencaDe(null)} />
+        <PresencaModal turma={presencaDe} onSalvar={lista => salvarPresenca(presencaDe, lista)} aoFechar={() => {
+          if (anexosDepoisDaPresenca.current === presencaDe.id) setAnexosDe(presencaDe);
+          anexosDepoisDaPresenca.current = null;
+          setPresencaDe(null);
+        }} />
       )}
+      {anexosDe && canManage && <AnexosModal turma={anexosDe} aoFechar={() => setAnexosDe(null)} />}
     </div>
   );
 };

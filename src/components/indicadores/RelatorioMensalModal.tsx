@@ -18,6 +18,9 @@ import { MESES_LONGOS } from '../../utils/filtroIndicadores';
 import { dataISOLocal } from '../../utils/date';
 import { dadosDoRelatorio } from '../../utils/relatorioMensal';
 import { imprimirRelatorio, type TextosDoRelatorio } from '../../utils/relatorioMensalHtml';
+import { listarAnexos, baixarAnexo } from '../../hooks/useAnexos';
+
+const comoDataUrl = (b: Blob) => new Promise<string>(ok => { const r = new FileReader(); r.onload = () => ok(String(r.result || '')); r.onerror = () => ok(''); r.readAsDataURL(b); });
 
 interface Props {
   vagas: Vaga[]; selecoes: Selecao[]; experiencias: Experiencia[]; integracoes: Integracao[]; treinamentos: Treinamento[];
@@ -114,6 +117,28 @@ export function RelatorioMensalModal({ vagas, selecoes, experiencias, integracoe
     setErro(abriu ? '' : 'O navegador bloqueou a janela do relatório. Libere pop-ups para o SGPC e tente de novo.');
   };
 
+  // Fotos anexadas às turmas do destaque (29/10/2026): marcar em vez de procurar no computador.
+  // Quem não é RH da unidade recebe 403 da rota e simplesmente não vê esta lista.
+  const [daTurma, setDaTurma] = useState<string[]>([]);
+  const idsDoDestaque = dados.treinamentos.find(t => t.tema === destaque)?.ids.join(',') || '';
+  useEffect(() => {
+    setDaTurma([]);
+    if (!idsDoDestaque) return;
+    let vivo = true;
+    (async () => {
+      for (const id of idsDoDestaque.split(',')) {
+        const anexos = await listarAnexos(id).catch(() => []);
+        for (const a of anexos.filter(x => x.tipo.startsWith('image/'))) {
+          const url = await baixarAnexo(id, a).then(comoDataUrl).catch(() => '');
+          if (!vivo) return;
+          if (url) setDaTurma(l => (l.length < 10 ? [...l, url] : l));
+        }
+      }
+    })();
+    return () => { vivo = false; };
+  }, [idsDoDestaque]);
+  const marcar = (url: string) => setFotosDest(l => (l.includes(url) ? l.filter(x => x !== url) : l.length < 2 ? [...l, url] : l));
+
   const fotos = (rotulo: string, lista: string[], set: (l: string[]) => void, max: number) => (
     <label className="block">
       <span className="rotulo">{rotulo} {lista.length ? `(${lista.length})` : ''}</span>
@@ -193,7 +218,20 @@ export function RelatorioMensalModal({ vagas, selecoes, experiencias, integracoe
                 </select>
                 <textarea className="campo w-full" rows={3} placeholder="O que foi feito (um parágrafo por linha)" value={destaqueTexto} disabled={!destaque}
                   onChange={e => { const v = e.target.value; mudar(r => ({ destaques: { ...r.destaques, [chaveDestaque]: v } })); }} />
-                {fotos('Fotos (até 2)', fotosDest, setFotosDest, 2)}
+                {daTurma.length > 0 && (
+                  <div>
+                    <span className="rotulo">Fotos anexadas à turma — marque até 2</span>
+                    <div className="flex flex-wrap gap-2">
+                      {daTurma.map((u, i) => (
+                        <button key={i} type="button" aria-pressed={fotosDest.includes(u)} onClick={() => marcar(u)}
+                          className="w-24 h-18 rounded overflow-hidden" style={{ outline: fotosDest.includes(u) ? '3px solid var(--acento, #1B4DD8)' : '1px solid var(--linha)', outlineOffset: 1 }}>
+                          <img src={u} alt={`Foto ${i + 1} da turma`} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {fotos(daTurma.length ? 'Ou do computador (até 2)' : 'Fotos (até 2)', fotosDest, setFotosDest, 2)}
               </div>}
         </details>
 

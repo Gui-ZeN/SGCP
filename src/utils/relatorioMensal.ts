@@ -64,7 +64,8 @@ export interface ExperienciaDaSede {
   aVencer: number;
 }
 
-export interface TreinamentoDoMes { tema: string; previstos: number; presentes: number; turmas: number; sedes: string[] }
+/** `ids`: as turmas somadas — de onde vêm as fotos anexadas para o destaque. */
+export interface TreinamentoDoMes { tema: string; previstos: number; presentes: number; turmas: number; sedes: string[]; ids: string[] }
 
 export interface DadosDoRelatorio {
   vagas: { solicitadas: number; fechadas: number; mediaDias: number | null };
@@ -122,8 +123,8 @@ export function treinamentosDoMes(lista: Treinamento[], ano: number, mes: number
   for (const t of lista) {
     if (!noMes(t.dataInicio)) continue;
     const k = norm(t.tema);
-    const l = porTema.get(k) || { tema: (t.tema || '').trim(), previstos: 0, presentes: 0, turmas: 0, sedes: [] };
-    l.previstos += Number(t.qtdPrevista) || 0; l.presentes += Number(t.qtdRealizada) || 0; l.turmas++;
+    const l = porTema.get(k) || { tema: (t.tema || '').trim(), previstos: 0, presentes: 0, turmas: 0, sedes: [], ids: [] };
+    l.previstos += Number(t.qtdPrevista) || 0; l.presentes += Number(t.qtdRealizada) || 0; l.turmas++; l.ids.push(t.id);
     for (const s of t.sedes?.length ? t.sedes : [t.unidade]) if (s && !l.sedes.includes(s)) l.sedes.push(s);
     porTema.set(k, l);
   }
