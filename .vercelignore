@@ -1,0 +1,4 @@
+# A Vercel transforma TODO arquivo de api/ em função, inclusive os testes, e o
+# plano Hobby aceita no máximo 12. Em 29/10/2026 os anexos passaram de 12 e o
+# deploy foi recusado. Teste não vai para produção.
+api/**/*.test.ts
