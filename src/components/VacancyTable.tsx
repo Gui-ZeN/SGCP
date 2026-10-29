@@ -5,7 +5,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { dataISOLocal, formatDateBR } from '../utils/date';
-import { Vaga, Experiencia, Selecao, Requisicao, Candidato } from '../types';
+import { Vaga, Experiencia, Selecao, Requisicao, Candidato, Integracao } from '../types';
+import { integracaoDaVaga, jaNaIntegracao } from '../utils/integracao';
 import { AddVacancyForm } from './AddVacancyForm';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import type { SystemLog } from '../hooks/useLogs';
@@ -44,6 +45,9 @@ interface VacancyTableProps {
   deleteVaga: (id: string) => Promise<void>;
   addVaga: (vaga: Omit<Vaga, 'id' | 'codigo'>) => Promise<void>;
   addExperiencia?: (input: Omit<Experiencia, 'id' | 'termino1' | 'termino2'>) => Promise<void>;
+  /** Concluir a vaga com aprovado cria a Integração (29/10/2026); a lista evita repetir a pessoa. */
+  addIntegracao?: (input: Omit<Integracao, 'id'>) => Promise<void>;
+  integracoes?: Integracao[];
   sedes?: Sede[];
   cargos?: Cargo[];
   setores?: Setor[];
@@ -92,6 +96,8 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
   deleteVaga,
   addVaga,
   addExperiencia,
+  addIntegracao,
+  integracoes = [],
   sedes,
   cargos,
   setores,
@@ -496,6 +502,12 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
         vagaId: vagaToConclude.id,
         vagaCodigo: vagaToConclude.codigo,
       });
+    }
+
+    // Toda vaga concluída com aprovado entra na Integração, sem opção (decisão
+    // de 29/10/2026): antes ela dependia de planilha e ficava para trás.
+    if (addIntegracao && vagaToConclude && candidato.trim() && !jaNaIntegracao(candidato, integracoes)) {
+      await addIntegracao(integracaoDaVaga(vagaToConclude, candidato, finalAdmissao));
     }
 
     setVagaToConclude(null);

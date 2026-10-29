@@ -873,6 +873,13 @@ export default function App() {
       await logAction('CRIOU', 'Integrações', `Integração de "${i.nome}" (${i.sede}) registrada.`,
         { ref: { colaborador: i.nome, sede: i.sede }, escopo: unidadeDe(i) });
     });
+  // Da conclusão da vaga (29/10/2026): sem tela de carregamento própria — roda
+  // dentro da conclusão, que já tem a dela.
+  const registrarIntegracaoDaVaga = async (i: any) => {
+    await addIntegracao(i);
+    await logAction('CRIOU', 'Integrações', `Integração de "${i.nome}" (${i.sede}) registrada ao concluir a vaga.`,
+      { ref: { colaborador: i.nome, sede: i.sede }, escopo: unidadeDe(i) });
+  };
   const wrappedUpdateIntegracao = (id: string, f: any) =>
     executeWithLoading("Atualizando integração...", async () => {
       const alvo = integracoes.find(x => x.id === id);
@@ -1650,6 +1657,8 @@ export default function App() {
               deleteVaga={wrappedDeleteVaga} 
               addVaga={wrappedAddVaga}
               addExperiencia={wrappedAddExperiencia}
+              addIntegracao={canManageModules ? registrarIntegracaoDaVaga : undefined}
+              integracoes={integracoes}
               sedes={scopedSedes}
               cargos={cargos}
               setores={setores}
