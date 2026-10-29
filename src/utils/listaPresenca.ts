@@ -27,6 +27,20 @@ export interface DadosDaLista {
 // 31 linhas, como o papel original (pedido do Guilherme, 30/10/2026).
 export const LINHAS_POR_FOLHA = 31;
 export const MAX_EM_BRANCO = 60;
+/** Mínimo para quem não está no quadro; a folha completa o resto (o campo saiu da tela, 29/10/2026). */
+export const LINHAS_EM_BRANCO = 5;
+
+/** "14:00" → "14h", "14:30" → "14h30" (o campo é de hora; antes era texto livre). */
+export const horaDaLista = (hhmm: string) => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim());
+  return m ? `${Number(m[1])}h${m[2] === '00' ? '' : m[2]}` : '';
+};
+/** 1 → "1h", 1.5 → "1h30"; vazio ou zero → "". */
+export const cargaDaLista = (horas: number) => {
+  if (!(horas > 0)) return '';
+  const h = Math.floor(horas), min = Math.round((horas - h) * 60);
+  return `${h}h${min ? String(min).padStart(2, '0') : ''}`;
+};
 
 const NOME_DA_UNIDADE: Record<UnidadeDaLista, string> = { colegio: 'Colégio Christus', universidade: 'Universidade Christus' };
 

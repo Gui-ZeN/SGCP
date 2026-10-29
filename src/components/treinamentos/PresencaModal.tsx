@@ -12,7 +12,7 @@ import { FiltroMultiplo } from '../ui/FiltroMultiplo';
 import { lerQuadroDaInfra, lerPresenca, type PessoaDoQuadro } from '../../hooks/usePresencas';
 import { alternar, mesmoParticipante, participanteDoQuadro, participanteManual, MAX_PARTICIPANTES } from '../../utils/presenca';
 import { normalizarNome } from '../../utils/catalogo';
-import { imprimirListaDePresenca, MAX_EM_BRANCO } from '../../utils/listaPresenca';
+import { imprimirListaDePresenca, cargaDaLista, LINHAS_EM_BRANCO } from '../../utils/listaPresenca';
 import { sedesDaTurma } from '../../utils/treinamentos';
 
 interface Props {
@@ -35,7 +35,6 @@ export function PresencaModal({ turma, onSalvar, aoFechar, carregarQuadro = lerQ
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
   const [erroLista, setErroLista] = useState(false);
-  const [emBranco, setEmBranco] = useState(5);
   const [erroImpressao, setErroImpressao] = useState('');
 
   useEffect(() => {
@@ -72,8 +71,8 @@ export function PresencaModal({ turma, onSalvar, aoFechar, carregarQuadro = lerQ
       unidade, logo: `${window.location.origin}/logos/${unidade}.png`,
       tema: turma.tema, instrutor: turma.facilitador || '', data: turma.dataInicio || '',
       local: sedesDaTurma(turma).join(', '), horario: turma.hora || '',
-      cargaHoraria: turma.cargaHoraria ? `${turma.cargaHoraria}h` : '',
-      pessoas: visiveis.map(p => ({ nome: p.nome, setor: 'Infra' })), emBranco,
+      cargaHoraria: cargaDaLista(turma.cargaHoraria),
+      pessoas: visiveis.map(p => ({ nome: p.nome, setor: 'Infra' })), emBranco: LINHAS_EM_BRANCO,
     });
     setErroImpressao(abriu ? '' : 'O navegador bloqueou a janela de impressão. Libere pop-ups para o SGPC e tente de novo.');
   };
@@ -147,17 +146,12 @@ export function PresencaModal({ turma, onSalvar, aoFechar, carregarQuadro = lerQ
         <section aria-label="Lista de presença para imprimir">
           <h3 className="text-[14px] font-bold" style={{ color: 'var(--tinta)' }}>Lista de presença para assinar</h3>
           <div className="mt-2 flex flex-wrap items-end gap-3">
-            <label className="block">
-              <span className="text-[12.5px]" style={{ color: 'var(--tinta-2)' }}>Linhas em branco</span>
-              <input type="number" min={0} max={MAX_EM_BRANCO} className="campo w-24 tabular-nums" value={emBranco}
-                onChange={e => setEmBranco(Math.max(0, Math.min(MAX_EM_BRANCO, Number(e.target.value) || 0)))} />
-            </label>
             <button type="button" className="btn" onClick={imprimir} disabled={quadro === null}>
-              <Printer aria-hidden="true" />Imprimir lista ({visiveis.length} {visiveis.length === 1 ? 'nome' : 'nomes'} + {emBranco} em branco)
+              <Printer aria-hidden="true" />Imprimir lista ({visiveis.length} {visiveis.length === 1 ? 'nome' : 'nomes'})
             </button>
           </div>
           {erroImpressao && <p role="alert" className="mt-1 text-[13px]" style={{ color: 'var(--atraso)' }}>{erroImpressao}</p>}
-          <p className="mt-1 text-[12.5px]" style={{ color: 'var(--tinta-3)' }}>Saem os nomes das sedes marcadas no filtro acima (todas, se nenhuma).</p>
+          <p className="mt-1 text-[12.5px]" style={{ color: 'var(--tinta-3)' }}>Saem os nomes das sedes marcadas no filtro acima (todas, se nenhuma) e linhas em branco até o fim da folha.</p>
         </section>
 
         <section aria-label="Lançar quem não está no quadro">

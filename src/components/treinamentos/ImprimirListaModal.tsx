@@ -10,7 +10,7 @@ import { Printer } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { FiltroMultiplo } from '../ui/FiltroMultiplo';
 import { lerQuadroDaInfra, type PessoaDoQuadro } from '../../hooks/usePresencas';
-import { imprimirListaDePresenca, MAX_EM_BRANCO, type UnidadeDaLista } from '../../utils/listaPresenca';
+import { imprimirListaDePresenca, horaDaLista, cargaDaLista, LINHAS_EM_BRANCO, type UnidadeDaLista } from '../../utils/listaPresenca';
 import { formatDateBR } from '../../utils/date';
 
 interface Props {
@@ -27,7 +27,6 @@ export function ImprimirListaModal({ aoFechar, carregarQuadro = lerQuadroDaInfra
   const [unidade, setUnidade] = useState<UnidadeDaLista | ''>('');
   const [sedesSel, setSedesSel] = useState<string[]>([]);
   const [dados, setDados] = useState({ tema: '', instrutor: '', data: '', local: '', horario: '', cargaHoraria: '' });
-  const [emBranco, setEmBranco] = useState(5);
   const [erro, setErro] = useState('');
 
   useEffect(() => {
@@ -52,8 +51,8 @@ export function ImprimirListaModal({ aoFechar, carregarQuadro = lerQuadroDaInfra
     const abriu = imprimirListaDePresenca({
       unidade: unidadeFinal, logo: `${window.location.origin}/logos/${unidadeFinal}.png`,
       tema: dados.tema.trim(), instrutor: dados.instrutor.trim(), data: dados.data ? formatDateBR(dados.data) : '',
-      local: dados.local.trim() || sedesSel.join(', '), horario: dados.horario.trim(), cargaHoraria: dados.cargaHoraria.trim(),
-      pessoas: nomes.map(p => ({ nome: p.nome, setor: 'Infra' })), emBranco,
+      local: dados.local.trim() || sedesSel.join(', '), horario: horaDaLista(dados.horario), cargaHoraria: cargaDaLista(Number(dados.cargaHoraria)),
+      pessoas: nomes.map(p => ({ nome: p.nome, setor: 'Infra' })), emBranco: LINHAS_EM_BRANCO,
     });
     setErro(abriu ? '' : 'O navegador bloqueou a janela de impressão. Libere pop-ups para o SGPC e tente de novo.');
   };
@@ -65,14 +64,14 @@ export function ImprimirListaModal({ aoFechar, carregarQuadro = lerQuadroDaInfra
       rodape={<>
         <button type="button" className="btn" onClick={aoFechar}>Fechar</button>
         <button type="button" className="btn btn-primario" disabled={quadro === null} onClick={imprimir}>
-          <Printer aria-hidden="true" />Imprimir ({nomes.length} {nomes.length === 1 ? 'nome' : 'nomes'} + {emBranco} em branco)
+          <Printer aria-hidden="true" />Imprimir ({nomes.length} {nomes.length === 1 ? 'nome' : 'nomes'})
         </button>
       </>}
     >
       <div className="space-y-4">
         {erro && <p role="alert" className="erro-form">{erro}</p>}
         <p className="text-[13px]" style={{ color: 'var(--tinta-2)' }}>
-          Para imprimir antes da turma: os ASG das sedes marcadas saem com o nome impresso e só assinam. O que ficar vazio abaixo sai em branco na folha.
+          Para imprimir antes da turma: os ASG das sedes marcadas saem com o nome impresso e só assinam; depois deles, linhas em branco até o fim da folha. O que ficar vazio abaixo sai em branco na folha.
         </p>
 
         <div className="filtros">
@@ -94,14 +93,9 @@ export function ImprimirListaModal({ aoFechar, carregarQuadro = lerQuadroDaInfra
           {campo('instrutor', 'Instrutor(es)')}
           {campo('data', 'Data', { type: 'date' })}
           {campo('local', 'Local', { placeholder: 'Vazio: as sedes marcadas' })}
-          {campo('horario', 'Horário', { placeholder: 'Ex.: 14h' })}
-          {campo('cargaHoraria', 'Carga horária', { placeholder: 'Ex.: 1h' })}
+          {campo('horario', 'Horário', { type: 'time' })}
+          {campo('cargaHoraria', 'Carga horária (horas)', { type: 'number', min: 0.5, step: 0.5, inputMode: 'decimal', className: 'campo w-full tabular-nums' })}
         </div>
-        <label className="block w-40">
-          <span className="rotulo">Linhas em branco</span>
-          <input type="number" min={0} max={MAX_EM_BRANCO} className="campo w-full tabular-nums" value={emBranco}
-            onChange={e => setEmBranco(Math.max(0, Math.min(MAX_EM_BRANCO, Number(e.target.value) || 0)))} />
-        </label>
       </div>
     </Modal>
   );

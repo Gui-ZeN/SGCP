@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { folhasDaLista, htmlDaListaDePresenca, LINHAS_POR_FOLHA, MAX_EM_BRANCO, type DadosDaLista } from './listaPresenca';
+import { folhasDaLista, htmlDaListaDePresenca, horaDaLista, cargaDaLista, LINHAS_POR_FOLHA, MAX_EM_BRANCO, type DadosDaLista } from './listaPresenca';
 
 const base: DadosDaLista = {
   unidade: 'universidade', logo: 'https://sgp.test/logos/universidade.png', tema: 'NR 35', instrutor: 'SESMT', data: '22/10/2026',
@@ -49,5 +49,14 @@ describe('htmlDaListaDePresenca', () => {
     expect(h).toContain('Página: 1 de 3');
     expect(h).toContain('Página: 3 de 3');
     expect(h.match(/LISTA DE PRESENÇA EM AÇÃO/g)).toHaveLength(3);
+  });
+});
+
+describe('horário e carga na folha', () => {
+  it('hora do campo vira "14h" / "14h30"; vazio fica vazio', () => {
+    expect([horaDaLista('14:00'), horaDaLista('09:30'), horaDaLista('')]).toEqual(['14h', '9h30', '']);
+  });
+  it('carga em horas vira "1h" / "1h30"; zero ou vazio fica vazio', () => {
+    expect([cargaDaLista(1), cargaDaLista(1.5), cargaDaLista(0), cargaDaLista(Number(''))]).toEqual(['1h', '1h30', '', '']);
   });
 });
