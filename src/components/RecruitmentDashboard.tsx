@@ -18,7 +18,7 @@
  * O nome do componente ficou `RecruitmentDashboard` para o App não mudar.
  */
 import React, { useMemo, useState } from 'react';
-import { Printer } from 'lucide-react';
+import { Printer, Presentation } from 'lucide-react';
 import type { Vaga, Treinamento, Experiencia, Entrevista, Turnover, Integracao, Selecao } from '../types';
 import type { Sede } from '../hooks/useMetadata';
 import { SLA_META_DIAS } from '../constants/hr';
@@ -40,6 +40,7 @@ import { AbaSelecoes } from './indicadores/AbaSelecoes';
 import { AbaPessoas, avaliacoesAVencer, LIMITE_ATRASO_DIAS } from './indicadores/AbaPessoas';
 import { AbaClima } from './indicadores/AbaClima';
 import { AbaAbsenteismo } from './indicadores/AbaAbsenteismo';
+import { RelatorioMensalModal } from './indicadores/RelatorioMensalModal';
 import { num, dec, pct } from './indicadores/ui';
 import { sedesDaTurma } from '../utils/treinamentos';
 
@@ -74,6 +75,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   mostrarIntegracao = false, sedes = [], selecoes = [], userSede, isAdmin = false,
 }) => {
   const [aba, setAba] = useState<AbaId>('geral');
+  const [relatorioAberto, setRelatorioAberto] = useState(false);
 
   // ── filtros ──────────────────────────────────────────────────────────────
   // Quem não é admin vê a própria sede (como antes), já pela sigla do cadastro.
@@ -228,6 +230,9 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
           <button type="button" onClick={() => window.print()} title="Gerar PDF (pela impressão do navegador)" className="btn">
             <Printer aria-hidden="true" /> Exportar PDF
           </button>
+          <button type="button" onClick={() => setRelatorioAberto(true)} title="Relatório do mês em slides, no modelo do RH" className="btn">
+            <Presentation aria-hidden="true" /> Relatório mensal
+          </button>
         </div>
       </header>
 
@@ -236,6 +241,16 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
         <div className="text-2xl font-bold text-slate-900">Indicadores · RH</div>
         <div className="text-sm text-slate-500 font-semibold">{rotuloSede} · {rotuloDoPeriodo(periodo)} · gerado em {new Date().toLocaleDateString('pt-BR')}</div>
       </div>
+
+      {/* Quem está travado na própria sede vê o relatório dela, como o resto da tela. */}
+      {relatorioAberto && (
+        <RelatorioMensalModal sedes={sedes}
+          vagas={sedeTravada ? vagas.filter(v => daSede(v.sede)) : vagas}
+          selecoes={sedeTravada ? f.selecoesSede : selecoes}
+          experiencias={sedeTravada ? f.experienciasSede : experiencias}
+          integracoes={sedeTravada ? integracoes.filter(i => daSede(i.sede)) : integracoes}
+          treinamentos={sedeTravada ? treinamentos.filter(t => sedesDaTurma(t).some(daSede)) : treinamentos} mostrarIntegracao={mostrarIntegracao} aoFechar={() => setRelatorioAberto(false)} />
+      )}
 
       <nav role="tablist" aria-label="Temas dos indicadores" className="no-print abas">
         {ABAS.map(a => (
