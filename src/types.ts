@@ -62,6 +62,8 @@ export interface Treinamento {
   qtdRealizada: number;
   totalHorasFormacao: number;
   valorInvestido: number;
+  /** Sedes da turma (28/10/2026): pode reunir várias, todas da mesma unidade. `unidade` guarda a primeira. */
+  sedes?: string[];
   /** Turma do público da Infra (ASG): o RH declara, e a presença sai do quadro do Chromos (28/10/2026). */
   infra?: boolean;
   /** Com a presença marcada por nome, `qtdRealizada` é a contagem da lista (`presencas/{id}`). */

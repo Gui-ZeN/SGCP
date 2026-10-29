@@ -41,6 +41,7 @@ import { AbaPessoas, avaliacoesAVencer, LIMITE_ATRASO_DIAS } from './indicadores
 import { AbaClima } from './indicadores/AbaClima';
 import { AbaAbsenteismo } from './indicadores/AbaAbsenteismo';
 import { num, dec, pct } from './indicadores/ui';
+import { sedesDaTurma } from '../utils/treinamentos';
 
 interface RecruitmentDashboardProps {
   vagas: Vaga[];
@@ -80,7 +81,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   const sedeTravada = !isAdmin && !!userSede;
   const [sedesSel, setSedesSel] = useState<string[]>(() => (sedeTravada ? [siglaDaSede(sedes, userSede) || userSede!] : []));
   const opcoes = useMemo(() => opcoesDeSede(sedes, [
-    ...vagas.map(v => v.sede), ...selecoes.map(s => s.sede), ...treinamentos.map(t => t.unidade),
+    ...vagas.map(v => v.sede), ...selecoes.map(s => s.sede), ...treinamentos.flatMap(sedesDaTurma),
     ...experiencias.map(e => e.sede), ...integracoes.map(i => i.sede), ...entrevistas.map(e => e.unidade),
   ]), [sedes, vagas, selecoes, treinamentos, experiencias, integracoes, entrevistas]);
 
@@ -115,7 +116,8 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
       vagas: vagas.filter(v => v.status !== 'CANCELADA' && daSede(v.sede)),
       selecoes: selecoes.filter(s => daSede(s.sede) && noP(s.data)),
       selecoesSede: selecoes.filter(s => daSede(s.sede)),
-      treinamentos: treinamentos.filter(t => daSede(t.unidade) && noP(t.dataInicio)),
+      // Turma de várias sedes conta em qualquer uma delas (28/10/2026).
+      treinamentos: treinamentos.filter(t => sedesDaTurma(t).some(daSede) && noP(t.dataInicio)),
       experiencias: experiencias.filter(e => daSede(e.sede) && noP(e.dataAdmissao)),
       experienciasSede: experiencias.filter(e => daSede(e.sede)),
       integracoes: integSede.filter(i => noP(i.admissao)),

@@ -9,6 +9,7 @@ import type { Treinamento, Experiencia, Integracao } from '../../types';
 import type { Sede } from '../../hooks/useMetadata';
 import { diasEntre, dataISOLocal } from '../../utils/date';
 import { siglaDaSede, anoMes, MESES_CURTOS, type Periodo } from '../../utils/filtroIndicadores';
+import { sedesDaTurma } from '../../utils/treinamentos';
 import { TabelaDoGrafico } from '../TabelaDoGrafico';
 import { Painel, Kpi, Nota, Vazio, Dica, ListaComBarra, useEixos, num, pct } from './ui';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
@@ -148,7 +149,7 @@ export const AbaPessoas: React.FC<Props> = ({ treinamentos, experiencias, experi
                     <tr key={t.id}>
                       <td className="py-2 pr-2 font-semibold text-slate-800">{t.tema}</td>
                       <td className="py-2 px-2 tabular-nums text-slate-600">{t.dataInicio}</td>
-                      <td className="py-2 px-2 text-slate-600">{siglaDaSede(sedes, t.unidade) || '—'}</td>
+                      <td className="py-2 px-2 text-slate-600">{sedesDaTurma(t).map(s => siglaDaSede(sedes, s) || s).join(', ') || '—'}</td>
                       <td className="py-2 pl-2 text-right tabular-nums font-bold text-slate-900">{num(t.qtdRealizada || 0)} / {num(t.qtdPrevista || 0)}</td>
                     </tr>
                   ))}

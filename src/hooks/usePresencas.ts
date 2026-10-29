@@ -19,7 +19,10 @@ export async function lerQuadroDaInfra(): Promise<PessoaDoQuadro[]> {
   if (r.status === 401) throw new Error('Sua sessão expirou: saia e entre de novo.');
   if (r.status === 403) throw new Error('Só quem edita os treinamentos vê o quadro da Infra.');
   if (!r.ok) throw new Error('O Chromos não respondeu. Tente de novo em instantes.');
-  return ((await r.json()) as { pessoas: PessoaDoQuadro[] }).pessoas;
+  // Resposta que não é a lista (página de erro, proxy): frase para o RH, não o erro técnico.
+  const corpo = await r.json().catch(() => null) as { pessoas?: PessoaDoQuadro[] } | null;
+  if (!Array.isArray(corpo?.pessoas)) throw new Error('O Chromos não respondeu. Tente de novo em instantes.');
+  return corpo.pessoas;
 }
 
 /**

@@ -13,10 +13,12 @@ import { Modal } from './ui/Modal';
 import { FiltroMultiplo } from './ui/FiltroMultiplo';
 import { Kpi } from './indicadores/ui';
 import { PresencaModal } from './treinamentos/PresencaModal';
+import { sedesDaTurma, turmaNaSede, erroDasSedes } from '../utils/treinamentos';
 
 interface TreinamentosSectionProps {
   treinamentos: Treinamento[];
-  addTreinamento: (input: Omit<Treinamento, 'id' | 'codigo'>) => Promise<void>;
+  /** Devolve o id da turma criada (para abrir "Quem participou" logo depois). */
+  addTreinamento: (input: Omit<Treinamento, 'id' | 'codigo'>) => Promise<string | undefined | void>;
   updateTreinamento: (id: string, updatedFields: Partial<Treinamento>) => Promise<void>;
   deleteTreinamento: (id: string) => Promise<void>;
   sedes?: Sede[];
@@ -47,6 +49,11 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
   // A turma cuja presença está aberta (só turmas da Infra).
   const [presencaDe, setPresencaDe] = useState<Treinamento | null>(null);
   const [infra, setInfra] = useState(false);
+  // Turma da Infra recém-registrada: "Quem participou" abre assim que ela
+  // chega da escuta (com a unidade carimbada, que a presença precisa).
+  const [abrirPresencaDe, setAbrirPresencaDe] = useState<string | null>(null);
+  // Sedes da turma no formulário (28/10/2026: múltipla escolha).
+  const [sedesForm, setSedesForm] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [importandoUni, setImportandoUni] = useState(false);
   const uniFileRef = useRef<HTMLInputElement>(null);
@@ -66,7 +73,6 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
   const [tipo, setTipo] = useState<Treinamento['tipo']>('Técnico');
   const [facilitador, setFacilitador] = useState('');
   const [publico, setPublico] = useState('');
-  const [unidade, setUnidade] = useState('DT');
   const [cargaHoraria, setCargaHoraria] = useState<number>(8);
   const [qtdPrevista, setQtdPrevista] = useState<number>(10);
   const [qtdRealizada, setQtdRealizada] = useState<number>(10);
@@ -118,7 +124,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
     setTipo('Técnico');
     setFacilitador('');
     setPublico('');
-    setUnidade(userSede || 'DT');
+    setSedesForm(userSede ? [userSede] : []);
     setCargaHoraria(8);
     setQtdPrevista(10);
     setQtdRealizada(10);
@@ -142,7 +148,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
     setTipo(treinamento.tipo || 'Técnico');
     setFacilitador(treinamento.facilitador || '');
     setPublico(treinamento.publico || '');
-    setUnidade(treinamento.unidade || userSede || 'DT');
+    setSedesForm(sedesDaTurma(treinamento));
     setCargaHoraria(treinamento.cargaHoraria || 0);
     setQtdPrevista(treinamento.qtdPrevista || 0);
     setQtdRealizada(treinamento.qtdRealizada || 0);
@@ -162,12 +168,18 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
         t.publico.toLowerCase().includes(searchTerm.toLowerCase());
       
       const unidades = sedeTravada ? [userSede!] : unidadesSel;
-      const matchUnidade = !unidades.length || unidades.some(u => (t.unidade || '').toLowerCase() === u.toLowerCase());
+      const matchUnidade = !unidades.length || unidades.some(u => turmaNaSede(t, u));
       const matchTipo = !tiposSel.length || tiposSel.includes(t.tipo);
 
       return matchText && matchUnidade && matchTipo;
     });
   }, [treinamentos, searchTerm, unidadesSel, tiposSel, userSede, sedeTravada]);
+
+  useEffect(() => {
+    if (!abrirPresencaDe) return;
+    const nova = treinamentos.find(t => t.id === abrirPresencaDe);
+    if (nova?.escopo) { setPresencaDe(nova); setAbrirPresencaDe(null); }
+  }, [abrirPresencaDe, treinamentos]);
 
   // Stats
   const stats = useMemo(() => {
@@ -201,6 +213,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
       setErrorMsg("Por favor, preencha Tema, Facilitador e Data de Início.");
       return;
     }
+    const erroSedes = erroDasSedes(sedesForm, sedes || []);
+    if (erroSedes) { setErrorMsg(erroSedes); return; }
 
     // Reference month computation (Portuguese e.g. "maio")
     const months = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
@@ -236,7 +250,9 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
       }
     } catch(err){}
 
-    const totalCalculatedHours = Number(qtdRealizada) * Number(cargaHoraria);
+    // Turma da Infra sem lista ainda: 0 até salvar quem participou (o campo nem aparece).
+    const realizado = infra && !editingTreinamento?.presencaPelaLista ? 0 : Number(qtdRealizada) || 0;
+    const totalCalculatedHours = realizado * Number(cargaHoraria);
 
     const payload = {
       dataInicio: finalDataInicio,
@@ -246,20 +262,23 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
       tipo,
       facilitador,
       publico,
-      unidade,
       cargaHoraria: Number(cargaHoraria) || 0,
       qtdPrevista: Number(qtdPrevista) || 0,
-      qtdRealizada: Number(qtdRealizada) || 0,
+      qtdRealizada: realizado,
       totalHorasFormacao: totalCalculatedHours,
       valorInvestido: Number(valorInvestido) || 0,
-      infra
+      infra,
+      // A primeira sede vai em `unidade`: é o que o isolamento e o resto do sistema leem.
+      unidade: sedesForm[0],
+      sedes: sedesForm,
     };
 
     try {
       if (editingTreinamento) {
         await updateTreinamento(editingTreinamento.id, payload);
       } else {
-        await addTreinamento(payload);
+        const id = await addTreinamento(payload);
+        if (infra && salvarPresenca && typeof id === 'string') setAbrirPresencaDe(id);
       }
       resetForm();
       setShowAddForm(false);
@@ -295,7 +314,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
       { type: String, value: t.mesReferencia || null },
       { type: String, value: t.facilitador || null },
       { type: String, value: t.publico || null },
-      { type: String, value: t.unidade || null },
+      { type: String, value: sedesDaTurma(t).join(', ') || null },
       { type: Number, value: t.cargaHoraria ?? null },
       { type: Number, value: t.qtdPrevista ?? null },
       { type: Number, value: t.qtdRealizada ?? null },
@@ -386,7 +405,7 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
             return (
               <article key={t.id} className="painel cartao-item">
                 <div className="cartao-item-antes">
-                  <span>nº {t.codigo || 's/n'} · {t.unidade || 'sem unidade'}</span>
+                  <span>nº {t.codigo || 's/n'} · {sedesDaTurma(t).join(', ') || 'sem unidade'}</span>
                   <span className="etiqueta">{t.tipo}</span>
                 </div>
                 <h3>{t.tema}</h3>
@@ -489,13 +508,12 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                 <input type="text" required className="campo w-full" placeholder="Ex.: Renata Lima (RH)"
                   value={facilitador} onChange={(e) => setFacilitador(e.target.value)} />
               </label>
-              <label className="block">
-                <span className="rotulo">Unidade</span>
-                <select className="campo w-full" value={unidade} onChange={(e) => setUnidade(e.target.value)}>
-                  {unidade && !unidadesList.includes(unidade) && <option value={unidade}>{unidade}</option>}
-                  {unidadesList.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </label>
+              <div className="block">
+                <span className="rotulo">Sedes</span>
+                {/* Múltipla escolha (28/10/2026): uma turma pode reunir várias sedes, da mesma unidade. */}
+                <FiltroMultiplo rotulo="Sedes" todos="escolha" selecionados={sedesForm} onChange={setSedesForm}
+                  opcoes={[...new Set([...sedesForm, ...unidadesList])].map(u => ({ valor: u, rotulo: u }))} />
+              </div>
               <label className="block">
                 <span className="rotulo">Carga horária por pessoa (h)</span>
                 <input type="number" min={0} className="campo w-full tabular-nums" value={cargaHoraria} onChange={(e) => setCargaHoraria(Number(e.target.value))} />
@@ -522,13 +540,20 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
                 <span className="rotulo">Previstos</span>
                 <input type="number" min={0} className="campo w-full tabular-nums" value={qtdPrevista} onChange={(e) => setQtdPrevista(Number(e.target.value))} />
               </label>
-              <label className="block">
-                <span className="rotulo">Participaram</span>
-                {/* Com a presença por nome, o número é a lista ("Quem participou" no cartão). */}
-                <input type="number" min={0} className="campo w-full tabular-nums" value={qtdRealizada} readOnly={!!editingTreinamento?.presencaPelaLista}
-                  title={editingTreinamento?.presencaPelaLista ? 'Vem da lista de quem participou' : undefined}
-                  onChange={(e) => setQtdRealizada(Number(e.target.value))} />
-              </label>
+              {/* Turma da Infra: o número é a lista de quem participou, não se digita. */}
+              {infra ? (
+                <div className="block">
+                  <span className="rotulo">Participaram</span>
+                  <p className="text-[13px] pt-2" style={{ color: 'var(--tinta-2)' }}>
+                    {editingTreinamento?.presencaPelaLista ? <><b className="tabular-nums">{qtdRealizada}</b> pela lista</> : 'Vem da lista de quem participou'}
+                  </p>
+                </div>
+              ) : (
+                <label className="block">
+                  <span className="rotulo">Participaram</span>
+                  <input type="number" min={0} className="campo w-full tabular-nums" value={qtdRealizada} onChange={(e) => setQtdRealizada(Number(e.target.value))} />
+                </label>
+              )}
               <label className="block">
                 <span className="rotulo">Valor (R$)</span>
                 <input type="number" min={0} step="0.01" className="campo w-full tabular-nums" value={valorInvestido} onChange={(e) => setValorInvestido(Number(e.target.value))} />

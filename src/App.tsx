@@ -1003,12 +1003,17 @@ export default function App() {
       await logAction('EXCLUIU', 'Vagas', `Vaga #${v?.codigo || id} ("${v?.vaga || ''}") excluída permanentemente.`, { escopo: unidadeDaVaga(v) });
     });
 
-  const wrappedAddTreinamento = (input: any) => 
-    executeWithLoading("Sincronizando registro de treinamento...", async () => {
-      await addTreinamento(input);
-      await logAction('CRIOU', 'Treinamentos', `Treinamento sobre "${input.tema || ''}" registrado na unidade "${input.unidade || ''}".`,
+  // Devolve o id: turma da Infra abre "Quem participou" logo depois de registrar.
+  const wrappedAddTreinamento = async (input: any) => {
+    let id: string | undefined;
+    await executeWithLoading("Sincronizando registro de treinamento...", async () => {
+      id = (await addTreinamento(input)) || undefined;
+      const onde = (input.sedes?.length ? input.sedes : [input.unidade]).filter(Boolean).join(', ');
+      await logAction('CRIOU', 'Treinamentos', `Treinamento sobre "${input.tema || ''}" registrado em "${onde}".`,
         { ref: { tema: input.tema, unidade: input.unidade }, escopo: unidadeDe({ sede: input.unidade }) });
     });
+    return id;
+  };
 
   const wrappedDeleteTreinamento = (id: string) => 
     executeWithLoading("Excluindo registro de treinamento...", async () => {
