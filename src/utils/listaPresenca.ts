@@ -24,17 +24,23 @@ export interface DadosDaLista {
 }
 
 // Cabe numa A4 com o cabeçalho e o rodapé (Observações/Visto) — conferido no PDF.
-export const LINHAS_POR_FOLHA = 22;
+// 31 linhas, como o papel original (pedido do Guilherme, 30/10/2026).
+export const LINHAS_POR_FOLHA = 31;
 export const MAX_EM_BRANCO = 60;
 
 const NOME_DA_UNIDADE: Record<UnidadeDaLista, string> = { colegio: 'Colégio Christus', universidade: 'Universidade Christus' };
 
 const esc = (s: string) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
-/** As linhas da lista, já em folhas: os do quadro e depois as em branco. */
+/**
+ * As linhas da lista, já em folhas: os do quadro e depois as em branco.
+ * `emBranco` é o MÍNIMO: a última folha é completada até o fim, como o papel
+ * (antes a tabela acabava no meio e sobrava meia folha vazia — 30/10/2026).
+ */
 export function folhasDaLista(pessoas: DadosDaLista['pessoas'], emBranco: number, porFolha = LINHAS_POR_FOLHA) {
-  const brancas = Math.max(0, Math.min(MAX_EM_BRANCO, Math.floor(emBranco) || 0));
-  const linhas = [...pessoas, ...Array.from({ length: brancas }, () => ({ nome: '', setor: '' }))];
+  const minimo = pessoas.length + Math.max(0, Math.min(MAX_EM_BRANCO, Math.floor(emBranco) || 0));
+  const total = Math.max(porFolha, Math.ceil(minimo / porFolha) * porFolha);
+  const linhas = [...pessoas, ...Array.from({ length: total - pessoas.length }, () => ({ nome: '', setor: '' }))];
   const folhas: { n: number; nome: string; setor: string }[][] = [];
   linhas.forEach((l, i) => {
     if (i % porFolha === 0) folhas.push([]);
@@ -72,10 +78,12 @@ export function htmlDaListaDePresenca(d: DadosDaLista): string {
   </section>`;
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Lista de presença — ${esc(d.tema)}</title>
 <style>
-  @page { size: A4; margin: 10mm; }
+  /* A margem é da folha, não da impressora: com "Margens: nenhuma" no navegador
+     a folha encostava na borda do papel (teste do Guilherme, 30/10/2026). */
+  @page { size: A4; margin: 0; }
   * { box-sizing: border-box; }
   body { margin: 0; font: 10.5pt Arial, Helvetica, sans-serif; color: #000; }
-  .folha { page-break-after: always; }
+  .folha { width: 210mm; height: 296mm; padding: 11mm 12mm; display: flex; flex-direction: column; overflow: hidden; page-break-after: always; }
   .folha:last-child { page-break-after: auto; }
   table { width: 100%; border-collapse: collapse; }
   .cab td { border: 1px solid #000; padding: 4px 6px; }
@@ -85,10 +93,12 @@ export function htmlDaListaDePresenca(d: DadosDaLista): string {
            -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .dados .lin { display: flex; border-bottom: 1px solid #000; padding: 3px 0; gap: 6px; }
   .dados .r { font-weight: bold; white-space: nowrap; } .dados .v { flex: 1; } .dados .sep { width: 4mm; }
-  .lista { margin-top: 4mm; } .lista th, .lista td { border: 1px solid #000; height: 8.2mm; padding: 0 5px; }
+  .lista { margin-top: 3mm; } .lista th, .lista td { border: 1px solid #000; height: 6.1mm; padding: 0 5px; }
   .lista th { background: #eee; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .lista .n { width: 9mm; text-align: center; } .lista .nome { width: 40%; } .lista .s { width: 18%; }
-  .rod { margin-top: 5mm; } .rod td { border-top: 1px solid #000; height: 16mm; vertical-align: top; width: 50%; padding: 3px; }
+  .lista .n { width: 9mm; text-align: center; } .lista .s { width: 14%; }
+  /* Nome numa linha só (a altura da linha é fixa: quebrar empurrava a folha); longo demais, reticências. */
+  .lista .nome { width: 46%; max-width: 0; font-size: 9pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rod { margin-top: auto; } .rod td { border-top: 1px solid #000; height: 14mm; vertical-align: top; width: 50%; padding: 3px; }
 </style></head><body>${folhas.map((f, i) => folha(f, i + 1)).join('')}</body></html>`;
 }
 

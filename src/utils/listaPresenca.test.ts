@@ -7,19 +7,24 @@ const base: DadosDaLista = {
 };
 
 describe('folhasDaLista', () => {
-  it('os do quadro primeiro, depois as em branco, numeradas em sequência', () => {
+  it('os do quadro primeiro, depois as em branco, numeradas em sequência até completar a folha', () => {
     const [f] = folhasDaLista([{ nome: 'A', setor: 'Infra' }, { nome: 'B', setor: 'Infra' }], 2);
-    expect(f.map(l => [l.n, l.nome])).toEqual([[1, 'A'], [2, 'B'], [3, ''], [4, '']]);
+    expect(f).toHaveLength(LINHAS_POR_FOLHA);
+    expect(f.slice(0, 3).map(l => [l.n, l.nome])).toEqual([[1, 'A'], [2, 'B'], [3, '']]);
+    expect(f.at(-1)).toMatchObject({ n: LINHAS_POR_FOLHA, nome: '' });
   });
   it('quebra em folhas de LINHAS_POR_FOLHA', () => {
     const pessoas = Array.from({ length: LINHAS_POR_FOLHA + 3 }, (_, i) => ({ nome: `P${i}`, setor: 'Infra' }));
     const folhas = folhasDaLista(pessoas, 0);
-    expect(folhas.map(f => f.length)).toEqual([LINHAS_POR_FOLHA, 3]);
+    expect(folhas.map(f => f.length)).toEqual([LINHAS_POR_FOLHA, LINHAS_POR_FOLHA]); // a 2ª completa até o fim
+    expect(folhas[1].filter(l => l.nome)).toHaveLength(3);
     expect(folhas[1][0].n).toBe(LINHAS_POR_FOLHA + 1);
   });
-  it('em branco: negativo vira 0, acima do teto é cortado; lista vazia ainda gera uma folha', () => {
-    expect(folhasDaLista([], -3)).toEqual([[]]);
-    expect(folhasDaLista([], 999).flat()).toHaveLength(MAX_EM_BRANCO);
+  it('em branco é o MÍNIMO: a folha completa sozinha; acima do teto é cortado', () => {
+    expect(folhasDaLista([], -3).flat()).toHaveLength(LINHAS_POR_FOLHA);
+    const cheia = Array.from({ length: LINHAS_POR_FOLHA }, (_, i) => ({ nome: `P${i}`, setor: 'Infra' }));
+    expect(folhasDaLista(cheia, 1)).toHaveLength(2); // 1 em branco a mais força outra folha
+    expect(folhasDaLista([], 999).flat().length).toBe(Math.ceil(MAX_EM_BRANCO / LINHAS_POR_FOLHA) * LINHAS_POR_FOLHA);
   });
 });
 
