@@ -32,7 +32,10 @@ let TURMAS: Record<string, unknown>;
 
 // ── Drive falso ──────────────────────────────────────────────────────────────
 const PASTA_COL = 'pastaColegio123', PASTA_UNI = 'pastaUniversid1';
-interface F { id: string; mimeType: string; size?: string; parents: string[]; trashed: boolean; createdTime: string; appProperties: Record<string, string>; bytes: Buffer }
+let colaborador = false;
+/** Apagado de um jeito ou de outro: na lixeira, ou esvaziado e sem as marcas (conta colaboradora). */
+const apagado = (id: string) => { const f = arquivos.get(id)!; return f.trashed || (f.appProperties.confirmado === 'apagado' && !f.appProperties.treinamentoId && f.bytes.length === 0); };
+interface F { name?: string; id: string; mimeType: string; size?: string; parents: string[]; trashed: boolean; createdTime: string; appProperties: Record<string, string>; bytes: Buffer }
 let arquivos: Map<string, F>;
 let sessoes: Map<string, Omit<F, 'id' | 'bytes' | 'size' | 'trashed' | 'createdTime'> & { origem: string }>;
 let seq = 0;
@@ -93,10 +96,14 @@ beforeEach(() => {
     const id = decodeURIComponent(u.pathname.split('/').pop()!);
     const f = arquivos.get(id);
     if (!f) return new Response('', { status: 404 });
+    if (init.method === 'PATCH' && u.pathname.startsWith('/upload/')) { f.bytes = Buffer.alloc(0); f.size = '0'; return Response.json({ id }); }
     if (init.method === 'PATCH') {
       const corpo = JSON.parse(String(init.body));
+      // Colaboradora num Drive compartilhado: não apaga nem move (o Drive do RH, 30/10/2026).
+      if (colaborador && (corpo.trashed || u.searchParams.get('addParents'))) return new Response('', { status: 403 });
       if (corpo.trashed) f.trashed = true;
-      if (corpo.appProperties) Object.assign(f.appProperties, corpo.appProperties);
+      if (corpo.name) f.name = corpo.name;
+      for (const [k, v] of Object.entries(corpo.appProperties || {})) { if (v === null) delete f.appProperties[k]; else f.appProperties[k] = v as string; }
       if (u.searchParams.get('addParents')) f.parents = [u.searchParams.get('addParents')!];
       return Response.json({ id });
     }
@@ -140,6 +147,11 @@ async function anexar(quem: string, turma: string, bytes: Buffer, tipo = 'image/
   return { id, c: await pedir(quem, 'POST', { acao: 'confirmar' }, { treinamentoId: turma, arquivo: id }) };
 }
 
+// A suíte inteira roda com a conta como Gerente de conteúdo (lixeira de verdade) e
+// como Colaboradora (o Drive do RH, 30/10/2026: esvazia e desmarca, não move).
+for (const modo of [false, true]) describe(modo ? 'conta colaboradora' : 'conta gerente de conteúdo', () => {
+beforeEach(() => { colaborador = modo; });
+
 describe('caminho normal (15)', () => {
   it('RH da unidade: inicia, envia, confirma, lista, baixa e apaga', async () => {
     const { id, c } = await anexar('col@x.com', 'tCol', JPG);
@@ -151,7 +163,7 @@ describe('caminho normal (15)', () => {
     expect(Buffer.compare(b.body, JPG)).toBe(0);
     const a = await pedir('col@x.com', 'DELETE', { acao: 'apagar', treinamento: 'tCol', arquivo: id });
     expect(a.body).toEqual({ apagados: 1 });
-    expect(arquivos.get(id)!.trashed).toBe(true);
+    expect(apagado(id)).toBe(true);
   });
   it('Administrador nas duas unidades (14)', async () => {
     expect((await anexar('admin@x.com', 'tCol', JPG)).c.code).toBe(200);
@@ -216,7 +228,7 @@ describe('conteúdo (16–24)', () => {
     for (const [bytes, tipo] of casos) {
       const { id, c } = await anexar('col@x.com', 'tCol', bytes, tipo);
       expect(c.code).toBe(422);
-      expect(arquivos.get(id)!.trashed).toBe(true);
+      expect(apagado(id)).toBe(true);
     }
     expect((await pedir('col@x.com', 'GET', { acao: 'listar', treinamento: 'tCol' })).body.anexos).toEqual([]);
   });
@@ -224,7 +236,7 @@ describe('conteúdo (16–24)', () => {
     const i = await pedir('col@x.com', 'POST', { acao: 'iniciar' }, { treinamentoId: 'tCol', nome: 'a', tipo: 'image/jpeg', tamanho: 300 });
     const id = enviarNaSessao(i.body.sessao, Buffer.concat([JPG, Buffer.alloc(3 * 1024 * 1024)]));
     expect((await pedir('col@x.com', 'POST', { acao: 'confirmar' }, { treinamentoId: 'tCol', arquivo: id })).code).toBe(422);
-    expect(arquivos.get(id)!.trashed).toBe(true);
+    expect(apagado(id)).toBe(true);
   });
   it('JPEG poliglota é aceito, mas a entrega não deixa rodar nada (19, 33)', async () => {
     const { id } = await anexar('col@x.com', 'tCol', Buffer.concat([JPG, Buffer.from('<script>x</script>')]));
@@ -279,9 +291,13 @@ describe('apagar (35, 36)', () => {
     const a = await anexar('col@x.com', 'tCol', JPG), b = await anexar('col@x.com', 'tCol', JPG);
     expect((await pedir('uni@x.com', 'DELETE', { acao: 'apagar', treinamento: 'tCol', arquivo: a.id })).code).toBe(403);
     expect((await pedir('uni@x.com', 'DELETE', { acao: 'apagar', treinamento: 'tUni', arquivo: a.id })).code).toBe(404);
-    expect(arquivos.get(a.id)!.trashed).toBe(false);
+    expect(apagado(a.id)).toBe(false);
     expect((await pedir('col@x.com', 'DELETE', { acao: 'apagar', treinamento: 'tCol', todos: '1' })).body).toEqual({ apagados: 2 });
-    expect([a.id, b.id].every(id => arquivos.get(id)!.trashed)).toBe(true);
+    expect([a.id, b.id].every(id => apagado(id))).toBe(true);
+    // Colaboradora: a foto some de fato (0 bytes) e o arquivo fica com nome de apagado, sem a turma.
+    if (colaborador) expect(arquivos.get(a.id)!).toMatchObject({ trashed: false, name: `APAGADO-${a.id}`, size: '0' });
+    expect((await pedir('col@x.com', 'GET', { acao: 'listar', treinamento: 'tCol' })).body.anexos).toEqual([]);
+    expect((await pedir('col@x.com', 'GET', { acao: 'baixar', treinamento: 'tCol', arquivo: a.id })).code).toBe(404);
   });
 });
 
@@ -365,8 +381,8 @@ describe('varredura (37, 38)', () => {
     }
     for (const id of ids) arquivos.get(id)!.appProperties.confirmado = 'sim'; // como se as confirmações não se enxergassem
     expect((await pedir('Bearer segredo-do-cron', 'GET', { acao: 'varrer' })).body).toEqual({ lixeira: 1, movidos: 0 });
-    expect(arquivos.get(ids[MAX_ANEXOS])!.trashed).toBe(true);
-    expect(ids.slice(0, MAX_ANEXOS).some(id => arquivos.get(id)!.trashed)).toBe(false);
+    expect(apagado(ids[MAX_ANEXOS])).toBe(true);
+    expect(ids.slice(0, MAX_ANEXOS).some(id => apagado(id))).toBe(false);
   });
   it('só com o CRON_SECRET', async () => {
     expect((await pedir('Bearer errado', 'GET', { acao: 'varrer' })).code).toBe(401);
@@ -389,9 +405,10 @@ describe('varredura (37, 38)', () => {
 
     const r = await pedir('Bearer segredo-do-cron', 'GET', { acao: 'varrer' });
     expect(r.body).toEqual({ lixeira: 2, movidos: 1 });
-    expect(arquivos.get(pendente)!.trashed && arquivos.get(orfao)!.trashed).toBe(true);
-    expect(arquivos.get(recente)!.trashed || arquivos.get(fica)!.trashed).toBe(false);
-    expect(arquivos.get(mudou)!).toMatchObject({ parents: [PASTA_UNI], appProperties: { escopo: 'universidade' } });
+    expect(apagado(pendente) && apagado(orfao)).toBe(true);
+    expect(apagado(recente) || apagado(fica)).toBe(false);
+    expect(arquivos.get(mudou)!).toMatchObject({ parents: [colaborador ? PASTA_COL : PASTA_UNI], appProperties: { escopo: 'universidade' } });
     expect((await pedir('col@x.com', 'GET', { acao: 'listar', treinamento: 'tCol' })).code).toBe(403);
   });
+});
 });

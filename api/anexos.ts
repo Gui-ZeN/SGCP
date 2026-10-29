@@ -21,9 +21,10 @@
  *     motivo.
  *  6. Teto de 10 por turma decidido no confirmar, por ordem de criação: a
  *     corrida não passa de 10 confirmados.
- *  7. Varredura diária (cron): lixeira para o que nunca foi confirmado em 24 h
- *     e para anexo de turma apagada; muda de pasta o de turma que trocou de
- *     unidade.
+ *  7. Varredura diária (cron): apaga o que nunca foi confirmado em 24 h e o
+ *     anexo de turma apagada; muda de unidade o de turma que trocou. A conta é
+ *     só COLABORADORA no Drive do RH: "apagar" vira esvaziar e desmarcar, e a
+ *     troca de unidade, só a marca (ver `paraLixeira`).
  *  8. Log só com ids e status — nunca nome de arquivo, e-mail, token ou a URL
  *     da sessão (que vale como credencial de envio).
  *
@@ -135,9 +136,26 @@ async function metadados(token: string, id: string): Promise<Arquivo | null> {
   const r = await drive(token, `${DRIVE}/${encodeURIComponent(id)}?supportsAllDrives=true&fields=${CAMPOS}`);
   return r.status === 404 ? null : r.json();
 }
+/**
+ * Apaga: lixeira, se a conta puder. No Drive do RH ela só pode ser
+ * COLABORADORA (30/10/2026), e colaborador num Drive compartilhado não apaga
+ * nem move. Aí o conteúdo é esvaziado (a foto some de fato), o arquivo vira
+ * `APAGADO-<id>` e perde as marcas — nenhuma busca da rota o acha mais. Quem
+ * administra o Drive limpa os vazios quando quiser.
+ */
 async function paraLixeira(token: string, id: string) {
-  await drive(token, `${DRIVE}/${encodeURIComponent(id)}?supportsAllDrives=true`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }),
+  const alvo = encodeURIComponent(id);
+  const r = await fetch(`${DRIVE}/${alvo}?supportsAllDrives=true`, {
+    method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }),
+  });
+  if (r.ok || r.status === 404) return;
+  if (r.status !== 403) throw new Error(`drive ${r.status}`);
+  await drive(token, `${UPLOAD}/${alvo}?uploadType=media&supportsAllDrives=true`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/octet-stream' }, body: new Uint8Array(0),
+  });
+  await drive(token, `${DRIVE}/${alvo}?supportsAllDrives=true`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: `APAGADO-${id}`, appProperties: { confirmado: 'apagado', treinamentoId: null, nome: null } }),
   });
 }
 async function listar(token: string, q: string): Promise<Arquivo[]> {
@@ -334,9 +352,13 @@ async function varrer(req: any, res: any) {
     if (a.appProperties?.escopo !== unidade) {
       const de = await pastaDa(token, a.appProperties?.escopo === 'universidade' ? 'universidade' : 'colegio');
       const para = await pastaDa(token, unidade);
-      await drive(token, `${DRIVE}/${encodeURIComponent(a.id)}?supportsAllDrives=true&addParents=${para}&removeParents=${de}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appProperties: { escopo: unidade } }),
-      });
+      const marca = { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appProperties: { escopo: unidade } }) };
+      // Colaboradora não move (ver paraLixeira): troca só a marca. O acesso pelo
+      // SGPC segue a turma de qualquer jeito; a pasta é só arrumação no Drive.
+      const r = await fetch(`${DRIVE}/${encodeURIComponent(a.id)}?supportsAllDrives=true&addParents=${para}&removeParents=${de}`,
+        { ...marca, headers: { ...marca.headers, Authorization: `Bearer ${token}` } });
+      if (r.status === 403) await drive(token, `${DRIVE}/${encodeURIComponent(a.id)}?supportsAllDrives=true`, marca);
+      else if (!r.ok) throw new Error(`drive ${r.status}`);
       movidos++;
     }
   }
