@@ -7,12 +7,13 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Treinamento, Participante } from '../types';
 import { toISOInput } from '../utils/date';
 import { exportToXlsx } from '../utils/xlsxExporter';
-import { Search, Plus, Download, Trash2, Pencil, Upload, Loader2, Users } from 'lucide-react';
+import { Search, Plus, Download, Trash2, Pencil, Upload, Loader2, Users, Printer } from 'lucide-react';
 import { Sede } from '../hooks/useMetadata';
 import { Modal } from './ui/Modal';
 import { FiltroMultiplo } from './ui/FiltroMultiplo';
 import { Kpi } from './indicadores/ui';
 import { PresencaModal } from './treinamentos/PresencaModal';
+import { ImprimirListaModal } from './treinamentos/ImprimirListaModal';
 import { sedesDaTurma, turmaNaSede, erroDasSedes } from '../utils/treinamentos';
 
 interface TreinamentosSectionProps {
@@ -48,6 +49,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
 }) => {
   // A turma cuja presença está aberta (só turmas da Infra).
   const [presencaDe, setPresencaDe] = useState<Treinamento | null>(null);
+  // Lista para assinar impressa ANTES de registrar a turma (29/10/2026).
+  const [imprimirAvulsa, setImprimirAvulsa] = useState(false);
   const [infra, setInfra] = useState(false);
   // Turma da Infra recém-registrada: "Quem participou" abre assim que ela
   // chega da escuta (com a unidade carimbada, que a presença precisa).
@@ -367,6 +370,11 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
               </button>
             </>
           )}
+          {canManage && salvarPresenca && (
+            <button type="button" className="btn" onClick={() => setImprimirAvulsa(true)} title="Lista com os nomes do quadro da Infra, para assinar antes de registrar a turma">
+              <Printer aria-hidden="true" /> Imprimir lista de presença
+            </button>
+          )}
           {canManage && (
             <button type="button" id="btn-show-add-treinamento" className="btn btn-primario" onClick={openCreateForm}>
               <Plus aria-hidden="true" /> Registrar treinamento
@@ -562,6 +570,8 @@ export const TreinamentosSection: React.FC<TreinamentosSectionProps> = ({
           </form>
         </Modal>
       )}
+
+      {imprimirAvulsa && <ImprimirListaModal aoFechar={() => setImprimirAvulsa(false)} />}
 
       {presencaDe && salvarPresenca && (
         <PresencaModal turma={presencaDe} onSalvar={lista => salvarPresenca(presencaDe, lista)} aoFechar={() => setPresencaDe(null)} />
