@@ -19,6 +19,7 @@ import { dataISOLocal } from '../../utils/date';
 import { dadosDoRelatorio } from '../../utils/relatorioMensal';
 import { imprimirRelatorio, type TextosDoRelatorio } from '../../utils/relatorioMensalHtml';
 import { listarAnexos, baixarAnexo } from '../../hooks/useAnexos';
+import { linhasDosFeriados } from '../../utils/feriados';
 
 const comoDataUrl = (b: Blob) => new Promise<string>(ok => { const r = new FileReader(); r.onload = () => ok(String(r.result || '')); r.onerror = () => ok(''); r.readAsDataURL(b); });
 
@@ -36,8 +37,9 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 // ano, comunicação e calendário por mês, o texto do destaque por TEMA — senão o
 // parágrafo de setembro saía sob o treinamento de outubro sem ninguém notar.
 // Só as ações de R&S passam de um mês para o outro.
-interface DoMes { artes: string; emails: string; calendario: string }
-const MES_VAZIO: DoMes = { artes: '', emails: '', calendario: '' };
+// `calendario` ausente = os feriados do mês seguinte, calculados; só vira texto guardado quando o RH edita.
+interface DoMes { artes: string; emails: string; calendario?: string }
+const MES_VAZIO: DoMes = { artes: '', emails: '', calendario: undefined };
 interface Rascunho { linhaDoTempo: Record<number, string[]>; acoes: string; meses: Record<string, DoMes>; destaques: Record<string, string> }
 const RASCUNHO_VAZIO: Rascunho = { linhaDoTempo: {}, acoes: '', meses: {}, destaques: {} };
 const chave = (u: Escopo) => `sgpc.relatorioMensal.${u}`;
@@ -77,7 +79,8 @@ export function RelatorioMensalModal({ vagas, selecoes, experiencias, integracoe
   });
   const linha = rascunho.linhaDoTempo[ano] || Array(12).fill('');
   const chaveMes = `${ano}-${mes}`;
-  const doMes = { ...MES_VAZIO, ...rascunho.meses[chaveMes] };
+  const doMesGuardado = { ...MES_VAZIO, ...rascunho.meses[chaveMes] };
+  const doMes = { ...doMesGuardado, calendario: doMesGuardado.calendario ?? linhasDosFeriados(mes === 12 ? ano + 1 : ano, mes === 12 ? 1 : mes + 1) };
   const mudarMes = (p: Partial<DoMes>) => mudar(r => ({ meses: { ...r.meses, [chaveMes]: { ...MES_VAZIO, ...r.meses[chaveMes], ...p } } }));
 
   const [destaque, setDestaque] = useState('');
@@ -242,7 +245,8 @@ export function RelatorioMensalModal({ vagas, selecoes, experiencias, integracoe
 
         <details>
           <summary className="text-[13px] font-semibold cursor-pointer py-1">Calendário de {mesSeguinte}</summary>
-          <textarea className="campo w-full mt-2" rows={3} placeholder={'Uma data por linha, ex.: 12/10 - Dia das Crianças'} value={doMes.calendario}
+          <p className="text-[12.5px] mt-1" style={{ color: 'var(--tinta-3)' }}>Já vem com os feriados (nacionais, do Ceará e de Fortaleza); acrescente ou apague o que quiser.</p>
+          <textarea className="campo w-full mt-2" rows={4} placeholder={'Uma data por linha, ex.: 12/10 - Dia das Crianças'} value={doMes.calendario}
             onChange={e => mudarMes({ calendario: e.target.value })} />
         </details>
 
