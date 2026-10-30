@@ -9,7 +9,7 @@
  * entram só no PDF — não sobem para lugar nenhum.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Printer, AlertTriangle } from 'lucide-react';
+import { Printer, AlertTriangle, ArrowRight } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import type { Vaga, Selecao, Experiencia, Integracao, Treinamento } from '../../types';
 import type { Sede } from '../../hooks/useMetadata';
@@ -20,6 +20,8 @@ import { dadosDoRelatorio } from '../../utils/relatorioMensal';
 import { imprimirRelatorio, type TextosDoRelatorio } from '../../utils/relatorioMensalHtml';
 import { listarAnexos, baixarAnexo } from '../../hooks/useAnexos';
 import { linhasDosFeriados } from '../../utils/feriados';
+import { pendenciasDoMes, abaDaUnidade } from '../../utils/pendenciasDoMes';
+import { CHAVE_RELATORIOS_GERADOS, relatoriosGerados } from '../../utils/inicio';
 
 const comoDataUrl = (b: Blob) => new Promise<string>(ok => { const r = new FileReader(); r.onload = () => ok(String(r.result || '')); r.onerror = () => ok(''); r.readAsDataURL(b); });
 
@@ -28,6 +30,19 @@ interface Props {
   sedes: Sede[];
   mostrarIntegracao: boolean;
   aoFechar: () => void;
+}
+
+/**
+ * O que a pessoa escolheu nesta sessão (unidade, mês, destaque, fotos): sair
+ * para resolver uma pendência e voltar não perde nada — antes as fotos sumiam
+ * ao fechar (revisão de operação, 30/10/2026). Só na memória da aba: as fotos
+ * nunca vão para o armazenamento do navegador.
+ */
+const sessao = { ano: 0, mes: 0, unidade: '' as Escopo | '', destaques: new Map<string, string>(), fotos: new Map<string, string[]>() };
+function useFotos(chave: string): [string[], (l: string[] | ((x: string[]) => string[])) => void] {
+  const [, redesenhar] = useState(0);
+  const atual = sessao.fotos.get(chave) || [];
+  return [atual, l => { sessao.fotos.set(chave, typeof l === 'function' ? l(sessao.fotos.get(chave) || []) : l); redesenhar(x => x + 1); }];
 }
 
 const ROTULO: Record<Escopo, string> = { colegio: 'Colégio', universidade: 'Universidade' };
@@ -61,14 +76,17 @@ function lerFotos(arquivos: FileList | null, max: number): Promise<string[]> {
 
 export function RelatorioMensalModal({ vagas, selecoes, experiencias, integracoes, treinamentos, sedes, mostrarIntegracao, aoFechar }: Props) {
   const hoje = new Date();
-  // Abre no mês que acabou de fechar: é o que se apresenta.
-  const [ano, setAno] = useState(hoje.getMonth() === 0 ? hoje.getFullYear() - 1 : hoje.getFullYear());
-  const [mes, setMes] = useState(hoje.getMonth() === 0 ? 12 : hoje.getMonth());
+  // Abre no mês que acabou de fechar (é o que se apresenta) ou no que estava escolhido nesta sessão.
+  const [ano, setAnoBruto] = useState(sessao.ano || (hoje.getMonth() === 0 ? hoje.getFullYear() - 1 : hoje.getFullYear()));
+  const [mes, setMesBruto] = useState(sessao.mes || (hoje.getMonth() === 0 ? 12 : hoje.getMonth()));
+  const setAno = (a: number) => { sessao.ano = a; setAnoBruto(a); };
+  const setMes = (m: number) => { sessao.mes = m; setMesBruto(m); };
 
   const unidadeDe = (r: { escopo?: Escopo }, sede?: string) => r.escopo || escopoDaSede(sedes, sede);
   const unidades = useMemo(() => [...new Set([...vagas.map(v => unidadeDe(v, v.sede)), ...selecoes.map(s => unidadeDe(s, s.sede))])].sort() as Escopo[],
     [vagas, selecoes, sedes]);
-  const [escolhida, setEscolhida] = useState<Escopo | ''>('');
+  const [escolhida, setEscolhidaBruta] = useState<Escopo | ''>(sessao.unidade);
+  const setEscolhida = (u: Escopo) => { sessao.unidade = u; setEscolhidaBruta(u); };
   const unidade: Escopo = escolhida || (unidades.includes('universidade') ? 'universidade' : unidades[0] || 'colegio');
 
   const [rascunho, setRascunho] = useState<Rascunho>(() => lerRascunho(unidade));
@@ -83,15 +101,21 @@ export function RelatorioMensalModal({ vagas, selecoes, experiencias, integracoe
   const doMes = { ...doMesGuardado, calendario: doMesGuardado.calendario ?? linhasDosFeriados(mes === 12 ? ano + 1 : ano, mes === 12 ? 1 : mes + 1) };
   const mudarMes = (p: Partial<DoMes>) => mudar(r => ({ meses: { ...r.meses, [chaveMes]: { ...MES_VAZIO, ...r.meses[chaveMes], ...p } } }));
 
-  const [destaque, setDestaque] = useState('');
-  const [fotosCom, setFotosCom] = useState<string[]>([]);
-  const [fotosDest, setFotosDest] = useState<string[]>([]);
-  const [fotoEquipe, setFotoEquipe] = useState('');
+  const chaveDoDestaque = `${unidade}|${chaveMes}`;
+  const [destaque, setDestaqueBruto] = useState(sessao.destaques.get(chaveDoDestaque) || '');
+  const setDestaque = (f: string | ((d: string) => string)) => setDestaqueBruto(d => {
+    const novo = typeof f === 'function' ? f(d) : f;
+    sessao.destaques.set(chaveDoDestaque, novo);
+    return novo;
+  });
+  // Cada foto pertence à unidade, ao mês (artes) e ao tema (destaque): a chave
+  // separa, e trocar de mês e voltar traz de volta as daquele mês.
+  const [fotosCom, setFotosCom] = useFotos(`com|${unidade}|${chaveMes}`);
+  const [fotosDest, setFotosDest] = useFotos(`dest|${unidade}|${chaveMes}|${destaque}`);
+  const [equipe, setEquipe] = useFotos(`equipe|${unidade}`);
+  const fotoEquipe = equipe[0] || '';
   const [erro, setErro] = useState('');
-  // Foto escolhida pertence à unidade, ao mês (artes) e ao tema (destaque): trocou, sai.
-  useEffect(() => { setRascunho(lerRascunho(unidade)); setFotoEquipe(''); }, [unidade]);
-  useEffect(() => { setFotosCom([]); }, [unidade, chaveMes]);
-  useEffect(() => { setFotosDest([]); }, [unidade, destaque]);
+  useEffect(() => { setRascunho(lerRascunho(unidade)); }, [unidade]);
   // Por mês E tema: o mesmo treinamento repetido no mês seguinte começa em branco.
   const chaveDestaque = `${chaveMes}|${destaque}`;
   const destaqueTexto = rascunho.destaques[chaveDestaque] || '';
@@ -106,7 +130,22 @@ export function RelatorioMensalModal({ vagas, selecoes, experiencias, integracoe
     });
   }, [ano, mes, unidade, vagas, selecoes, experiencias, integracoes, treinamentos, mostrarIntegracao, sedes]);
   // O treinamento em destaque segue o mês: troca de mês, volta para o maior.
-  useEffect(() => { setDestaque(d => (dados.treinamentos.some(t => t.tema === d) ? d : dados.treinamentos[0]?.tema || '')); }, [dados.treinamentos]);
+  // Volta ao destaque escolhido naquele mês (ida e volta de mês não o perde); senão, o maior.
+  useEffect(() => {
+    const existe = (t?: string) => !!t && dados.treinamentos.some(x => x.tema === t);
+    const lembrado = sessao.destaques.get(chaveDoDestaque);
+    setDestaque(d => (existe(lembrado) ? lembrado! : existe(d) ? d : dados.treinamentos[0]?.tema || ''));
+  }, [dados.treinamentos]);
+
+  const pendencias = useMemo(() => {
+    const daUnidade = <T extends { escopo?: Escopo }>(l: T[], sede: (x: T) => string | undefined) => l.filter(x => unidadeDe(x, sede(x)) === unidade);
+    return pendenciasDoMes({
+      ano, mes, hojeISO: dataISOLocal(), abaSelecoes: abaDaUnidade(unidade),
+      vagas: daUnidade(vagas, v => v.sede), selecoes: daUnidade(selecoes, s => s.sede), experiencias: daUnidade(experiencias, e => e.sede),
+      integracoes: daUnidade(integracoes, i => i.sede), treinamentos: daUnidade(treinamentos, t => t.unidade),
+      comIntegracao: mostrarIntegracao && unidade === 'universidade',
+    });
+  }, [ano, mes, unidade, vagas, selecoes, experiencias, integracoes, treinamentos, mostrarIntegracao, sedes]);
 
   const anos = [hoje.getFullYear(), hoje.getFullYear() - 1];
   const mesSeguinte = MESES_LONGOS[mes % 12];
@@ -118,6 +157,12 @@ export function RelatorioMensalModal({ vagas, selecoes, experiencias, integracoe
       fotos: { comunicacao: fotosCom, destaque: fotosDest, equipe: fotoEquipe },
     });
     setErro(abriu ? '' : 'O navegador bloqueou a janela do relatório. Libere pop-ups para o SGPC e tente de novo.');
+    // Gerado: o lembrete "Fechar o relatório" do Início some neste navegador.
+    if (abriu) try {
+      const gerados = relatoriosGerados();
+      const este = `${unidade}|${ano}-${String(mes).padStart(2, '0')}`;
+      if (!gerados.includes(este)) localStorage.setItem(CHAVE_RELATORIOS_GERADOS, JSON.stringify([...gerados, este].slice(-24)));
+    } catch { /* sem armazenamento: o lembrete do Início só some sozinho depois do 5º dia útil */ }
   };
 
   // Fotos anexadas às turmas do destaque (29/10/2026): marcar em vez de procurar no computador.
@@ -179,11 +224,34 @@ export function RelatorioMensalModal({ vagas, selecoes, experiencias, integracoe
           Os números saem do sistema; os campos abaixo entram como você escrever (vazio = a página não sai).
         </p>
 
-        {dados.avisos.length > 0 && (
-          <div role="note" className="text-[13px] space-y-1" style={{ color: 'var(--atraso)' }}>
-            <p className="font-semibold flex items-center gap-1.5"><AlertTriangle aria-hidden="true" className="w-4 h-4" />Falta lançar para o relatório bater:</p>
-            <ul className="list-disc pl-5">{dados.avisos.map(a => <li key={a}>{a}</li>)}</ul>
-          </div>
+        {pendencias.length > 0 && (
+          <section aria-label="Pendências do mês" className="space-y-1.5">
+            <p className="text-[13px] font-semibold flex items-center gap-1.5" style={{ color: 'var(--atraso)' }}>
+              <AlertTriangle aria-hidden="true" className="w-4 h-4" />Falta lançar para o relatório bater
+            </p>
+            <p className="text-[12.5px]" style={{ color: 'var(--tinta-3)' }}>
+              Cada item abre o lugar certo; o Voltar do navegador traz você de volta para cá, com tudo como estava.
+            </p>
+            {pendencias.map(p => (
+              <details key={p.id} className="rounded-lg border px-3 py-1.5" style={{ borderColor: 'var(--linha)' }}>
+                <summary className="text-[13px] cursor-pointer py-0.5">
+                  <b className="tabular-nums">{p.itens.length}</b> · {p.titulo} <span style={{ color: 'var(--tinta-3)' }}>— {p.efeito}</span>
+                </summary>
+                {p.todos && (
+                  <a href={p.todos} className="btn btn-sm mt-1.5 inline-flex">Resolver todas de uma vez <ArrowRight aria-hidden="true" /></a>
+                )}
+                <ul className="mt-1.5 mb-1 space-y-0.5">
+                  {p.itens.slice(0, 40).map(i => (
+                    <li key={i.id} className="text-[13px] flex flex-wrap gap-x-2">
+                      <a href={i.link} className="font-medium underline underline-offset-2" style={{ color: 'var(--acento, #1B4DD8)' }}>{i.principal}</a>
+                      <span style={{ color: 'var(--tinta-3)' }}>{i.detalhe}</span>
+                    </li>
+                  ))}
+                  {p.itens.length > 40 && <li className="text-[12.5px]" style={{ color: 'var(--tinta-3)' }}>+{p.itens.length - 40} itens</li>}
+                </ul>
+              </details>
+            ))}
+          </section>
         )}
 
         <details>
@@ -252,7 +320,7 @@ export function RelatorioMensalModal({ vagas, selecoes, experiencias, integracoe
 
         <details>
           <summary className="text-[13px] font-semibold cursor-pointer py-1">Foto da equipe (encerramento)</summary>
-          <div className="mt-2">{fotos('Foto', fotoEquipe ? [fotoEquipe] : [], l => setFotoEquipe(l[0] || ''), 1)}</div>
+          <div className="mt-2">{fotos('Foto', equipe, setEquipe, 1)}</div>
         </details>
       </div>
     </Modal>

@@ -29,9 +29,12 @@ export type Aba = keyof typeof ENDERECO_DA_ABA;
  * O que a tela abre: `vaga` (código), `selecao` (id), `dia` (AAAA-MM-DD),
  * `pessoa` (nome, na Experiência), `novaSelecao` (id da vaga: abre o
  * formulário de nova seleção já com ela marcada) e `concluir` ('1', junto
- * de `vaga`: abre a vaga já no formulário de Concluir).
+ * de `vaga`: abre a vaga já no formulário de Concluir). Do relatório mensal
+ * (30/10/2026): `relatorio` ('1', nos Indicadores: o relatório aberto — o
+ * Voltar de uma pendência resolvida cai nele de novo) e, na Integração,
+ * `situacao` + `admissao` (AAAA-MM): a lista já filtrada nas pendentes do mês.
  */
-const PARAMETROS = ['vaga', 'selecao', 'dia', 'pessoa', 'novaSelecao', 'concluir'] as const;
+const PARAMETROS = ['vaga', 'selecao', 'dia', 'pessoa', 'novaSelecao', 'concluir', 'relatorio', 'situacao', 'admissao'] as const;
 export type ParametrosDaRota = Partial<Record<(typeof PARAMETROS)[number], string>>;
 
 export interface Rota {

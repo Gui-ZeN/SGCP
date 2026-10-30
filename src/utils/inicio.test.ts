@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pendenciasDoDia, quandoVence } from './inicio';
+import { pendenciasDoDia, quandoVence, fechamentoDoMes, relatoriosGerados, CHAVE_RELATORIOS_GERADOS } from './inicio';
 
 const base = { hojeISO: '2026-09-24', hojeBR: '24/09/2026', vagas: [] as any[], experiencias: [] as any[] };
 
@@ -61,5 +61,56 @@ describe('vagas fora do prazo', () => {
 describe('quandoVence', () => {
   it('fala como gente', () => {
     expect([0, 1, 3, -1, -5].map(quandoVence)).toEqual(['vence hoje', 'vence amanhã', 'vence em 3 dias', 'venceu ontem', 'venceu há 5 dias']);
+  });
+});
+
+describe('lembretes do relatório mensal no Início (30/10/2026)', () => {
+  it('desistente sem motivo: a partir do dia seguinte, até 30 dias, só com lista de nomes', () => {
+    const s = (p: any) => ({ status: 'realizado', numerosPelaLista: true, desistiram: 2, motivos: {}, ...p });
+    const p = pendenciasDoDia({ ...base, selecoes: [
+      s({ id: 'hoje', data: '24/09/2026' }), s({ id: 'ontem', data: '23/09/2026' }), s({ id: 'velha', data: '20/08/2026' }),
+      s({ id: 'semLista', data: '23/09/2026', numerosPelaLista: false }), s({ id: 'ok', data: '23/09/2026', motivos: { a: 2 } }),
+    ] });
+    expect(p.desistentesSemMotivo.map(x => [x.s.id, x.quantos])).toEqual([['ontem', 2]]);
+  });
+  it('integração "Não realizado" de 7 a 60 dias da admissão, a mais antiga primeiro', () => {
+    const i = (id: string, admissao: string, status = 'Não realizado') => ({ id, nome: id, sede: 'X', admissao, status }) as any;
+    const p = pendenciasDoDia({ ...base, integracoes: [
+      i('6d', '18/09/2026'), i('7d', '17/09/2026'), i('30d', '25/08/2026'), i('90d', '26/06/2026'), i('feita', '01/09/2026', 'Realizado'),
+    ] });
+    expect(p.integracoesPendentes.map(x => [x.i.id, x.dias])).toEqual([['30d', 30], ['7d', 7]]);
+  });
+});
+
+describe('fechamentoDoMes', () => {
+  it('do 1º ao 5º dia útil do mês (pula fim de semana e feriado), para o mês anterior', () => {
+    // Novembro/2026: 1 dom, 2 Finados → úteis 3, 4, 5, 6, 9.
+    expect(fechamentoDoMes('2026-11-03', [])).toEqual({ ano: 2026, mes: 10, ate: '09/11' });
+    expect(fechamentoDoMes('2026-11-09', [])).not.toBeNull();
+    expect(fechamentoDoMes('2026-11-10', [])).toBeNull();
+    // Antes do 1º dia útil (domingo 1º e Finados 2) ainda não aparece.
+    expect(fechamentoDoMes('2026-11-01', [])).toBeNull();
+    expect(fechamentoDoMes('2026-11-02', [])).toBeNull();
+  });
+  it('some quando o relatório daquele mês já foi gerado; janeiro fecha dezembro do ano anterior', () => {
+    expect(fechamentoDoMes('2026-11-03', ['universidade|2026-10'], ['universidade'])).toBeNull();
+    expect(fechamentoDoMes('2026-11-03', ['universidade|2026-09'], ['universidade'])).not.toBeNull();
+    // Administrador fecha as duas: gerar só o Colégio não apaga o lembrete da Universidade.
+    expect(fechamentoDoMes('2026-11-03', ['colegio|2026-10'], ['colegio', 'universidade'])).not.toBeNull();
+    expect(fechamentoDoMes('2026-11-03', ['colegio|2026-10', 'universidade|2026-10'], ['colegio', 'universidade'])).toBeNull();
+    expect(fechamentoDoMes('2027-01-04', [])).toMatchObject({ ano: 2026, mes: 12 });
+  });
+});
+
+describe('relatoriosGerados', () => {
+  it('valor estranho no armazenamento não derruba o Início', () => {
+    const guardado = globalThis.localStorage;
+    const mem: Record<string, string> = { [CHAVE_RELATORIOS_GERADOS]: '[1, null, \"colegio|2026-10\"]' };
+    (globalThis as any).localStorage = { getItem: (k: string) => mem[k] ?? null };
+    try {
+      expect(relatoriosGerados()).toEqual(['colegio|2026-10']);
+      mem[CHAVE_RELATORIOS_GERADOS] = '{quebrado';
+      expect(relatoriosGerados()).toEqual([]);
+    } finally { (globalThis as any).localStorage = guardado; }
   });
 });

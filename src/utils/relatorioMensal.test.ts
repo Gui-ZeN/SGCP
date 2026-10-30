@@ -44,8 +44,6 @@ describe('dadosDoRelatorio', () => {
     expect(d.selecao.total).toEqual({ convocados: 24, presentes: 8, ausentes: 16, desistentes: 2, contratados: 0 }); // marcação nas seleções não conta
     expect(d.selecao.cargos.map(c => [c.cargo, c.convocados])).toEqual([['ASG', 20], ['Auxiliar de Cantina', 4]]);
     expect(d.selecao.grupos.map(g => [g.grupo, g.total.convocados])).toEqual([['Infraestrutura', 20], ['Atendimento', 4]]);
-    expect(d.avisos.some(a => a.includes('agendada'))).toBe(true);
-    expect(d.avisos.some(a => a.includes('2 de 2 desistente(s) sem motivo'))).toBe(true);
   });
   it('contratados = vagas concluídas no mês, no grupo do cargo; grupo só com contratação também aparece', () => {
     const d = dadosDoRelatorio({ ...base, selecoes: [sel({ convocados: 5, compareceram: 2, ausentes: 3, desistiram: 0 })], vagas: [
@@ -59,7 +57,6 @@ describe('dadosDoRelatorio', () => {
   it('motivo volta na grafia da lista; o que não está nela sai com a 1ª letra maiúscula', () => {
     const d = dadosDoRelatorio({ ...base, selecoes: [sel({ desistiram: 3, motivos: { 'nao compareceu para os testes': 2, 'outro motivo': 1 } })] });
     expect(d.selecao.motivos).toEqual([{ name: 'Não compareceu para os testes', total: 2 }, { name: 'Outro motivo', total: 1 }]);
-    expect(d.avisos.some(a => a.includes('sem motivo'))).toBe(false);
   });
   it('integração: só com a unidade que tem, pelos admitidos no mês', () => {
     const integ = [{ id: 'i', nome: '', sede: 'ALDEOTA', admissao: '05/09/2026', status: 'Realizado' }, { id: 'j', nome: '', sede: 'ALDEOTA', admissao: '06/09/2026', status: 'Não realizado' }] as Integracao[];
@@ -88,7 +85,6 @@ describe('pontos da auditoria', () => {
     const d = dadosDoRelatorio({ ...base, mes: 10, hojeISO: '2026-10-29', experiencias: [
       exp({ termino1: '31/10/2026' }), exp({ termino1: '29/10/2026' }), exp({ termino1: '28/10/2026' })] });
     expect(d.experiencia[0]).toMatchObject({ programadas: 3, aVencer: 2, semDesfecho: 1 });
-    expect(d.avisos.some(a => a.startsWith('1 avaliação'))).toBe(true);
   });
   it('cargo fora da tabela nas duas abas cai em Pedagógico em qualquer ordem', () => {
     const g = sel({ cargo: 'Auxiliar de Sala', convocados: 2, compareceram: 1, ausentes: 1, desistiram: 0 });

@@ -57,6 +57,8 @@ interface RecruitmentDashboardProps {
   isAdmin?: boolean;
   /** Dias de seleção (abas QUANTI + os lançados no sistema). */
   selecoes?: Selecao[];
+  /** O relatório mensal aberto pelo endereço (#/indicadores?relatorio=1): o Voltar de uma pendência resolvida cai nele de novo. */
+  relatorioAberto?: boolean;
 }
 
 const ABAS: { id: AbaId; rotulo: string }[] = [
@@ -72,10 +74,9 @@ const EM_ANDAMENTO = ['ABERTA', 'REABERTA', 'DOCUMENTAÇÃO'];
 
 export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
   vagas, treinamentos = [], experiencias = [], entrevistas = [], turnover = [], integracoes = [],
-  mostrarIntegracao = false, sedes = [], selecoes = [], userSede, isAdmin = false,
+  mostrarIntegracao = false, sedes = [], selecoes = [], userSede, isAdmin = false, relatorioAberto = false,
 }) => {
   const [aba, setAba] = useState<AbaId>('geral');
-  const [relatorioAberto, setRelatorioAberto] = useState(false);
 
   // ── filtros ──────────────────────────────────────────────────────────────
   // Quem não é admin vê a própria sede (como antes), já pela sigla do cadastro.
@@ -230,7 +231,7 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
           <button type="button" onClick={() => window.print()} title="Gerar PDF (pela impressão do navegador)" className="btn">
             <Printer aria-hidden="true" /> Exportar PDF
           </button>
-          <button type="button" onClick={() => setRelatorioAberto(true)} title="Relatório do mês em slides, no modelo do RH" className="btn">
+          <button type="button" onClick={() => { window.location.hash = linkPara('dashboard', { relatorio: 1 }); }} title="Relatório do mês em slides, no modelo do RH" className="btn">
             <Presentation aria-hidden="true" /> Relatório mensal
           </button>
         </div>
@@ -249,7 +250,9 @@ export const RecruitmentDashboard: React.FC<RecruitmentDashboardProps> = ({
           selecoes={sedeTravada ? f.selecoesSede : selecoes}
           experiencias={sedeTravada ? f.experienciasSede : experiencias}
           integracoes={sedeTravada ? integracoes.filter(i => daSede(i.sede)) : integracoes}
-          treinamentos={sedeTravada ? treinamentos.filter(t => sedesDaTurma(t).some(daSede)) : treinamentos} mostrarIntegracao={mostrarIntegracao} aoFechar={() => setRelatorioAberto(false)} />
+          treinamentos={sedeTravada ? treinamentos.filter(t => sedesDaTurma(t).some(daSede)) : treinamentos} mostrarIntegracao={mostrarIntegracao}
+          // replace: fechar não empilha uma volta que reabriria o relatório.
+          aoFechar={() => { window.location.replace(linkPara('dashboard')); }} />
       )}
 
       <nav role="tablist" aria-label="Temas dos indicadores" className="no-print abas">

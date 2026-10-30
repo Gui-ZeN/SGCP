@@ -7,7 +7,7 @@
  *
  * Conferido com setembro/2026 da Universidade: solicitadas (25), desistentes
  * (17) e o treinamento da Recepção (24 de 30) batem com o deck; o que não bate
- * é lançamento que falta no sistema, e volta em `avisos`.
+ * é lançamento que falta no sistema, e aparece em utils/pendenciasDoMes.ts.
  */
 import type { Vaga, Selecao, Experiencia, Integracao, Treinamento } from '../types';
 import { anoMes } from './filtroIndicadores';
@@ -75,8 +75,6 @@ export interface DadosDoRelatorio {
   /** null = unidade sem integração no mês. */
   integracao: { geral: CumprimentoSede; sedes: CumprimentoSede[] } | null;
   treinamentos: TreinamentoDoMes[];
-  /** O que falta lançar para o relatório bater — vai para a tela, não para o PDF. */
-  avisos: string[];
 }
 
 /** DD/MM/AAAA ou AAAA-MM-DD → AAAA-MM-DD, para comparar com hoje. */
@@ -84,7 +82,7 @@ const isoDe = (d?: string) => {
   const s = (d || '').trim(), br = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(s);
   return br ? `${br[3]}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}` : s.slice(0, 10);
 };
-const doMes = (ano: number, mes: number) => (d?: string) => { const am = anoMes(d); return !!am && am[0] === ano && am[1] === mes; };
+export const doMes = (ano: number, mes: number) => (d?: string) => { const am = anoMes(d); return !!am && am[0] === ano && am[1] === mes; };
 const vazio = (): Funil => ({ convocados: 0, presentes: 0, ausentes: 0, desistentes: 0, contratados: 0 });
 const somar = (f: Funil, s: Selecao) => {
   f.convocados += Number(s.convocados) || 0; f.presentes += Number(s.compareceram) || 0;
@@ -98,20 +96,30 @@ const somar = (f: Funil, s: Selecao) => {
  * separa quem pediu para sair de quem foi desligado. Sem desfecho e com o dia
  * ainda por vir (mês corrente) é "a vencer", não pendência.
  */
-export function experienciaDoMes(lista: Experiencia[], ano: number, mes: number, hojeISO: string): ExperienciaDaSede[] {
+export type DesfechoDaAvaliacao = 'pediram' | 'desligados' | 'prorrogadas' | 'efetivadas' | 'aVencer' | 'semDesfecho';
+/** A avaliação que vence no mês e o desfecho dela; null = não vence no mês. Ver experienciaDoMes. */
+export function avaliacaoDoMes(e: Experiencia, ano: number, mes: number, hojeISO: string): { desfecho: DesfechoDaAvaliacao; vence: string; marco: '45 dias' | '90 dias' } | null {
   const noMes = doMes(ano, mes);
+  const primeiro = noMes(e.termino1), segundo = noMes(e.termino2);
+  if (!primeiro && !segundo) return null;
+  const vence = primeiro ? e.termino1 : e.termino2, marco = primeiro ? '45 dias' : '90 dias';
+  const desfecho: DesfechoDaAvaliacao = e.status === 'ENCERRADO' ? (e.tipoEncerramento === 'a_pedido' ? 'pediram' : 'desligados')
+    : primeiro && e.status !== 'EM_ANALISE' ? 'prorrogadas'
+    : segundo && e.status === 'EFETIVADO' ? 'efetivadas'
+    : isoDe(vence) >= hojeISO ? 'aVencer' : 'semDesfecho';
+  return { desfecho, vence, marco };
+}
+
+export function experienciaDoMes(lista: Experiencia[], ano: number, mes: number, hojeISO: string): ExperienciaDaSede[] {
   const porSede = new Map<string, ExperienciaDaSede>();
   for (const e of lista) {
-    const primeiro = noMes(e.termino1), segundo = noMes(e.termino2);
-    if (!primeiro && !segundo) continue;
+    const a = avaliacaoDoMes(e, ano, mes, hojeISO);
+    if (!a) continue;
     const sede = (e.sede || '').trim() || '—';
     const l = porSede.get(sede) || { sede, programadas: 0, realizadas: 0, prorrogadas: 0, efetivadas: 0, desligados: 0, pediram: 0, semDesfecho: 0, aVencer: 0 };
     l.programadas++;
-    if (e.status === 'ENCERRADO') { l.realizadas++; if (e.tipoEncerramento === 'a_pedido') l.pediram++; else l.desligados++; }
-    else if (primeiro && e.status !== 'EM_ANALISE') { l.realizadas++; l.prorrogadas++; }
-    else if (segundo && e.status === 'EFETIVADO') { l.realizadas++; l.efetivadas++; }
-    else if (isoDe(primeiro ? e.termino1 : e.termino2) >= hojeISO) l.aVencer++;
-    else l.semDesfecho++;
+    l[a.desfecho]++;
+    if (a.desfecho !== 'aVencer' && a.desfecho !== 'semDesfecho') l.realizadas++;
     porSede.set(sede, l);
   }
   return [...porSede.values()].sort((a, b) => b.programadas - a.programadas || a.sede.localeCompare(b.sede, 'pt-BR'));
@@ -140,7 +148,6 @@ export function dadosDoRelatorio(e: {
   hojeISO: string;
 }): DadosDoRelatorio {
   const noMes = doMes(e.ano, e.mes);
-  const avisos: string[] = [];
 
   // Vagas: cancelada fica fora de todo indicador (27/10/2026).
   const vagas = e.vagas.filter(v => v.status !== 'CANCELADA');
@@ -149,8 +156,6 @@ export function dadosDoRelatorio(e: {
 
   const doMesSel = e.selecoes.filter(s => noMes(s.data));
   const realizadas = doMesSel.filter(ehRealizada);
-  const agendadas = doMesSel.length - realizadas.length;
-  if (agendadas) avisos.push(`${agendadas} seleção(ões) do mês ainda como agendada(s): ficam fora dos números até confirmar quem compareceu (Resumo do Dia).`);
 
   const total = vazio();
   const porCargo = new Map<string, FunilDoCargo & { pedagogico: boolean }>();
@@ -184,12 +189,8 @@ export function dadosDoRelatorio(e: {
     return { grupo, total: t, cargos: doGrupo.map(c => c.cargo) };
   }).filter(g => g.total.convocados > 0 || g.total.contratados > 0);
   const motivos = motivosDesistencia(realizadas).map(m => ({ ...m, name: grafiaDoMotivo(m.name) }));
-  const comMotivo = motivos.reduce((t, m) => t + m.total, 0);
-  if (total.desistentes > comMotivo) avisos.push(`${total.desistentes - comMotivo} de ${total.desistentes} desistente(s) sem motivo lançado: a página de motivos sai incompleta.`);
 
   const experiencia = experienciaDoMes(e.experiencias, e.ano, e.mes, e.hojeISO);
-  const semDesfecho = experiencia.reduce((t, l) => t + l.semDesfecho, 0);
-  if (semDesfecho) avisos.push(`${semDesfecho} avaliação(ões) de experiência venceram no mês sem desfecho lançado (aba Experiência).`);
 
   let integracao: DadosDoRelatorio['integracao'] = null;
   if (e.comIntegracao) {
@@ -197,8 +198,6 @@ export function dadosDoRelatorio(e: {
     if (doMesInt.length) {
       const sedes = integracaoPorSede(doMesInt);
       integracao = { geral: totalGeral(sedes), sedes };
-      const pend = doMesInt.filter(i => i.status === 'Não realizado').length;
-      if (pend) avisos.push(`${pend} de ${doMesInt.length} integração(ões) dos admitidos no mês ainda como "Não realizado" (aba Integração).`);
     }
   }
 
@@ -212,6 +211,5 @@ export function dadosDoRelatorio(e: {
     experiencia,
     integracao,
     treinamentos: treinamentosDoMes(e.treinamentos, e.ano, e.mes),
-    avisos,
   };
 }

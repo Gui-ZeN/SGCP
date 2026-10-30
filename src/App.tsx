@@ -1629,6 +1629,8 @@ export default function App() {
               selecoes={podeVerSelecoes ? scopedSelecoes : undefined}
               requisicoes={isAdmin ? requisicoes : undefined}
               consultas={podeVerConsultas ? consultas : undefined}
+              integracoes={podeVerIntegracao ? scopedIntegracoes : undefined}
+              mostrarFechamento={canManageModules}
               podeRegistrarDia={podeVerResumoDia && canManageModules}
               abaSelecoes={podeVerResumoDia ? 'selecoes' : 'selecoesLista'}
               userName={user?.displayName}
@@ -1651,6 +1653,7 @@ export default function App() {
               sedes={scopedSedes}
               userSede={scopedUserSede}
               isAdmin={isAdmin || isCoord}
+              relatorioAberto={rota.params.relatorio === '1'}
             />
           )}
           
@@ -1758,6 +1761,7 @@ export default function App() {
               confirmAction={askConfirmation}
               notify={notify}
               canManage={canManageModules}
+              filtroDaRota={rota.params.situacao || rota.params.admissao ? { situacao: rota.params.situacao, admissao: rota.params.admissao, token: rota.token } : null}
             />
           )}
 

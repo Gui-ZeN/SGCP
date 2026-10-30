@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Integracao } from '../types';
 import { Sede } from '../hooks/useMetadata';
 import { parseIntegracoes, ImportableIntegracao } from '../lib/integracaoImport';
@@ -34,6 +34,8 @@ interface IntegracoesSectionProps {
   canManage?: boolean;
   // Mudança rápida de status pela tabela (sem abrir o modal). Se ausente, usa updateIntegracao.
   onChangeStatus?: (id: string, status: Integracao['status']) => void;
+  /** Vindo das pendências do relatório mensal (30/10/2026): a lista já filtrada (#/integracao?situacao=…&admissao=AAAA-MM). */
+  filtroDaRota?: { situacao?: string; admissao?: string; token: number } | null;
 }
 
 /** Cor da situação (tokens de ui.css): feita, pendente, saiu. */
@@ -49,8 +51,10 @@ const FORM_VAZIO = { nome: '', funcao: '', setor: '', sede: '', admissao: '', su
 
 export const IntegracoesSection: React.FC<IntegracoesSectionProps> = ({
   integracoes, sedes, addIntegracao, updateIntegracao, deleteIntegracao, importIntegracoes,
-  confirmAction, notify, canManage = true, onChangeStatus
+  confirmAction, notify, canManage = true, onChangeStatus, filtroDaRota
 }) => {
+  // Mês de admissão (AAAA-MM) vindo do relatório; '' = todos. Aparece como chip removível.
+  const [mesAdmissao, setMesAdmissao] = useState('');
   // Fluxo da planilha do Colégio: precisa de escolha de aba, então o arquivo
   // fica retido até o usuário decidir. `null` = nenhum arquivo desse tipo.
   const [arquivoColegio, setArquivoColegio] = useState<{ file: File; abas: string[] } | null>(null);
@@ -76,8 +80,14 @@ export const IntegracoesSection: React.FC<IntegracoesSectionProps> = ({
     const okBusca = !t || i.nome.toLowerCase().includes(t) || (i.funcao || '').toLowerCase().includes(t) || (i.supervisor || '').toLowerCase().includes(t);
     const okSede = !sedesSel.length || sedesSel.includes(i.sede);
     const okStatus = !statusSel.length || statusSel.includes(i.status);
-    return okBusca && okSede && okStatus;
-  }), [integracoes, busca, sedesSel, statusSel]);
+    const okMes = !mesAdmissao || toISOInput(i.admissao || '').slice(0, 7) === mesAdmissao;
+    return okBusca && okSede && okStatus && okMes;
+  }), [integracoes, busca, sedesSel, statusSel, mesAdmissao]);
+  useEffect(() => {
+    if (!filtroDaRota) return;
+    setStatusSel(filtroDaRota.situacao && STATUS_OPCOES.includes(filtroDaRota.situacao as Integracao['status']) ? [filtroDaRota.situacao] : []);
+    setMesAdmissao(/^\d{4}-\d{2}$/.test(filtroDaRota.admissao || '') ? filtroDaRota.admissao! : '');
+  }, [filtroDaRota?.token]);
 
   const kpi = useMemo(() => {
     const ativos = integracoes.filter(i => i.status !== 'Desligado');
@@ -219,6 +229,11 @@ export const IntegracoesSection: React.FC<IntegracoesSectionProps> = ({
           opcoes={sedes.map(s => ({ valor: s.nome, rotulo: s.nome }))} />
         <FiltroMultiplo rotulo="Situação" todos="todas" selecionados={statusSel} onChange={setStatusSel}
           opcoes={STATUS_OPCOES.map(s => ({ valor: s, rotulo: s }))} />
+        {mesAdmissao && (
+          <button type="button" className="chip" onClick={() => setMesAdmissao('')} title="Mostrar todos os meses">
+            Admitidos em {mesAdmissao.slice(5)}/{mesAdmissao.slice(0, 4)} <span aria-hidden="true">×</span><span className="sr-only">(tirar o filtro do mês)</span>
+          </button>
+        )}
         <label className="campo-busca">
           <Search aria-hidden="true" />
           <input type="search" className="campo" value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar nome, função ou supervisor" aria-label="Buscar nome, função ou supervisor" />

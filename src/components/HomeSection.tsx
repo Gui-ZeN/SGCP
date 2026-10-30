@@ -1,11 +1,13 @@
 import React from 'react';
-import { Vaga, Treinamento, Experiencia, Entrevista, Turnover, Selecao, Requisicao, Consulta } from '../types';
+import { Vaga, Treinamento, Experiencia, Entrevista, Turnover, Selecao, Requisicao, Consulta, Integracao } from '../types';
 import { SLA_META_DIAS } from '../constants/hr';
 import { Sede } from '../hooks/useMetadata';
 import { ProximasDatasCard } from './ProximasDatasCard';
 import { SetembroAmarelo } from './SetembroAmarelo';
 import { OutubroRosa } from './OutubroRosa';
-import { pendenciasDoDia, quandoVence } from '../utils/inicio';
+import { pendenciasDoDia, quandoVence, fechamentoDoMes, relatoriosGerados } from '../utils/inicio';
+import { abaDaUnidade } from '../utils/pendenciasDoMes';
+import { escopoDaSede } from '../utils/unidade';
 import { ehRealizada } from '../utils/selecao';
 import { formatDateBR, dataISOLocal, toISOInput } from '../utils/date';
 import { linkPara, type Aba } from '../lib/rotas';
@@ -32,6 +34,10 @@ interface HomeSectionProps {
   selecoes?: Selecao[];
   requisicoes?: Requisicao[];
   consultas?: Consulta[];
+  /** Ausente = o perfil não vê o módulo; a frente "Integrações pendentes" some. */
+  integracoes?: Integracao[];
+  /** Quem fecha o relatório mensal (RH): o lembrete do 1º ao 5º dia útil. */
+  mostrarFechamento?: boolean;
   /** Mostra o botão "Registrar meu dia" (Resumo do Dia). */
   podeRegistrarDia?: boolean;
   /** Para onde levam as seleções pendentes: Resumo do Dia (Colégio) ou o módulo Seleções (Universidade). */
@@ -65,6 +71,8 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
   selecoes,
   requisicoes,
   consultas,
+  integracoes,
+  mostrarFechamento = false,
   podeRegistrarDia = false,
   abaSelecoes = 'selecoes',
   mostrarSetembroAmarelo = false,
@@ -90,16 +98,33 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
   const hojeISO = dataISOLocal();
   const hojeBR = formatDateBR(hojeISO);
   const p = React.useMemo(
-    () => pendenciasDoDia({ hojeISO, hojeBR, vagas: filteredVagas, experiencias, selecoes, requisicoes, consultas }),
-    [hojeISO, hojeBR, filteredVagas, experiencias, selecoes, requisicoes, consultas]
+    () => pendenciasDoDia({ hojeISO, hojeBR, vagas: filteredVagas, experiencias, selecoes, requisicoes, consultas, integracoes }),
+    [hojeISO, hojeBR, filteredVagas, experiencias, selecoes, requisicoes, consultas, integracoes]
   );
+  // As unidades que quem está logado vê (o Administrador, as duas): o lembrete só some quando todas foram geradas.
+  // Mesma regra do relatório: o escopo do registro, ou a unidade da sede.
+  const unidadesVistas = [...new Set([...vagas, ...(selecoes || [])].map(x => x.escopo || escopoDaSede(sedes, x.sede)))];
+  const fechamento = mostrarFechamento ? fechamentoDoMes(hojeISO, relatoriosGerados(), unidadesVistas.length ? unidadesVistas : ['colegio']) : null;
+  const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
   // Cada seleção abre no dia dela (Resumo do Dia) ou nela mesma (Seleções), não na tela vazia.
-  const linkDaSelecao = (sel: Selecao) => abaSelecoes === 'selecoes'
+  // A aba segue a unidade da seleção quando ela tem (o Administrador vê as duas:
+  // a da Universidade abria no Resumo do Dia do Colégio — auditoria, 30/10/2026).
+  const linkDaSelecao = (sel: Selecao) => (sel.escopo ? abaDaUnidade(sel.escopo) : abaSelecoes) === 'selecoes'
     ? linkPara('selecoes', { dia: toISOInput(sel.data) })
     : linkPara('selecoesLista', { selecao: sel.id });
 
   const todas: Frente[] = [
+    // Do 1º ao 5º dia útil: fechar o relatório do mês anterior (some depois de gerado).
+    {
+      id: 'fechamento', titulo: 'Relatório do mês', tom: 'acento',
+      detalhe: 'Gere o PDF e resolva o que falta lançar para os números baterem.',
+      verTudo: linkPara('dashboard', { relatorio: 1 }),
+      itens: fechamento ? [{
+        id: 'fechamento', principal: `Fechar o relatório de ${MESES[fechamento.mes - 1]}`, meta: 'Indicadores · Relatório mensal',
+        quando: `até ${fechamento.ate}`, tom: 'acento' as Tom, href: linkPara('dashboard', { relatorio: 1 }),
+      }] : [],
+    },
     {
       id: 'sem-confirmar', titulo: 'Seleções sem confirmar', tom: 'critico',
       detalhe: 'Agendadas que já passaram. Lance quem veio.',
@@ -107,6 +132,27 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
       itens: p.selecoesSemConfirmar.map(s => ({
         id: s.id, principal: s.cargo, meta: `${sigla(s.sede)} · ${s.convocados} convocados`,
         quando: `dia ${s.data.slice(0, 5)}`, tom: 'critico' as Tom, href: linkDaSelecao(s),
+      })),
+    },
+    // Lembrete no dia, não no fechamento (revisão de operação, 30/10/2026): o
+    // motivo sai melhor com a memória fresca do que de uma vez no fim do mês.
+    {
+      id: 'sem-motivo', titulo: 'Desistentes sem motivo', tom: 'atencao',
+      detalhe: 'Lance o motivo de quem desistiu: sem ele, a página de motivos do relatório sai incompleta.',
+      verTudo: linkPara(abaSelecoes),
+      itens: p.desistentesSemMotivo.map(({ s, quantos }) => ({
+        id: s.id, principal: s.cargo, meta: `${sigla(s.sede)} · ${quantos} sem motivo`,
+        quando: `dia ${s.data.slice(0, 5)}`, tom: 'atencao' as Tom, href: linkDaSelecao(s),
+      })),
+    },
+    {
+      id: 'integracao', titulo: 'Integrações pendentes', tom: 'atencao',
+      detalhe: 'Admitidos há mais de uma semana ainda como "Não realizado".',
+      verTudo: linkPara('integracao', { situacao: 'Não realizado' }),
+      itens: p.integracoesPendentes.map(({ i, dias }) => ({
+        id: i.id, principal: i.nome, meta: [i.funcao, sigla(i.sede)].filter(Boolean).join(' · '),
+        quando: `admitido há ${dias} dias`, tom: (dias > 30 ? 'critico' : 'atencao') as Tom,
+        href: linkPara('integracao', { situacao: 'Não realizado' }),
       })),
     },
     {
