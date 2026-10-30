@@ -12,7 +12,7 @@
 import type { Vaga, Selecao, Experiencia, Integracao, Treinamento } from '../types';
 import { anoMes } from './filtroIndicadores';
 import { motivosDesistencia, integracaoPorSede, totalGeral, type CumprimentoSede } from './indicadores';
-import { ehRealizada } from './selecao';
+import { ehRealizada, origemDoSetor } from './selecao';
 import { MOTIVOS_DESISTENCIA } from './candidatos';
 import { normalizeKey } from '../lib/spreadsheetImport';
 
@@ -45,7 +45,8 @@ export function grupoDoCargo(cargo: string, origem?: string): Grupo {
   return origem === 'pedagogico' ? 'Pedagógico' : 'Seleções Gerais';
 }
 
-export interface Funil { convocados: number; presentes: number; ausentes: number; desistentes: number }
+/** `contratados`: vagas concluídas no mês, não a marcação nas seleções (ver `dadosDoRelatorio`). Por cargo, fica 0. */
+export interface Funil { convocados: number; presentes: number; ausentes: number; desistentes: number; contratados: number }
 export interface FunilDoCargo extends Funil { cargo: string; grupo: Grupo }
 
 export interface ExperienciaDaSede {
@@ -84,7 +85,7 @@ const isoDe = (d?: string) => {
   return br ? `${br[3]}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}` : s.slice(0, 10);
 };
 const doMes = (ano: number, mes: number) => (d?: string) => { const am = anoMes(d); return !!am && am[0] === ano && am[1] === mes; };
-const vazio = (): Funil => ({ convocados: 0, presentes: 0, ausentes: 0, desistentes: 0 });
+const vazio = (): Funil => ({ convocados: 0, presentes: 0, ausentes: 0, desistentes: 0, contratados: 0 });
 const somar = (f: Funil, s: Selecao) => {
   f.convocados += Number(s.convocados) || 0; f.presentes += Number(s.compareceram) || 0;
   f.ausentes += Number(s.ausentes) || 0; f.desistentes += Number(s.desistiram) || 0;
@@ -166,12 +167,22 @@ export function dadosDoRelatorio(e: {
   const cargos: FunilDoCargo[] = [...porCargo.values()]
     .map(({ pedagogico, ...c }) => ({ ...c, grupo: grupoDoCargo(c.cargo, pedagogico ? 'pedagogico' : 'geral') }))
     .sort((a, b) => b.convocados - a.convocados);
+  // Contratados = vagas concluídas no mês, no grupo do cargo da vaga (decisão do
+  // Guilherme, 30/10/2026): a Universidade não marca "Contratado" no Resumo do
+  // Dia — setembro dava 0 pelas seleções e 14 pelas vagas.
+  const contratadasPorGrupo = new Map<Grupo, number>();
+  for (const v of fechadas) {
+    const g = grupoDoCargo(v.vaga, origemDoSetor(v.setor));
+    contratadasPorGrupo.set(g, (contratadasPorGrupo.get(g) || 0) + 1);
+  }
+  total.contratados = fechadas.length;
   const grupos = GRUPOS.map(grupo => {
     const doGrupo = cargos.filter(c => c.grupo === grupo);
     const t = vazio();
     for (const c of doGrupo) { t.convocados += c.convocados; t.presentes += c.presentes; t.ausentes += c.ausentes; t.desistentes += c.desistentes; }
+    t.contratados = contratadasPorGrupo.get(grupo) || 0;
     return { grupo, total: t, cargos: doGrupo.map(c => c.cargo) };
-  }).filter(g => g.total.convocados > 0);
+  }).filter(g => g.total.convocados > 0 || g.total.contratados > 0);
   const motivos = motivosDesistencia(realizadas).map(m => ({ ...m, name: grafiaDoMotivo(m.name) }));
   const comMotivo = motivos.reduce((t, m) => t + m.total, 0);
   if (total.desistentes > comMotivo) avisos.push(`${total.desistentes - comMotivo} de ${total.desistentes} desistente(s) sem motivo lançado: a página de motivos sai incompleta.`);

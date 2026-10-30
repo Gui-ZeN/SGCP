@@ -57,7 +57,7 @@ const fatias = <T,>(lista: T[], max: number): T[][] => {
 };
 
 function barrasDoFunil(f: Funil): string {
-  const itens: [string, number][] = [['Convocados', f.convocados], ['Ausentes', f.ausentes], ['Presentes', f.presentes], ['Desistentes', f.desistentes]];
+  const itens: [string, number][] = [['Convocados', f.convocados], ['Ausentes', f.ausentes], ['Presentes', f.presentes], ['Desistentes', f.desistentes], ['Contratados', f.contratados]];
   const max = Math.max(1, f.convocados);
   return `<div class="vbar">${itens.map(([, v]) => `<div class="vcol"><div class="vval">${v}</div><div class="vb" style="height:${(v / max) * 100}%"></div></div>`).join('')}</div>
     <div class="vrots">${itens.map(([r]) => `<span>${r}</span>`).join('')}</div>`;
@@ -241,10 +241,10 @@ export function htmlDoRelatorio(r: EntradaDoRelatorio): string {
   .grupos.g3 { grid-template-columns: repeat(3, 1fr); }
   .card { border: .5mm solid #223A66; border-radius: 7mm; padding: 0 5mm 4mm; position: relative; display: flex; flex-direction: column; min-height: 0; background: #FDF8E7; }
   .cab { align-self: center; margin-top: -4mm; background: #223A66; color: #fff; border-radius: 99mm; padding: 1.8mm 9mm; font-weight: 700; font-size: 5mm; white-space: nowrap; }
-  .vbar { height: 62mm; display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5mm; align-items: end; margin-top: 4mm; min-height: 38mm; border-bottom: .3mm solid #C9C3B0; }
+  .vbar { height: 62mm; display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.5mm; align-items: end; margin-top: 4mm; min-height: 38mm; border-bottom: .3mm solid #C9C3B0; }
   .vcol { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; text-align: center; }
   .vb { background: #4F9FCB; border-radius: 1.2mm 1.2mm 0 0; min-height: .4mm; } .vval { font-weight: 700; font-size: 4mm; margin-bottom: 1mm; }
-  .vrots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5mm; text-align: center; font-size: 3mm; padding-top: 1mm; color: #3B5689; }
+  .vrots { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.5mm; text-align: center; font-size: 2.7mm; padding-top: 1mm; color: #3B5689; }
   .card ul { margin: 3mm 0 0; padding-left: 5mm; font-weight: 700; font-size: 3.8mm; line-height: 1.35; }
   .duas { flex: 1; display: grid; grid-template-columns: 1fr 1.25fr; gap: 9mm; margin-top: 6mm; min-height: 0; }
   .numeros { display: grid; grid-template-columns: 1fr 1fr; align-content: center; gap: 6mm 4mm; text-align: center; }
