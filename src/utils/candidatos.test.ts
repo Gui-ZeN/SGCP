@@ -100,3 +100,17 @@ describe('recalculoDaSelecao', () => {
     expect(recalculoDaSelecao({}, lista('ausente'), false)).toMatchObject({ ausentes: 1 });
   });
 });
+
+import { MOTIVOS_DESISTENCIA } from './candidatos';
+import { dadosDoRelatorio } from './relatorioMensal';
+
+describe('motivo "Horário da vaga" (pedido do RH, 04/11/2026)', () => {
+  it('está na lista, soma nos números do dia e sai com acento no relatório', () => {
+    expect(MOTIVOS_DESISTENCIA).toContain('Horário da vaga');
+    const { motivos } = numerosDoDia([c('desistiu', { motivo: 'Horário da vaga' }), c('desistiu', { motivo: 'Horário da vaga' })]);
+    expect(motivos).toEqual({ 'horario da vaga': 2 });
+    const d = dadosDoRelatorio({ ano: 2026, mes: 9, hojeISO: '2026-10-05', comIntegracao: false, vagas: [], experiencias: [], integracoes: [], treinamentos: [],
+      selecoes: [{ id: 's', data: '10/09/2026', cargo: 'ASG', sede: 'A', responsavel: '', origem: 'geral', convocados: 2, compareceram: 2, ausentes: 0, contratados: 0, desistiram: 2, motivos } as any] });
+    expect(d.selecao.motivos).toEqual([{ name: 'Horário da vaga', total: 2 }]);
+  });
+});

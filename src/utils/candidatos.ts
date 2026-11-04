@@ -53,6 +53,7 @@ export const MOTIVOS_DESISTENCIA = [
   'Não ter refeição / alimentação',
   'Sem interesse na vaga',
   'Local de trabalho distante',
+  'Horário da vaga', // pedido do RH (04/11/2026): ia só na observação, e o motivo ficava vazio
   'Motivos pessoais',
   'Não compareceu para os testes',
   'Informou que o salário é abaixo do atual / mercado',
