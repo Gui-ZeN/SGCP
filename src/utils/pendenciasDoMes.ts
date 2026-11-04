@@ -12,7 +12,7 @@ import { linkPara } from '../lib/rotas';
 import { anoMes } from './filtroIndicadores';
 import { ehRealizada } from './selecao';
 import { toISOInput } from './date';
-import { doMes, avaliacaoDoMes } from './relatorioMensal';
+import { doMes, avaliacoesDoMes } from './relatorioMensal';
 
 export interface ItemPendente { id: string; principal: string; detalhe: string; link: string }
 export interface Pendencia {
@@ -69,12 +69,9 @@ export function pendenciasDoMes(e: {
     itens: comDesistente.filter(s => !s.numerosPelaLista).map(s => itemSel(s, `${desistentesSemMotivo(s)} desistente(s)`)) });
 
   add({ id: 'experiencia', titulo: 'Avaliações de experiência vencidas sem desfecho', efeito: 'a participação da sede cai',
-    itens: e.experiencias.flatMap(x => {
-      const a = avaliacaoDoMes(x, e.ano, e.mes, e.hojeISO);
-      return a?.desfecho === 'semDesfecho'
-        ? [{ id: x.id, principal: x.colaborador, detalhe: `${a.marco} · venceu ${dataCurta(a.vence)}${x.sede ? ` · ${x.sede}` : ''}`, link: linkPara('experiencias', { pessoa: x.colaborador }) }]
-        : [];
-    }) });
+    itens: e.experiencias.flatMap(x => avaliacoesDoMes(x, e.ano, e.mes, e.hojeISO)
+      .filter(a => a.desfecho === 'semDesfecho')
+      .map(a => ({ id: x.id, principal: x.colaborador, detalhe: `${a.marco} · venceu ${dataCurta(a.vence)}${x.sede ? ` · ${x.sede}` : ''}`, link: linkPara('experiencias', { pessoa: x.colaborador }) }))) });
 
   if (e.comIntegracao) {
     const mesISO = `${e.ano}-${String(e.mes).padStart(2, '0')}`;

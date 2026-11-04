@@ -75,7 +75,8 @@ const CAMPANHAS: { id: string; nome: string; favicon: string }[] = [
   { id: 'setembro-amarelo', nome: 'Setembro Amarelo', favicon: '/logo-setembro.svg' },
 ];
 
-import { useOperationalModules, addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from './hooks/useOperationalModules';
+import { useOperationalModules } from './hooks/useOperationalModules';
+import { prazosARecalcular } from './utils/date';
 const TreinamentosSection = lazyComRetry(() => import('./components/TreinamentosSection').then(m => ({ default: m.TreinamentosSection })));
 const ExperienciasSection = lazyComRetry(() => import('./components/ExperienciasSection').then(m => ({ default: m.ExperienciasSection })));
 const EntrevistasSection = lazyComRetry(() => import('./components/EntrevistasSection').then(m => ({ default: m.EntrevistasSection })));
@@ -1258,28 +1259,22 @@ export default function App() {
     }
   };
 
-  // Migração one-time: recalcula os vencimentos 45/90 (contagem inclusiva CLT) das
-  // experiências já cadastradas a partir da data de admissão. Idempotente.
+  // Recalcula os vencimentos das experiências em andamento a partir da admissão,
+  // pelos prazos da unidade de cada uma (45/75 ou 45/90). Idempotente.
   const handleRecalcularExperiencias = () => {
-    if (!experiencias.length) {
-      notify("Não há experiências cadastradas para recalcular.", "info");
+    const emAndamento = experiencias.filter(e => e.status === 'EM_ANALISE' || e.status === 'PRORROGADO');
+    if (!emAndamento.length) {
+      notify("Não há experiências em andamento para recalcular.", "info");
       return;
     }
     askConfirmation(
       "Recalcular vencimentos de experiência",
-      `Recalcular os prazos de 45 e 90 dias (contagem inclusiva) de ${experiencias.length} registro(s) a partir da data de admissão? Só altera os que estiverem diferentes.`,
+      `Recalcular os prazos (Universidade 45/75, Colégio 45/90) de ${emAndamento.length} experiência(s) em andamento a partir da data de admissão? Só altera as que estiverem diferentes.`,
       () => executeWithLoading("Recalculando vencimentos de experiência...", async () => {
-        let alterados = 0;
-        for (const e of experiencias) {
-          if (!e.dataAdmissao) continue;
-          const t1 = addDaysToDate(e.dataAdmissao, DIAS_EXPERIENCIA_1);
-          const t2 = addDaysToDate(e.dataAdmissao, DIAS_EXPERIENCIA_2);
-          if (e.termino1 !== t1 || e.termino2 !== t2) {
-            await updateExperiencia(e.id, { termino1: t1, termino2: t2 });
-            alterados++;
-          }
-        }
-        await logAction('ALTEROU', 'Experiências', `Recálculo em lote dos vencimentos 45/90 (inclusivo): ${alterados} de ${experiencias.length} registro(s) atualizado(s).`);
+        const mudancas = prazosARecalcular(emAndamento, unidadeDe);
+        for (const { e, termino1, termino2 } of mudancas) await updateExperiencia(e.id, { termino1, termino2 });
+        const alterados = mudancas.length;
+        await logAction('ALTEROU', 'Experiências', `Recálculo em lote dos vencimentos: ${alterados} de ${emAndamento.length} em andamento atualizado(s).`);
         notify(`Recálculo concluído: ${alterados} registro(s) atualizado(s).`, "success");
       })
     );

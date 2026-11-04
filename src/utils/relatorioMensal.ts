@@ -9,6 +9,7 @@
  * (17) e o treinamento da Recepção (24 de 30) batem com o deck; o que não bate
  * é lançamento que falta no sistema, e aparece em utils/pendenciasDoMes.ts.
  */
+import { rotuloDoSegundoPrazo } from './date';
 import type { Vaga, Selecao, Experiencia, Integracao, Treinamento } from '../types';
 import { anoMes } from './filtroIndicadores';
 import { motivosDesistencia, integracaoPorSede, totalGeral, type CumprimentoSede } from './indicadores';
@@ -98,11 +99,11 @@ const somar = (f: Funil, s: Selecao) => {
  */
 export type DesfechoDaAvaliacao = 'pediram' | 'desligados' | 'prorrogadas' | 'efetivadas' | 'aVencer' | 'semDesfecho';
 /** A avaliação que vence no mês e o desfecho dela; null = não vence no mês. Ver experienciaDoMes. */
-export function avaliacaoDoMes(e: Experiencia, ano: number, mes: number, hojeISO: string): { desfecho: DesfechoDaAvaliacao; vence: string; marco: '45 dias' | '90 dias' } | null {
+export function avaliacaoDoMes(e: Experiencia, ano: number, mes: number, hojeISO: string): { desfecho: DesfechoDaAvaliacao; vence: string; marco: string } | null {
   const noMes = doMes(ano, mes);
   const primeiro = noMes(e.termino1), segundo = noMes(e.termino2);
   if (!primeiro && !segundo) return null;
-  const vence = primeiro ? e.termino1 : e.termino2, marco = primeiro ? '45 dias' : '90 dias';
+  const vence = primeiro ? e.termino1 : e.termino2, marco = primeiro ? '45 dias' : rotuloDoSegundoPrazo(e.escopo);
   const desfecho: DesfechoDaAvaliacao = e.status === 'ENCERRADO' ? (e.tipoEncerramento === 'a_pedido' ? 'pediram' : 'desligados')
     : primeiro && e.status !== 'EM_ANALISE' ? 'prorrogadas'
     : segundo && e.status === 'EFETIVADO' ? 'efetivadas'
@@ -110,17 +111,30 @@ export function avaliacaoDoMes(e: Experiencia, ano: number, mes: number, hojeISO
   return { desfecho, vence, marco };
 }
 
+/**
+ * As avaliações da pessoa no mês. Na Universidade os prazos ficam a 30 dias um
+ * do outro e os dois podem cair no mesmo mês: quem já passou do 1º tem as duas.
+ */
+export function avaliacoesDoMes(e: Experiencia, ano: number, mes: number, hojeISO: string) {
+  const a = avaliacaoDoMes(e, ano, mes, hojeISO);
+  if (!a) return [];
+  const noMes = doMes(ano, mes);
+  if (!noMes(e.termino1) || !noMes(e.termino2) || (e.status !== 'PRORROGADO' && e.status !== 'EFETIVADO')) return [a];
+  const desfecho: DesfechoDaAvaliacao = e.status === 'EFETIVADO' ? 'efetivadas' : isoDe(e.termino2) >= hojeISO ? 'aVencer' : 'semDesfecho';
+  return [a, { desfecho, vence: e.termino2, marco: rotuloDoSegundoPrazo(e.escopo) }];
+}
+
 export function experienciaDoMes(lista: Experiencia[], ano: number, mes: number, hojeISO: string): ExperienciaDaSede[] {
   const porSede = new Map<string, ExperienciaDaSede>();
   for (const e of lista) {
-    const a = avaliacaoDoMes(e, ano, mes, hojeISO);
-    if (!a) continue;
-    const sede = (e.sede || '').trim() || '—';
-    const l = porSede.get(sede) || { sede, programadas: 0, realizadas: 0, prorrogadas: 0, efetivadas: 0, desligados: 0, pediram: 0, semDesfecho: 0, aVencer: 0 };
-    l.programadas++;
-    l[a.desfecho]++;
-    if (a.desfecho !== 'aVencer' && a.desfecho !== 'semDesfecho') l.realizadas++;
-    porSede.set(sede, l);
+    for (const a of avaliacoesDoMes(e, ano, mes, hojeISO)) {
+      const sede = (e.sede || '').trim() || '—';
+      const l = porSede.get(sede) || { sede, programadas: 0, realizadas: 0, prorrogadas: 0, efetivadas: 0, desligados: 0, pediram: 0, semDesfecho: 0, aVencer: 0 };
+      l.programadas++;
+      l[a.desfecho]++;
+      if (a.desfecho !== 'aVencer' && a.desfecho !== 'semDesfecho') l.realizadas++;
+      porSede.set(sede, l);
+    }
   }
   return [...porSede.values()].sort((a, b) => b.programadas - a.programadas || a.sede.localeCompare(b.sede, 'pt-BR'));
 }

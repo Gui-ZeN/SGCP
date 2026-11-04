@@ -97,7 +97,34 @@ export function yearFromDate(value: unknown): number {
 // Período de experiência com contagem inclusiva (CLT): o dia da admissão é o dia 1.
 // Logo, o 45º dia = admissão + 44 dias; o 90º dia = admissão + 89 dias.
 export const DIAS_EXPERIENCIA_1 = 44; // marca o 45º dia (inclusivo)
-export const DIAS_EXPERIENCIA_2 = 89; // marca o 90º dia (inclusivo)
+export const DIAS_EXPERIENCIA_2 = 89; // marca o 90º dia (inclusivo) — Colégio
+// A Universidade faz 45/75 e o Colégio 45/90 (confirmado pelo Guilherme, 04/11/2026).
+// A Universidade conta como na planilha dela: admissão + 45 e + 75 (não inclusivo).
+// ⚠️ Antes todo registro novo saía com 90: 63 da Universidade ficaram com o
+// vencimento 15 dias depois do real (scripts/experiencia-universidade-75.mjs).
+export const DIAS_EXPERIENCIA_1_UNIVERSIDADE = 45;
+export const DIAS_EXPERIENCIA_2_UNIVERSIDADE = 75;
+export const diasDoPrimeiroPrazo = (unidade?: string) => (unidade === 'universidade' ? DIAS_EXPERIENCIA_1_UNIVERSIDADE : DIAS_EXPERIENCIA_1);
+export const diasDoSegundoPrazo = (unidade?: string) => (unidade === 'universidade' ? DIAS_EXPERIENCIA_2_UNIVERSIDADE : DIAS_EXPERIENCIA_2);
+export const rotuloDoSegundoPrazo = (unidade?: string) => (unidade === 'universidade' ? '75 dias' : '90 dias');
+
+/**
+ * O que "Recalcular vencimentos" altera. ⚠️ Só quem está em andamento: o
+ * histórico da Universidade veio da planilha com datas próprias, e recalcular
+ * reescreveria centenas de registros encerrados.
+ */
+export function prazosARecalcular<T extends { status: string; dataAdmissao: string; termino1: string; termino2: string }>(
+  lista: T[], unidadeDe: (e: T) => string | undefined,
+) {
+  return lista
+    .filter(e => (e.status === 'EM_ANALISE' || e.status === 'PRORROGADO') && e.dataAdmissao)
+    .map(e => ({
+      e,
+      termino1: addDaysToDate(e.dataAdmissao, diasDoPrimeiroPrazo(unidadeDe(e))),
+      termino2: addDaysToDate(e.dataAdmissao, diasDoSegundoPrazo(unidadeDe(e))),
+    }))
+    .filter(x => x.e.termino1 !== x.termino1 || x.e.termino2 !== x.termino2);
+}
 
 /**
  * Data LOCAL em ISO (YYYY-MM-DD) — use no lugar de `toISOString().slice(0,10)`.

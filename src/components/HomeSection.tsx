@@ -166,7 +166,7 @@ export const HomeSection: React.FC<HomeSectionProps> = ({
     },
     {
       id: 'avaliacoes', titulo: 'Avaliações de experiência', tom: p.avaliacoes.some(x => x.dias < 0) ? 'critico' : 'atencao',
-      detalhe: 'Marcos de 45 e 90 dias vencidos ou vencendo nesta semana.',
+      detalhe: 'Prazos da experiência vencidos ou vencendo nesta semana.',
       verTudo: linkPara('experiencias'),
       itens: p.avaliacoes.map(({ e, marco, dias }) => ({
         id: e.id, principal: e.colaborador, meta: [marco, e.funcao, e.sede ? sigla(e.sede) : ''].filter(Boolean).join(' · '),

@@ -7,7 +7,7 @@
 import React, { useMemo } from 'react';
 import type { Treinamento, Experiencia, Integracao } from '../../types';
 import type { Sede } from '../../hooks/useMetadata';
-import { diasEntre, dataISOLocal } from '../../utils/date';
+import { diasEntre, dataISOLocal, rotuloDoSegundoPrazo } from '../../utils/date';
 import { siglaDaSede, anoMes, MESES_CURTOS, type Periodo } from '../../utils/filtroIndicadores';
 import { sedesDaTurma } from '../../utils/treinamentos';
 import { TabelaDoGrafico } from '../TabelaDoGrafico';
@@ -28,10 +28,10 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 export const LIMITE_ATRASO_DIAS = 30;
 
 export function avaliacoesAVencer(experiencias: Experiencia[], dentro = 15, hoje = dataISOLocal()) {
-  const lista: { e: Experiencia; marco: '45 dias' | '90 dias'; dias: number }[] = [];
+  const lista: { e: Experiencia; marco: string; dias: number }[] = [];
   for (const e of experiencias) {
-    const marco = e.status === 'EM_ANALISE' ? { data: e.termino1, rot: '45 dias' as const }
-      : e.status === 'PRORROGADO' ? { data: e.termino2, rot: '90 dias' as const } : null;
+    const marco = e.status === 'EM_ANALISE' ? { data: e.termino1, rot: '45 dias' }
+      : e.status === 'PRORROGADO' ? { data: e.termino2, rot: rotuloDoSegundoPrazo(e.escopo) } : null;
     if (!marco?.data) continue;
     const d = diasEntre(hoje, marco.data);
     if (d !== null && d <= dentro) lista.push({ e, marco: marco.rot, dias: d });
@@ -164,13 +164,13 @@ export const AbaPessoas: React.FC<Props> = ({ treinamentos, experiencias, experi
       <section aria-labelledby="pes-exp" className="space-y-4">
         <h3 id="pes-exp" className="text-base font-bold text-slate-900">Período de experiência</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Kpi rotulo="Em acompanhamento" valor={num(exp.emAnalise + exp.prorrogados)} detalhe={`${exp.prorrogados} prorrogado${exp.prorrogados === 1 ? '' : 's'} para 90 dias`} />
+          <Kpi rotulo="Em acompanhamento" valor={num(exp.emAnalise + exp.prorrogados)} detalhe={`${exp.prorrogados} prorrogado${exp.prorrogados === 1 ? '' : 's'} até o 2º prazo`} />
           <Kpi rotulo="Efetivados" valor={num(exp.efetivados)} tom={exp.efetivados ? 'bom' : 'neutro'}
             detalhe={exp.decididos ? `${pct(exp.efetivados, exp.decididos)}% dos que já tiveram desfecho` : 'nenhum desfecho no período'} />
           <Kpi rotulo="Encerrados" valor={num(exp.encerrados)} detalhe={exp.encerrados ? `${exp.aPedido} a pedido do colaborador` : undefined} />
           <Kpi rotulo="Avaliações nos próximos 15 dias" valor={num(vencendo.filter(v => v.dias >= 0).length)}
             tom={vencendo.some(v => v.dias < 0) ? 'critico' : vencendo.length ? 'atencao' : 'neutro'}
-            detalhe={vencendo.some(v => v.dias < 0) ? `+ ${vencendo.filter(v => v.dias < 0).length} atrasada(s) há até ${LIMITE_ATRASO_DIAS} dias` : 'de 45 e 90 dias'} />
+            detalhe={vencendo.some(v => v.dias < 0) ? `+ ${vencendo.filter(v => v.dias < 0).length} atrasada(s) há até ${LIMITE_ATRASO_DIAS} dias` : 'do período de experiência'} />
         </div>
         {vencendo.length > 0 && (
           <Painel titulo="Avaliações a fazer" descricao="Atrasadas primeiro. Não depende do período: é o que vence agora.">

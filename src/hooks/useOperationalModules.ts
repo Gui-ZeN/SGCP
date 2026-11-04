@@ -19,11 +19,11 @@ import type { ImportableEntrevista, ImportableTreinamento } from '../lib/spreads
 import { stripUndefinedFields } from '../lib/firestoreData';
 import { useFirestoreCollection, colecaoDoLeitor } from './useFirestoreCollection';
 import { escopoParaGravar, escopoDaSede, escopoAoGravar, SEM_ISOLAMENTO, type Escopo, type IsolamentoUnidade } from '../utils/unidade';
-import { addDaysToDate, diasEntre, codigoDoInstante, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 } from '../utils/date';
+import { addDaysToDate, diasEntre, codigoDoInstante, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2, diasDoPrimeiroPrazo, diasDoSegundoPrazo } from '../utils/date';
 import { isFirebaseEnabled } from '../lib/firebase';
 import { reservarCodigos } from '../lib/contador';
 // Re-export para compatibilidade (definições movidas para utils/date, testáveis sem firebase).
-export { addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2 };
+export { addDaysToDate, DIAS_EXPERIENCIA_1, DIAS_EXPERIENCIA_2, diasDoPrimeiroPrazo, diasDoSegundoPrazo };
 
 const TREINAMENTOS_LOCAL_KEY = 'ats_treinamentos_fallback';
 const EXPERIENCIA_LOCAL_KEY = 'ats_experiencia_fallback';
@@ -282,12 +282,16 @@ export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade 
   const deleteTreinamento = (id: string) => treina.remove(id);
 
   // ==================== CRUD EXPERIENCIA ====================
-  const addExperiencia = (input: Omit<Experiencia, 'id' | 'termino1' | 'termino2'>) =>
-    exp.create({
+  const addExperiencia = (input: Omit<Experiencia, 'id' | 'termino1' | 'termino2'>) => {
+    // A mesma unidade que será carimbada no registro (45/75 ou 45/90).
+    const unidade = isolamento.escopo ?? daExperiencia(input);
+    return exp.create({
       ...input,
-      termino1: addDaysToDate(input.dataAdmissao, DIAS_EXPERIENCIA_1),
-      termino2: addDaysToDate(input.dataAdmissao, DIAS_EXPERIENCIA_2)
+      ...(unidade ? { escopo: unidade } : {}),
+      termino1: addDaysToDate(input.dataAdmissao, diasDoPrimeiroPrazo(unidade)),
+      termino2: addDaysToDate(input.dataAdmissao, diasDoSegundoPrazo(unidade))
     });
+  };
   /**
    * Ao editar, os prazos só são recalculados se a ADMISSÃO realmente mudou — e
    * então são DESLOCADOS pelo mesmo número de dias, preservando o espaçamento
@@ -300,6 +304,21 @@ export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade 
    */
   const updateExperiencia = (id: string, updatedFields: Partial<Experiencia>) => {
     const atual = exp.items.find(x => x.id === id);
+    // Administrador moveu a sede para a outra unidade: quem está em andamento
+    // passa aos prazos da unidade nova (decisão do Guilherme, 04/11/2026). Sem
+    // isso a tela diria "75 dias" sobre uma data de 90. Encerrado fica como está.
+    if (atual) {
+      const unidadeNova = escopoAoGravar(isolamento.escopo, daExperiencia, atual, updatedFields);
+      const status = updatedFields.status ?? atual.status;
+      const admissao = updatedFields.dataAdmissao || atual.dataAdmissao;
+      if (unidadeNova && unidadeNova !== (atual.escopo ?? daExperiencia(atual)) && admissao && (status === 'EM_ANALISE' || status === 'PRORROGADO')) {
+        return exp.update(id, {
+          ...updatedFields,
+          termino1: addDaysToDate(admissao, diasDoPrimeiroPrazo(unidadeNova)),
+          termino2: addDaysToDate(admissao, diasDoSegundoPrazo(unidadeNova)),
+        });
+      }
+    }
     const novaAdmissao = updatedFields.dataAdmissao;
     if (!novaAdmissao || !atual || novaAdmissao === atual.dataAdmissao) {
       return exp.update(id, updatedFields);
@@ -308,8 +327,8 @@ export function useOperationalModules(user?: any, isolamento: IsolamentoUnidade 
     if (desloc === null) return exp.update(id, updatedFields);
     return exp.update(id, {
       ...updatedFields,
-      termino1: atual.termino1 ? addDaysToDate(atual.termino1, desloc) : addDaysToDate(novaAdmissao, DIAS_EXPERIENCIA_1),
-      termino2: atual.termino2 ? addDaysToDate(atual.termino2, desloc) : addDaysToDate(novaAdmissao, DIAS_EXPERIENCIA_2),
+      termino1: atual.termino1 ? addDaysToDate(atual.termino1, desloc) : addDaysToDate(novaAdmissao, diasDoPrimeiroPrazo(atual.escopo ?? daExperiencia(atual))),
+      termino2: atual.termino2 ? addDaysToDate(atual.termino2, desloc) : addDaysToDate(novaAdmissao, diasDoSegundoPrazo(atual.escopo ?? daExperiencia(atual))),
     });
   };
   const deleteExperiencia = (id: string) => exp.remove(id);

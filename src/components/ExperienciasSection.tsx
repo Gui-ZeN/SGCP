@@ -7,7 +7,7 @@ import React, { useState, useMemo } from 'react';
 import { LinkVaga } from './ui/Atalhos';
 import { Experiencia } from '../types';
 import { Sede, Setor } from '../hooks/useMetadata';
-import { dateFromValue, toISOInput, formatDateBR } from '../utils/date';
+import { dateFromValue, toISOInput, formatDateBR, rotuloDoSegundoPrazo } from '../utils/date';
 import { Search, Plus, Trash2, Upload, Loader2 } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { FiltroMultiplo } from './ui/FiltroMultiplo';
@@ -52,13 +52,15 @@ const getDaysDifference = (targetDateStr: string): number => {
   return diffDays;
 };
 
-const getReviewAlert = (e: Experiencia): ReviewAlert => {
+export const getReviewAlert = (e: Experiencia): ReviewAlert => {
   if (e.status === 'EFETIVADO' || e.status === 'ENCERRADO') {
     return { type: 'success', label: 'Concluído', days: 0, message: 'Processo concluído' };
   }
 
   const diff45 = getDaysDifference(e.termino1);
   const diff90 = getDaysDifference(e.termino2);
+  const segundo = rotuloDoSegundoPrazo(e.escopo); // 75 dias na Universidade, 90 no Colégio
+  const segundoCurto = segundo.replace(' dias', 'd');
 
   if (e.status === 'EM_ANALISE') {
     if (diff45 < 0) {
@@ -101,37 +103,37 @@ const getReviewAlert = (e: Experiencia): ReviewAlert => {
     if (diff90 < 0) {
       return {
         type: 'danger',
-        label: 'Atrasado (90d)',
+        label: `Atrasado (${segundoCurto})`,
         days: diff90,
-        message: `Avaliação final de 90 dias atrasada há ${Math.abs(diff90)} ${Math.abs(diff90) === 1 ? 'dia' : 'dias'} (${e.termino2})`
+        message: `Avaliação final de ${segundo} atrasada há ${Math.abs(diff90)} ${Math.abs(diff90) === 1 ? 'dia' : 'dias'} (${e.termino2})`
       };
     } else if (diff90 === 0) {
       return {
         type: 'danger',
-        label: 'Vence Hoje (90d)',
+        label: `Vence Hoje (${segundoCurto})`,
         days: 0,
-        message: `Avaliação final de 90 dias deve ser realizada HOJE! (${e.termino2})`
+        message: `Avaliação final de ${segundo} deve ser realizada HOJE! (${e.termino2})`
       };
     } else if (diff90 <= 7) {
       return {
         type: 'warning',
-        label: 'Urgente (90d)',
+        label: `Urgente (${segundoCurto})`,
         days: diff90,
-        message: `Avaliação final de 90 dias vence em ${diff90} ${diff90 === 1 ? 'dia' : 'dias'} (${e.termino2})`
+        message: `Avaliação final de ${segundo} vence em ${diff90} ${diff90 === 1 ? 'dia' : 'dias'} (${e.termino2})`
       };
     } else if (diff90 <= 15) {
       return {
         type: 'info',
-        label: 'Em breve (90d)',
+        label: `Em breve (${segundoCurto})`,
         days: diff90,
-        message: `Avaliação final de 90 dias em ${diff90} dias (${e.termino2})`
+        message: `Avaliação final de ${segundo} em ${diff90} dias (${e.termino2})`
       };
     } else {
       return {
         type: 'none',
         label: 'No prazo',
         days: diff90,
-        message: `${diff90} dias restantes para decisão de 90 dias`
+        message: `${diff90} dias restantes para decisão de ${segundo}`
       };
     }
   }
@@ -404,7 +406,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
   /** Próximo marco e quanto falta, para a coluna "Próximo prazo". */
   const prazo = (e: Experiencia) => {
     const a = getReviewAlert(e);
-    const marco = e.status === 'PRORROGADO' ? `90 dias · ${e.termino2}` : `45 dias · ${e.termino1}`;
+    const marco = e.status === 'PRORROGADO' ? `${rotuloDoSegundoPrazo(e.escopo)} · ${e.termino2}` : `45 dias · ${e.termino1}`;
     const texto = a.days < 0 ? `atrasada há ${-a.days} dia${a.days === -1 ? '' : 's'}`
       : a.days === 0 ? 'vence hoje'
       : `em ${a.days} dia${a.days === 1 ? '' : 's'}`;
@@ -413,7 +415,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
   };
   const situacao = (e: Experiencia): { rotulo: string; cor: string } =>
     e.status === 'EM_ANALISE' ? { rotulo: 'Em análise (45 dias)', cor: 'var(--etapa-entrevista)' }
-    : e.status === 'PRORROGADO' ? { rotulo: 'Prorrogado (90 dias)', cor: 'var(--etapa-testes)' }
+    : e.status === 'PRORROGADO' ? { rotulo: `Prorrogado (${rotuloDoSegundoPrazo(e.escopo)})`, cor: 'var(--etapa-testes)' }
     : e.status === 'EFETIVADO' ? { rotulo: 'Efetivado', cor: 'var(--etapa-admissao)' }
     : e.tipoEncerramento === 'a_pedido' ? { rotulo: e.dataPedidoRescisao ? `Saiu a pedido em ${e.dataPedidoRescisao}` : 'Saiu a pedido', cor: 'var(--etapa-triagem)' }
     : { rotulo: 'Desligado pela empresa', cor: 'var(--atraso)' };
@@ -434,7 +436,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
         <div className="min-w-0">
           <p className="pagina-trilha">Pessoas</p>
           <h1 className="pagina-titulo">Experiência</h1>
-          <p className="inicio-sub">Prazos de 45 e 90 dias dos novos colaboradores.</p>
+          <p className="inicio-sub">Prazos do período de experiência dos novos colaboradores.</p>
         </div>
         <div className="pagina-acoes">
           {canManage && onImportUniversidade && (
@@ -529,7 +531,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
                     <td className="whitespace-nowrap" data-rotulo={ativo ? 'Próximo prazo' : 'Prazos'}>
                       {ativo
                         ? <span>{p.marco}<span className="sub" style={{ color: p.cor, fontWeight: 700 }}>{p.texto}</span></span>
-                        : <span>45 dias · {e.termino1}<span className="sub">90 dias · {e.termino2}</span></span>}
+                        : <span>45 dias · {e.termino1}<span className="sub">{rotuloDoSegundoPrazo(e.escopo)} · {e.termino2}</span></span>}
                     </td>
                     <td data-rotulo="Supervisor">{e.supervisor || 'RH'}</td>
                     <td data-rotulo="Situação"><b style={{ color: sit.cor }}>{sit.rotulo}</b></td>
@@ -570,7 +572,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
           <div className="space-y-2" role="radiogroup" aria-label="Decisão">
             {([
               ['EFETIVADO', 'Efetivar', 'Passou na experiência e segue na empresa.'],
-              ...(decidindo.status === 'EM_ANALISE' ? [['PRORROGADO', 'Prorrogar até 90 dias', `Nova avaliação em ${decidindo.termino2}.`]] : []),
+              ...(decidindo.status === 'EM_ANALISE' ? [['PRORROGADO', `Prorrogar até ${rotuloDoSegundoPrazo(decidindo.escopo)}`, `Nova avaliação em ${decidindo.termino2}.`]] : []),
               ['a_pedido', 'Pediu para sair', 'Rescisão a pedido do colaborador.'],
               ['empresa', 'Desligar', 'Encerramento por iniciativa da empresa.'],
             ] as [Escolha, string, string][]).map(([id, rotulo, ajuda]) => (
@@ -598,7 +600,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
       {showAddForm && (
         <Modal
           titulo={editingExperiencia ? 'Editar acompanhamento' : 'Novo acompanhamento'}
-          antes={editingExperiencia ? editingExperiencia.colaborador : 'Experiência de 45 e 90 dias'}
+          antes={editingExperiencia ? editingExperiencia.colaborador : 'Período de experiência'}
           aoFechar={fecharForm}
           rodape={<>
             <button type="button" className="btn" onClick={fecharForm}>Cancelar</button>
@@ -619,7 +621,7 @@ export const ExperienciasSection: React.FC<ExperienciasSectionProps> = ({
               <label className="block">
                 <span className="rotulo">Admissão *</span>
                 <input type="date" required className="campo w-full" value={dataAdmissao} onChange={(e) => setDataAdmissao(e.target.value)} />
-                <span className="ajuda block">Os prazos de 45 e 90 dias saem daqui.</span>
+                <span className="ajuda block">Os prazos da experiência saem daqui.</span>
               </label>
               <label className="block">
                 <span className="rotulo">Sede *</span>

@@ -19,7 +19,7 @@ const MODULOS: { nome: string; o: string }[] = [
   { nome: 'Seleções', o: 'convocados, candidatos e resultado' },
   { nome: 'Resumo do Dia', o: 'o relato das 18h à diretoria' },
   { nome: 'Indicadores', o: 'vagas, seleções, pessoas e clima' },
-  { nome: 'Experiência', o: 'avaliações de 45 e 90 dias' },
+  { nome: 'Experiência', o: 'avaliações do período de experiência' },
   { nome: 'Treinamentos', o: 'turmas, presença e investimento' },
   { nome: 'Desligamentos', o: 'entrevistas de saída' },
   { nome: 'Turnover', o: 'entradas e saídas do mês' },

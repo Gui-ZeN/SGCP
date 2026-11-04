@@ -363,7 +363,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <div>
                   <h3 className="text-sm font-black text-slate-800">Manutenção · Vencimentos de Experiência</h3>
                   <p className="text-xs font-semibold text-slate-500 mt-0.5 leading-relaxed">
-                    Recalcula os prazos de 45 e 90 dias das experiências já cadastradas usando a contagem inclusiva (o dia da admissão conta como dia 1). Rode uma vez para corrigir os registros antigos; só altera os que estiverem diferentes.
+                    Recalcula os prazos das experiências em andamento (Universidade 45/75, Colégio 45/90) a partir da admissão. Não mexe nas encerradas; só altera as que estiverem diferentes.
                   </p>
                 </div>
               </div>
@@ -374,7 +374,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 className="px-5 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-xs font-bold rounded-xl text-white shadow-md cursor-pointer flex items-center gap-2"
               >
                 <History className="w-4 h-4" />
-                Recalcular vencimentos (45/90)
+                Recalcular vencimentos
               </button>
             </div>
 

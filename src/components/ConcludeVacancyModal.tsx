@@ -94,7 +94,7 @@ export const ConcludeVacancyModal: React.FC<ConcludeVacancyModalProps> = ({ vaga
         <label className="flex items-center gap-2.5 cursor-pointer text-[14px]">
           <input type="checkbox" className="w-4 h-4 shrink-0" style={{ accentColor: 'var(--tinta)' }}
             checked={addToExperiencia} onChange={(e) => setAddToExperiencia(e.target.checked)} />
-          Abrir o acompanhamento de experiência (45/90 dias) para essa pessoa
+          Abrir o acompanhamento de experiência para essa pessoa
         </label>
         <label className="block">
           <span className={rotulo}>Observações finais do RH</span>

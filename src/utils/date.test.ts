@@ -10,6 +10,10 @@ import {
   addDaysToDate,
   DIAS_EXPERIENCIA_1,
   DIAS_EXPERIENCIA_2,
+  diasDoSegundoPrazo,
+  rotuloDoSegundoPrazo,
+  diasDoPrimeiroPrazo,
+  prazosARecalcular,
   dataISOLocal
 } from './date';
 
@@ -119,11 +123,11 @@ describe('deslocamento de prazos preserva o espaçamento do registro', () => {
     return { t1: addDaysToDate(t1, d), t2: addDaysToDate(t2, d) };
   };
   it('registro da Universidade (45/75) mantém 75 dias após mover a admissão', () => {
-    const adm='01/06/2026', t1='15/07/2026', t2='14/08/2026'; // +44 e +74
+    const adm='01/06/2026', t1='16/07/2026', t2='15/08/2026'; // +45 e +75
     const r = desloca(adm, '08/06/2026', t1, t2);             // +7 dias
-    expect(r.t1).toBe('22/07/2026');
-    expect(r.t2).toBe('21/08/2026');
-    expect(diasEntre('08/06/2026', r.t2)).toBe(74);           // continua 75º dia
+    expect(r.t1).toBe('23/07/2026');
+    expect(r.t2).toBe('22/08/2026');
+    expect(diasEntre('08/06/2026', r.t2)).toBe(75);           // continua +75
   });
   it('registro do Colégio (45/90) mantém 90 dias', () => {
     const adm='01/06/2026';
@@ -139,5 +143,37 @@ describe('dataISOLocal', () => {
   it('usa o dia do relógio local, mesmo à noite', () => {
     expect(dataISOLocal(new Date(2026, 9, 21, 22, 30))).toBe('2026-10-21');
     expect(dataISOLocal(new Date(2026, 9, 21, 0, 5))).toBe('2026-10-21');
+  });
+});
+
+describe('Recalcular vencimentos', () => {
+  const e = (id: string, status: string, escopo: string, termino1: string, termino2: string) => ({ id, status, escopo, dataAdmissao: '01/03/2026', termino1, termino2 });
+  const unidade = (x: { escopo: string }) => x.escopo;
+  it('corrige quem está em andamento, pelos prazos da unidade de cada um', () => {
+    const r = prazosARecalcular([e('u', 'PRORROGADO', 'universidade', '14/04/2026', '29/05/2026'), e('c', 'EM_ANALISE', 'colegio', '15/04/2026', '15/05/2026')], unidade);
+    expect(r.map(x => [x.e.id, x.termino1, x.termino2])).toEqual([['u', '15/04/2026', '15/05/2026'], ['c', '14/04/2026', '29/05/2026']]);
+  });
+  it('não toca em encerrado nem em efetivado', () => {
+    expect(prazosARecalcular([e('a', 'ENCERRADO', 'universidade', 'x', 'y'), e('b', 'EFETIVADO', 'colegio', 'x', 'y')], unidade)).toEqual([]);
+  });
+  it('quem já está certo não entra', () => {
+    expect(prazosARecalcular([e('u', 'EM_ANALISE', 'universidade', '15/04/2026', '15/05/2026')], unidade)).toEqual([]);
+  });
+});
+
+describe('2º prazo da experiência por unidade', () => {
+  // Universidade como na planilha (+45/+75); Colégio inclusivo (+44/+89). Guilherme, 04/11/2026.
+  it('Universidade: admissão + 45 e + 75', () => {
+    expect(addDaysToDate('01/03/2026', diasDoPrimeiroPrazo('universidade'))).toBe('15/04/2026');
+    expect(addDaysToDate('01/03/2026', diasDoSegundoPrazo('universidade'))).toBe('15/05/2026');
+  });
+  it('Colégio: 45º e 90º dia (inclusivo)', () => {
+    expect(addDaysToDate('01/03/2026', diasDoPrimeiroPrazo('colegio'))).toBe('14/04/2026');
+    expect(addDaysToDate('01/03/2026', diasDoSegundoPrazo('colegio'))).toBe('29/05/2026');
+  });
+  it('sem unidade conhecida fica o padrão de 90', () => {
+    expect(diasDoSegundoPrazo(undefined)).toBe(DIAS_EXPERIENCIA_2);
+    expect(rotuloDoSegundoPrazo(undefined)).toBe('90 dias');
+    expect(rotuloDoSegundoPrazo('universidade')).toBe('75 dias');
   });
 });

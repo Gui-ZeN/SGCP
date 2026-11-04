@@ -62,7 +62,7 @@ export const FunilCompleto: React.FC<{ funil: Funil; recorteRotulo: string }> = 
   const conversaoLonga = (i: number): string | null => {
     const c = conversao(i);
     if (!c || i === 0) return null;
-    return etapas[i].id === 'efetivados' ? `${c} de quem concluiu os 90 dias` : `${c} da etapa anterior`;
+    return etapas[i].id === 'efetivados' ? `${c} de quem concluiu a experiência` : `${c} da etapa anterior`;
   };
 
   // O que sai de cada etapa rumo à próxima.
@@ -84,7 +84,7 @@ export const FunilCompleto: React.FC<{ funil: Funil; recorteRotulo: string }> = 
     }
     if (id === 'efetivados') {
       return experiencia.emCurso > 0 || experiencia.semCadastro > 0
-        ? { destaque: num(experiencia.emCurso), texto: `ainda nos 45/90 dias${experiencia.semCadastro ? ` · ${num(experiencia.semCadastro)} sem cadastro` : ''}`, perda: false }
+        ? { destaque: num(experiencia.emCurso), texto: `ainda em experiência${experiencia.semCadastro ? ` · ${num(experiencia.semCadastro)} sem cadastro` : ''}`, perda: false }
         : null;
     }
     return null;
@@ -95,7 +95,7 @@ export const FunilCompleto: React.FC<{ funil: Funil; recorteRotulo: string }> = 
   const larguras = etapas.reduce<number[]>((ws, e, i) => [...ws, Math.min(largura(e.valor, max), i ? ws[i - 1] : 1)], []);
 
   return (
-    <Painel titulo="Funil até a experiência" descricao={`${recorteRotulo}. Das seleções até quem passou dos 90 dias.`}>
+    <Painel titulo="Funil até a experiência" descricao={`${recorteRotulo}. Das seleções até quem passou da experiência.`}>
       {/* Três colunas com o funil no meio, de largura contida: a etapa encosta
           nele pela esquerda, o que sai encosta pela direita. */}
       <ol className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] md:grid-cols-[minmax(0,1fr)_minmax(0,32rem)_minmax(0,1fr)] gap-x-4 md:gap-x-5 gap-y-[3px]">
@@ -162,7 +162,7 @@ export const FunilCompleto: React.FC<{ funil: Funil; recorteRotulo: string }> = 
         <Nota>
           A largura de cada faixa acompanha o número (em raiz, para as etapas pequenas continuarem visíveis).
           Experiência: cada contratado é procurado pelo nome no módulo Experiência — {num(experiencia.efetivados)} efetivados,
-          {' '}{num(experiencia.sairam)} saíram, {num(experiencia.emCurso)} ainda nos 45/90 dias
+          {' '}{num(experiencia.sairam)} saíram, {num(experiencia.emCurso)} ainda em experiência
           {experiencia.semCadastro > 0 && <> e {num(experiencia.semCadastro)} sem cadastro (ou com o nome escrito diferente)</>}.
           Só quem saiu conta como perda.
         </Nota>

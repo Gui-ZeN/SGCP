@@ -99,8 +99,8 @@ export interface Experiencia {
   // Ausente = encerramentos antigos/importados (iniciativa desconhecida).
   tipoEncerramento?: 'a_pedido' | 'empresa';
   dataPedidoRescisao?: string; // DD/MM/YYYY — data em que o colaborador pediu
-  termino1: string; // Calc: +45 days
-  termino2: string; // Calc: +90 days
+  termino1: string; // Calc: admissão + 45 na Universidade; 45º dia no Colégio
+  termino2: string; // Calc: admissão + 75 na Universidade; 90º dia no Colégio
   /** A vaga que trouxe esta pessoa (gravado ao concluir a vaga, desde 08/10/2026). */
   vagaId?: string;
   vagaCodigo?: number;

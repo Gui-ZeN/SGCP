@@ -14,6 +14,7 @@
  * abandonada.
  */
 
+import { rotuloDoSegundoPrazo } from './date';
 import type { Selecao, Vaga, Integracao, Entrevista, Consulta, Experiencia } from '../types';
 import { ehRealizada, codigosDasVagas } from './selecao';
 
@@ -191,7 +192,7 @@ export function montarAgendaDoDia(dia: string, fontes: FontesAgenda): AgendaDoDi
     resumo.prazos++;
     eventos.push({
       tipo: 'experiencia-90',
-      titulo: `Vence 90 dias — ${e.colaborador}`,
+      titulo: `Vence ${rotuloDoSegundoPrazo(e.escopo)} — ${e.colaborador}`,
       contexto: [e.sede, e.funcao, e.supervisor].filter(Boolean).join(' · '),
     });
   });

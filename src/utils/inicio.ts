@@ -29,7 +29,7 @@ export interface PendenciasDoDia {
   desistentesSemMotivo: { s: Selecao; quantos: number }[];
   integracoesPendentes: { i: Integracao; dias: number }[];
   selecoesHoje: Selecao[];
-  avaliacoes: { e: Experiencia; marco: '45 dias' | '90 dias'; dias: number }[];
+  avaliacoes: { e: Experiencia; marco: string; dias: number }[];
   requisicoes: { r: Requisicao; dias: number }[];
   vagasForaDoPrazo: { v: Vaga; dias: number }[];
   consultas: Consulta[];
