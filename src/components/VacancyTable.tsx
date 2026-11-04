@@ -6,7 +6,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { dataISOLocal, formatDateBR } from '../utils/date';
 import { Vaga, Experiencia, Selecao, Requisicao, Candidato, Integracao } from '../types';
-import { integracaoDaVaga, jaNaIntegracao } from '../utils/integracao';
+import { integracaoDaVaga, integracaoAoEditar, jaNaIntegracao } from '../utils/integracao';
 import { AddVacancyForm } from './AddVacancyForm';
 import { Sede, Cargo, Setor } from '../hooks/useMetadata';
 import type { SystemLog } from '../hooks/useLogs';
@@ -536,6 +536,9 @@ export const VacancyTable: React.FC<VacancyTableProps> = ({
       return;
     }
     await updateVaga(id, updatedFields);
+    // Concluída pelo Editar, ou com o aprovado preenchido depois: também entra na Integração.
+    const novaIntegracao = atual && addIntegracao ? integracaoAoEditar(atual, updatedFields, integracoes) : null;
+    if (novaIntegracao) await addIntegracao!(novaIntegracao);
 
     if (selectedDetailsVaga && selectedDetailsVaga.id === id) {
       setSelectedDetailsVaga({ ...selectedDetailsVaga, ...updatedFields });

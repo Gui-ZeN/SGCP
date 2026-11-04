@@ -25,6 +25,22 @@ export function integracaoDaVaga(
   };
 }
 
+/**
+ * A vaga salva pelo Editar ficou concluída com aprovado, e ele ainda não está na
+ * Integração? Só o botão Concluir criava: preencher o aprovado depois, ou concluir
+ * pelo Status, deixava a pessoa de fora (04/11/2026). Sem data de admissão: o Editar
+ * não pergunta, e o RH preenche na Integração.
+ */
+export function integracaoAoEditar(
+  vaga: Pick<Vaga, 'vaga' | 'setor' | 'sede' | 'solicitante' | 'codigo' | 'status' | 'aprovado'>,
+  campos: Partial<Pick<Vaga, 'status' | 'aprovado'>>,
+  integracoes: Pick<Integracao, 'nome'>[],
+): Omit<Integracao, 'id'> | null {
+  const status = campos.status ?? vaga.status, nome = (campos.aprovado ?? vaga.aprovado ?? '').trim();
+  if (status !== 'FECHADA' || !nome || jaNaIntegracao(nome, integracoes)) return null;
+  return integracaoDaVaga(vaga, nome, '');
+}
+
 /** Já está na Integração? Pelo nome, sem acento nem caixa (a Integração não guarda matrícula). */
 export function jaNaIntegracao(nome: string, integracoes: Pick<Integracao, 'nome'>[]): boolean {
   const alvo = normalizarNome(nome);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { integracaoDaVaga, jaNaIntegracao } from './integracao';
+import { integracaoDaVaga, integracaoAoEditar, jaNaIntegracao } from './integracao';
 
 describe('integracaoDaVaga', () => {
   it('nome, cargo, setor, sede, admissão e o gestor como supervisor; entra como Não realizado', () => {
@@ -17,5 +17,21 @@ describe('jaNaIntegracao', () => {
     expect(jaNaIntegracao('jose lima', lista)).toBe(true);
     expect(jaNaIntegracao('José Lima Filho', lista)).toBe(false);
     expect(jaNaIntegracao('  ', [{ nome: '' }])).toBe(false);
+  });
+});
+
+describe('integracaoAoEditar', () => {
+  const vaga = { vaga: 'ASG', setor: 'Infra', sede: 'SUL', solicitante: 'Sup', codigo: 7, status: 'FECHADA', aprovado: '' } as any;
+  it('aprovado preenchido depois em vaga já concluída: cria, sem data de admissão', () => {
+    expect(integracaoAoEditar(vaga, { aprovado: ' Ana Lima ' }, [])).toMatchObject({ nome: 'Ana Lima', sede: 'SUL', admissao: '', status: 'Não realizado', observacao: 'Veio da vaga nº 7.' });
+  });
+  it('concluída pelo Status, com o aprovado que já estava na vaga: cria', () => {
+    expect(integracaoAoEditar({ ...vaga, status: 'DOCUMENTAÇÃO', aprovado: 'Ana Lima' }, { status: 'FECHADA' }, [])?.nome).toBe('Ana Lima');
+  });
+  it('já na Integração (sem acento nem caixa), sem aprovado, ou vaga não concluída: não cria', () => {
+    expect(integracaoAoEditar(vaga, { aprovado: 'ANA LIMÁ' }, [{ nome: 'Ana Lima' }])).toBeNull();
+    expect(integracaoAoEditar(vaga, { aprovado: '  ' }, [])).toBeNull();
+    expect(integracaoAoEditar({ ...vaga, status: 'ABERTA' }, { aprovado: 'Ana Lima' }, [])).toBeNull();
+    expect(integracaoAoEditar(vaga, { status: 'REABERTA', aprovado: 'Ana Lima' }, [])).toBeNull();
   });
 });
