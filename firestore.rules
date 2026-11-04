@@ -157,6 +157,10 @@ service cloud.firestore {
         && d.criadaEm is string && d.criadaEm.size() <= 40
         // teto de campos: bloqueia payload inflado com chaves extras
         && d.keys().size() <= 20
+        // Só a rota do Orkestria grava estes. Sem isto, quem não tem login forjaria
+        // um pedido "do Orkestria" na fila do RH de uma unidade (04/11/2026).
+        && !d.keys().hasAny(['escopo', 'origem', 'origemCaso', 'vagaCodigo', 'vagaId', 'funcionarioSubstituido', 'observacoes',
+             'solicitacao', 'mesSolicitacao', 'ano', 'categoria', 'categoriaMotivo', 'decididaEm', 'decididaPor', 'motivoRecusa'])
         && (!('setor' in d.keys()) || (d.setor is string && d.setor.size() <= 120))
         && (!('selecao' in d.keys()) || (d.selecao is string && d.selecao.size() <= 60))
         && (!('tipoContratacao' in d.keys()) || (d.tipoContratacao is string && d.tipoContratacao.size() <= 120))
@@ -306,9 +310,36 @@ service cloud.firestore {
 
     // Requisições de abertura de vaga. Criação PÚBLICA (formulário aberto do gestor,
     // sem login) com payload validado; leitura/gestão (aceitar/recusar) só do admin.
+    // Formulário público: só o Administrador (sem `escopo`). Pedido do Orkestria
+    // (gravado pela rota, com `escopo`): o RH da unidade vê e decide (04/11/2026).
+    // Pedido do Orkestria se decide uma vez, inclusive pelo Admin (reaceitar
+    // zerava a vaga em andamento): não troca cargo, unidade nem número. Quem
+    // decidiu é quem está logado, não o que veio escrito; "aceita" exige a vaga
+    // criada no mesmo lote, com o id do pedido (revisão de segurança, 04/11/2026).
+    function requisicaoDaMinhaUnidade() {
+      return isEditor() && escopoValido(resource.data) && resource.data.escopo == minhaUnidade();
+    }
+    function decideRequisicao(reqId) {
+      let d = request.resource.data;
+      return resource.data.status == 'pendente'
+        && d.status in ['aceita', 'recusada']
+        && d.diff(resource.data).affectedKeys().hasOnly(['status', 'motivoRecusa', 'decididaEm', 'decididaPor', 'vagaId'])
+        && d.get('decididaPor', '') == request.auth.token.email
+        && d.get('decididaEm', '') is string && d.get('decididaEm', '').size() > 0 && d.get('decididaEm', '').size() <= 40
+        && d.get('motivoRecusa', '') is string && d.get('motivoRecusa', '').size() <= 2000
+        && (d.status == 'aceita'
+              ? d.get('vagaId', '') == reqId && existsAfter(/databases/$(database)/documents/vagas/$(reqId))
+              : !('vagaId' in d.keys()));
+    }
     match /requisicoes/{reqId} {
-      allow create: if isValidRequisicao();
-      allow read, update, delete: if isAdmin();
+      // O id é a chave de idempotência da rota: quem não tem login não reserva o
+      // de um caso real, senão o pedido dele nunca chegaria ao RH. O formulário
+      // usa id automático, que não tem "_".
+      allow create: if isValidRequisicao() && !reqId.matches('^(orkestria|chromos)_.*');
+      allow read: if isAdmin() || requisicaoDaMinhaUnidade();
+      allow update: if (isAdmin() && !('origem' in resource.data.keys()))
+        || ((isAdmin() || requisicaoDaMinhaUnidade()) && decideRequisicao(reqId));
+      allow delete: if isAdmin();
     }
 
     match /sedes/{sedeId} {

@@ -148,10 +148,18 @@ describe('handler', () => {
         contador = { ultimo: Number(JSON.parse(String(init?.body)).fields.ultimo.integerValue), updateTime: contador.updateTime + 'y' };
         return Response.json({});
       }
+      const q = /\/requisicoes\/([^?]+)(\?.*)?$/.exec(u);
+      if (q && metodo === 'GET') return banco['req:' + q[1]] ? Response.json(banco['req:' + q[1]]) : new Response('', { status: 404 });
+      if (q && metodo === 'PATCH') {
+        if (criarFalha) { banco['req:' + q[1]] = { fields: { vagaCodigo: { integerValue: '999' }, origemCaso: { stringValue: q[1].replace('orkestria_', '') } } }; return new Response('existe', { status: 409 }); }
+        if (u.includes('exists=false') && banco['req:' + q[1]]) return new Response('existe', { status: 409 });
+        banco['req:' + q[1]] = JSON.parse(String(init?.body));
+        return Response.json(banco['req:' + q[1]]);
+      }
       const m = /\/vagas\/([^?]+)(\?.*)?$/.exec(u);
       if (m && metodo === 'GET') return banco[m[1]] ? Response.json(banco[m[1]]) : new Response('', { status: 404 });
       if (m && metodo === 'PATCH') {
-        if (criarFalha) { banco[m[1]] = { fields: { codigo: { integerValue: '999' } } }; return new Response('existe', { status: 409 }); }
+        if (criarFalha) { banco[m[1]] = { fields: { codigo: { integerValue: '999' }, origemCaso: { stringValue: m[1].replace('chromos_', '') } } }; return new Response('existe', { status: 409 }); }
         banco[m[1]] = JSON.parse(String(init?.body));
         return Response.json(banco[m[1]]);
       }
@@ -297,15 +305,90 @@ describe('handler', () => {
       pedido({ origem: { sistema: 'Orkestria', caso: 'christus_dt_f6' }, motivo: 'Pedido de demissão', ...extra });
     beforeEach(() => vi.stubEnv('CHAVE_ORKESTRIA', ORK));
 
-    it('com o token do Orkestria: vaga própria (prefixo, origem e texto do Orkestria)', async () => {
+    it('não abre vaga: vira requisição pendente, da unidade, com o número reservado', async () => {
       const r = await enviar(doOrkestria(), ORK);
       expect(r.code).toBe(201);
-      expect(r.body.id).toBe('orkestria_christus_dt_f6');
-      const f = banco['orkestria_christus_dt_f6'].fields;
+      expect(r.body).toEqual({ id: 'orkestria_christus_dt_f6', codigo: '2147180527' });
+      expect(banco['orkestria_christus_dt_f6']).toBeUndefined(); // nenhuma vaga
+      const f = banco['req:orkestria_christus_dt_f6'].fields;
+      expect(f.status.stringValue).toBe('pendente');
       expect(f.origem.stringValue).toBe('orkestria');
-      expect(f.observacoes.stringValue).toContain('Aberta automaticamente pelo Orkestria');
+      expect(f.escopo.stringValue).toBe('colegio');
+      expect(f.vagaCodigo.integerValue).toBe('2147180527');
+      expect(f.cargo.stringValue).toBe('ASG');
+      expect(f.funcionarioSubstituido.stringValue).toBe('Fulano de Tal (matrícula 77)');
+      expect(f.observacoes.stringValue).toContain('Pedida pelo Orkestria');
       expect(f.observacoes.stringValue).toContain('Pedido de demissão');
-      expect(f.motivo.stringValue).toBe(MOTIVO);
+      expect(f.tipoContratacao.stringValue).toBe(MOTIVO);
+      expect(contador!.ultimo).toBe(2147180527);
+    });
+
+    it('o reenvio do mesmo caso devolve o mesmo número (200), sem reservar outro', async () => {
+      const a = await enviar(doOrkestria(), ORK);
+      const b = await enviar(doOrkestria(), ORK);
+      expect(b.code).toBe(200);
+      expect(b.body).toEqual(a.body);
+      expect(contador!.ultimo).toBe(2147180527);
+    });
+
+    it('caso que já virou vaga (antes de 04/11, ou aceita): devolve a vaga, não cria requisição', async () => {
+      banco['orkestria_christus_dt_f6'] = { fields: { codigo: { integerValue: '2147181010' }, origemCaso: { stringValue: 'christus_dt_f6' } } };
+      const r = await enviar(doOrkestria(), ORK);
+      expect(r.code).toBe(200);
+      expect(r.body.codigo).toBe('2147181010');
+      expect(banco['req:orkestria_christus_dt_f6']).toBeUndefined();
+    });
+
+    it('documento alheio no id do caso: 502 e nunca "número 0" (o Orkestria acreditaria)', async () => {
+      banco['req:orkestria_christus_dt_f6'] = { fields: { cargo: { stringValue: 'X' }, status: { stringValue: 'pendente' } } };
+      const r = await enviar(doOrkestria(), ORK);
+      expect(r.code).toBe(502);
+      expect(r.body.codigo).toBeUndefined();
+      banco['req:orkestria_christus_dt_f6'] = { fields: { origemCaso: { stringValue: 'christus_dt_f6' } } }; // sem número
+      expect((await enviar(doOrkestria(), ORK)).code).toBe(502);
+    });
+
+    it('corrida: dois envios do mesmo caso, o segundo recebe o número do primeiro', async () => {
+      criarFalha = true;
+      const r = await enviar(doOrkestria(), ORK);
+      expect(r.code).toBe(200);
+      expect(r.body.codigo).toBe('999');
+    });
+
+    it('a mesma pessoa já pendente, em outro caso: 409 e nada criado', async () => {
+      await enviar(doOrkestria(), ORK);
+      vivas = [{ codigo: 2147180527, substituido: 'Fulano de Tal (matrícula 77)' }];
+      const r = await enviar(doOrkestria({ origem: { sistema: 'Orkestria', caso: 'outro_caso' } }), ORK);
+      expect(r.code).toBe(409);
+      expect(banco['req:orkestria_outro_caso']).toBeUndefined();
+    });
+
+    it('a consulta das pendentes olha a unidade certa e só status pendente', async () => {
+      const antes = globalThis.fetch;
+      let pendentes: any = null;
+      globalThis.fetch = (async (url: string, init?: RequestInit) => {
+        if (String(init?.body).includes('"requisicoes"')) pendentes = JSON.parse(String(init?.body)).structuredQuery;
+        return antes(url, init);
+      }) as typeof fetch;
+      await enviar(doOrkestria({ sede: 'CESIU' }), ORK);
+      const [escopo, status] = pendentes.where.compositeFilter.filters.map((f: any) => f.fieldFilter);
+      expect(escopo.value.stringValue).toBe('universidade');
+      expect(status.value.stringValue).toBe('pendente');
+    });
+
+    it('falha ao ler as pendentes: 502, nada criado', async () => {
+      const antes = globalThis.fetch;
+      globalThis.fetch = (async (url: string, init?: RequestInit) =>
+        String(init?.body).includes('"requisicoes"') ? new Response('', { status: 500 }) : antes(url, init)) as typeof fetch;
+      expect((await enviar(doOrkestria(), ORK)).code).toBe(502);
+      expect(banco['req:orkestria_christus_dt_f6']).toBeUndefined();
+    });
+
+    it('o Chromos continua abrindo vaga direto', async () => {
+      const r = await enviar(pedido());
+      expect(r.code).toBe(201);
+      expect(banco['chromos_m77_2026-09-01'].fields.status.stringValue).toBe('ABERTA');
+      expect(banco['req:chromos_m77_2026-09-01']).toBeUndefined();
     });
 
     it('o token do Orkestria não abre vaga em nome do Chromos, nem o contrário', async () => {
@@ -321,19 +404,19 @@ describe('handler', () => {
       for (const [enviado, gravado] of [['Demissão sem justa causa', 'Demissão sem justa causa'], ['TRANSFERENCIA', 'Transferência']]) {
         banco = {};
         await enviar(doOrkestria({ motivo: enviado }), ORK);
-        expect(banco['orkestria_christus_dt_f6'].fields.observacoes.stringValue).toContain(gravado);
+        expect(banco['req:orkestria_christus_dt_f6'].fields.observacoes.stringValue).toContain(gravado);
       }
     });
 
     it('"Outros" (fora da lista) cai no padrão', async () => {
       await enviar(doOrkestria({ motivo: 'Outros' }), ORK);
-      expect(banco['orkestria_christus_dt_f6'].fields.observacoes.stringValue).toContain('— desligamento.');
+      expect(banco['req:orkestria_christus_dt_f6'].fields.observacoes.stringValue).toContain('— desligamento.');
     });
 
     it('motivo fora da lista (ex.: disciplinar) vira "desligamento"; o log não leva motivo', async () => {
       const r = await enviar(doOrkestria({ motivo: 'Justa causa por furto no almoxarifado' }), ORK);
       expect(r.code).toBe(201);
-      const obs = banco['orkestria_christus_dt_f6'].fields.observacoes.stringValue;
+      const obs = banco['req:orkestria_christus_dt_f6'].fields.observacoes.stringValue;
       expect(obs).not.toMatch(/furto|justa causa/i);
       expect(obs).toContain('desligamento');
       expect(banco.__log.fields.detalhes.stringValue).not.toMatch(/furto|demiss|desligamento/i);

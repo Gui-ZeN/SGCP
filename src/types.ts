@@ -163,6 +163,21 @@ export interface Requisicao {
   decididaPor?: string; // e-mail do admin que decidiu
   vagaId?: string;      // vaga criada ao aceitar (gravado desde 08/10/2026)
   vagaCodigo?: number;  // o número dela, para o link "Ver vaga nº 124"
+  /**
+   * Pedido de outro sistema (Orkestria, 04/11/2026), gravado só pela rota
+   * `api/vagas-externas`. Com `escopo`, o RH da unidade vê e decide; `vagaCodigo`
+   * vem já reservado, e os demais formam a vaga ao aceitar (utils/requisicao).
+   */
+  origem?: string;
+  origemCaso?: string;
+  escopo?: 'colegio' | 'universidade';
+  funcionarioSubstituido?: string;
+  observacoes?: string;
+  solicitacao?: string;
+  mesSolicitacao?: string;
+  ano?: number;
+  categoria?: string;
+  categoriaMotivo?: string;
 }
 
 // Treinamento de Integração (onboarding) — módulo EXCLUSIVO da Universidade.

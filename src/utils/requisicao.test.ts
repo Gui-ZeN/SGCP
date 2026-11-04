@@ -55,3 +55,26 @@ describe('requisicaoParaVaga', () => {
     expect(v.observacoes).toContain('Origem: requisição (Ampliação do Quadro de Pessoal).');
   });
 });
+
+describe('requisicaoParaVaga: pedido do Orkestria', () => {
+  const pedido = {
+    id: 'orkestria_c1', cargo: 'ASG', sede: 'SUL', setor: 'Infraestrutura', gestorSolicitante: 'Sup', status: 'pendente', criadaEm: '2026-11-04T16:00:00Z',
+    selecao: 'Externa', tipoContratacao: 'Substituição por desligamento', origem: 'orkestria', origemCaso: 'c1', escopo: 'colegio', vagaCodigo: 2147181050,
+    funcionarioSubstituido: 'Fulano (matrícula 7)', observacoes: 'Pedida pelo Orkestria (caso c1) — Acordo.', solicitacao: '04/11/2026', mesSolicitacao: 'Nov', ano: 2026,
+    categoria: 'Seleções Gerais', categoriaMotivo: 'Substituição',
+  } as any;
+  it('sai como a vaga da rota: substituído, origem, unidade e a data do pedido; os dias na etapa contam do aceite', () => {
+    const v = requisicaoParaVaga(pedido, new Date(2026, 10, 6, 12));
+    expect(v).toMatchObject({
+      vaga: 'ASG', sede: 'SUL', setor: 'Infraestrutura', status: 'ABERTA', solicitante: 'Sup', solicitacao: '04/11/2026', mesSolicitacao: 'Nov', ano: 2026,
+      motivo: 'Substituição por desligamento', categoriaMotivo: 'Substituição', categoria: 'Seleções Gerais', funcionarioSubstituido: 'Fulano (matrícula 7)',
+      etapa: 'Triagem de currículos', etapaDesde: '2026-11-06', observacoes: 'Pedida pelo Orkestria (caso c1) — Acordo.', origem: 'orkestria', escopo: 'colegio', responsavel: 'RH',
+    });
+    expect((v as any).status).not.toBe('pendente');
+  });
+  it('requisição do formulário continua como sempre (sem origem)', () => {
+    const v = requisicaoParaVaga({ ...pedido, origem: undefined, justificativa: 'J' }, new Date(2026, 10, 6, 12));
+    expect(v.categoria).toBe('Requisição');
+    expect(v.observacoes).toContain('Justificativa: J');
+  });
+});

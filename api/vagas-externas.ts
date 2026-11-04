@@ -20,6 +20,11 @@
  *     currículos", responsável RH. Motivo "Substituição por desligamento"
  *     (decisão do Guilherme); o abandono fica dito na observação.
  *  5. Log como `sistema`: não vira relato de ninguém no e-mail das 18h.
+ *  6. O Orkestria NÃO abre vaga direto (Guilherme, 04/11/2026): o pedido entra
+ *     em Requisições, com o número já reservado, e o RH da unidade aceita ou
+ *     recusa. O número sai na hora porque o Orkestria o exige na resposta e o
+ *     mostra ao supervisor; ao aceitar, a vaga nasce com ele. Recusada, o número
+ *     fica sem vaga e o Orkestria não é avisado (limite conhecido).
  */
 import crypto from 'node:crypto';
 import { BASE, campoTexto, tokenDeAcesso } from './selecoes-do-dia.js';
@@ -34,8 +39,8 @@ export const MOTIVO = 'Substituição por desligamento';
  * "Integrações e Segredos"). Vazar uma não abre a outra.
  */
 export const SISTEMAS = {
-  Chromos: { env: 'CHAVE_CROMOS', prefixo: 'chromos', motivoPadrao: 'abandono de emprego' },
-  Orkestria: { env: 'CHAVE_ORKESTRIA', prefixo: 'orkestria', motivoPadrao: 'desligamento' },
+  Chromos: { env: 'CHAVE_CROMOS', prefixo: 'chromos', motivoPadrao: 'abandono de emprego', passaPeloRh: false },
+  Orkestria: { env: 'CHAVE_ORKESTRIA', prefixo: 'orkestria', motivoPadrao: 'desligamento', passaPeloRh: true },
 } as const;
 export type Sistema = keyof typeof SISTEMAS;
 
@@ -95,7 +100,7 @@ export function validarPedido(corpo: any, cat: Catalogos, agora: Date, sistema: 
   if (!corpo || typeof corpo !== 'object') return { erro: 'O corpo precisa ser um JSON.' };
   if (corpo.versao !== 1) return { erro: 'Versão do pedido não suportada (esperado "versao": 1).' };
   if (corpo.origem?.sistema !== sistema) return { erro: `Sistema de origem não autorizado (esperado "${sistema}").` };
-  const { prefixo, motivoPadrao } = SISTEMAS[sistema];
+  const { prefixo, motivoPadrao, passaPeloRh } = SISTEMAS[sistema];
   const caso = texto(corpo.origem?.caso, 200);
   if (!CASO.test(caso)) return { erro: 'origem.caso é obrigatório: até 100 caracteres, só letras, números, ponto, hífen e sublinhado.' };
 
@@ -126,7 +131,7 @@ export function validarPedido(corpo: any, cat: Catalogos, agora: Date, sistema: 
   const dd = String(f.getUTCDate()).padStart(2, '0'), mm = String(f.getUTCMonth() + 1).padStart(2, '0'), ano = f.getUTCFullYear();
 
   const observacoes = [
-    `Aberta automaticamente pelo ${sistema} (caso ${caso}) — ${motivoDeLa || motivoPadrao}.`,
+    `${passaPeloRh ? 'Pedida' : 'Aberta automaticamente'} pelo ${sistema} (caso ${caso}) — ${motivoDeLa || motivoPadrao}.`,
     `Solicitado por ${solicitante}${email ? ` (${email})` : ''}.`,
     descricao ? `Atividades da pessoa substituída: ${descricao}` : '',
   ].filter(Boolean).join('\n');
@@ -161,11 +166,32 @@ export function validarPedido(corpo: any, cat: Catalogos, agora: Date, sistema: 
   };
 }
 
+/**
+ * O pedido → a requisição pendente: os campos da tela de Requisições, mais os da
+ * vaga que nasce ao aceitar (src/utils/requisicao.ts › requisicaoParaVaga). Só
+ * esta rota grava `origem`, `escopo` e `vagaCodigo` nela: as Rules os recusam no
+ * formulário público.
+ */
+export function requisicaoDoPedido(campos: PedidoValido['campos'], codigo: number, agora: Date): Record<string, string | number> {
+  return {
+    cargo: campos.vaga, sede: campos.sede, setor: campos.setor,
+    gestorSolicitante: campos.solicitante, tipoContratacao: campos.motivo,
+    status: 'pendente', criadaEm: agora.toISOString(),
+    funcionarioSubstituido: campos.funcionarioSubstituido, observacoes: campos.observacoes,
+    solicitacao: campos.solicitacao, mesSolicitacao: campos.mesSolicitacao, ano: campos.ano,
+    categoriaMotivo: campos.categoriaMotivo, categoria: campos.categoria,
+    origem: campos.origem, origemCaso: campos.origemCaso, escopo: campos.escopo,
+    vagaCodigo: codigo,
+  };
+}
+
 const paraFirestore = (campos: Record<string, string | number>) => ({
   fields: Object.fromEntries(Object.entries(campos).map(([k, v]) =>
     [k, typeof v === 'number' ? { integerValue: String(v) } : { stringValue: v }])),
 });
-const codigoDe = (doc: any) => Number(doc?.fields?.codigo?.integerValue ?? doc?.fields?.codigo?.doubleValue ?? 0);
+const inteiro = (f: any) => f?.integerValue ?? f?.doubleValue;
+/** O número da vaga, ou o reservado na requisição. */
+const codigoDe = (doc: any) => Number(inteiro(doc?.fields?.codigo) ?? inteiro(doc?.fields?.vagaCodigo) ?? 0);
 
 // ── Substituição repetida (27/10/2026) ──────────────────────────────────────
 // A vaga lançada na tela e a mesma vinda daqui viravam duas (o RH fechava uma e
@@ -254,16 +280,44 @@ export default async function handler(req: any, res: any) {
     }, new Date(), sistema);
     if ('erro' in pedido) return res.status(400).json({ erro: pedido.erro });
 
-    const url = `${BASE}/vagas/${pedido.docId}`;
-    const jaExiste = async () => {
-      const r = await fetch(url, { headers: H });
+    const { passaPeloRh } = SISTEMAS[sistema];
+    const urlVaga = `${BASE}/vagas/${pedido.docId}`;
+    const urlRequisicao = `${BASE}/requisicoes/${pedido.docId}`;
+    const ler = async (u: string) => {
+      const r = await fetch(u, { headers: H });
       if (r.status === 404) return null;
-      if (!r.ok) throw new Error(`leitura da vaga: ${r.status}`);
+      if (!r.ok) throw new Error(`leitura do pedido: ${r.status}`);
       return r.json();
+    };
+    // O mesmo caso pode já ser vaga (as abertas direto antes de 04/11, ou a
+    // requisição aceita) ou requisição: nas duas, o reenvio devolve o número.
+    const jaExiste = async () => (await ler(urlVaga)) ?? (passaPeloRh ? await ler(urlRequisicao) : null);
+
+    // Só devolve o que é mesmo deste caso. Um documento alheio no id (criado por
+    // fora) respondia "número 0": o Orkestria acreditava, e o pedido nunca chegava
+    // ao RH (revisão de segurança, 04/11/2026). Melhor falhar: lá dá para tentar de novo.
+    const devolver = (doc: any) => {
+      if (campoTexto(doc, 'origemCaso') !== pedido.caso || !codigoDe(doc)) throw new Error('documento alheio no id do caso');
+      return res.status(200).json({ id: pedido.docId, codigo: String(codigoDe(doc)) });
     };
 
     const existente = await jaExiste();
-    if (existente) return res.status(200).json({ id: pedido.docId, codigo: String(codigoDe(existente)) });
+    if (existente) return devolver(existente);
+
+    // Requisição pendente da mesma pessoa conta como vaga viva: senão dois
+    // pedidos seguidos passariam, porque nenhum dos dois é vaga ainda.
+    const rp = await fetch(`${BASE}:runQuery`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ structuredQuery: {
+        from: [{ collectionId: 'requisicoes' }],
+        select: { fields: [{ fieldPath: 'vagaCodigo' }, { fieldPath: 'funcionarioSubstituido' }, { fieldPath: 'sede' }] },
+        where: { compositeFilter: { op: 'AND', filters: [
+          { fieldFilter: { field: { fieldPath: 'escopo' }, op: 'EQUAL', value: { stringValue: String(pedido.campos.escopo) } } },
+          { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'pendente' } } },
+        ] } },
+      } }),
+    });
+    if (!rp.ok) throw new Error(`requisições pendentes: ${rp.status}`);
 
     // DEPOIS do mesmo caso (o reenvio dele devolve a vaga, não é repetição):
     // outra vaga viva da unidade substituindo a mesma pessoa → recusa.
@@ -279,7 +333,7 @@ export default async function handler(req: any, res: any) {
       } }),
     });
     if (!rv.ok) throw new Error(`vagas vivas: ${rv.status}`);
-    const vivas = ((await rv.json()) as any[]).filter(l => l.document)
+    const vivas = [...((await rp.json()) as any[]), ...((await rv.json()) as any[])].filter(l => l.document)
       .map(l => ({ codigo: codigoDe(l.document), substituido: campoTexto(l.document, 'funcionarioSubstituido'), sede: campoTexto(l.document, 'sede') }));
     const repetida = substituicaoRepetida({ substituido: String(pedido.campos.funcionarioSubstituido), sede: String(pedido.campos.sede) }, vivas);
     if (repetida !== null) {
@@ -288,7 +342,7 @@ export default async function handler(req: any, res: any) {
         timestamp: new Date().toISOString(), usuario: 'sistema', acao: 'SINALIZOU', modulo: 'Vagas', regiao: '', escopo: String(pedido.campos.escopo),
         detalhes: `Pedido do ${sistema} (caso ${pedido.caso}) recusado: a substituição já tem a vaga #${repetida} aberta.`,
       })) }).catch(e => console.error('[vagas-externas] log não gravado', e?.message));
-      return res.status(409).json({ erro: `Já existe vaga aberta para substituir esta pessoa: nº ${repetida}. Nada foi criado.`, codigo: String(repetida) });
+      return res.status(409).json({ erro: `Já existe vaga aberta ou pedida para substituir esta pessoa: nº ${repetida}. Nada foi criado.`, codigo: String(repetida) });
     }
 
     // O número sai do CONTADOR ÚNICO `contadores/vagas`, o mesmo da tela
@@ -324,22 +378,26 @@ export default async function handler(req: any, res: any) {
     }
     if (!codigo) throw new Error('contador: concorrência demais, tente de novo');
 
-    const criar = await fetch(`${url}?currentDocument.exists=false`, {
-      method: 'PATCH', headers: H, body: JSON.stringify(paraFirestore({ ...pedido.campos, codigo })),
+    const agora = new Date();
+    const criar = await fetch(`${passaPeloRh ? urlRequisicao : urlVaga}?currentDocument.exists=false`, {
+      method: 'PATCH', headers: H,
+      body: JSON.stringify(paraFirestore(passaPeloRh ? requisicaoDoPedido(pedido.campos, codigo, agora) : { ...pedido.campos, codigo })),
     });
     if (!criar.ok) {
       // Outro envio do mesmo caso chegou primeiro: devolve a vaga dele.
       const outra = await jaExiste();
-      if (outra) return res.status(200).json({ id: pedido.docId, codigo: String(codigoDe(outra)) });
+      if (outra) return devolver(outra);
       throw new Error(`criação: ${criar.status} ${(await criar.text()).slice(0, 120)}`);
     }
 
     const log = {
-      timestamp: new Date().toISOString(), usuario: 'sistema', acao: 'CRIOU', modulo: 'Vagas', regiao: '',
+      timestamp: agora.toISOString(), usuario: 'sistema', acao: 'CRIOU', modulo: 'Vagas', regiao: '',
       escopo: String(pedido.campos.escopo), // o Coordenador da unidade lê o log da vaga dela
       // Sem o motivo do desligamento: o log não se apaga, e o motivo já está
       // na vaga (revisão de segurança, 16/10/2026).
-      detalhes: `Vaga #${codigo} (${pedido.campos.vaga}, ${pedido.campos.sede}) aberta pelo ${sistema}: substituição (caso ${pedido.caso}).`,
+      detalhes: passaPeloRh
+        ? `Requisição do ${sistema} para a vaga #${codigo} (${pedido.campos.vaga}, ${pedido.campos.sede}) aguardando o RH: substituição (caso ${pedido.caso}).`
+        : `Vaga #${codigo} (${pedido.campos.vaga}, ${pedido.campos.sede}) aberta pelo ${sistema}: substituição (caso ${pedido.caso}).`,
     };
     await fetch(`${BASE}/logs`, { method: 'POST', headers: H, body: JSON.stringify(paraFirestore(log)) })
       .catch(e => console.error('[vagas-externas] log não gravado', e?.message));

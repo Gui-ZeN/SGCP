@@ -1100,3 +1100,124 @@ test("presencas: Admin move a turma de unidade e realinha a presença; aí a nov
   lote.delete(doc(uni, "treinamentos", "tMove"));
   await assertSucceeds(lote.commit());
 });
+
+// ---------------------------------------------------------------------------
+//  REQUISIÇÕES DO ORKESTRIA (04/11/2026): o RH da unidade decide; ninguém forja
+// ---------------------------------------------------------------------------
+const pedidoOrk = (extra = {}) => Object.assign({
+  cargo: "ASG", sede: "DT", gestorSolicitante: "Sup", status: "pendente", criadaEm: "2026-11-04",
+  origem: "orkestria", origemCaso: "c1", escopo: "colegio", vagaCodigo: 2147181050, funcionarioSubstituido: "Fulano",
+}, extra);
+async function semearPedido(id, dados) {
+  await testEnv.withSecurityRulesDisabled(async (c) => { await setDoc(doc(c.firestore(), "requisicoes", id), dados); });
+}
+const decisao = (extra = {}) => Object.assign({ status: "recusada", motivoRecusa: "x", decididaEm: "2026-11-04", decididaPor: COORDENADOR_EMAIL }, extra);
+
+test("ork: formulário público NÃO forja pedido do Orkestria (origem/escopo/vagaCodigo)", async () => {
+  const base = { cargo: "X", sede: "DT", gestorSolicitante: "Y", status: "pendente", criadaEm: "2026-01-01" };
+  await assertSucceeds(setDoc(doc(ctx.unauth(), "requisicoes", "rOk"), base));
+  for (const extra of [{ origem: "orkestria" }, { escopo: "colegio" }, { vagaCodigo: 1 }, { origemCaso: "c" }, { funcionarioSubstituido: "F" }, { observacoes: "o" }]) {
+    await assertFails(setDoc(doc(ctx.unauth(), "requisicoes", "rForja"), Object.assign({}, base, extra)));
+  }
+});
+test("ork: Coordenadora da unidade lê; da outra unidade, Visualizador, estranho e sem login não", async () => {
+  await semearPedido("p1", pedidoOrk());
+  await assertSucceeds(getDoc(doc(ctx.user(COORDENADOR_EMAIL), "requisicoes", "p1")));
+  await assertSucceeds(getDoc(doc(ctx.user(ANALISTA_EMAIL), "requisicoes", "p1")));
+  await assertSucceeds(getDoc(doc(ctx.user(ADMIN_DOC_EMAIL), "requisicoes", "p1")));
+  await assertFails(getDoc(doc(ctx.user(COORD_UNI_EMAIL), "requisicoes", "p1")));
+  await assertFails(getDoc(doc(ctx.user(VIEWER_EMAIL), "requisicoes", "p1")));
+  await assertFails(getDoc(doc(ctx.user(STRANGER_EMAIL), "requisicoes", "p1")));
+  await assertFails(getDoc(doc(ctx.unauth(), "requisicoes", "p1")));
+});
+test("ork: a lista filtrada pela unidade funciona; a coleção inteira, não", async () => {
+  await semearPedido("p2", pedidoOrk());
+  const db = ctx.user(COORDENADOR_EMAIL);
+  await assertSucceeds(getDocs(query(collection(db, "requisicoes"), where("escopo", "==", "colegio"))));
+  await assertFails(getDocs(collection(db, "requisicoes")));
+  await assertFails(getDocs(query(collection(db, "requisicoes"), where("escopo", "==", "universidade"))));
+});
+test("ork: requisição do formulário (sem escopo) continua só do Administrador", async () => {
+  await semearPedido("p3", { cargo: "X", sede: "DT", gestorSolicitante: "Y", status: "pendente", criadaEm: "2026-01-01" });
+  await assertSucceeds(getDoc(doc(ctx.user(ADMIN_DOC_EMAIL), "requisicoes", "p3")));
+  await assertFails(getDoc(doc(ctx.user(COORDENADOR_EMAIL), "requisicoes", "p3")));
+  await assertFails(updateDoc(doc(ctx.user(COORDENADOR_EMAIL), "requisicoes", "p3"), decisao()));
+});
+test("ork: Coordenadora decide uma vez, só os campos de decisão", async () => {
+  await semearPedido("p4", pedidoOrk());
+  const c = () => doc(ctx.user(COORDENADOR_EMAIL), "requisicoes", "p4");
+  await assertFails(updateDoc(c(), decisao({ vagaCodigo: 1 })));
+  await assertFails(updateDoc(c(), decisao({ escopo: "universidade" })));
+  await assertFails(updateDoc(c(), decisao({ cargo: "Outro" })));
+  await assertFails(updateDoc(c(), { status: "pendente", decididaPor: "a" }));
+  await assertFails(updateDoc(c(), { status: "qualquer" }));
+  await assertFails(deleteDoc(c()));
+  await assertSucceeds(updateDoc(c(), decisao()));
+  await assertFails(updateDoc(c(), decisao({ status: "aceita" }))); // já decidida
+});
+test("ork: outra unidade e Visualizador não decidem", async () => {
+  await semearPedido("p5", pedidoOrk());
+  await assertFails(updateDoc(doc(ctx.user(COORD_UNI_EMAIL), "requisicoes", "p5"), decisao({ decididaPor: COORD_UNI_EMAIL })));
+  await assertFails(updateDoc(doc(ctx.user(VIEWER_EMAIL), "requisicoes", "p5"), decisao({ decididaPor: VIEWER_EMAIL })));
+});
+test("ork: aceitar = vaga + decisão no mesmo lote, pela Coordenadora da unidade", async () => {
+  await semearPedido("p6", pedidoOrk());
+  const db = ctx.user(COORDENADOR_EMAIL);
+  const lote = writeBatch(db);
+  lote.set(doc(db, "vagas", "p6"), { vaga: "ASG", sede: "DT", status: "ABERTA", codigo: 2147181050, origem: "orkestria", escopo: "colegio" });
+  lote.update(doc(db, "requisicoes", "p6"), { status: "aceita", decididaEm: "x", decididaPor: COORDENADOR_EMAIL, vagaId: "p6" });
+  await assertSucceeds(lote.commit());
+});
+
+// Casos da revisão de segurança de 04/11/2026 (veredito BLOQUEIA).
+test("ork: anônimo não reserva o id de um caso real (o pedido sumiria sem aviso)", async () => {
+  const base = { cargo: "X", sede: "DT", gestorSolicitante: "Y", status: "pendente", criadaEm: "2026-01-01" };
+  await assertFails(setDoc(doc(ctx.unauth(), "requisicoes", "orkestria_f123"), base));
+  await assertFails(setDoc(doc(ctx.unauth(), "requisicoes", "chromos_m77"), base));
+  await assertFails(setDoc(doc(ctx.user(COORDENADOR_EMAIL), "requisicoes", "orkestria_f124"), base));
+  await assertSucceeds(setDoc(doc(ctx.unauth(), "requisicoes", "AbC123idAutomatico"), base));
+});
+test("ork: a decisão leva o e-mail de quem está logado, não o que veio escrito", async () => {
+  await semearPedido("p7", pedidoOrk());
+  const c = doc(ctx.user(COORDENADOR_EMAIL), "requisicoes", "p7");
+  await assertFails(updateDoc(c, decisao({ decididaPor: ADMIN_EMAIL })));
+  await assertFails(updateDoc(c, { status: "recusada", motivoRecusa: "x", decididaEm: "2026-11-04" }));
+  await assertSucceeds(updateDoc(c, decisao()));
+});
+test("ork: 'aceita' sem criar a vaga, ou apontando outra vaga, é negado", async () => {
+  await semearPedido("p8", pedidoOrk());
+  await testEnv.withSecurityRulesDisabled(async (x) => { await setDoc(doc(x.firestore(), "vagas", "outra"), { vaga: "A", escopo: "universidade", status: "ABERTA" }); });
+  const c = doc(ctx.user(COORDENADOR_EMAIL), "requisicoes", "p8");
+  const aceita = (extra) => Object.assign({ status: "aceita", decididaEm: "x", decididaPor: COORDENADOR_EMAIL, vagaId: "p8" }, extra);
+  await assertFails(updateDoc(c, aceita({})));
+  await assertFails(updateDoc(c, aceita({ vagaId: "outra" })));
+  await assertFails(updateDoc(c, decisao({ vagaId: "outra" }))); // recusada não aponta vaga
+});
+test("ork: motivo gigante é negado", async () => {
+  await semearPedido("p9", pedidoOrk());
+  await assertFails(updateDoc(doc(ctx.user(COORDENADOR_EMAIL), "requisicoes", "p9"), decisao({ motivoRecusa: "a".repeat(2001) })));
+});
+test("ork: nem o Admin reaceita pedido já decidido (zerava a vaga em andamento)", async () => {
+  await semearPedido("p10", pedidoOrk({ status: "aceita", vagaId: "p10" }));
+  const db = ctx.user(ADMIN_DOC_EMAIL);
+  await testEnv.withSecurityRulesDisabled(async (x) => { await setDoc(doc(x.firestore(), "vagas", "p10"), { vaga: "ASG", escopo: "colegio", status: "ABERTA", etapa: "Entrevista", origem: "orkestria" }); });
+  const lote = writeBatch(db);
+  lote.set(doc(db, "vagas", "p10"), { vaga: "ASG", escopo: "colegio", status: "ABERTA", etapa: "Triagem", origem: "orkestria" });
+  lote.update(doc(db, "requisicoes", "p10"), { status: "aceita", decididaEm: "x", decididaPor: ADMIN_DOC_EMAIL, vagaId: "p10" });
+  await assertFails(lote.commit());
+  await assertFails(updateDoc(doc(db, "requisicoes", "p10"), { cargo: "Outro" }));
+});
+test("ork: Admin decide pedido de qualquer unidade, e segue livre no formulário público", async () => {
+  await semearPedido("p11", pedidoOrk({ escopo: "universidade" }));
+  await assertSucceeds(updateDoc(doc(ctx.user(ADMIN_DOC_EMAIL), "requisicoes", "p11"), decisao({ decididaPor: ADMIN_DOC_EMAIL })));
+  await semearPedido("p12", { cargo: "X", sede: "DT", gestorSolicitante: "Y", status: "pendente", criadaEm: "2026-01-01" });
+  await assertSucceeds(updateDoc(doc(ctx.user(ADMIN_DOC_EMAIL), "requisicoes", "p12"), { status: "recusada", motivoRecusa: "x", decididaEm: "y", decididaPor: "qualquer" }));
+});
+test("ork: cadastro com unidade vazia não lê requisição sem escopo", async () => {
+  const email = "vazia@empresa.com";
+  await testEnv.withSecurityRulesDisabled(async (x) => {
+    await setDoc(doc(x.firestore(), "usuarios", email), { email, role: "Coordenador", sede: "DT", unidade: "" });
+  });
+  await semearPedido("p13", { cargo: "X", sede: "DT", gestorSolicitante: "Y", status: "pendente", criadaEm: "2026-01-01" });
+  await assertFails(getDoc(doc(ctx.user(email), "requisicoes", "p13")));
+});

@@ -1,4 +1,5 @@
 import { Requisicao, Vaga } from '../types';
+import { dataISOLocal } from './date';
 
 /**
  * Converte uma Requisição aceita nos campos da Vaga a criar (puro, testável).
@@ -9,6 +10,20 @@ export function requisicaoParaVaga(
   req: Requisicao,
   agora: Date = new Date()
 ): Omit<Vaga, 'id' | 'codigo'> {
+  // Pedido de outro sistema: a vaga sai como a rota a abriria, e os dias na etapa
+  // contam do aceite. A solicitação continua sendo o dia do pedido.
+  if (req.origem) {
+    return {
+      vaga: req.cargo, sede: req.sede, setor: req.setor || 'Geral', status: 'ABERTA', sexo: 'INDIFERENTE',
+      solicitante: req.gestorSolicitante, solicitacao: req.solicitacao || agora.toLocaleDateString('pt-BR'),
+      mesSolicitacao: req.mesSolicitacao, ano: req.ano,
+      motivo: req.tipoContratacao, categoriaMotivo: req.categoriaMotivo, categoria: req.categoria,
+      funcionarioSubstituido: req.funcionarioSubstituido, responsavel: 'RH', etapa: 'Triagem de currículos',
+      etapaDesde: dataISOLocal(agora), observacoes: req.observacoes, origem: req.origem, escopo: req.escopo,
+      ...(req.origemCaso ? { origemCaso: req.origemCaso } : {}),
+    } as Omit<Vaga, 'id' | 'codigo'>;
+  }
+
   const obs = [
     `Origem: requisição (${req.tipoContratacao}).`,
     req.selecao && `Seleção: ${req.selecao}.`,

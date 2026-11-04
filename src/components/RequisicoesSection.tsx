@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Requisicao } from '../types';
+import { Requisicao, Vaga } from '../types';
+import { vagasParecidas } from '../utils/vaga';
 import { Check, ChevronDown, ChevronUp, Link2 } from 'lucide-react';
 import { LinkVaga } from './ui/Atalhos';
 import { Modal } from './ui/Modal';
@@ -9,6 +10,10 @@ interface RequisicoesSectionProps {
   onAceitar: (req: Requisicao) => void;
   onRecusar: (req: Requisicao, motivo: string) => void;
   canManage?: boolean;
+  /** Para avisar, antes de aceitar, que a pessoa já tem vaga aberta. */
+  vagas?: Vaga[];
+  /** O link do formulário público (só o Administrador recebe essas requisições). */
+  mostrarFormulario?: boolean;
 }
 
 /** Cor da situação (tokens de ui.css). */
@@ -24,10 +29,12 @@ const idade = (criadaEm: string) => {
   return isNaN(d) ? '' : d <= 0 ? 'hoje' : d === 1 ? 'ontem' : `há ${d} dias`;
 };
 
-const RequisicaoCard: React.FC<{ req: Requisicao; onAceitar: (r: Requisicao) => void; recusar: (r: Requisicao) => void; canManage: boolean }> = ({ req, onAceitar, recusar, canManage }) => {
+const RequisicaoCard: React.FC<{ req: Requisicao; onAceitar: (r: Requisicao) => void; recusar: (r: Requisicao) => void; canManage: boolean; vagas: Vaga[] }> = ({ req, onAceitar, recusar, canManage, vagas }) => {
   const [aberto, setAberto] = useState(false);
   const data = (() => { try { return new Date(req.criadaEm).toLocaleDateString('pt-BR'); } catch { return ''; } })();
   const detalhes: [string, string | undefined][] = [
+    ['Quem está sendo substituído', req.funcionarioSubstituido],
+    ['Observações', req.observacoes],
     ['Tipo de seleção', req.selecao],
     ['Tipo de contratação', req.tipoContratacao],
     ['Jornada / horário', req.jornada],
@@ -41,7 +48,12 @@ const RequisicaoCard: React.FC<{ req: Requisicao; onAceitar: (r: Requisicao) => 
     ['E-mail do gestor', req.gestorEmail],
     ...(req.status === 'recusada' ? [['Motivo da recusa', req.motivoRecusa] as [string, string | undefined]] : []),
   ];
-  const longos = ['Justificativa', 'Hard skills', 'Soft skills', 'Responsabilidades', 'Motivo da recusa'];
+  const longos = ['Observações', 'Justificativa', 'Hard skills', 'Soft skills', 'Responsabilidades', 'Motivo da recusa'];
+
+  // Só aviso: o nome do Orkestria costuma vir com uma palavra só, e pode ser homônimo. Quem decide é o RH.
+  const parecidas = req.status === 'pendente' && req.origem && req.funcionarioSubstituido
+    ? vagasParecidas({ vaga: req.cargo, sede: req.sede, solicitante: req.gestorSolicitante, funcionarioSubstituido: req.funcionarioSubstituido }, vagas).filter(v => v.id !== req.id)
+    : [];
 
   return (
     <article className="painel p-4">
@@ -50,12 +62,21 @@ const RequisicaoCard: React.FC<{ req: Requisicao; onAceitar: (r: Requisicao) => 
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-[15.5px] font-bold" style={{ color: 'var(--tinta)' }}>{req.cargo}</h3>
             <b className="text-[13px]" style={{ color: COR_STATUS[req.status] }}>{ROTULO_STATUS[req.status] || req.status}</b>
+            {req.origem === 'orkestria' && <span className="chip">Veio do Orkestria</span>}
             {/* A vaga que nasceu desta requisição (gravado ao aceitar, desde 08/10/2026). */}
             {req.status === 'aceita' && req.vagaCodigo != null && <LinkVaga codigo={req.vagaCodigo} />}
           </div>
           <p className="mt-1 text-[13px]" style={{ color: 'var(--tinta-2)' }}>
             {[req.sede, req.setor, `pedido por ${req.gestorSolicitante}`, `${data}${req.status === 'pendente' ? ` (${idade(req.criadaEm)})` : ''}`].filter(Boolean).join(' · ')}
           </p>
+          {req.status === 'pendente' && req.origem && req.funcionarioSubstituido && (
+            <p className="mt-1 text-[13px]" style={{ color: 'var(--tinta-2)' }}>Substitui {req.funcionarioSubstituido}{req.vagaCodigo != null ? ` · será a vaga nº ${req.vagaCodigo}` : ''}</p>
+          )}
+          {parecidas.length > 0 && (
+            <p role="note" className="mt-1 text-[13px] font-medium" style={{ color: 'var(--atraso)' }}>
+              Confira antes de aceitar: já há vaga em aberto com esse nome: {parecidas.map(v => <span key={v.id} className="mr-1.5"><LinkVaga codigo={v.codigo} /></span>)}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button type="button" className="btn btn-sm" onClick={() => setAberto(a => !a)} aria-expanded={aberto}>
@@ -84,7 +105,7 @@ const RequisicaoCard: React.FC<{ req: Requisicao; onAceitar: (r: Requisicao) => 
   );
 };
 
-export const RequisicoesSection: React.FC<RequisicoesSectionProps> = ({ requisicoes, onAceitar, onRecusar, canManage = true }) => {
+export const RequisicoesSection: React.FC<RequisicoesSectionProps> = ({ requisicoes, onAceitar, onRecusar, canManage = true, vagas = [], mostrarFormulario = true }) => {
   const pendentes = requisicoes.filter(r => r.status === 'pendente');
   const decididas = requisicoes.filter(r => r.status !== 'pendente');
   const [aba, setAba] = useState<'pendentes' | 'historico'>('pendentes');
@@ -115,13 +136,15 @@ export const RequisicoesSection: React.FC<RequisicoesSectionProps> = ({ requisic
         <div className="min-w-0">
           <p className="pagina-trilha">Recrutamento</p>
           <h1 className="pagina-titulo">Requisições de vaga</h1>
-          <p className="inicio-sub">Pedidos de abertura enviados pelos gestores. Aceite para criar a vaga.</p>
+          <p className="inicio-sub">Pedidos de abertura enviados pelos gestores e pelo Orkestria. Aceite para criar a vaga.</p>
         </div>
-        <div className="pagina-acoes">
-          <button type="button" className="btn" onClick={copiarLink} title={linkForm}>
-            {copiado ? <><Check aria-hidden="true" /> Link copiado</> : <><Link2 aria-hidden="true" /> Link do formulário</>}
-          </button>
-        </div>
+        {mostrarFormulario && (
+          <div className="pagina-acoes">
+            <button type="button" className="btn" onClick={copiarLink} title={linkForm}>
+              {copiado ? <><Check aria-hidden="true" /> Link copiado</> : <><Link2 aria-hidden="true" /> Link do formulário</>}
+            </button>
+          </div>
+        )}
       </header>
 
       <div className="seg" role="group" aria-label="Requisições">
@@ -135,7 +158,7 @@ export const RequisicoesSection: React.FC<RequisicoesSectionProps> = ({ requisic
         </p>
       ) : (
         <div className="space-y-3">
-          {lista.map(r => <RequisicaoCard key={r.id} req={r} onAceitar={onAceitar} recusar={abrirRecusa} canManage={canManage && aba === 'pendentes'} />)}
+          {lista.map(r => <RequisicaoCard key={r.id} req={r} onAceitar={onAceitar} recusar={abrirRecusa} canManage={canManage && aba === 'pendentes'} vagas={vagas} />)}
         </div>
       )}
 
@@ -153,7 +176,7 @@ export const RequisicoesSection: React.FC<RequisicoesSectionProps> = ({ requisic
           <label className="block">
             <span className="rotulo">Motivo da recusa</span>
             <textarea autoFocus rows={3} className="campo w-full" value={motivo} onChange={e => setMotivo(e.target.value)} />
-            <span className="ajuda block">O gestor vê este texto.</span>
+            <span className="ajuda block">{recusando.origem ? 'Fica no histórico. O Orkestria não é avisado: combine com o supervisor.' : 'O gestor vê este texto.'}</span>
           </label>
         </Modal>
       )}

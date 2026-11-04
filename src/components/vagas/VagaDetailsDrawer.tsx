@@ -102,7 +102,10 @@ export const VagaDetailsDrawer: React.FC<VagaDetailsDrawerProps> = ({
           <div><dt>Quem está sendo substituído</dt><dd>{vaga.funcionarioSubstituido || '—'}</dd></div>
           <div><dt>Sexo preferencial</dt><dd>{vaga.sexo || 'Indiferente'}</dd></div>
           <div><dt>Etapa</dt><dd>{vaga.etapa || 'Triagem'}</dd></div>
-          {origem && (
+          {vaga.origem === 'orkestria' && (
+            <div className="larga"><dt>Origem</dt><dd>Veio do Orkestria</dd></div>
+          )}
+          {origem && !vaga.origem && (
             <div className="larga">
               <dt>Origem</dt>
               <dd>

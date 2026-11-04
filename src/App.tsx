@@ -266,7 +266,10 @@ export default function App() {
   const inicioDoAno = `${new Date().getFullYear()}-01-01`;
   const logsDesde = alcanceLogs === 'tudo' ? undefined : alcanceLogs === 'ano' && inicioDoAno < corteLogs ? inicioDoAno : corteLogs;
   const carregarTodosOsLogs = () => executeWithLoading('Carregando registros anteriores...', async () => { await carregarLogsAnteriores('tudo'); });
-  const { requisicoes, updateRequisicao } = useRequisicoes(user, isAdmin);
+  // O RH da unidade vê e decide os pedidos do Orkestria dela (04/11/2026): quem
+  // cuida dessas vagas é a Coordenação. O formulário público segue só com o Admin.
+  const podeVerRequisicoes = isAdmin || ['Coordenador', 'Analista'].includes(meuCadastro?.role || '');
+  const { requisicoes, updateRequisicao, aceitarPedidoExterno } = useRequisicoes(user, podeVerRequisicoes && escopoPronto, escopoLeitor);
   const requisicoesPendentes = requisicoes.filter(r => r.status === 'pendente').length;
   const { enfeites, setEnfeite, notificacoes, salvarNotificacoes } = useAppConfig(user);
   const enfeiteAtivo = (e: { id: string; padrao: boolean }) => enfeites[e.id] ?? e.padrao;
@@ -856,6 +859,14 @@ export default function App() {
   // Requisições: aceitar cria a vaga (campos extras vão pras observações); recusar registra o motivo.
   const handleAceitarRequisicao = (req: any) =>
     executeWithLoading("Aceitando requisição e criando vaga...", async () => {
+      // Pedido de outro sistema: a vaga nasce com o número que ele já recebeu.
+      if (req.origem) {
+        await aceitarPedidoExterno(req, user?.email || 'sistema');
+        await logAction('CRIOU', 'Vagas', `Vaga #${req.vagaCodigo} "${req.cargo}" aberta a partir de pedido do Orkestria.`,
+          { ref: { cargo: req.cargo, sede: req.sede }, escopo: req.escopo || unidadeDe({ sede: req.sede }) });
+        notify(`Pedido aceito: vaga nº ${req.vagaCodigo} criada.`, 'success');
+        return;
+      }
       const criada = await addVaga(requisicaoParaVaga(req) as any); // conversão pura e testada (utils/requisicao)
       // Guarda qual vaga nasceu daqui: a requisição mostra "Ver vaga nº 124" e a
       // vaga mostra de qual requisição veio, sem ninguém procurar à mão.
@@ -984,7 +995,7 @@ export default function App() {
   const handleRecusarRequisicao = (req: any, motivo: string) =>
     executeWithLoading("Recusando requisição...", async () => {
       await updateRequisicao(req.id, { status: 'recusada', motivoRecusa: motivo || '', decididaEm: new Date().toISOString(), decididaPor: user?.email || 'sistema' });
-      await logAction('ALTEROU', 'Vagas', `Requisição de "${req.cargo}" (gestor: ${req.gestorSolicitante}) recusada.`, { escopo: unidadeDe({ sede: req.sede }) });
+      await logAction('ALTEROU', 'Vagas', `Requisição de "${req.cargo}" (gestor: ${req.gestorSolicitante}) recusada.`, { escopo: req.escopo || unidadeDe({ sede: req.sede }) });
       notify('Requisição recusada.', 'info');
     });
 
@@ -1549,7 +1560,7 @@ export default function App() {
     { id: 'home', rotulo: 'Início', Icone: House, grupo: '' },
     { id: 'dashboard', rotulo: 'Indicadores', Icone: BarChart3, grupo: '' },
     { id: 'vagas', rotulo: 'Vagas', Icone: Layers, grupo: 'Recrutamento', badge: vagasAtrasadas, badgeTitulo: `${vagasAtrasadas} vagas passaram da meta de ${SLA_META_DIAS} dias na etapa` },
-    ...(isAdmin ? [{ id: 'requisicoes', rotulo: 'Requisições', Icone: Inbox, grupo: 'Recrutamento', badge: requisicoesPendentes, badgeTitulo: `${requisicoesPendentes} requisições esperando resposta` }] : []),
+    ...(podeVerRequisicoes ? [{ id: 'requisicoes', rotulo: 'Requisições', Icone: Inbox, grupo: 'Recrutamento', badge: requisicoesPendentes, badgeTitulo: `${requisicoesPendentes} requisições esperando resposta` }] : []),
     ...(podeVerSelecoes ? [{ id: 'selecoesLista', rotulo: 'Seleções', Icone: Sheet, grupo: 'Recrutamento' }] : []),
     ...(podeVerResumoDia ? [{ id: 'selecoes', rotulo: 'Resumo do Dia', Icone: Users, grupo: 'Recrutamento' }] : []),
     { id: 'treinamentos', rotulo: 'Treinamentos', Icone: GraduationCap, grupo: 'Pessoas' },
@@ -1622,7 +1633,7 @@ export default function App() {
               entrevistas={scopedEntrevistas}
               turnover={scopedTurnover}
               selecoes={podeVerSelecoes ? scopedSelecoes : undefined}
-              requisicoes={isAdmin ? requisicoes : undefined}
+              requisicoes={podeVerRequisicoes ? requisicoes : undefined}
               consultas={podeVerConsultas ? consultas : undefined}
               integracoes={podeVerIntegracao ? scopedIntegracoes : undefined}
               mostrarFechamento={canManageModules}
@@ -1676,7 +1687,7 @@ export default function App() {
               logs={logs}
               logsDesde={logsDesde}
               onCarregarLogsAnteriores={carregarTodosOsLogs}
-              requisicoes={isAdmin ? requisicoes : undefined}
+              requisicoes={podeVerRequisicoes ? requisicoes : undefined}
               podeVerSelecoes={podeVerSelecoes}
               // O Kanban conduz os candidatos (nomes = só o RH, sem Visualizador).
               candidatos={canManageModules && podeVerSelecoes ? candidatos : undefined}
@@ -1854,9 +1865,11 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'requisicoes' && isAdmin && (
+          {activeTab === 'requisicoes' && podeVerRequisicoes && (
             <RequisicoesSection
               requisicoes={requisicoes}
+              vagas={scopedVagas}
+              mostrarFormulario={isAdmin}
               onAceitar={handleAceitarRequisicao}
               onRecusar={handleRecusarRequisicao}
               canManage={true}
