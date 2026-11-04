@@ -69,7 +69,7 @@ export const CandidatosPlanilha: React.FC<Props> = ({
   const editavel = !!onSalvar;
   const porId = useMemo(() => new Map(selecoes.map(s => [s.id, s])), [selecoes]);
 
-  // Cronológica, como a planilha: a mais recente embaixo, onde se digita.
+  // Cronológica, como a planilha: a mais recente embaixo.
   const linhas = useMemo(() => {
     const q = normalizarNome(busca);
     return candidatos
@@ -86,7 +86,7 @@ export const CandidatosPlanilha: React.FC<Props> = ({
   const ocultas = Math.max(0, linhas.length - quantas);
   const visiveis = ocultas ? linhas.slice(ocultas) : linhas;
 
-  // Abre rolada até o fim — o lugar onde se continua digitando.
+  // Abre rolada até o fim — onde estão as seleções mais recentes.
   const rolagem = useRef<HTMLDivElement>(null);
   const [rolouInicio, setRolouInicio] = useState(false);
   useEffect(() => {
@@ -126,12 +126,55 @@ export const CandidatosPlanilha: React.FC<Props> = ({
   };
 
   const umaSelecao = selecoes.length === 1;
+  // Dia com números digitados e nenhum nome: o 1º nome troca os números pelos
+  // da lista (App › recalcularSelecao). Mesmo aviso de CandidatosDoDia.
+  const escolhida = porId.get(selId);
+  // Com números pela lista os nomes existem, só podem não ter carregado ainda.
+  const semNomes = !!escolhida && escolhida.convocados > 0 && !escolhida.numerosPelaLista && !candidatos.some(c => c.selecaoId === escolhida.id);
 
   return (
     <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden" aria-label="Candidatos">
+      {/* Adicionar vem ANTES da lista (04/11/2026): embaixo, numa seleção longa, exigia rolar até o fim. */}
+      {onRegistrar && (
+        <div className="border-b border-slate-200 bg-slate-50 p-4">
+          {semNomes && (
+            <p className="mb-3 text-[12.5px] font-semibold text-amber-800 bg-amber-50 rounded-lg px-3 py-2">
+              Este dia tem {escolhida!.convocados} convocado(s) lançado(s) sem nome. Ao registrar candidatos, os números do dia
+              passam a ser calculados pela lista — registre todos os que foram chamados.
+            </p>
+          )}
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,320px)_1fr_auto] gap-3 items-start">
+            <label className="block">
+              <span className="block text-[12.5px] font-semibold text-slate-600 mb-1">Seleção do dia</span>
+              <select className="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg bg-white font-medium text-slate-800 outline-none focus:border-slate-800"
+                value={selId} onChange={e => setSelId(e.target.value)}>
+                <option value="">Escolha a seleção…</option>
+                {opcoesSelecao.map(s => (
+                  <option key={s.id} value={s.id}>{s.data} · {s.cargo} · {siglaDaSede(sedes, s.sede) || 'sem sede'}</option>
+                ))}
+              </select>
+              {onNovaSelecao && (
+                <button type="button" onClick={onNovaSelecao} className="mt-1 text-[12.5px] font-semibold text-slate-600 hover:text-slate-900 underline underline-offset-2 cursor-pointer">
+                  A seleção ainda não existe? Crie antes
+                </button>
+              )}
+            </label>
+            <div>
+              <span className="block text-[12.5px] font-semibold text-slate-600 mb-1">Nomes</span>
+              <ListaDeNomes nomes={lista} onChange={setLista} />
+            </div>
+            <button onClick={adicionar} disabled={adicionando || !selId || !nomes.length}
+              className="lg:mt-[22px] inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold disabled:opacity-40 cursor-pointer disabled:cursor-default">
+              <UserPlus className="w-4 h-4" aria-hidden="true" />
+              {adicionando ? 'Adicionando…' : nomes.length > 1 ? `Adicionar ${nomes.length}` : 'Adicionar'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {linhas.length === 0 ? (
         <p className="text-sm font-medium text-slate-500 text-center py-12">
-          Nenhum candidato com esses filtros{editavel ? ' — adicione abaixo, escolhendo a seleção do dia.' : '.'}
+          Nenhum candidato com esses filtros{editavel ? ' — adicione acima, escolhendo a seleção do dia.' : '.'}
         </p>
       ) : (
         // Sem rolagem de lado (regra de 08/10/2026): data, cargo, sede, setor,
@@ -231,37 +274,6 @@ export const CandidatosPlanilha: React.FC<Props> = ({
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {onRegistrar && (
-        <div className="border-t border-slate-200 bg-slate-50 p-4">
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,320px)_1fr_auto] gap-3 items-start">
-            <label className="block">
-              <span className="block text-[12.5px] font-semibold text-slate-600 mb-1">Seleção do dia</span>
-              <select className="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg bg-white font-medium text-slate-800 outline-none focus:border-slate-800"
-                value={selId} onChange={e => setSelId(e.target.value)}>
-                <option value="">Escolha a seleção…</option>
-                {opcoesSelecao.map(s => (
-                  <option key={s.id} value={s.id}>{s.data} · {s.cargo} · {siglaDaSede(sedes, s.sede) || 'sem sede'}</option>
-                ))}
-              </select>
-              {onNovaSelecao && (
-                <button type="button" onClick={onNovaSelecao} className="mt-1 text-[12.5px] font-semibold text-slate-600 hover:text-slate-900 underline underline-offset-2 cursor-pointer">
-                  A seleção ainda não existe? Crie antes
-                </button>
-              )}
-            </label>
-            <div>
-              <span className="block text-[12.5px] font-semibold text-slate-600 mb-1">Nomes</span>
-              <ListaDeNomes nomes={lista} onChange={setLista} />
-            </div>
-            <button onClick={adicionar} disabled={adicionando || !selId || !nomes.length}
-              className="lg:mt-[22px] inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold disabled:opacity-40 cursor-pointer disabled:cursor-default">
-              <UserPlus className="w-4 h-4" aria-hidden="true" />
-              {adicionando ? 'Adicionando…' : nomes.length > 1 ? `Adicionar ${nomes.length}` : 'Adicionar'}
-            </button>
-          </div>
         </div>
       )}
     </section>
